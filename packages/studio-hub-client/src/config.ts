@@ -23,7 +23,7 @@ export interface HubClientConfig {
     update(spaceId: string, body: Record<string, unknown>): Promise<SpaceSummary>;
     archive(spaceId: string): Promise<void>;
   };
-  capabilities: {
+  flows: {
     list(spaceId: string): Promise<unknown[]>;
     get(spaceId: string, installId: string): Promise<unknown>;
     install(spaceId: string, body: Record<string, unknown>): Promise<unknown>;
@@ -33,7 +33,10 @@ export interface HubClientConfig {
     promote(spaceId: string, body?: Record<string, unknown>): Promise<unknown>;
     rollback(spaceId: string, installId: string, toVersion: string): Promise<unknown>;
     diff(spaceId: string, params: { from: string; to: string }): Promise<unknown>;
+    downloadSource(spaceId: string, installId: string): Promise<Blob>;
   };
+  /** @deprecated use flows */
+  capabilities: HubClientConfig["flows"];
   members: {
     list(spaceId: string): Promise<unknown[]>;
     invite(spaceId: string, body: Record<string, unknown>): Promise<unknown>;
@@ -75,6 +78,84 @@ export function createConfigClient(
     return body;
   }
 
+  const flows = {
+      async list(spaceId: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/flows`, { headers: headers() });
+        const body = await json<{ flows: unknown[] }>(res);
+        return body.flows;
+      },
+      async get(spaceId: string, installId: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/flows/${installId}`, {
+          headers: headers(),
+        });
+        return json(res);
+      },
+      async install(spaceId: string, body: Record<string, unknown>) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/flows/install`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(body),
+        });
+        return json(res);
+      },
+      async configure(spaceId: string, installId: string, config: Record<string, unknown>) {
+        await fetch(`${base}/v1/spaces/${spaceId}/flows/${installId}/config`, {
+          method: "PATCH",
+          headers: headers(),
+          body: JSON.stringify({ config }),
+        });
+      },
+      async validate(spaceId: string, installId?: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/validate`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(installId ? { install_id: installId } : {}),
+        });
+        return json(res);
+      },
+      async test(spaceId: string, installId?: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/test`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(installId ? { install_id: installId } : {}),
+        });
+        return json(res);
+      },
+      async promote(spaceId: string, body?: Record<string, unknown>) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/promote`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(body ?? {}),
+        });
+        return json(res);
+      },
+      async rollback(spaceId: string, installId: string, toVersion: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/rollback`, {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ install_id: installId, to_version: toVersion }),
+        });
+        return json(res);
+      },
+      async diff(spaceId: string, params: { from: string; to: string }) {
+        const q = new URLSearchParams({ from: params.from, to: params.to });
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/contracts/diff?${q}`, {
+          headers: headers(),
+        });
+        return json(res);
+      },
+      async downloadSource(spaceId: string, installId: string) {
+        const res = await fetch(`${base}/v1/spaces/${spaceId}/flows/${installId}/source`, {
+          headers: headers(),
+        });
+        if (!res.ok) {
+          const body = (await res.json()) as { message?: string; code?: string };
+          throw new Error(body.message ?? body.code ?? `Request failed (${res.status})`);
+        }
+        return res.blob();
+      },
+  };
+
   return {
     auth: {
       async whoami() {
@@ -111,73 +192,8 @@ export function createConfigClient(
         });
       },
     },
-    capabilities: {
-      async list(spaceId) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/capabilities`, { headers: headers() });
-        const body = await json<{ capabilities: unknown[] }>(res);
-        return body.capabilities;
-      },
-      async get(spaceId, installId) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/capabilities/${installId}`, {
-          headers: headers(),
-        });
-        return json(res);
-      },
-      async install(spaceId, body) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/capabilities/install`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(body),
-        });
-        return json(res);
-      },
-      async configure(spaceId, installId, config) {
-        await fetch(`${base}/v1/spaces/${spaceId}/capabilities/${installId}/config`, {
-          method: "PATCH",
-          headers: headers(),
-          body: JSON.stringify({ config }),
-        });
-      },
-      async validate(spaceId, installId) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/validate`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(installId ? { install_id: installId } : {}),
-        });
-        return json(res);
-      },
-      async test(spaceId, installId) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/test`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(installId ? { install_id: installId } : {}),
-        });
-        return json(res);
-      },
-      async promote(spaceId, body) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/promote`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(body ?? {}),
-        });
-        return json(res);
-      },
-      async rollback(spaceId, installId, toVersion) {
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/evolution/rollback`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ install_id: installId, to_version: toVersion }),
-        });
-        return json(res);
-      },
-      async diff(spaceId, params) {
-        const q = new URLSearchParams({ from: params.from, to: params.to });
-        const res = await fetch(`${base}/v1/spaces/${spaceId}/contracts/diff?${q}`, {
-          headers: headers(),
-        });
-        return json(res);
-      },
-    },
+    flows,
+    capabilities: flows,
     members: {
       async list(spaceId) {
         const res = await fetch(`${base}/v1/spaces/${spaceId}/members`, { headers: headers() });

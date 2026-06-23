@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import type { HubHandler } from "@murrmure/hub-core";
 import { addTokenId } from "@murrmure/hub-core";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
 import { broadcastSse } from "./context.js";
 import { parseBearer, requireToken } from "./auth.js";
@@ -14,13 +14,13 @@ import { mountFlowRuntimeRoutes } from "./routes/flows/index.js";
 import { mountCrossSpaceRoutes } from "./routes/cross-space/index.js";
 import { mountTriggerRoutes } from "./routes/triggers/index.js";
 import { mountMcpRoutes } from "./routes/mcp/index.js";
-import { mountStudioRoutes } from "./routes/studio/shared-config.js";
+import { mountMurrmureRoutes } from "./routes/murrmure/shared-config.js";
 import { ulid } from "ulid";
 import { MountRegistry } from "./mount-registry.js";
 import { McpToolRegistry } from "./mcp-tool-registry.js";
 import { ControlBus } from "./control-bus.js";
 import { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
-import { CapabilityWorkerPool } from "./capability-worker-pool.js";
+import { FlowWorkerPool } from "./flow-worker-pool.js";
 import { mountHostBridgeRoutes } from "./host-bridge.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
 
@@ -34,7 +34,7 @@ function isLocalDevOrigin(origin: string): boolean {
 }
 
 export function createHubApp(ctx: DaemonContext) {
-  const { handler, studioPersistence, config, capabilities, startedAt } = ctx;
+  const { handler, murrmurePersistence, config, flows, startedAt } = ctx;
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -55,7 +55,7 @@ export function createHubApp(ctx: DaemonContext) {
     status: "ok",
     version: "0.1.0",
     uptime_s: Math.floor((Date.now() - startedAt.getTime()) / 1000),
-    capabilities,
+    flows,
   });
 
   app.get("/health", (c) => c.json(healthPayload()));
@@ -64,7 +64,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.post("/v1/spaces", async (c) => {
     const body = await c.req.json();
     const token = parseBearer(c.req.raw);
-    if (!token) return c.json({ code: STUDIO_DENIAL_CODES.TOKEN_DENIED }, 403);
+    if (!token) return c.json({ code: MURRMURE_DENIAL_CODES.TOKEN_DENIED }, 403);
 
     const result = await handler.execute({
       kind: "space.create",
@@ -86,7 +86,7 @@ export function createHubApp(ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const space = await handler.query("space.get", { space_id });
@@ -96,7 +96,7 @@ export function createHubApp(ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/instances", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const instances = await handler.query("instance.list", { space_id });
@@ -106,7 +106,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/instances/:instance_id", async (c) => {
     const space_id = c.req.param("space_id");
     const instance_id = c.req.param("instance_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const instance = await handler.query("instance.get", { space_id, instance_id });
@@ -118,7 +118,7 @@ export function createHubApp(ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const instance_id = c.req.param("instance_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.execute({
@@ -139,7 +139,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/instances", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.execute({
@@ -160,7 +160,7 @@ export function createHubApp(ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const instance_id = c.req.param("instance_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.execute({
@@ -194,7 +194,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/gates", async (c) => {
     const space_id = c.req.param("space_id");
     const instance_id = c.req.query("instance_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const gates = await handler.query("gate.list", { space_id, instance_id });
@@ -205,7 +205,7 @@ export function createHubApp(ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const gate_id = c.req.param("gate_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.execute({
@@ -231,7 +231,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/events", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const eventType = String(body.event_type ?? body.type ?? "");
@@ -264,7 +264,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/events", async (c) => {
     const space_id = c.req.param("space_id");
     const from_seq = Number(c.req.query("from_seq") ?? "0");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const events = await handler.query("event.tail", { space_id, from_seq });
@@ -273,7 +273,7 @@ export function createHubApp(ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/events/subscribe", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     return handleSseSubscribe(c, ctx, space_id);
   });
@@ -281,7 +281,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/waits", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.execute({
@@ -302,7 +302,7 @@ export function createHubApp(ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/waits/:wait_id", async (c) => {
     const space_id = c.req.param("space_id");
     const wait_id = c.req.param("wait_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await handler.query("wait.poll", { space_id, wait_id });
@@ -311,7 +311,7 @@ export function createHubApp(ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/audit/export", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const since = c.req.query("since");
@@ -334,7 +334,7 @@ export function createHubApp(ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/ops/drift", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     return c.json({
@@ -375,7 +375,7 @@ export function createHubApp(ctx: DaemonContext) {
   // would otherwise shadow it.
   mountFlowRuntimeRoutes(app, ctx);
   mountConfigRoutes(app, ctx);
-  mountStudioRoutes(app, ctx);
+  mountMurrmureRoutes(app, ctx);
   mountCrossSpaceRoutes(app, ctx);
   mountTriggerRoutes(app, ctx);
   mountMcpRoutes(app, ctx);
@@ -393,28 +393,28 @@ export function startHttpServer(ctx: DaemonContext) {
 /** @deprecated use createHubApp with DaemonContext */
 export function createLegacyHubApp(handler: HubHandler) {
   const mountRegistry = new MountRegistry();
-  const studioPersistence = { getToken: async () => null } as never;
-  const mcpToolRegistry = new McpToolRegistry(mountRegistry, studioPersistence);
+  const murrmurePersistence = { getToken: async () => null } as never;
+  const mcpToolRegistry = new McpToolRegistry(mountRegistry, murrmurePersistence);
   const controlBus = new ControlBus();
   const mcpWakeDispatcher = new McpWakeDispatcher(controlBus, handler);
   return createHubApp({
     handler,
-    studioPersistence,
+    murrmurePersistence,
     config: {
       databasePath: "",
       port: 8787,
       dataDir: "",
       defaultSpaceId: "",
     },
-    capabilities: ["platform"],
+    flows: ["platform"],
     startedAt: new Date(),
     sseSubscribers: new Set(),
     mountRegistry,
     mcpToolRegistry,
     controlBus,
     mcpWakeDispatcher,
-    triggerDispatcher: new TriggerDispatcher(studioPersistence, mcpWakeDispatcher, handler),
-    workerPool: new CapabilityWorkerPool(),
+    triggerDispatcher: new TriggerDispatcher(murrmurePersistence, mcpWakeDispatcher, handler),
+    workerPool: new FlowWorkerPool(),
   });
 }
 

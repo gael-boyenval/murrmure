@@ -34,13 +34,13 @@ Optional claim on agent grants: `cursor-local`, `ci`, `cloud-worker`. Tokens min
 
 ## Deprecated aliases
 
-Prefer the canonical names above. Older integrations may still accept:
+The CLI `auth.ts` resolver still accepts these legacy names (prefer the canonical names above):
 
-| Deprecated | Use instead |
-|------------|-------------|
-| `STUDIO_API_URL` | `MURRMURE_HUB_URL` |
-| `STUDIO_API_TOKEN` | `MURRMURE_HUB_TOKEN` |
-| `MURRMURE_TOKEN` (FDK/CLI only) | `MURRMURE_HUB_TOKEN` or `MURRMURE_DEPLOY_TOKEN` |
+| Deprecated | Canonical | Notes |
+|------------|-----------|-------|
+| `MURRMURE_HUB_URL` | `MURRMURE_HUB_URL` | Accepted in `auth.ts` |
+| `MURRMURE_HUB_TOKEN` | `MURRMURE_HUB_TOKEN` | Accepted in `auth.ts` |
+| `MURRMURE_TOKEN` | `MURRMURE_HUB_TOKEN` or `MURRMURE_DEPLOY_TOKEN` | FDK/CLI push & deploy; also accepted in `auth.ts` |
 
 ## Security
 

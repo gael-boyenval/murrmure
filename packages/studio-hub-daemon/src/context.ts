@@ -5,7 +5,7 @@ import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { ControlBus } from "./control-bus.js";
 import type { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
 import type { TriggerDispatcher } from "./trigger-dispatcher.js";
-import type { CapabilityWorkerPool } from "./capability-worker-pool.js";
+import type { FlowWorkerPool } from "./flow-worker-pool.js";
 
 export interface DaemonConfig {
   databasePath: string;
@@ -17,9 +17,9 @@ export interface DaemonConfig {
 
 export interface DaemonContext {
   handler: HubHandler;
-  studioPersistence: StudioPersistencePort;
+  murrmurePersistence: StudioPersistencePort;
   config: DaemonConfig;
-  capabilities: string[];
+  flows: string[];
   startedAt: Date;
   sseSubscribers: Set<(event: SseOutboundEvent) => void>;
   mountRegistry: MountRegistry;
@@ -27,7 +27,7 @@ export interface DaemonContext {
   controlBus: ControlBus;
   mcpWakeDispatcher: McpWakeDispatcher;
   triggerDispatcher: TriggerDispatcher;
-  workerPool: CapabilityWorkerPool;
+  workerPool: FlowWorkerPool;
 }
 
 export type SseOutboundEvent =
@@ -36,8 +36,8 @@ export type SseOutboundEvent =
   | { event: "gate.resolved"; data: Record<string, unknown> }
   | { event: "wait.resolved"; data: Record<string, unknown> }
   | { event: "heartbeat"; data: Record<string, unknown> }
-  | { event: "capability.dev_reload"; data: Record<string, unknown> }
-  | { event: "capability.live_applied"; data: Record<string, unknown> };
+  | { event: "flow.dev_reload"; data: Record<string, unknown> }
+  | { event: "flow.live_applied"; data: Record<string, unknown> };
 
 export function broadcastSse(ctx: DaemonContext, evt: SseOutboundEvent): void {
   for (const sub of ctx.sseSubscribers) {

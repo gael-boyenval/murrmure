@@ -2,7 +2,7 @@ export interface HealthResponse {
   status: string;
   version: string;
   uptime_s: number;
-  capabilities: string[];
+  flows: string[];
 }
 
 export interface HubClientOptions {
@@ -10,8 +10,8 @@ export interface HubClientOptions {
   token: string;
 }
 
-export interface CapabilityProject {
-  package_id: string;
+export interface FlowProject {
+  flow_id: string;
   source: string;
 }
 
@@ -34,8 +34,8 @@ export interface HubClientRuntime {
     export(spaceId: string, params?: { since?: string; instance_id?: string }): Promise<Blob>;
   };
   sharedConfig: {
-    get(): Promise<{ capabilityProjects: CapabilityProject[]; hubs: unknown[] }>;
-    setProjects(projects: CapabilityProject[]): Promise<{ capabilityProjects: CapabilityProject[] }>;
+    get(): Promise<{ flowProjects: FlowProject[]; hubs: unknown[] }>;
+    setProjects(projects: FlowProject[]): Promise<{ flowProjects: FlowProject[] }>;
   };
 }
 
@@ -99,8 +99,8 @@ export function createRuntimeClient(
           "gate.pending",
           "gate.resolved",
           "heartbeat",
-          "capability.dev_reload",
-          "capability.live_applied",
+          "flow.dev_reload",
+          "flow.live_applied",
         ]) {
           es.addEventListener(type, (e) => {
             try {
@@ -126,14 +126,14 @@ export function createRuntimeClient(
     },
     sharedConfig: {
       async get() {
-        const res = await fetch(`${base}/v1/studio/shared-config`, { headers: headers() });
+        const res = await fetch(`${base}/v1/murrmure/shared-config`, { headers: headers() });
         return res.json();
       },
       async setProjects(projects) {
-        const res = await fetch(`${base}/v1/studio/shared-config/projects`, {
+        const res = await fetch(`${base}/v1/murrmure/shared-config/projects`, {
           method: "PUT",
           headers: headers(),
-          body: JSON.stringify({ capabilityProjects: projects }),
+          body: JSON.stringify({ flowProjects: projects }),
         });
         return res.json();
       },

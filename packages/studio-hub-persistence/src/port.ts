@@ -1,4 +1,4 @@
-import type { ContractV2, Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
+import type { ContractV2, Instance, Space, FlowInstall, Member } from "@murrmure/contracts";
 
 export interface TokenRow {
   token_id: string;
@@ -6,7 +6,7 @@ export interface TokenRow {
   space_id: string;
   scopes: string[];
   harness_id?: string;
-  capability_acl?: string[];
+  flow_acl?: string[];
   status: "active" | "revoked";
 }
 
@@ -17,7 +17,7 @@ export interface GrantRow {
   label?: string;
   harness?: string;
   scopes: string[];
-  capability_acl?: string[];
+  flow_acl?: string[];
   status: "active" | "revoked";
   last_activity_at?: string;
   expires_at?: string;
@@ -76,11 +76,11 @@ export interface StudioPersistencePort {
     window_seconds: number,
   ): Promise<Record<string, unknown> | null>;
 
-  insertCapabilityInstall(row: CapabilityInstall, created_at: string): Promise<void>;
-  getCapabilityInstall(install_id: string): Promise<CapabilityInstall | null>;
-  listCapabilityInstalls(space_id: string): Promise<CapabilityInstall[]>;
-  findCapabilityInstallByPackageVersion(package_id: string, version: string): Promise<CapabilityInstall | null>;
-  updateCapabilityInstall(install_id: string, patch: Partial<CapabilityInstall>): Promise<void>;
+  insertFlowInstall(row: FlowInstall, created_at: string): Promise<void>;
+  getFlowInstall(install_id: string): Promise<FlowInstall | null>;
+  listFlowInstalls(space_id: string): Promise<FlowInstall[]>;
+  findFlowInstallByPackageVersion(flow_id: string, version: string): Promise<FlowInstall | null>;
+  updateFlowInstall(install_id: string, patch: Partial<FlowInstall>): Promise<void>;
 
   insertMember(member: Member, created_at: string): Promise<void>;
   listMembers(space_id: string): Promise<Member[]>;

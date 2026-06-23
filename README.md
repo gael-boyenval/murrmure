@@ -31,7 +31,7 @@ Agents (Cursor, CI)     MCP + HTTP grants
         │               host-bridge for worker → kernel access
         ├── @murrmure/hub-core      hexagonal domain (pure, no I/O)
         ├── @murrmure/runtime-kernel       journal, instances, state machines
-        └── worker subprocesses   examples/capabilities/*/server/mount.mjs
+        └── worker subprocesses   examples/flows/*/server/mount.mjs
 
 Humans                  @murrmure/shell-web (Runtime | Configure)
         │               iframe canvases from capability UI bundles
@@ -49,7 +49,7 @@ Humans                  @murrmure/shell-web (Runtime | Configure)
 | `@murrmure/hub-client` | Typed platform HTTP client |
 | `@murrmure/shell-web` | Browser shell (runtime + configure) |
 | `@studio/capability-sdk` | CDK validate, build, push |
-| `examples/capabilities/` | Reference capabilities (not workspace packages) |
+| `examples/flows/` | Reference capabilities (not workspace packages) |
 
 Dependency rule: capabilities never import hub internals at runtime — workers
 call back through the host-bridge only. See
@@ -60,7 +60,7 @@ call back through the host-bridge only. See
 | Path | Purpose |
 |------|---------|
 | `packages/` | Active platform workspace |
-| `examples/capabilities/` | CDK reference capabilities (`feature-spec`, `review-loop`) |
+| `examples/flows/` | CDK reference capabilities (`feature-spec`, `review-loop`) |
 | `apps/docs/` | VitePress user guide |
 | `studio-specs/current/` | Normative specs (implement from here) |
 | `studio-specs/plans/` | Deferred scope — do not implement directly |
@@ -93,8 +93,8 @@ Starts:
 
 1. Open `http://127.0.0.1:5174/setup` and complete the setup wizard (spaces,
    install **review-loop** from the CDK example, mint a Worker grant).
-2. Copy the MCP snippet into your agent config (`STUDIO_HUB_TOKEN`,
-   `STUDIO_SPACE_ID`).
+2. Copy the MCP snippet into your agent config (`MURRMURE_HUB_TOKEN`,
+   `MURRMURE_SPACE_ID`).
 3. Toggle to **Runtime**, create a review session via MCP (`create_review_session`),
    open the session canvas in the shell, leave feedback, finish the round.
 4. Agent receives structured results through MCP; events appear in the space
@@ -105,13 +105,13 @@ Step-by-step: [`apps/docs/guide/configuration.md`](apps/docs/guide/configuration
 ### Build reference capabilities
 
 ```bash
-node examples/capabilities/scripts/build-all.mjs
+node examples/flows/scripts/build-all.mjs
 ```
 
 Or scaffold your own from an example:
 
 ```bash
-studio capability init my-cap --from-example feature-spec
+mrmr flow init my-cap --from-example feature-spec
 ```
 
 Tutorial: [`apps/docs/guide/capabilities-tutorial.md`](apps/docs/guide/capabilities-tutorial.md).

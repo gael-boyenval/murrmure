@@ -41,6 +41,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.1
         version: 1.29.0(zod@3.25.76)
+      '@murrmure/flow-dev-kit':
+        specifier: workspace:*
+        version: link:../flow-dev-kit
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
@@ -48,9 +51,6 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@murrmure/flow-dev-kit':
-        specifier: workspace:*
-        version: link:../flow-dev-kit
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
@@ -85,6 +85,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
       vitest:
         specifier: ^3.2.4
         version: 3.2.6(@types/node@22.19.21)
@@ -250,9 +253,6 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.14(hono@4.12.26)
-      '@murrmure/cli':
-        specifier: workspace:*
-        version: link:../cli
       '@murrmure/contracts':
         specifier: workspace:*
         version: link:../studio-contracts
@@ -284,6 +284,9 @@ importers:
         specifier: ^2.3.0
         version: 2.4.0
     devDependencies:
+      '@murrmure/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@types/better-sqlite3':
         specifier: ^7.6.12
         version: 7.6.13

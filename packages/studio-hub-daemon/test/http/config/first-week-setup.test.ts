@@ -123,7 +123,7 @@ describe("http/config/first-week-setup", () => {
         label: "Dev Cursor — ui-sandbox worker",
         harness: "cursor-local",
         template: "worker",
-        capability_acl: ["review-loop"],
+        flow_acl: ["review-loop"],
         expires_in_days: 90,
       }),
     });

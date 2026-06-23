@@ -1,8 +1,8 @@
 import type { CommandResult } from "@murrmure/runtime-contracts";
 import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import type { CapabilityInstall, Member, StudioProvenance } from "@murrmure/contracts";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import type { FlowInstall, Member, StudioProvenance } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 
 const PACKAGE_CATALOG: Record<string, { contract_ref_id: string; default_version: string }> = {
@@ -124,10 +124,10 @@ export class ConfigHandler {
   }
 
   async listCapabilities(space_id: string) {
-    const installs = await this.studio.listCapabilityInstalls(space_id);
+    const installs = await this.studio.listFlowInstalls(space_id);
     return installs.map((i) => ({
       install_id: i.install_id,
-      package_id: i.package_id,
+      flow_id: i.flow_id,
       version: i.version,
       evolution_state: i.evolution_state,
       contract_ref_id: i.contract_ref_id,
@@ -136,7 +136,7 @@ export class ConfigHandler {
   }
 
   async getCapability(space_id: string, install_id: string) {
-    const install = await this.studio.getCapabilityInstall(install_id);
+    const install = await this.studio.getFlowInstall(install_id);
     if (!install || stripSpaceId(install.space_id) !== stripSpaceId(space_id)) return null;
     return install;
   }
@@ -144,11 +144,12 @@ export class ConfigHandler {
   async installCapability(
     space_id: string,
     body: {
-      package_id: string;
+      package_id?: string;
+      flow_id?: string;
       version?: string;
       config?: Record<string, unknown>;
       target_state?: string;
-      source_metadata?: CapabilityInstall["source_metadata"];
+      source_metadata?: FlowInstall["source_metadata"];
       bundle?: { mode?: string; digest?: string; local_path?: string };
     },
     actorKind: "human" | "agent",
@@ -168,7 +169,7 @@ export class ConfigHandler {
 
     if (space.install_policy === "human_only" && actorKind === "agent") {
       return denialResult(
-        STUDIO_DENIAL_CODES.INSTALL_POLICY_VIOLATION,
+        MURRMURE_DENIAL_CODES.INSTALL_POLICY_VIOLATION,
         {
           message: `Install blocked: space policy is human_only`,
           hint: { install_policy: "human_only" },
@@ -177,18 +178,20 @@ export class ConfigHandler {
       );
     }
 
+    const flowId = String(body.flow_id ?? body.package_id ?? "");
+
     if (bundleMeta) {
       const version = body.version ?? "0.0.0";
-      const existing = (await this.studio.listCapabilityInstalls(space_id)).find(
-        (i) => i.package_id === body.package_id && i.version === version,
+      const existing = (await this.studio.listFlowInstalls(space_id)).find(
+        (i) => i.flow_id === flowId && i.version === version,
       );
-      const install_id = existing?.install_id ?? `cap_${this.ids.ulid()}`;
-      const targetState = (body.target_state ?? "draft") as CapabilityInstall["evolution_state"];
+      const install_id = existing?.install_id ?? `ins_${this.ids.ulid()}`;
+      const targetState = (body.target_state ?? "draft") as FlowInstall["evolution_state"];
 
-      const install: CapabilityInstall = {
+      const install: FlowInstall = {
         install_id,
         space_id: addSpaceId(bare),
-        package_id: body.package_id,
+        flow_id: flowId,
         version,
         contract_ref_id: bundleMeta.contract_ref_id,
         evolution_state: targetState,
@@ -201,14 +204,14 @@ export class ConfigHandler {
       };
 
       if (existing) {
-        await this.studio.updateCapabilityInstall(install_id, install);
+        await this.studio.updateFlowInstall(install_id, install);
       } else {
-        await this.studio.insertCapabilityInstall(install, this.clock.nowIso());
+        await this.studio.insertFlowInstall(install, this.clock.nowIso());
       }
 
       return successResult("capability_installed", {
         install_id,
-        package_id: body.package_id,
+        flow_id: flowId,
         version,
         evolution_state: targetState,
         contract_ref_id: bundleMeta.contract_ref_id,
@@ -220,72 +223,72 @@ export class ConfigHandler {
       });
     }
 
-    const catalog = PACKAGE_CATALOG[body.package_id];
+    const catalog = PACKAGE_CATALOG[flowId];
     if (!catalog) {
-      return denialResult("unknown_package", { message: `Unknown package: ${body.package_id}` }, HTTP_SEMANTIC.NOT_FOUND);
+      return denialResult("unknown_package", { message: `Unknown flow: ${flowId}` }, HTTP_SEMANTIC.NOT_FOUND);
     }
 
     const version = body.version ?? catalog.default_version;
     const install_id = this.ids.ulid();
-    const targetState = (body.target_state ?? "draft") as CapabilityInstall["evolution_state"];
+    const targetState = (body.target_state ?? "draft") as FlowInstall["evolution_state"];
     const evolution_state = targetState === "live" && version === catalog.default_version ? "live" : targetState;
 
-    const install: CapabilityInstall = {
-      install_id: `cap_${install_id}`,
+    const install: FlowInstall = {
+      install_id: `ins_${install_id}`,
       space_id: addSpaceId(bare),
-      package_id: body.package_id,
+      flow_id: flowId,
       version,
       contract_ref_id: catalog.contract_ref_id,
       evolution_state,
       config: body.config,
     };
 
-    await this.studio.insertCapabilityInstall(install, this.clock.nowIso());
+    await this.studio.insertFlowInstall(install, this.clock.nowIso());
     return successResult("capability_installed", install);
   }
 
   async configureCapability(space_id: string, install_id: string, config: Record<string, unknown>) {
-    const install = await this.studio.getCapabilityInstall(install_id);
+    const install = await this.studio.getFlowInstall(install_id);
     if (!install || stripSpaceId(install.space_id) !== stripSpaceId(space_id)) return null;
-    await this.studio.updateCapabilityInstall(install_id, { config: { ...install.config, ...config } });
+    await this.studio.updateFlowInstall(install_id, { config: { ...install.config, ...config } });
     return { ok: true };
   }
 
   async validateEvolution(space_id: string, install_id?: string) {
     const installs = install_id
-      ? [await this.studio.getCapabilityInstall(install_id)].filter(Boolean)
-      : await this.studio.listCapabilityInstalls(space_id);
+      ? [await this.studio.getFlowInstall(install_id)].filter(Boolean)
+      : await this.studio.listFlowInstalls(space_id);
 
-    const draft = (installs as CapabilityInstall[]).find((i) => i?.evolution_state === "draft");
+    const draft = (installs as FlowInstall[]).find((i) => i?.evolution_state === "draft");
     if (!draft) return { lens_a_pass: true, breaking: false, warnings: [] };
 
     const breaking = draft.version.startsWith("3.");
     if (draft.install_id) {
-      await this.studio.updateCapabilityInstall(draft.install_id, { evolution_state: "validated" });
+      await this.studio.updateFlowInstall(draft.install_id, { evolution_state: "validated" });
     }
     return { lens_a_pass: true, breaking, warnings: breaking ? ["Major version bump detected"] : [] };
   }
 
   async testEvolution(space_id: string, install_id?: string) {
     const installs = install_id
-      ? [await this.studio.getCapabilityInstall(install_id)].filter(Boolean)
-      : await this.studio.listCapabilityInstalls(space_id);
+      ? [await this.studio.getFlowInstall(install_id)].filter(Boolean)
+      : await this.studio.listFlowInstalls(space_id);
 
-    const validated = (installs as CapabilityInstall[]).find((i) => i?.evolution_state === "validated");
+    const validated = (installs as FlowInstall[]).find((i) => i?.evolution_state === "validated");
     if (validated?.install_id) {
-      await this.studio.updateCapabilityInstall(validated.install_id, { evolution_state: "tested" });
+      await this.studio.updateFlowInstall(validated.install_id, { evolution_state: "tested" });
     }
     return { passed: true, tests_run: 3, failures: [] };
   }
 
   async promoteEvolution(space_id: string, body: { target_space_id?: string; install_id?: string }) {
     const installs = body.install_id
-      ? [await this.studio.getCapabilityInstall(body.install_id)].filter(Boolean)
-      : await this.studio.listCapabilityInstalls(space_id);
+      ? [await this.studio.getFlowInstall(body.install_id)].filter(Boolean)
+      : await this.studio.listFlowInstalls(space_id);
 
-    const tested = (installs as CapabilityInstall[]).find((i) => i?.evolution_state === "tested");
+    const tested = (installs as FlowInstall[]).find((i) => i?.evolution_state === "tested");
     if (!tested) {
-      const live = (installs as CapabilityInstall[]).find((i) => i?.evolution_state === "live");
+      const live = (installs as FlowInstall[]).find((i) => i?.evolution_state === "live");
       if (live) return { evolution_state: "live", install_id: live.install_id };
       return { evolution_state: "draft", message: "No tested install to promote" };
     }
@@ -294,7 +297,7 @@ export class ConfigHandler {
     const gate_id = breaking ? `chk_${this.ids.ulid()}` : undefined;
     const nextState = breaking ? "promoted_pending" : "live";
 
-    await this.studio.updateCapabilityInstall(tested.install_id, {
+    await this.studio.updateFlowInstall(tested.install_id, {
       evolution_state: nextState,
       gate_id,
     });
@@ -308,9 +311,9 @@ export class ConfigHandler {
   }
 
   async rollbackEvolution(space_id: string, install_id: string, toVersion: string) {
-    const install = await this.studio.getCapabilityInstall(install_id);
+    const install = await this.studio.getFlowInstall(install_id);
     if (!install || stripSpaceId(install.space_id) !== stripSpaceId(space_id)) return null;
-    await this.studio.updateCapabilityInstall(install_id, {
+    await this.studio.updateFlowInstall(install_id, {
       version: toVersion,
       evolution_state: "live",
     });
@@ -365,7 +368,7 @@ export class ConfigHandler {
       label: g.label ?? g.actor_id,
       harness: g.harness,
       scopes: g.scopes,
-      capability_acl: g.capability_acl,
+      flow_acl: g.flow_acl,
       status: g.status,
       expires_at: g.expires_at,
     }));
@@ -378,6 +381,8 @@ export class ConfigHandler {
       harness?: string;
       scopes?: string[];
       template?: string;
+      flow_acl?: string[];
+      /** @deprecated use flow_acl */
       capability_acl?: string[];
       expires_in_days?: number;
     },
@@ -399,7 +404,7 @@ export class ConfigHandler {
         label: body.label,
         harness: body.harness,
         scopes,
-        capability_acl: body.capability_acl,
+        flow_acl: body.flow_acl ?? body.capability_acl,
         status: "active",
         expires_at,
       },
@@ -413,7 +418,7 @@ export class ConfigHandler {
         space_id: stripSpaceId(space_id),
         scopes,
         harness_id: body.harness,
-        capability_acl: body.capability_acl,
+        flow_acl: body.flow_acl ?? body.capability_acl,
         status: "active",
       },
       ts,
@@ -446,7 +451,7 @@ export class ConfigHandler {
         label: grant.label ?? grant.actor_id,
         harness: grant.harness,
         scopes: grant.scopes,
-        capability_acl: grant.capability_acl,
+        flow_acl: grant.flow_acl,
       },
       provenance,
     );

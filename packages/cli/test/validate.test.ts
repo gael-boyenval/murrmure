@@ -12,7 +12,7 @@ import { linkScaffoldWorkspaceDeps } from "./helpers/link-scaffold-deps.js";
 
 describe("murrmure-cli", () => {
   test("init emits strict react scaffold with exact pins", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-"));
     const dir = join(base, "demo-flow");
     try {
       initFlow("demo-flow", dir);
@@ -53,7 +53,7 @@ describe("murrmure-cli", () => {
   });
 
   test("build stages bundle with digest and source archive", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-build-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-build-"));
     const dir = join(base, "demo-build");
     try {
       initFlow("demo-build", dir);
@@ -71,7 +71,7 @@ describe("murrmure-cli", () => {
   });
 
   test("validate fails when dev kit dependency is missing", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-policy-missing-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-policy-missing-"));
     const dir = join(base, "demo-policy");
     try {
       initFlow("demo-policy", dir);
@@ -91,7 +91,7 @@ describe("murrmure-cli", () => {
   });
 
   test("validate fails when required dependencies are not exact", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-policy-exact-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-policy-exact-"));
     const dir = join(base, "demo-policy-exact");
     try {
       initFlow("demo-policy-exact", dir);
@@ -111,7 +111,7 @@ describe("murrmure-cli", () => {
   });
 
   test("validate fails on sdk/dev-kit version mismatch", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-policy-mismatch-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-policy-mismatch-"));
     const dir = join(base, "demo-policy-mismatch");
     try {
       initFlow("demo-policy-mismatch", dir);

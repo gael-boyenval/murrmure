@@ -21,7 +21,7 @@ import Ajv from "ajv";
 
 export interface HubKernelDeps {
   kernelPersistence: PersistencePort;
-  studioPersistence: StudioPersistencePort;
+  murrmurePersistence: StudioPersistencePort;
   clock: ClockPort;
   ids: IdPort;
   action?: ActionPort;
@@ -40,8 +40,8 @@ export function createHubKernel(deps: HubKernelDeps) {
 
   const kernel = new RuntimeKernel({
     persistence: deps.kernelPersistence,
-    policy: createStudioPolicyPort(deps.studioPersistence),
-    rules: createStudioRulesPort(deps.studioPersistence),
+    policy: createStudioPolicyPort(deps.murrmurePersistence),
+    rules: createStudioRulesPort(deps.murrmurePersistence),
     condition: createCelConditionPort(),
     schema: deps.schema ?? createAjvSchema(),
     convergence: deps.convergence ?? { evaluate: async () => ({ emit: [] }) },

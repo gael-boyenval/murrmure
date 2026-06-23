@@ -9,10 +9,20 @@ export interface HubAuth {
 }
 
 export function resolveHubAuth(): HubAuth | { error: string } {
-  const envUrl = process.env.MURRMURE_HUB_URL;
-  const envToken = process.env.MURRMURE_TOKEN ?? process.env.MURRMURE_DEPLOY_TOKEN;
+  const envUrl =
+    process.env.MURRMURE_HUB_URL ??
+    process.env.STUDIO_API_URL;
+  const envToken =
+    process.env.MURRMURE_HUB_TOKEN ??
+    process.env.MURRMURE_TOKEN ??
+    process.env.MURRMURE_DEPLOY_TOKEN ??
+    process.env.STUDIO_API_TOKEN;
   if (envUrl && envToken) {
-    return { hubUrl: envUrl.replace(/\/$/, ""), token: envToken, defaultSpaceId: process.env.MURRMURE_SPACE_ID };
+    return {
+      hubUrl: envUrl.replace(/\/$/, ""),
+      token: envToken,
+      defaultSpaceId: process.env.MURRMURE_SPACE_ID,
+    };
   }
 
   const sharedPath = join(homedir(), ".murrmure", "hubs", "shared.json");
@@ -35,7 +45,10 @@ export function resolveHubAuth(): HubAuth | { error: string } {
     }
   }
 
-  return { error: "Missing hub auth — set MURRMURE_HUB_URL + MURRMURE_TOKEN or ~/.murrmure/hubs/shared.json" };
+  return {
+    error:
+      "Missing hub auth — set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN) or ~/.murrmure/hubs/shared.json",
+  };
 }
 
 export async function hubFetch(

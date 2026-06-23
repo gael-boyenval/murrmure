@@ -13,11 +13,11 @@ import {
 import { prefixedSpaceId } from "../../space-id.js";
 
 export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
-  const { studioPersistence, handler, triggerDispatcher } = ctx;
+  const { murrmurePersistence, handler, triggerDispatcher } = ctx;
 
   app.get("/v1/spaces/:space_id/triggers/event-catalog", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -34,7 +34,7 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
     const contractRefs = ["cref_feature_spec", "cref_review_loop", "cref_linear_demo"];
     const contracts = [];
     for (const ref of contractRefs) {
-      const row = await studioPersistence.getContractRef(ref);
+      const row = await murrmurePersistence.getContractRef(ref);
       if (row) contracts.push({ contract_ref_id: ref, contract: row.contract });
     }
 
@@ -43,7 +43,7 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.get("/v1/spaces/:space_id/triggers/templates", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -54,7 +54,7 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/v1/spaces/:space_id/triggers/from-template", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
@@ -75,7 +75,7 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
     const space_id = c.req.param("space_id");
     const trigger_id = c.req.param("trigger_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;

@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/install-policy-violation", () => {
+describe("flow-runtime/install-policy-violation", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let prodId: string;
@@ -62,7 +62,7 @@ describe("capability-runtime/install-policy-violation", () => {
         label: "agent-installer",
         harness: "cloud-worker",
         scopes: ["flow:install", "space:read"],
-        capability_acl: ["review-loop"],
+        flow_acl: ["review-loop"],
       }),
     });
     agentToken = (await grant.json()).token;

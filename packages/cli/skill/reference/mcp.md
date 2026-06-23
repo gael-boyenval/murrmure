@@ -31,7 +31,7 @@ GET /v1/mcp/catalog?space_id={MURRMURE_SPACE_ID}
 Authorization: Bearer {token}
 ```
 
-Tools = platform tools (by grant scopes) **union** flow tools (live installs ∩ `capability_acl`).
+Tools = platform tools (by grant scopes) **union** flow tools (live installs ∩ `flow_acl`).
 
 Tool calls proxy to:
 

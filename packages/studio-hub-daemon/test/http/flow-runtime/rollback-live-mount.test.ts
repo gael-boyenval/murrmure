@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/rollback-live-mount", () => {
+describe("flow-runtime/rollback-live-mount", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let spaceId: string;
@@ -58,7 +58,7 @@ describe("capability-runtime/rollback-live-mount", () => {
       body: JSON.stringify({
         label: "builder",
         scopes: ["space:read", "state:transition", "flow:install"],
-        capability_acl: ["feature-spec"],
+        flow_acl: ["feature-spec"],
       }),
     });
     token = (await grant.json()).token;

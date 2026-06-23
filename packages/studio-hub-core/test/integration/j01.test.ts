@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { makeHub, mintActorToken } from "./helpers.js";
 import { addGateId, addInstanceId, addSpaceId, addTokenId } from "../../src/index.js";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 
 describe("j01/happy-path", () => {
   test("Dev submits, Maya approves gate, wait resolves", async () => {
@@ -21,13 +21,13 @@ describe("j01/happy-path", () => {
     const spaceId = space.body.space_id as string;
     const bareSpace = spaceId.replace("spc_", "");
 
-    await mintActorToken(hub.studioPersistence, {
+    await mintActorToken(hub.murrmurePersistence, {
       token_id: "01JDEVTOKEN000000000001",
       actor_id: "actor_dev",
       space_id: bareSpace,
       scopes: ["state:transition", "flow:install", "space:read"],
     });
-    await mintActorToken(hub.studioPersistence, {
+    await mintActorToken(hub.murrmurePersistence, {
       token_id: "01JMAYATOKEN00000000001",
       actor_id: "actor_maya",
       space_id: bareSpace,
@@ -115,13 +115,13 @@ describe("j01/reviewer-gate", () => {
     const spaceId = space.body.space_id as string;
     const bareSpace = spaceId.replace("spc_", "");
 
-    await mintActorToken(hub.studioPersistence, {
+    await mintActorToken(hub.murrmurePersistence, {
       token_id: "01JDEVTOKEN000000000002",
       actor_id: "actor_dev",
       space_id: bareSpace,
       scopes: ["state:transition", "flow:install"],
     });
-    await mintActorToken(hub.studioPersistence, {
+    await mintActorToken(hub.murrmurePersistence, {
       token_id: "01JMAYATOKEN00000000002",
       actor_id: "actor_maya",
       space_id: bareSpace,
@@ -164,7 +164,7 @@ describe("j01/reviewer-gate", () => {
 describe("j01/denial-wrong-space", () => {
   test("token scoped spc_A, call spc_B → scope_enforcement_failure", async () => {
     const hub = await makeHub();
-    await hub.studioPersistence.insertToken(
+    await hub.murrmurePersistence.insertToken(
       {
         token_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
         actor_id: "actor_liam",
@@ -187,7 +187,7 @@ describe("j01/denial-wrong-space", () => {
       expected_revision: 0,
     });
 
-    expect(result.code).toBe(STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE);
+    expect(result.code).toBe(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE);
     expect(result.http_semantic).toBe(403);
   });
 });
@@ -205,7 +205,7 @@ describe("policy/harness-mismatch", () => {
     const spaceId = space.body.space_id as string;
     const bareSpace = spaceId.replace("spc_", "");
 
-    await hub.studioPersistence.insertToken(
+    await hub.murrmurePersistence.insertToken(
       {
         token_id: "01JSARAHTOKEN000000001",
         actor_id: "actor_sarah",
@@ -227,7 +227,7 @@ describe("policy/harness-mismatch", () => {
       contract_ref_id: "cref_linear_demo",
     });
 
-    expect(result.code).toBe(STUDIO_DENIAL_CODES.HARNESS_MISMATCH);
+    expect(result.code).toBe(MURRMURE_DENIAL_CODES.HARNESS_MISMATCH);
   });
 });
 
@@ -244,7 +244,7 @@ describe("j01/wait-bridge", () => {
     const spaceId = space.body.space_id as string;
     const bareSpace = spaceId.replace("spc_", "");
 
-    await mintActorToken(hub.studioPersistence, {
+    await mintActorToken(hub.murrmurePersistence, {
       token_id: "01JDEVTOKEN000000000003",
       actor_id: "actor_dev",
       space_id: bareSpace,

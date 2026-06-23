@@ -7,7 +7,7 @@ import { linkScaffoldWorkspaceDeps } from "./helpers/link-scaffold-deps.js";
 
 describe("dev --sim", () => {
   test("starts thin server with install + instance state machine", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-dev-sim-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-dev-sim-"));
     const dir = join(base, "demo-sim");
     let loop: { stop: () => void; simUrl?: string } | undefined;
     try {

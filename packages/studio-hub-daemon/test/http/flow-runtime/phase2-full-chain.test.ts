@@ -8,7 +8,7 @@ import { buildScaffoldBundle, type StagedBundle } from "../../helpers/cdk-instal
 
 const PACKAGE_ID = "phase2-demo";
 
-describe("capability-runtime/phase2-full-chain", () => {
+describe("flow-runtime/phase2-full-chain", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let staged: StagedBundle;
@@ -105,7 +105,7 @@ describe("capability-runtime/phase2-full-chain", () => {
       body: JSON.stringify({
         label: "dev-worker",
         scopes: ["space:read", "flow:install"],
-        capability_acl: [PACKAGE_ID],
+        flow_acl: [PACKAGE_ID],
       }),
     });
     const grantToken = (await grant.json()).token;

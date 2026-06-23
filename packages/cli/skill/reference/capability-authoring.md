@@ -70,7 +70,7 @@ Every tool in `mcp_tools_by_version` must have an entry:
 }
 ```
 
-Hub invokes via worker HTTP under `routes_prefix`. Agents see tools only when install is **live** and grant `capability_acl` includes the package id.
+Hub invokes via worker HTTP under `routes_prefix`. Agents see tools only when install is **live** and grant `flow_acl` includes the package id.
 
 ## Server (`server/index.ts`)
 

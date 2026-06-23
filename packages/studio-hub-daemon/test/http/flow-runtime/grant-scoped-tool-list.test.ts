@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/grant-scoped-tool-list", () => {
+describe("flow-runtime/grant-scoped-tool-list", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let sandboxId: string;
@@ -61,7 +61,7 @@ describe("capability-runtime/grant-scoped-tool-list", () => {
         label: "worker-no-feature-spec",
         harness: "worker-1",
         scopes: ["space:read", "state:transition", "event:emit"],
-        capability_acl: ["review-loop"],
+        flow_acl: ["review-loop"],
       }),
     });
     workerToken = (await workerGrant.json()).token;
@@ -72,7 +72,7 @@ describe("capability-runtime/grant-scoped-tool-list", () => {
       body: JSON.stringify({
         label: "builder-with-feature-spec",
         scopes: ["space:read", "state:transition", "flow:install"],
-        capability_acl: ["review-loop", "feature-spec"],
+        flow_acl: ["review-loop", "feature-spec"],
       }),
     });
     builderToken = (await builderGrant.json()).token;

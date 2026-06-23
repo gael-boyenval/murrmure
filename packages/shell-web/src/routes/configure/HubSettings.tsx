@@ -4,7 +4,7 @@ import { useClient } from "../../hooks.js";
 
 export function HubSettings() {
   const client = useClient();
-  const [health, setHealth] = useState<{ status: string; uptime_s: number; capabilities: string[] } | null>(null);
+  const [health, setHealth] = useState<{ status: string; uptime_s: number; flows: string[] } | null>(null);
   const [federation, setFederation] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function HubSettings() {
         <section style={{ marginBottom: 24 }}>
           <h2>Health</h2>
           <p>Status: {health.status} — uptime {health.uptime_s}s</p>
-          <p>Capabilities: {health.capabilities.join(", ")}</p>
+          <p>Flows: {health.flows.join(", ") || "none"}</p>
         </section>
       )}
       {federation && (

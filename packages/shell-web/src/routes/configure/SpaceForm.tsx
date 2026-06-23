@@ -97,7 +97,7 @@ export function SpaceSettings({ spaceId }: { spaceId: string }) {
           <p>Install policy: {String(space.install_policy)}</p>
           <p>Preview policy: {String(space.preview_policy)}</p>
           <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link to={`/configure/spaces/${spaceId}/capabilities`}>Capabilities</Link>
+            <Link to={`/configure/spaces/${spaceId}/flows`}>Flows</Link>
             <Link to={`/configure/spaces/${spaceId}/grants`}>Agent grants</Link>
             <Link to={`/configure/spaces/${spaceId}/triggers`}>Triggers</Link>
             <Link to={`/configure/spaces/${spaceId}/members`}>Members</Link>

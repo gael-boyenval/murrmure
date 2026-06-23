@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EventIdSchema, InstanceIdSchema, SpaceIdSchema, TokenIdSchema } from "../ids.js";
-import { StudioDenialSchema } from "../errors/denial.js";
+import { MurrmureDenialSchema } from "../errors/denial.js";
 
 export const HubEventSchema = z.object({
   seq: z.number(),
@@ -24,7 +24,7 @@ export const HubEventSchema = z.object({
     }),
   ),
   dedup_key: z.string().optional(),
-  denial: StudioDenialSchema.optional(),
+  denial: MurrmureDenialSchema.optional(),
   federation: z
     .object({
       origin_hub_id: z.string(),

@@ -1,5 +1,5 @@
 import { ulid } from "ulid";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { addSpaceId } from "@murrmure/hub-core";
 import type { HubHandler } from "@murrmure/hub-core";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
@@ -76,7 +76,7 @@ async function answerSpecSummary(
 export async function executeCrossSpaceAsk(
   handler: HubHandler,
   ctx: DaemonContext,
-  studioPersistence: StudioPersistencePort,
+  murrmurePersistence: StudioPersistencePort,
   sourceSpaceId: string,
   actorId: string,
   input: QueryAskInput,
@@ -84,7 +84,7 @@ export async function executeCrossSpaceAsk(
   void handler;
   const query_id = `qry_${ulid()}`;
   const targetBare = bareId(input.target_space_id);
-  const target = await studioPersistence.getSpace(targetBare);
+  const target = await murrmurePersistence.getSpace(targetBare);
   if (!target) {
     return {
       ok: false,
@@ -100,7 +100,7 @@ export async function executeCrossSpaceAsk(
       ok: false,
       query_id,
       status: "failed",
-      reason: STUDIO_DENIAL_CODES.QUERY_POLICY_DENIED,
+      reason: MURRMURE_DENIAL_CODES.QUERY_POLICY_DENIED,
       http_status: 403,
     };
   }
@@ -119,7 +119,7 @@ export async function executeCrossSpaceAsk(
       };
     }
 
-    await studioPersistence.insertQuery({
+    await murrmurePersistence.insertQuery({
       query_id,
       space_id: bareId(sourceSpaceId),
       target_space_id: targetBare,
@@ -147,7 +147,7 @@ export async function executeCrossSpaceAsk(
       ok: false,
       query_id,
       status: "failed",
-      reason: STUDIO_DENIAL_CODES.QUERY_FAILED,
+      reason: MURRMURE_DENIAL_CODES.QUERY_FAILED,
       http_status: 404,
     };
   }

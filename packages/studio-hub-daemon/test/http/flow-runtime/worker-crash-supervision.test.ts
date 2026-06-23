@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/worker-crash-supervision", () => {
+describe("flow-runtime/worker-crash-supervision", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let spaceId: string;

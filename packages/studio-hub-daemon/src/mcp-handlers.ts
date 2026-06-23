@@ -98,7 +98,7 @@ export function registerPlatformMcpHandlers(
 
 function resolveSpaceId(ctx: TokenContext, config: DaemonConfig): string {
   if (ctx.space_id !== "bootstrap") return prefixedSpaceId(bareSpaceId(ctx.space_id));
-  const env = config.defaultSpaceId || process.env.STUDIO_SPACE_ID || "";
+  const env = config.defaultSpaceId || process.env.MURRMURE_SPACE_ID || "";
   return env.startsWith("spc_") ? env : prefixedSpaceId(env);
 }
 

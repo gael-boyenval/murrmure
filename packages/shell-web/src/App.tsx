@@ -1,26 +1,27 @@
-import { Link, Route, Routes, useParams, Navigate, useSearchParams } from "react-router-dom";
+import { Link, Route, Routes, useParams, Navigate, useSearchParams, useLocation } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShellLayout } from "./ShellLayout.js";
 import { useClient } from "./hooks.js";
-import { CapabilityCanvasHost } from "./CapabilityCanvasHost.js";
+import { getStorageItem, setStorageItem } from "./storage.js";
+import { FlowCanvasHost } from "./FlowCanvasHost.js";
 import {
   resolveCanvasPath,
-  type CapabilityInstallRow,
+  type FlowInstallRow,
   type InstanceRow,
 } from "./canvas-resolve.js";
 import { ConfigureDashboard } from "./routes/configure/ConfigureDashboard.js";
 import { SetupWizard } from "./routes/configure/SetupWizard.js";
 import { SpaceForm, SpaceSettings } from "./routes/configure/SpaceForm.js";
-import { CapabilityList, CapabilityInstallWizard, CapabilityDetail } from "./routes/configure/CapabilityList.js";
-import { NewCapabilityPage } from "./routes/configure/NewCapabilityPage.js";
-import { CapabilityProjectPicker } from "./routes/configure/CapabilityProjectPicker.js";
+import { FlowList, FlowInstallWizard, FlowDetail } from "./routes/configure/FlowList.js";
+import { NewFlowPage } from "./routes/configure/NewFlowPage.js";
+import { FlowProjectPicker } from "./routes/configure/FlowProjectPicker.js";
 import { GrantList, GrantMintWizard } from "./routes/configure/GrantList.js";
 import { TriggerList, TriggerRegisterForm, MemberList } from "./routes/configure/TriggerList.js";
 import { HubSettings } from "./routes/configure/HubSettings.js";
 
 function ConnectPage() {
-  const [hubUrl, setHubUrl] = useState(localStorage.getItem("studio_hub_url") ?? "http://127.0.0.1:8787");
-  const [token, setToken] = useState(localStorage.getItem("studio_token") ?? "");
+  const [hubUrl, setHubUrl] = useState(getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787");
+  const [token, setToken] = useState(getStorageItem("murrmure_token") ?? "");
 
   return (
     <ShellLayout mode="runtime">
@@ -38,9 +39,9 @@ function ConnectPage() {
       </p>
       <button
         onClick={() => {
-          localStorage.setItem("studio_hub_url", hubUrl);
-          localStorage.setItem("studio_token", token);
-          const setupDone = localStorage.getItem("studio_setup_complete");
+          setStorageItem("murrmure_hub_url", hubUrl);
+          setStorageItem("murrmure_token", token);
+          const setupDone = getStorageItem("murrmure_setup_complete");
           window.location.href = setupDone ? "/configure" : "/setup";
         }}
         style={{ marginTop: 12 }}
@@ -55,12 +56,12 @@ function SpaceInstances() {
   const { spaceId } = useParams();
   const client = useClient();
   const [instances, setInstances] = useState<InstanceRow[]>([]);
-  const [installs, setInstalls] = useState<CapabilityInstallRow[]>([]);
+  const [installs, setInstalls] = useState<FlowInstallRow[]>([]);
 
   const refresh = useCallback(() => {
     if (!client || !spaceId) return;
     void client.instances.list(spaceId).then((rows) => setInstances(rows as InstanceRow[]));
-    void client.capabilities.list(spaceId).then((c) => setInstalls(c as CapabilityInstallRow[]));
+    void client.flows.list(spaceId).then((rows) => setInstalls(rows as FlowInstallRow[]));
   }, [client, spaceId]);
 
   useEffect(() => {
@@ -96,7 +97,7 @@ function SpaceInstances() {
                   </Link>
                 ) : (
                   <p style={{ marginTop: 8, fontSize: 13, color: "#b45309" }}>
-                    No live capability matches this instance — check contract_ref_id and apply live.
+                    No live flow matches this instance — check contract_ref_id and apply live.
                   </p>
                 )}
               </li>
@@ -120,14 +121,14 @@ function InstanceCanvasRedirect({ sessionAlias }: { sessionAlias?: boolean }) {
     void (async () => {
       const [instances, installs] = await Promise.all([
         client.instances.list(spaceId),
-        client.capabilities.list(spaceId),
+        client.flows.list(spaceId),
       ]);
       const instance = (instances as InstanceRow[]).find((i) => i.instance_id === key);
       if (!instance) {
         setMissing(true);
         return;
       }
-      const path = resolveCanvasPath(spaceId, instance, installs as CapabilityInstallRow[]);
+      const path = resolveCanvasPath(spaceId, instance, installs as FlowInstallRow[]);
       if (path) setTarget(path);
       else setMissing(true);
     })();
@@ -139,7 +140,7 @@ function InstanceCanvasRedirect({ sessionAlias }: { sessionAlias?: boolean }) {
       <ShellLayout mode="runtime" spaceId={spaceId}>
         <h1>Instance not found</h1>
         <p style={{ color: "#666" }}>
-          {key} is missing or has no live capability canvas. Open{" "}
+          {key} is missing or has no live flow canvas. Open{" "}
           <Link to={`/spaces/${spaceId}`}>Runtime → Instances</Link>.
         </p>
       </ShellLayout>
@@ -214,7 +215,7 @@ function CanvasPage() {
   const version = search.get("version") ?? "0.1.0";
   if (!spaceId || !instanceId || !packageId) return null;
   return (
-    <CapabilityCanvasHost
+    <FlowCanvasHost
       spaceId={spaceId}
       instanceId={instanceId}
       packageId={packageId}
@@ -223,16 +224,16 @@ function CanvasPage() {
   );
 }
 
-function NewCapabilityRoute() {
+function NewFlowRoute() {
   const { spaceId } = useParams();
   if (!spaceId) return null;
-  return <NewCapabilityPage spaceId={spaceId} />;
+  return <NewFlowPage spaceId={spaceId} />;
 }
 
 function ProjectPickerRoute() {
   const { spaceId } = useParams();
   if (!spaceId) return null;
-  return <CapabilityProjectPicker spaceId={spaceId} />;
+  return <FlowProjectPicker spaceId={spaceId} />;
 }
 
 function SpaceSettingsRoute() {
@@ -241,22 +242,22 @@ function SpaceSettingsRoute() {
   return <SpaceSettings spaceId={spaceId} />;
 }
 
-function CapabilityListRoute() {
+function FlowListRoute() {
   const { spaceId } = useParams();
   if (!spaceId) return null;
-  return <CapabilityList spaceId={spaceId} />;
+  return <FlowList spaceId={spaceId} />;
 }
 
-function CapabilityInstallRoute() {
+function FlowInstallRoute() {
   const { spaceId } = useParams();
   if (!spaceId) return null;
-  return <CapabilityInstallWizard spaceId={spaceId} />;
+  return <FlowInstallWizard spaceId={spaceId} />;
 }
 
-function CapabilityDetailRoute() {
+function FlowDetailRoute() {
   const { spaceId, installId } = useParams();
   if (!spaceId || !installId) return null;
-  return <CapabilityDetail spaceId={spaceId} installId={installId} />;
+  return <FlowDetail spaceId={spaceId} installId={installId} />;
 }
 
 function GrantListRoute() {
@@ -289,8 +290,13 @@ function MemberListRoute() {
   return <MemberList spaceId={spaceId} />;
 }
 
+function LegacyFlowRedirect() {
+  const location = useLocation();
+  return <Navigate to={location.pathname.replace("/capabilities", "/flows") + location.search} replace />;
+}
+
 export function App() {
-  const setupDone = useMemo(() => localStorage.getItem("studio_setup_complete") === "1", []);
+  const setupDone = useMemo(() => getStorageItem("murrmure_setup_complete") === "1", []);
 
   return (
     <Routes>
@@ -299,11 +305,12 @@ export function App() {
       <Route path="/configure" element={<ConfigureDashboard />} />
       <Route path="/configure/spaces/new" element={<SpaceForm />} />
       <Route path="/configure/spaces/:spaceId" element={<SpaceSettingsRoute />} />
-      <Route path="/configure/spaces/:spaceId/capabilities" element={<CapabilityListRoute />} />
-      <Route path="/configure/spaces/:spaceId/capabilities/new" element={<NewCapabilityRoute />} />
-      <Route path="/configure/spaces/:spaceId/capabilities/projects" element={<ProjectPickerRoute />} />
-      <Route path="/configure/spaces/:spaceId/capabilities/install" element={<CapabilityInstallRoute />} />
-      <Route path="/configure/spaces/:spaceId/capabilities/:installId" element={<CapabilityDetailRoute />} />
+      <Route path="/configure/spaces/:spaceId/flows" element={<FlowListRoute />} />
+      <Route path="/configure/spaces/:spaceId/flows/new" element={<NewFlowRoute />} />
+      <Route path="/configure/spaces/:spaceId/flows/projects" element={<ProjectPickerRoute />} />
+      <Route path="/configure/spaces/:spaceId/flows/install" element={<FlowInstallRoute />} />
+      <Route path="/configure/spaces/:spaceId/flows/:installId" element={<FlowDetailRoute />} />
+      <Route path="/configure/spaces/:spaceId/capabilities/*" element={<LegacyFlowRedirect />} />
       <Route path="/configure/spaces/:spaceId/grants" element={<GrantListRoute />} />
       <Route path="/configure/spaces/:spaceId/grants/new" element={<GrantMintRoute />} />
       <Route path="/configure/spaces/:spaceId/triggers" element={<TriggerListRoute />} />

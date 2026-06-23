@@ -17,7 +17,7 @@ describe("feature-spec/happy-path-publish", () => {
   beforeAll(async () => {
     const dir = mkdtempSync(join(tmpdir(), "fs-happy-"));
     dataDir = join(dir, "data");
-    process.env.STUDIO_SPACE_ID = "";
+    process.env.MURRMURE_SPACE_ID = "";
     const daemon = await startHubDaemon({
       databasePath: join(dir, "studio.db"),
       port: 0,
@@ -61,7 +61,7 @@ describe("feature-spec/happy-path-publish", () => {
       body: JSON.stringify({
         label: "spec-agent",
         scopes: ["space:read", "state:transition", "event:emit", "blob:write"],
-        capability_acl: ["feature-spec"],
+        flow_acl: ["feature-spec"],
       }),
     });
     token = (await grant.json()).token;

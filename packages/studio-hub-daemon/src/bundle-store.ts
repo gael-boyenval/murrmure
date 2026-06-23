@@ -1,7 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { computeBundleDigest, computeFileDigest } from "@murrmure/cli/api";
+import { computeBundleDigest, computeFileDigest } from "@murrmure/flow-dev-kit/digest";
 
 const ALLOWLIST_ROOTS = [join(homedir(), ".murrmure", "flows"), join(homedir(), ".studio", "capabilities")];
 

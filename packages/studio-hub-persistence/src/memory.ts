@@ -1,4 +1,4 @@
-import type { Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
@@ -11,7 +11,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   private instanceSeq = new Map<string, number>();
   private triggers: Record<string, unknown>[] = [];
   private triggerDeliveries: Record<string, unknown>[] = [];
-  private capabilityInstalls = new Map<string, CapabilityInstall>();
+  private capabilityInstalls = new Map<string, FlowInstall>();
   private members: Member[] = [];
   private blobs = new Map<string, Record<string, unknown>>();
   private queries = new Map<string, Record<string, unknown>>();
@@ -177,35 +177,47 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     return matches[0] ?? null;
   }
 
-  async insertCapabilityInstall(row: CapabilityInstall, _created_at: string): Promise<void> {
-    const bare = row.install_id.startsWith("cap_") ? row.install_id.slice(4) : row.install_id;
+  async insertFlowInstall(row: FlowInstall, _created_at: string): Promise<void> {
+    const bare = row.install_id.startsWith("ins_")
+      ? row.install_id.slice(4)
+      : row.install_id.startsWith("ins_")
+        ? row.install_id.slice(4)
+        : row.install_id;
     this.capabilityInstalls.set(bare, row);
   }
 
-  async getCapabilityInstall(install_id: string): Promise<CapabilityInstall | null> {
-    const bare = install_id.startsWith("cap_") ? install_id.slice(4) : install_id;
+  async getFlowInstall(install_id: string): Promise<FlowInstall | null> {
+    const bare = install_id.startsWith("ins_")
+      ? install_id.slice(4)
+      : install_id.startsWith("ins_")
+        ? install_id.slice(4)
+        : install_id;
     return this.capabilityInstalls.get(bare) ?? null;
   }
 
-  async listCapabilityInstalls(space_id: string): Promise<CapabilityInstall[]> {
+  async listFlowInstalls(space_id: string): Promise<FlowInstall[]> {
     const bare = space_id.startsWith("spc_") ? space_id.slice(4) : space_id;
     return [...this.capabilityInstalls.values()].filter(
       (c) => (c.space_id.startsWith("spc_") ? c.space_id.slice(4) : c.space_id) === bare,
     );
   }
 
-  async findCapabilityInstallByPackageVersion(
-    package_id: string,
+  async findFlowInstallByPackageVersion(
+    flow_id: string,
     version: string,
-  ): Promise<CapabilityInstall | null> {
+  ): Promise<FlowInstall | null> {
     const matches = [...this.capabilityInstalls.values()].filter(
-      (c) => c.package_id === package_id && c.version === version,
+      (c) => c.flow_id === flow_id && c.version === version,
     );
     return matches.at(-1) ?? null;
   }
 
-  async updateCapabilityInstall(install_id: string, patch: Partial<CapabilityInstall>): Promise<void> {
-    const bare = install_id.startsWith("cap_") ? install_id.slice(4) : install_id;
+  async updateFlowInstall(install_id: string, patch: Partial<FlowInstall>): Promise<void> {
+    const bare = install_id.startsWith("ins_")
+      ? install_id.slice(4)
+      : install_id.startsWith("ins_")
+        ? install_id.slice(4)
+        : install_id;
     const current = this.capabilityInstalls.get(bare);
     if (current) this.capabilityInstalls.set(bare, { ...current, ...patch });
   }

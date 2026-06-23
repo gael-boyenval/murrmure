@@ -18,7 +18,7 @@ Route: **`/setup`**
 | Invite team | Sample invites |
 | Verify | Open runtime |
 
-Sets `studio_setup_complete` in the browser.
+Sets `murrmure_setup_complete` in the browser.
 
 ## Spaces
 

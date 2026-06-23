@@ -161,7 +161,7 @@ export function migrateStudio(db: Database.Database): void {
   if (!grantColNames.has("label")) {
     db.exec(`ALTER TABLE grants ADD COLUMN label TEXT`);
     db.exec(`ALTER TABLE grants ADD COLUMN harness TEXT`);
-    db.exec(`ALTER TABLE grants ADD COLUMN capability_acl_json TEXT`);
+    db.exec(`ALTER TABLE grants ADD COLUMN flow_acl_json TEXT`);
     db.exec(`ALTER TABLE grants ADD COLUMN expires_at TEXT`);
   }
 
@@ -175,8 +175,8 @@ export function migrateStudio(db: Database.Database): void {
 
   const tokenCols = db.prepare("PRAGMA table_info(tokens)").all() as Array<{ name: string }>;
   const tokenColNames = new Set(tokenCols.map((c) => c.name));
-  if (!tokenColNames.has("capability_acl_json")) {
-    db.exec(`ALTER TABLE tokens ADD COLUMN capability_acl_json TEXT`);
+  if (!tokenColNames.has("flow_acl_json")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN flow_acl_json TEXT`);
   }
 
   if (!colNames.has("query_policy_json")) {

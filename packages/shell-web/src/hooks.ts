@@ -1,11 +1,14 @@
 import { createHubClient } from "@murrmure/hub-client";
 import { useMemo } from "react";
+import { getStorageItem, migrateLegacyStorage, setStorageItem } from "./storage.js";
 
 const LOCAL_HUB_URLS = new Set(["http://127.0.0.1:8787", "http://localhost:8787"]);
 
-/** Hub URL for MCP snippets and capability iframes (may be direct daemon port). */
+migrateLegacyStorage();
+
+/** Hub URL for MCP snippets and flow iframes (may be direct daemon port). */
 export function getStoredHubUrl(): string {
-  return localStorage.getItem("studio_hub_url") ?? "http://127.0.0.1:8787";
+  return getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787";
 }
 
 /** API base for browser fetch — routes local daemon through the Vite proxy. */
@@ -19,7 +22,7 @@ export function resolveApiBaseUrl(storedHubUrl = getStoredHubUrl()): string {
 }
 
 export function useClient() {
-  const token = localStorage.getItem("studio_token") ?? "";
+  const token = getStorageItem("murrmure_token") ?? "";
   return useMemo(() => {
     if (!token) return null;
     return createHubClient({ baseUrl: resolveApiBaseUrl(), token });
@@ -27,10 +30,10 @@ export function useClient() {
 }
 
 export function useActiveSpaceId(): string | undefined {
-  const stored = localStorage.getItem("studio_active_space");
+  const stored = getStorageItem("murrmure_active_space");
   return stored ?? undefined;
 }
 
 export function setActiveSpaceId(spaceId: string) {
-  localStorage.setItem("studio_active_space", spaceId);
+  setStorageItem("murrmure_active_space", spaceId);
 }

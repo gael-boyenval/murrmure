@@ -96,15 +96,15 @@ export function ShellLayout({
                 <>
                   <Link
                     to={`/configure/spaces/${resolvedSpaceId}`}
-                    style={styles.navLink(location.pathname.includes(`/spaces/${resolvedSpaceId}`) && !location.pathname.includes("/capabilities") && !location.pathname.includes("/grants") && !location.pathname.includes("/triggers") && !location.pathname.includes("/members"))}
+                    style={styles.navLink(location.pathname.includes(`/spaces/${resolvedSpaceId}`) && !location.pathname.includes("/flows") && !location.pathname.includes("/grants") && !location.pathname.includes("/triggers") && !location.pathname.includes("/members"))}
                   >
                     Space settings
                   </Link>
                   <Link
-                    to={`/configure/spaces/${resolvedSpaceId}/capabilities`}
-                    style={styles.navLink(location.pathname.includes("/capabilities"))}
+                    to={`/configure/spaces/${resolvedSpaceId}/flows`}
+                    style={styles.navLink(location.pathname.includes("/flows"))}
                   >
-                    Capabilities
+                    Flows
                   </Link>
                   <Link
                     to={`/configure/spaces/${resolvedSpaceId}/grants`}

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ShellLayout } from "../../ShellLayout.js";
 
-export function NewCapabilityPage({ spaceId }: { spaceId: string }) {
+export function NewFlowPage({ spaceId }: { spaceId: string }) {
   return (
     <ShellLayout mode="configure" spaceId={spaceId}>
       <h1>New flow</h1>
@@ -27,7 +27,10 @@ export function NewCapabilityPage({ spaceId }: { spaceId: string }) {
         Register project path in <code>~/.murrmure/hubs/shared.json</code> under{" "}
         <code>flowProjects</code> for <code>mrmr flow dev</code>.
       </p>
-      <Link to={`/configure/spaces/${spaceId}/capabilities`}>← Back to flows</Link>
+      <Link to={`/configure/spaces/${spaceId}/flows`}>← Back to flows</Link>
     </ShellLayout>
   );
 }
+
+/** @deprecated use NewFlowPage */
+export const NewCapabilityPage = NewFlowPage;

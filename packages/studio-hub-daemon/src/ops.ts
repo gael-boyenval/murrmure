@@ -11,17 +11,17 @@ export interface LockOwner {
 }
 
 export function resolveDataDir(config: DaemonConfig): string {
-  return config.dataDir || join(homedir(), ".studio");
+  return config.dataDir || join(homedir(), ".murrmure");
 }
 
-export interface CapabilityProject {
-  package_id: string;
+export interface FlowProject {
+  flow_id: string;
   source: string;
 }
 
 export interface SharedConfig {
   hubs?: unknown[];
-  capabilityProjects?: CapabilityProject[];
+  flowProjects?: FlowProject[];
 }
 
 function sharedConfigPath(config: DaemonConfig): string {
@@ -39,16 +39,16 @@ export function readSharedConfig(config: DaemonConfig): SharedConfig {
 }
 
 /**
- * BC6b project registry: persist the capability project paths into
- * `~/.studio/hubs/shared.json` while preserving hub discovery entries.
+ * BC6b project registry: persist flow project paths into
+ * `~/.murrmure/hubs/shared.json` while preserving hub discovery entries.
  */
-export function writeCapabilityProjects(
+export function writeFlowProjects(
   config: DaemonConfig,
-  projects: CapabilityProject[],
+  projects: FlowProject[],
 ): SharedConfig {
   const hubsDir = join(resolveDataDir(config), "hubs");
   mkdirSync(hubsDir, { recursive: true });
-  const next: SharedConfig = { ...readSharedConfig(config), capabilityProjects: projects };
+  const next: SharedConfig = { ...readSharedConfig(config), flowProjects: projects };
   writeFileSync(join(hubsDir, "shared.json"), JSON.stringify(next, null, 2));
   return next;
 }

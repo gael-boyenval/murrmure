@@ -9,7 +9,7 @@ export function ConfigureDashboard() {
   return (
     <ShellLayout mode="configure">
       <h1>Configuration</h1>
-      <p>Manage spaces, capabilities, grants, and triggers.</p>
+      <p>Manage spaces, flows, grants, and triggers.</p>
       <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
         <Link to="/setup" style={{ padding: "10px 16px", background: "#111", color: "#fff", borderRadius: 6, textDecoration: "none" }}>
           Run setup wizard
@@ -48,7 +48,7 @@ function SpacesList() {
             <Link to={`/configure/spaces/${s.space_id}`}>{s.name ?? s.slug}</Link>
             <span style={{ color: "#888", marginLeft: 8 }}>{s.space_id}</span>
             <div style={{ marginTop: 4, fontSize: 14, display: "flex", gap: 12 }}>
-              <Link to={`/configure/spaces/${s.space_id}/capabilities`}>Capabilities</Link>
+              <Link to={`/configure/spaces/${s.space_id}/flows`}>Flows</Link>
               <Link to={`/configure/spaces/${s.space_id}/grants`}>Agent grants</Link>
               <Link to={`/configure/spaces/${s.space_id}/triggers`}>Triggers</Link>
               <Link to={`/configure/spaces/${s.space_id}/members`}>Members</Link>

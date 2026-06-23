@@ -44,7 +44,7 @@ export class McpToolRegistry {
   }
 
   async resolveCapabilityAcl(ctx: TokenContext): Promise<string[] | undefined> {
-    if (ctx.capability_acl) return ctx.capability_acl;
+    if (ctx.flow_acl) return ctx.flow_acl;
     if (ctx.space_id === "bootstrap") return undefined;
     const grants = await this.studio.listGrants(bareSpaceId(ctx.space_id));
     const match = grants.find(
@@ -53,7 +53,7 @@ export class McpToolRegistry {
         g.actor_id === ctx.actor_id &&
         (g.harness ?? undefined) === (ctx.harness_id ?? undefined),
     );
-    return match?.capability_acl;
+    return match?.flow_acl;
   }
 
   async listForToken(ctx: TokenContext): Promise<ToolDef[]> {

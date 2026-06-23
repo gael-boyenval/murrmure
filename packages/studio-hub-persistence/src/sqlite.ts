@@ -1,10 +1,25 @@
 import type Database from "better-sqlite3";
-import type { Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow } from "./port.js";
 
 function parseJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
+}
+
+function parseFlowAclJson(row: Record<string, string>): string[] | undefined {
+  const raw = row.flow_acl_json ?? row.flow_acl_json;
+  return raw ? parseJson(raw) : undefined;
+}
+
+function stripInstallBareId(install_id: string): string {
+  if (install_id.startsWith("ins_")) return install_id.slice(4);
+  if (install_id.startsWith("ins_")) return install_id.slice(4);
+  return install_id;
+}
+
+function prefixedInstallId(bare: string): string {
+  return `ins_${bare}`;
 }
 
 export class SqliteStudioPersistence implements StudioPersistencePort {
@@ -190,7 +205,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       space_id: row.space_id,
       scopes: parseJson(row.scopes_json),
       harness_id: row.harness_id ?? undefined,
-      capability_acl: row.capability_acl_json ? parseJson(row.capability_acl_json) : undefined,
+      flow_acl: parseFlowAclJson(row),
       status: row.status as TokenRow["status"],
     };
   }
@@ -198,7 +213,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
   async insertToken(row: TokenRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, capability_acl_json, status, created_at)
+        `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, flow_acl_json, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
@@ -207,7 +222,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         row.space_id,
         JSON.stringify(row.scopes),
         row.harness_id ?? null,
-        row.capability_acl ? JSON.stringify(row.capability_acl) : null,
+        row.flow_acl ? JSON.stringify(row.flow_acl) : null,
         row.status,
         created_at,
       );
@@ -216,7 +231,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
   async insertGrant(row: GrantRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO grants (grant_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, capability_acl_json, expires_at)
+        `INSERT INTO grants (grant_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, flow_acl_json, expires_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
@@ -229,7 +244,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         row.last_activity_at ?? null,
         row.label ?? null,
         row.harness ?? null,
-        row.capability_acl ? JSON.stringify(row.capability_acl) : null,
+        row.flow_acl ? JSON.stringify(row.flow_acl) : null,
         row.expires_at ?? null,
       );
   }
@@ -248,7 +263,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       last_activity_at: row.last_activity_at ?? undefined,
       label: row.label ?? undefined,
       harness: row.harness ?? undefined,
-      capability_acl: row.capability_acl_json ? parseJson(row.capability_acl_json) : undefined,
+      flow_acl: parseFlowAclJson(row),
       expires_at: row.expires_at ?? undefined,
     };
   }
@@ -397,8 +412,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       .all(space_id, limit) as Record<string, unknown>[];
   }
 
-  async insertCapabilityInstall(row: CapabilityInstall, created_at: string): Promise<void> {
-    const bareInstall = row.install_id.startsWith("cap_") ? row.install_id.slice(4) : row.install_id;
+  async insertFlowInstall(row: FlowInstall, created_at: string): Promise<void> {
+    const bareInstall = stripInstallBareId(row.install_id);
     const bareSpace = row.space_id.startsWith("spc_") ? row.space_id.slice(4) : row.space_id;
     this.db
       .prepare(
@@ -408,7 +423,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       .run(
         bareInstall,
         bareSpace,
-        row.package_id,
+        row.flow_id,
         row.version,
         row.contract_ref_id,
         row.evolution_state,
@@ -423,14 +438,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       );
   }
 
-  private rowToCapabilityInstall(row: Record<string, string>): CapabilityInstall {
+  private rowToFlowInstall(row: Record<string, string>): FlowInstall {
     return {
-      install_id: `cap_${row.install_id}`,
+      install_id: prefixedInstallId(row.install_id),
       space_id: `spc_${row.space_id}`,
-      package_id: row.package_id,
+      flow_id: row.package_id,
       version: row.version,
       contract_ref_id: row.contract_ref_id,
-      evolution_state: row.evolution_state as CapabilityInstall["evolution_state"],
+      evolution_state: row.evolution_state as FlowInstall["evolution_state"],
       config: parseJson(row.config_json),
       gate_id: row.gate_id ?? undefined,
       bundle_digest: row.bundle_digest ?? undefined,
@@ -441,39 +456,39 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     };
   }
 
-  async getCapabilityInstall(install_id: string): Promise<CapabilityInstall | null> {
-    const bare = install_id.startsWith("cap_") ? install_id.slice(4) : install_id;
+  async getFlowInstall(install_id: string): Promise<FlowInstall | null> {
+    const bare = stripInstallBareId(install_id);
     const row = this.db
       .prepare("SELECT * FROM capability_installs WHERE install_id = ?")
       .get(bare) as Record<string, string> | undefined;
     if (!row) return null;
-    return this.rowToCapabilityInstall(row);
+    return this.rowToFlowInstall(row);
   }
 
-  async listCapabilityInstalls(space_id: string): Promise<CapabilityInstall[]> {
+  async listFlowInstalls(space_id: string): Promise<FlowInstall[]> {
     const bare = space_id.startsWith("spc_") ? space_id.slice(4) : space_id;
     const rows = this.db
       .prepare("SELECT * FROM capability_installs WHERE space_id = ? ORDER BY created_at")
       .all(bare) as Array<Record<string, string>>;
-    return rows.map((r) => this.rowToCapabilityInstall(r));
+    return rows.map((r) => this.rowToFlowInstall(r));
   }
 
-  async findCapabilityInstallByPackageVersion(
-    package_id: string,
+  async findFlowInstallByPackageVersion(
+    flow_id: string,
     version: string,
-  ): Promise<CapabilityInstall | null> {
+  ): Promise<FlowInstall | null> {
     const row = this.db
       .prepare(
         "SELECT * FROM capability_installs WHERE package_id = ? AND version = ? ORDER BY created_at DESC LIMIT 1",
       )
-      .get(package_id, version) as Record<string, string> | undefined;
+      .get(flow_id, version) as Record<string, string> | undefined;
     if (!row) return null;
-    return this.rowToCapabilityInstall(row);
+    return this.rowToFlowInstall(row);
   }
 
-  async updateCapabilityInstall(install_id: string, patch: Partial<CapabilityInstall>): Promise<void> {
-    const bare = install_id.startsWith("cap_") ? install_id.slice(4) : install_id;
-    const current = await this.getCapabilityInstall(install_id);
+  async updateFlowInstall(install_id: string, patch: Partial<FlowInstall>): Promise<void> {
+    const bare = stripInstallBareId(install_id);
+    const current = await this.getFlowInstall(install_id);
     if (!current) return;
     const next = { ...current, ...patch };
     this.db

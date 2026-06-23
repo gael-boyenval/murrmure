@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import type { ControlPrincipal } from "../../control-bus.js";
@@ -8,11 +8,11 @@ import { findMountForTool, invokeWorkerTool } from "../../worker-tool-dispatch.j
 import { enrichInstanceToolResult } from "../../canvas-links.js";
 
 export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
-  const { studioPersistence } = ctx;
+  const { murrmurePersistence } = ctx;
 
   app.get("/v1/mcp/catalog", async (c) => {
-    const space_id = c.req.query("space_id") ?? c.req.header("X-Studio-Space-Id") ?? "";
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id || undefined);
+    const space_id = c.req.query("space_id") ?? c.req.header("X-Murrmure-Space-Id") ?? "";
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id || undefined);
     if (auth instanceof Response) return auth;
 
     const tools = await ctx.mcpToolRegistry.listForToken(auth);
@@ -22,7 +22,7 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/v1/mcp/session/handshake", async (c) => {
     const body = await c.req.json();
     const space_id = body.space_id ?? c.req.query("space_id") ?? "";
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id || undefined);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id || undefined);
     if (auth instanceof Response) return auth;
 
     const client_id = String(body.client_id ?? "default-client");
@@ -62,7 +62,7 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/v1/mcp/tools/call", async (c) => {
     const body = await c.req.json();
     const space_id = body.space_id ?? c.req.query("space_id") ?? "";
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id || undefined);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id || undefined);
     if (auth instanceof Response) return auth;
 
     const toolName = String(body.name ?? body.tool ?? "");
@@ -72,7 +72,7 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
     if (!authz.ok) {
       return c.json(
         {
-          code: STUDIO_DENIAL_CODES.TOOL_NOT_AUTHORIZED,
+          code: MURRMURE_DENIAL_CODES.TOOL_NOT_AUTHORIZED,
           message: `Tool not authorized: ${toolName}`,
           hint: authz.hint,
         },
@@ -117,7 +117,7 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.post("/v1/mcp/wake", async (c) => {
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, body.target_space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, body.target_space_id);
     if (auth instanceof Response) return auth;
 
     await ctx.mcpWakeDispatcher.wake({

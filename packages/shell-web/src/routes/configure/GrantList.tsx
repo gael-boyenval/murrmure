@@ -4,7 +4,7 @@ import { ShellLayout } from "../../ShellLayout.js";
 import { getStoredHubUrl, setActiveSpaceId, useClient } from "../../hooks.js";
 import { ScopeDenialBanner } from "./ScopeDenialBanner.js";
 
-type CapabilityInstall = {
+type FlowInstall = {
   install_id: string;
   package_id: string;
   version: string;
@@ -21,17 +21,17 @@ function CapabilityAclPicker({
   onChange: (ids: string[]) => void;
 }) {
   const client = useClient();
-  const [installs, setInstalls] = useState<CapabilityInstall[]>([]);
+  const [installs, setInstalls] = useState<FlowInstall[]>([]);
 
   useEffect(() => {
     if (!client) return;
-    void client.capabilities.list(spaceId).then((rows) => {
-      setInstalls(rows as CapabilityInstall[]);
+    void client.flows.list(spaceId).then((rows) => {
+      setInstalls(rows as FlowInstall[]);
     });
   }, [client, spaceId]);
 
   const packages = useMemo(() => {
-    const byId = new Map<string, CapabilityInstall[]>();
+    const byId = new Map<string, FlowInstall[]>();
     for (const install of installs) {
       const list = byId.get(install.package_id) ?? [];
       list.push(install);
@@ -61,8 +61,8 @@ function CapabilityAclPicker({
   if (packages.length === 0) {
     return (
       <p style={{ color: "#666", fontSize: 14 }}>
-        No capabilities in this space yet.{" "}
-        <Link to={`/configure/spaces/${spaceId}/capabilities`}>Push a capability</Link> first, then return
+        No flows in this space yet.{" "}
+        <Link to={`/configure/spaces/${spaceId}/flows`}>Push a flow</Link> first, then return
         here to mint a grant.
       </p>
     );
@@ -70,9 +70,9 @@ function CapabilityAclPicker({
 
   return (
     <fieldset style={{ border: "1px solid #ddd", borderRadius: 6, padding: 12, marginBottom: 12 }}>
-      <legend>Capability access (ACL)</legend>
+      <legend>Flow access (ACL)</legend>
       <p style={{ fontSize: 13, color: "#666", marginTop: 0 }}>
-        Agents only see MCP tools for packages listed here. Select every capability your agent should use.
+        Agents only see MCP tools for flows listed here. Select every flow your agent should use.
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {packages.map((pkg) => (
@@ -157,7 +157,7 @@ export function GrantList({ spaceId }: { spaceId: string }) {
       <h1>Agent grants</h1>
       <p style={{ color: "#666", maxWidth: 560 }}>
         Grants mint one-time tokens for coding agents (Cursor, CI, etc.). Each grant scopes which
-        capabilities an agent can call via MCP.
+        capabilities an agent can call via MCP (flow ACL on the grant).
       </p>
       <ScopeDenialBanner error={error} />
       <Link
@@ -178,7 +178,7 @@ export function GrantList({ spaceId }: { spaceId: string }) {
       ) : (
         <ul style={{ marginTop: 24, padding: 0, listStyle: "none" }}>
           {grants.map((g) => {
-            const acl = (g.capability_acl as string[] | undefined) ?? [];
+            const acl = (g.flow_acl as string[] | undefined) ?? [];
             return (
               <li
                 key={String(g.grant_id)}
@@ -195,7 +195,7 @@ export function GrantList({ spaceId }: { spaceId: string }) {
                   Scopes: {(g.scopes as string[])?.join(", ") ?? "—"}
                 </div>
                 <div style={{ fontSize: 13, marginTop: 4 }}>
-                  Capability ACL:{" "}
+                  Flow ACL:{" "}
                   {acl.length > 0 ? (
                     acl.map((id) => (
                       <code key={id} style={{ marginRight: 6 }}>
@@ -203,7 +203,7 @@ export function GrantList({ spaceId }: { spaceId: string }) {
                       </code>
                     ))
                   ) : (
-                    <span style={{ color: "#b45309" }}>none — no capability MCP tools</span>
+                    <span style={{ color: "#b45309" }}>none — no flow MCP tools</span>
                   )}
                 </div>
                 <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
@@ -242,7 +242,7 @@ export function GrantMintWizard({ spaceId }: { spaceId: string }) {
       return;
     }
     if (template === "worker" && capabilityAcl.length === 0) {
-      setError("Select at least one capability for a worker grant.");
+      setError("Select at least one flow for a worker grant.");
       return;
     }
     try {
@@ -250,7 +250,7 @@ export function GrantMintWizard({ spaceId }: { spaceId: string }) {
         label: label.trim(),
         harness,
         template,
-        capability_acl: capabilityAcl,
+        flow_acl: capabilityAcl,
         expires_in_days: 90,
       });
       setMintedToken((result as { token: string }).token);

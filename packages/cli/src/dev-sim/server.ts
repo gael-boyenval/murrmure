@@ -121,7 +121,7 @@ function renderShellHtml(state: ServerState, port: number): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Capability Sim Runtime</title>
+    <title>Flow Sim Runtime</title>
     <style>
       :root {
         color-scheme: light;
@@ -159,12 +159,12 @@ function renderShellHtml(state: ServerState, port: number): string {
       <span id="status">bundle ${state.bundleDigest}</span>
     </header>
     <main id="layout">
-      <iframe id="capability-canvas" src="/capability/ui/shell.html?digest=${encodeURIComponent(
+      <iframe id="flow-canvas" src="/flow/ui/shell.html?digest=${encodeURIComponent(
         state.bundleDigest,
       )}" sandbox="allow-scripts"></iframe>
     </main>
     <script type="module">
-      const iframe = document.getElementById("capability-canvas");
+      const iframe = document.getElementById("flow-canvas");
       const status = document.getElementById("status");
       const initContext = ${initContext};
       let currentDigest = ${JSON.stringify(state.bundleDigest)};
@@ -224,7 +224,7 @@ function renderShellHtml(state: ServerState, port: number): string {
       });
 
       const events = new EventSource("/__sim/events");
-      events.addEventListener("capability.dev_reload", (event) => {
+      events.addEventListener("flow.dev_reload", (event) => {
         try {
           const payload = JSON.parse(event.data);
           if (payload.bundle_digest === currentDigest) {
@@ -444,7 +444,7 @@ export async function startDevSimServer(opts: DevSimServerOptions): Promise<DevS
       bundle_digest: bundleDigest,
     });
     for (const client of eventClients) {
-      client.write(`event: capability.dev_reload\n`);
+      client.write(`event: flow.dev_reload\n`);
       client.write(`data: ${payload}\n\n`);
     }
   };
@@ -533,8 +533,8 @@ export async function startDevSimServer(opts: DevSimServerOptions): Promise<DevS
       }
     }
 
-    if (path.startsWith("/capability/ui/") && method === "GET") {
-      const relativePath = path.replace("/capability/ui/", "");
+    if (path.startsWith("/flow/ui/") && method === "GET") {
+      const relativePath = path.replace("/flow/ui/", "");
       const served = serveStaticUiFile(response, state, relativePath);
       if (!served) {
         writeJson(response, 404, {

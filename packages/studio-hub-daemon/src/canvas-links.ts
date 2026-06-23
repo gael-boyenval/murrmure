@@ -46,7 +46,7 @@ export async function enrichInstanceToolResult(
 
   let contractRefId = typeof row.contract_ref_id === "string" ? row.contract_ref_id : undefined;
   if (!contractRefId) {
-    const instance = await ctx.studioPersistence.getInstance(instanceId).catch(() => null);
+    const instance = await ctx.murrmurePersistence.getInstance(instanceId).catch(() => null);
     if (instance && bareSpaceId(instance.space_id) === bareSpaceId(spaceId)) {
       contractRefId = instance.contract_ref_id;
     }

@@ -1,6 +1,6 @@
 import type { PolicyPort, PolicyResult } from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { stripSpaceId, stripTokenId } from "../bridge/ids.js";
 
 export interface PolicyContext {
@@ -39,7 +39,7 @@ export function createStudioPolicyPort(studio: StudioPersistencePort): PolicyPor
         return {
           allowed: false,
           denial: {
-            code: STUDIO_DENIAL_CODES.TOKEN_DENIED,
+            code: MURRMURE_DENIAL_CODES.TOKEN_DENIED,
             message: "Invalid or revoked token",
             retryable: false,
           },
@@ -50,7 +50,7 @@ export function createStudioPolicyPort(studio: StudioPersistencePort): PolicyPor
         return {
           allowed: false,
           denial: {
-            code: STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
+            code: MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
             message: "Token not scoped to this space",
             retryable: false,
           },
@@ -61,7 +61,7 @@ export function createStudioPolicyPort(studio: StudioPersistencePort): PolicyPor
         return {
           allowed: false,
           denial: {
-            code: STUDIO_DENIAL_CODES.HARNESS_MISMATCH,
+            code: MURRMURE_DENIAL_CODES.HARNESS_MISMATCH,
             message: "Agent token cannot act in human_only harness",
             retryable: false,
           },
@@ -74,7 +74,7 @@ export function createStudioPolicyPort(studio: StudioPersistencePort): PolicyPor
           return {
             allowed: false,
             denial: {
-              code: STUDIO_DENIAL_CODES.HARNESS_MISMATCH,
+              code: MURRMURE_DENIAL_CODES.HARNESS_MISMATCH,
               message: "Harness mismatch",
               retryable: false,
             },
@@ -91,7 +91,7 @@ export function createStudioPolicyPort(studio: StudioPersistencePort): PolicyPor
           return {
             allowed: false,
             denial: {
-              code: STUDIO_DENIAL_CODES.TOKEN_DENIED,
+              code: MURRMURE_DENIAL_CODES.TOKEN_DENIED,
               message: `Missing scope: ${requiredScope}`,
               retryable: false,
             },
@@ -113,7 +113,7 @@ export async function enforceSpacePath(
   if (!token) {
     return {
       allowed: false,
-      denial: { code: STUDIO_DENIAL_CODES.TOKEN_DENIED, message: "Unknown token", retryable: false },
+      denial: { code: MURRMURE_DENIAL_CODES.TOKEN_DENIED, message: "Unknown token", retryable: false },
     };
   }
 
@@ -122,7 +122,7 @@ export async function enforceSpacePath(
     return {
       allowed: false,
       denial: {
-        code: STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
+        code: MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
         message: "Path space does not match token scope",
         retryable: false,
       },

@@ -1,31 +1,29 @@
 import { useEffect, useRef, useState } from "react";
-import { useClient } from "./hooks.js";
+import { getStoredHubUrl, useClient } from "./hooks.js";
+import { getStorageItem } from "./storage.js";
 import { ShellLayout } from "./ShellLayout.js";
 
-export interface CapabilityCanvasHostProps {
+export interface FlowCanvasHostProps {
   spaceId: string;
   instanceId: string;
   packageId: string;
   version: string;
 }
 
-export function CapabilityCanvasHost({ spaceId, instanceId, packageId, version }: CapabilityCanvasHostProps) {
+export function FlowCanvasHost({ spaceId, instanceId, packageId, version }: FlowCanvasHostProps) {
   const client = useClient();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const hubUrl = (() => {
-    const stored = localStorage.getItem("studio_hub_url") ?? "http://127.0.0.1:8787";
-    return stored.replace(/\/$/, "");
-  })();
+  const hubUrl = getStoredHubUrl().replace(/\/$/, "");
 
-  const iframeSrc = `${hubUrl}/capabilities/${packageId}/${version}/ui/shell.html?instance=${encodeURIComponent(instanceId)}`;
+  const iframeSrc = `${hubUrl}/flows/${packageId}/${version}/ui/shell.html?instance=${encodeURIComponent(instanceId)}`;
 
   useEffect(() => {
     const onMessage = (ev: MessageEvent) => {
       if (ev.source !== iframeRef.current?.contentWindow) return;
       if (ev.data?.type !== "hub-fetch") return;
       const { id, path, init } = ev.data as { id: string; path: string; init?: RequestInit };
-      const token = localStorage.getItem("studio_token") ?? "";
+      const token = getStorageItem("murrmure_token") ?? "";
       void fetch(`${hubUrl}${path}`, {
         ...init,
         headers: {
@@ -60,12 +58,12 @@ export function CapabilityCanvasHost({ spaceId, instanceId, packageId, version }
       .catch(() => setError("Cannot reach hub UI bundle"));
   }, [client, iframeSrc]);
 
-  // BC5 dev loop: hot-reload the iframe when the hub re-applies this capability.
   useEffect(() => {
     if (!client) return;
     return client.events.subscribe(spaceId, (event, data) => {
-      if (event !== "capability.dev_reload") return;
-      if ((data as { package_id?: string } | undefined)?.package_id !== packageId) return;
+      if (event !== "flow.dev_reload" && event !== "flow.dev_reload") return;
+      if ((data as { package_id?: string; flow_id?: string } | undefined)?.package_id !== packageId
+        && (data as { flow_id?: string } | undefined)?.flow_id !== packageId) return;
       iframeRef.current?.contentWindow?.postMessage({ type: "reload" }, "*");
     });
   }, [client, spaceId, packageId]);
@@ -79,6 +77,7 @@ export function CapabilityCanvasHost({ spaceId, instanceId, packageId, version }
           instanceId,
           hubUrl,
           packageId,
+          flowId: packageId,
           version,
           canvasRoute: `/spaces/${spaceId}/instances/${instanceId}/canvas/${packageId}`,
         },
@@ -91,7 +90,7 @@ export function CapabilityCanvasHost({ spaceId, instanceId, packageId, version }
     <ShellLayout mode="runtime" spaceId={spaceId}>
       {error && (
         <div style={{ padding: 12, background: "#fee", marginBottom: 8 }}>
-          {error} · <a href={`/configure/spaces/${spaceId}/capabilities`}>Configure → capabilities</a>
+          {error} · <a href={`/configure/spaces/${spaceId}/flows`}>Configure → flows</a>
         </div>
       )}
       <iframe

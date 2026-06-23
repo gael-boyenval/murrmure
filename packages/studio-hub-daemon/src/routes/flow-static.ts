@@ -18,7 +18,7 @@ export function mountFlowStaticRoutes(app: Hono, ctx: DaemonContext): void {
     const version = c.req.param("version");
     const rest = c.req.path.split(`/flows/${flowId}/${version}/ui/`)[1] ?? "shell.html";
 
-    const install = await ctx.studioPersistence.findCapabilityInstallByPackageVersion(flowId, version);
+    const install = await ctx.murrmurePersistence.findFlowInstallByPackageVersion(flowId, version);
     if (!install?.bundle_digest) {
       return c.text("UI bundle not found", 404);
     }

@@ -17,7 +17,7 @@ describe("triggers/spec-published-wake-dev", () => {
   beforeAll(async () => {
     const dir = mkdtempSync(join(tmpdir(), "tr-spec-wake-"));
     const dataDir = join(dir, "data");
-    process.env.STUDIO_SPACE_ID = "";
+    process.env.MURRMURE_SPACE_ID = "";
     const daemon = await startHubDaemon({
       databasePath: join(dir, "studio.db"),
       port: 0,
@@ -54,7 +54,7 @@ describe("triggers/spec-published-wake-dev", () => {
       })
     ).json()).space_id;
 
-    process.env.STUDIO_SPACE_ID = specsSpaceId.replace(/^spc_/, "");
+    process.env.MURRMURE_SPACE_ID = specsSpaceId.replace(/^spc_/, "");
 
     await installExampleCapability({
       baseUrl,
@@ -73,7 +73,7 @@ describe("triggers/spec-published-wake-dev", () => {
           body: JSON.stringify({
             label: "spec-agent",
             scopes: ["space:read", "state:transition", "event:emit", "blob:write"],
-            capability_acl: ["feature-spec"],
+            flow_acl: ["feature-spec"],
           }),
         })
       ).json()
@@ -87,7 +87,7 @@ describe("triggers/spec-published-wake-dev", () => {
           body: JSON.stringify({
             label: "dev-agent",
             scopes: ["space:read"],
-            capability_acl: [],
+            flow_acl: [],
           }),
         })
       ).json()

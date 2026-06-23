@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { addSpaceId } from "@murrmure/hub-core";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { DaemonContext } from "./context.js";
@@ -35,7 +35,7 @@ export function detectMountCollision(
   if (prefixOwner) {
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.ROUTE_PREFIX_COLLISION,
+      code: MURRMURE_DENIAL_CODES.ROUTE_PREFIX_COLLISION,
       message: `Route prefix ${candidate.routes_prefix} already mounted by ${prefixOwner.package_id}`,
       hint: { routes_prefix: candidate.routes_prefix, owner_package_id: prefixOwner.package_id },
       http_status: 409,
@@ -48,7 +48,7 @@ export function detectMountCollision(
     if (owner) {
       return {
         ok: false,
-        code: STUDIO_DENIAL_CODES.MCP_TOOL_COLLISION,
+        code: MURRMURE_DENIAL_CODES.MCP_TOOL_COLLISION,
         message: `MCP tool ${tool} already provided by ${owner}`,
         hint: { tool, owner_package_id: owner },
         http_status: 409,
@@ -82,7 +82,7 @@ export async function executeLiveApply(
   auth: import("./auth.js").TokenContext,
 ): Promise<LiveApplyResult> {
   const bareSpace = bareSpaceId(spaceId);
-  const space = await ctx.studioPersistence.getSpace(bareSpace);
+  const space = await ctx.murrmurePersistence.getSpace(bareSpace);
   if (!space) {
     return { ok: false, code: "space_not_found", message: "Space not found", http_status: 404 };
   }
@@ -91,7 +91,7 @@ export async function executeLiveApply(
   if (space.install_policy === "human_only" && kind !== "human") {
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.INSTALL_POLICY_VIOLATION,
+      code: MURRMURE_DENIAL_CODES.INSTALL_POLICY_VIOLATION,
       message: "Install blocked: space policy is human_only",
       hint: { install_policy: "human_only" },
       http_status: 403,
@@ -101,14 +101,14 @@ export async function executeLiveApply(
   if (kind === "agent" && !hasScope(auth, "flow:install")) {
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
+      code: MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
       message: "Flow install permission required",
       hint: { required_scope: "flow:install" },
       http_status: 403,
     };
   }
 
-  const install = await ctx.studioPersistence.getCapabilityInstall(installId);
+  const install = await ctx.murrmurePersistence.getFlowInstall(installId);
   if (!install || bareSpaceId(install.space_id) !== bareSpace) {
     return { ok: false, code: "not_found", message: "Install not found", http_status: 404 };
   }
@@ -116,13 +116,13 @@ export async function executeLiveApply(
   if (!install.bundle_digest) {
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.LIVE_APPLY_FAILED,
-      message: `Live apply requires a CDK bundle for ${install.package_id}`,
+      code: MURRMURE_DENIAL_CODES.LIVE_APPLY_FAILED,
+      message: `Live apply requires a CDK bundle for ${install.flow_id}`,
       http_status: 400,
     };
   }
 
-  const prior = ctx.mountRegistry.getMount(spaceId, install.package_id);
+  const prior = ctx.mountRegistry.getMount(spaceId, install.flow_id);
   const priorTools = prior?.mcp_tools ?? [];
 
   const blobPath = blobDir(ctx.config.dataDir, install.bundle_digest);
@@ -130,14 +130,14 @@ export async function executeLiveApply(
   let queryTypes: string[];
   let routes_prefix: string;
   try {
-    const meta = readBundleMeta(blobPath, install.version, install.package_id);
+    const meta = readBundleMeta(blobPath, install.version, install.flow_id);
     nextTools = meta.nextTools;
     queryTypes = meta.queryTypes;
     routes_prefix = install.routes_prefix ?? meta.routes_prefix;
   } catch {
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.LIVE_APPLY_FAILED,
+      code: MURRMURE_DENIAL_CODES.LIVE_APPLY_FAILED,
       message: "Failed to read bundle MCP tools",
       http_status: 500,
     };
@@ -145,14 +145,14 @@ export async function executeLiveApply(
 
   const otherMounts = ctx.mountRegistry
     .listAll()
-    .filter((m) => bareSpaceId(m.space_id) === bareSpace && m.package_id !== install.package_id);
+    .filter((m) => bareSpaceId(m.space_id) === bareSpace && m.package_id !== install.flow_id);
   const collision = detectMountCollision(otherMounts, { routes_prefix, mcp_tools: nextTools });
   if (collision) return collision;
 
   const mount: CapabilityMount = {
     install_id: install.install_id,
     space_id: addSpaceId(bareSpace),
-    package_id: install.package_id,
+    package_id: install.flow_id,
     semver: install.version,
     contract_ref_id: install.contract_ref_id,
     routes_prefix,
@@ -164,7 +164,7 @@ export async function executeLiveApply(
 
   try {
     await ctx.workerPool.spawn({
-      packageId: install.package_id,
+      packageId: install.flow_id,
       digest: install.bundle_digest,
       blobPath,
       routesPrefix: routes_prefix,
@@ -177,18 +177,18 @@ export async function executeLiveApply(
     });
     await ctx.mountRegistry.apply(app, ctx, mount);
     await ctx.mcpToolRegistry.rebuild(spaceId);
-    await ctx.studioPersistence.updateCapabilityInstall(install.install_id, { evolution_state: "live" });
+    await ctx.murrmurePersistence.updateFlowInstall(install.install_id, { evolution_state: "live" });
   } catch (e) {
-    ctx.workerPool.kill(install.package_id, install.bundle_digest);
+    ctx.workerPool.kill(install.flow_id, install.bundle_digest);
     if (prior) {
       await ctx.mountRegistry.apply(app, ctx, prior).catch(() => undefined);
     } else {
-      await ctx.mountRegistry.unmount(spaceId, install.package_id).catch(() => undefined);
+      await ctx.mountRegistry.unmount(spaceId, install.flow_id).catch(() => undefined);
     }
     const message = e instanceof Error ? e.message : "Mount failed";
     return {
       ok: false,
-      code: STUDIO_DENIAL_CODES.LIVE_APPLY_FAILED,
+      code: MURRMURE_DENIAL_CODES.LIVE_APPLY_FAILED,
       message,
       http_status: 500,
     };
@@ -205,19 +205,19 @@ export async function executeLiveApply(
       actor_id: auth.actor_id,
       token_id: auth.token_id,
     },
-    event_type: "capability.live_applied",
+    event_type: "flow.live_applied",
     payload: {
       install_id: install.install_id,
-      package_id: install.package_id,
+      package_id: install.flow_id,
       version: install.version,
     },
   } as never);
 
   broadcastSse(ctx, {
-    event: "capability.live_applied",
+    event: "flow.live_applied",
     data: {
       install_id: install.install_id,
-      package_id: install.package_id,
+      package_id: install.flow_id,
       version: install.version,
       bundle_digest: install.bundle_digest,
     },
@@ -226,17 +226,17 @@ export async function executeLiveApply(
   broadcastSse(ctx, {
     event: "journal.append",
     data: {
-      type: "capability.live_applied",
+      type: "flow.live_applied",
       install_id: install.install_id,
-      package_id: install.package_id,
+      package_id: install.flow_id,
     },
   });
 
   broadcastSse(ctx, {
-    event: "capability.dev_reload",
+    event: "flow.dev_reload",
     data: {
       install_id: install.install_id,
-      package_id: install.package_id,
+      package_id: install.flow_id,
       version: install.version,
       bundle_digest: install.bundle_digest,
     },
@@ -250,7 +250,7 @@ export async function executeLiveApply(
         method: "studio/control.contract_updated",
         params: {
           space_id: prefixedSpaceId(bareSpace),
-          package_id: install.package_id,
+          package_id: install.flow_id,
           from_version: prior.semver,
           to_version: install.version,
           contract_ref_id: install.contract_ref_id,

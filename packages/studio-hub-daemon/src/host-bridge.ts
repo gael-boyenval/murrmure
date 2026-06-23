@@ -1,8 +1,8 @@
 import type { Hono } from "hono";
 import { stripTokenId } from "@murrmure/hub-core";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
-import type { WorkerAuth } from "./capability-worker-pool.js";
+import type { WorkerAuth } from "./flow-worker-pool.js";
 import { prefixedSpaceId } from "./space-id.js";
 
 interface BridgeInvokeBody {
@@ -13,7 +13,7 @@ interface BridgeInvokeBody {
 }
 
 function parseWorkerToken(req: Request): string | undefined {
-  return req.headers.get("X-Studio-Worker-Token") ?? undefined;
+  return req.headers.get("X-Murrmure-Worker-Token") ?? undefined;
 }
 
 async function resolveBridgePrincipal(
@@ -21,7 +21,7 @@ async function resolveBridgePrincipal(
   req: Request,
   workerAuth: WorkerAuth,
 ): Promise<{ spaceId: string; actorId: string; tokenId: string }> {
-  const internalSpace = req.headers.get("X-Studio-Internal-Space");
+  const internalSpace = req.headers.get("X-Murrmure-Internal-Space");
   if (internalSpace) {
     return {
       spaceId: internalSpace.startsWith("spc_") ? internalSpace : prefixedSpaceId(internalSpace),
@@ -34,9 +34,9 @@ async function resolveBridgePrincipal(
     ? workerAuth.spaceId
     : prefixedSpaceId(workerAuth.spaceId);
 
-  const caller = req.headers.get("X-Studio-Caller-Token") ?? req.headers.get("Authorization")?.replace(/^Bearer /, "");
+  const caller = req.headers.get("X-Murrmure-Caller-Token") ?? req.headers.get("Authorization")?.replace(/^Bearer /, "");
   if (caller) {
-    const row = await ctx.studioPersistence.getToken(stripTokenId(caller));
+    const row = await ctx.murrmurePersistence.getToken(stripTokenId(caller));
     if (row && row.status === "active") {
       const spaceId = row.space_id === "bootstrap" ? workerSpaceId : prefixedSpaceId(row.space_id);
       return {
@@ -58,7 +58,7 @@ export function mountHostBridgeRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/internal/worker-bridge/invoke", async (c) => {
     const token = parseWorkerToken(c.req.raw);
     if (!token) {
-      return c.json({ code: STUDIO_DENIAL_CODES.TOKEN_DENIED, message: "Missing worker token" }, 403);
+      return c.json({ code: MURRMURE_DENIAL_CODES.TOKEN_DENIED, message: "Missing worker token" }, 403);
     }
 
     const workerAuth = ctx.workerPool.validateToken(token);

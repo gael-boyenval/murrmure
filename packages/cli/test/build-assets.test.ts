@@ -8,7 +8,7 @@ import { linkScaffoldWorkspaceDeps } from "./helpers/link-scaffold-deps.js";
 
 describe("flow build assets", () => {
   test("copies static ui files except ui/src into stage", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-assets-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-assets-"));
     const dir = join(base, "demo-assets");
     try {
       initFlow("demo-assets", dir);
@@ -31,7 +31,7 @@ describe("flow build assets", () => {
   });
 
   test("fails build when shell.html references missing asset", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-assets-missing-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-assets-missing-"));
     const dir = join(base, "demo-missing");
     try {
       initFlow("demo-missing", dir);
@@ -50,7 +50,7 @@ describe("flow build assets", () => {
   });
 
   test("fails build when server bundle has syntax errors", async () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-server-fail-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-server-fail-"));
     const dir = join(base, "demo-server-fail");
     try {
       initFlow("demo-server-fail", dir);
@@ -66,7 +66,7 @@ describe("flow build assets", () => {
   });
 
   test("copyUiStaticAssets respects explicit asset paths", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-copy-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-copy-"));
     const source = join(base, "source");
     const stage = join(base, "stage", "ui");
     try {
@@ -84,7 +84,7 @@ describe("flow build assets", () => {
   });
 
   test("validateShellAssetReferences detects broken relative refs", () => {
-    const base = mkdtempSync(join(tmpdir(), "cap-sdk-shell-validate-"));
+    const base = mkdtempSync(join(tmpdir(), "mrmr-shell-validate-"));
     const stageUi = join(base, "ui");
     try {
       mkdirSync(stageUi, { recursive: true });

@@ -73,7 +73,7 @@ describe("feature-spec/spec-summary-query", () => {
       body: JSON.stringify({
         label: "spec-agent",
         scopes: ["space:read", "state:transition", "event:emit", "blob:write"],
-        capability_acl: ["feature-spec"],
+        flow_acl: ["feature-spec"],
       }),
     });
     const agentToken = (await agentGrant.json()).token;
@@ -112,7 +112,7 @@ describe("feature-spec/spec-summary-query", () => {
       body: JSON.stringify({
         label: "dev-agent",
         scopes: ["space:read"],
-        capability_acl: [],
+        flow_acl: [],
       }),
     });
     devToken = (await devGrant.json()).token;

@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShellLayout } from "../../ShellLayout.js";
 import { useClient, setActiveSpaceId } from "../../hooks.js";
+import { getStorageItem, setStorageItem } from "../../storage.js";
 import { ScopeDenialBanner } from "./ScopeDenialBanner.js";
 
 const STEPS = [
   "Connect",
   "Create spaces",
-  "Push capability (CDK)",
+  "Push flow (FDK)",
   "Validate & test",
   "Agent access",
   "Invite team",
@@ -18,8 +19,8 @@ export function SetupWizard() {
   const client = useClient();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [hubUrl, setHubUrl] = useState(localStorage.getItem("studio_hub_url") ?? "http://127.0.0.1:8787");
-  const [token, setToken] = useState(localStorage.getItem("studio_token") ?? "");
+  const [hubUrl, setHubUrl] = useState(getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787");
+  const [token, setToken] = useState(getStorageItem("murrmure_token") ?? "");
   const [sandboxId, setSandboxId] = useState("");
   const [productionId, setProductionId] = useState("");
   const [installId, setInstallId] = useState("");
@@ -30,8 +31,8 @@ export function SetupWizard() {
     setError("");
     try {
       if (step === 0) {
-        localStorage.setItem("studio_hub_url", hubUrl);
-        localStorage.setItem("studio_token", token);
+        setStorageItem("murrmure_hub_url", hubUrl);
+        setStorageItem("murrmure_token", token);
         window.location.reload();
         return;
       }
@@ -56,9 +57,7 @@ export function SetupWizard() {
       }
 
       if (step === 2) {
-        // CDK-only: capabilities arrive via `studio capability push`, not a bundled
-        // catalog. Pick up the most recent pushed install in the sandbox, if any.
-        const installs = (await client.capabilities.list(
+        const installs = (await client.flows.list(
           sandboxId || "spc_ui_sandbox",
         )) as Array<{ install_id: string }>;
         const latest = installs.at(-1);
@@ -67,24 +66,24 @@ export function SetupWizard() {
 
       if (step === 3) {
         const sid = sandboxId || "spc_ui_sandbox";
-        await client.capabilities.validate(sid, installId || undefined);
-        await client.capabilities.test(sid, installId || undefined);
+        await client.flows.validate(sid, installId || undefined);
+        await client.flows.test(sid, installId || undefined);
       }
 
       if (step === 4) {
         const sid = sandboxId || "spc_ui_sandbox";
-        const installs = (await client.capabilities.list(sid)) as Array<{ package_id: string; evolution_state: string }>;
-        const livePackages = [...new Set(
-          installs.filter((i) => i.evolution_state === "live").map((i) => i.package_id),
+        const installs = (await client.flows.list(sid)) as Array<{ flow_id: string; evolution_state: string }>;
+        const liveFlows = [...new Set(
+          installs.filter((i) => i.evolution_state === "live").map((i) => i.flow_id),
         )];
-        const capability_acl = livePackages.length > 0
-          ? livePackages
-          : [...new Set(installs.map((i) => i.package_id))];
+        const flow_acl = liveFlows.length > 0
+          ? liveFlows
+          : [...new Set(installs.map((i) => i.flow_id))];
         const grant = await client.grants.mint(sid, {
           label: "Dev Cursor — ui-sandbox worker",
           harness: "cursor-local",
           template: "worker",
-          capability_acl,
+          flow_acl,
           expires_in_days: 90,
         });
         setWorkerToken((grant as { token: string }).token);
@@ -97,7 +96,7 @@ export function SetupWizard() {
       }
 
       if (step === 6) {
-        localStorage.setItem("studio_setup_complete", "1");
+        setStorageItem("murrmure_setup_complete", "1");
         navigate(`/spaces/${sandboxId || "spc_ui_sandbox"}`);
         return;
       }
@@ -135,12 +134,12 @@ export function SetupWizard() {
 
       {step === 2 && (
         <div style={{ marginTop: 12 }}>
-          <p>Author a capability in your repo and push it to the sandbox with the CDK:</p>
+          <p>Author a flow in your repo and push it to the sandbox with the FDK:</p>
           <ol>
-            <li><code>studio capability init my-flow --from-example review-loop</code></li>
-            <li><code>studio capability validate .</code> → <code>build .</code> → <code>push --space {sandboxId || "spc_ui_sandbox"}</code></li>
+            <li><code>mrmr flow init my-flow --from-example review-loop</code></li>
+            <li><code>mrmr flow validate .</code> → <code>build .</code> → <code>mrmr flow push --space {sandboxId || "spc_ui_sandbox"}</code></li>
           </ol>
-          <p>Continue once your capability has been pushed — the latest install will be picked up.</p>
+          <p>Continue once your flow has been pushed — the latest install will be picked up.</p>
         </div>
       )}
       {step === 4 && workerToken && (

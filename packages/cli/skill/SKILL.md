@@ -37,7 +37,7 @@ Flow change checklist:
 - [ ] mrmr flow test --space <space> --install <install> --json
 - [ ] mrmr flow promote --space <space> --install <install> --json
 - [ ] mrmr flow apply --space <space> --install <install> --json
-- [ ] Mint grant includes flow id in capability_acl; reload MCP
+- [ ] Mint grant includes flow id in flow_acl; reload MCP
 ```
 
 **Never push code changes without bumping version** — the hub keys installs by `(flow_id, semver)`. Skipping validate/test/promote/apply leaves the old worker live.
@@ -76,6 +76,6 @@ Env: `MURRMURE_HUB_URL`, `MURRMURE_TOKEN` (or `MURRMURE_HUB_TOKEN`), `MURRMURE_S
 
 1. **Instance create** — use `ctx.contractRefId` from the worker context, not a hardcoded `cref_*` string.
 2. **Review sessions** — return `murrmure_url` / `canvas_path` to the human before blocking on wait tools.
-3. **Grants** — `capability_acl` must list your `flow_id`; platform scopes alone do not expose domain tools.
+3. **Grants** — `flow_acl` must list your `flow_id`; platform scopes alone do not expose domain tools.
 4. **Promote ≠ live** — always **apply** after promote for FDK bundles.
 5. **Do not edit hub or shell** for domain behavior — change the flow package and re-run the pipeline.

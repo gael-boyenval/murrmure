@@ -1,4 +1,4 @@
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { TokenContext } from "../../auth.js";
 
 const SCOPE_MESSAGES: Record<string, string> = {
@@ -17,7 +17,7 @@ export function hasScope(ctx: TokenContext, scope: string): boolean {
 
 export function requireScope(ctx: TokenContext, scope: string): Response | null {
   if (hasScope(ctx, scope)) return null;
-  return denialResponse(STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
+  return denialResponse(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
     message: SCOPE_MESSAGES[scope] ?? `Missing required scope: ${scope}`,
     hint: { required_scope: scope, nearest_space_id: ctx.space_id !== "bootstrap" ? `spc_${ctx.space_id}` : undefined },
   });

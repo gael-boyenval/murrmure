@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { makeHub } from "../integration/helpers.js";
 import { addTokenId } from "../../src/index.js";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 
 describe("S3 federation", () => {
   test("ingress denied without registered hub", async () => {
@@ -22,7 +22,7 @@ describe("S3 federation", () => {
       event_type: "ping",
       payload: {},
     });
-    expect(result.code).toBe(STUDIO_DENIAL_CODES.FEDERATION_DENIED);
+    expect(result.code).toBe(MURRMURE_DENIAL_CODES.FEDERATION_DENIED);
   });
 
   test("outbound enqueue and claim", async () => {
@@ -36,7 +36,7 @@ describe("S3 federation", () => {
     });
     const spaceId = space.body.space_id as string;
 
-    await hub.studioPersistence.insertFederationHub({
+    await hub.murrmurePersistence.insertFederationHub({
       hub_id: "hub_remote",
       endpoint: "http://localhost:9999",
       status: "active",
@@ -52,7 +52,7 @@ describe("S3 federation", () => {
     });
     expect(emit.outcome).toBe("success");
 
-    const batch = await hub.studioPersistence.claimFederationOutbound(10);
+    const batch = await hub.murrmurePersistence.claimFederationOutbound(10);
     expect(batch.length).toBe(1);
   });
 });

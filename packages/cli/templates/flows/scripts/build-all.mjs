@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build every example capability via the CDK SDK. Used by docs and the CDK
+// Build every example flow via the CDK SDK. Used by docs and the CDK
 // conformance tests. The SDK ships as raw TypeScript, so register the tsx ESM
 // loader (installed at the repo root) before importing it — no per-example
 // `npm install` required.
@@ -49,4 +49,4 @@ if (failed > 0) {
   console.error(`\n${failed} example(s) failed to build`);
   process.exit(1);
 }
-console.log(`\nBuilt ${targets.length} example capability bundle(s)`);
+console.log(`\nBuilt ${targets.length} example flow bundle(s)`);

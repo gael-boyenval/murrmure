@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/promote-tool-refresh", () => {
+describe("flow-runtime/promote-tool-refresh", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let sandboxId: string;
@@ -67,7 +67,7 @@ describe("capability-runtime/promote-tool-refresh", () => {
       body: JSON.stringify({
         label: "dev-worker",
         scopes: ["space:read", "state:transition", "flow:install"],
-        capability_acl: ["review-loop", "feature-spec"],
+        flow_acl: ["review-loop", "feature-spec"],
       }),
     });
     token = (await grant.json()).token;

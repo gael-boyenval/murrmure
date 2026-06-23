@@ -6,7 +6,7 @@ import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
-describe("capability-runtime/reconnect-outbox-replay", () => {
+describe("flow-runtime/reconnect-outbox-replay", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let sandboxId: string;
@@ -50,7 +50,7 @@ describe("capability-runtime/reconnect-outbox-replay", () => {
       body: JSON.stringify({
         label: "dev-worker",
         scopes: ["space:read", "state:transition", "flow:install"],
-        capability_acl: ["review-loop", "feature-spec"],
+        flow_acl: ["review-loop", "feature-spec"],
       }),
     });
     token = (await grant.json()).token;
@@ -105,7 +105,7 @@ describe("capability-runtime/reconnect-outbox-replay", () => {
   });
 });
 
-describe("capability-runtime/mcp-wake", () => {
+describe("flow-runtime/mcp-wake", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let sandboxId: string;

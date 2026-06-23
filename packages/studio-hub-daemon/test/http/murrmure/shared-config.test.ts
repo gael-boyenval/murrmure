@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-describe("studio/shared-config (BC6b project registry)", () => {
+describe("murrmure/shared-config (BC6b project registry)", () => {
   let baseUrl: string;
   let cleanup: () => void;
 
@@ -34,31 +34,31 @@ describe("studio/shared-config (BC6b project registry)", () => {
   afterAll(() => cleanup?.());
 
   test("requires a valid token", async () => {
-    const res = await fetch(`${baseUrl}/v1/studio/shared-config`);
+    const res = await fetch(`${baseUrl}/v1/murrmure/shared-config`);
     expect(res.status).toBe(403);
   });
 
-  test("persists and reads back capability projects", async () => {
-    const projects = [{ package_id: "review-loop", source: "/repo/workflows/review-loop" }];
-    const put = await fetch(`${baseUrl}/v1/studio/shared-config/projects`, {
+  test("persists and reads back flow projects", async () => {
+    const projects = [{ flow_id: "review-loop", source: "/repo/workflows/review-loop" }];
+    const put = await fetch(`${baseUrl}/v1/murrmure/shared-config/projects`, {
       method: "PUT",
       headers: bootstrap(),
-      body: JSON.stringify({ capabilityProjects: projects }),
+      body: JSON.stringify({ flowProjects: projects }),
     });
     expect(put.status).toBe(200);
-    expect((await put.json()).capabilityProjects).toEqual(projects);
+    expect((await put.json()).flowProjects).toEqual(projects);
 
-    const get = await fetch(`${baseUrl}/v1/studio/shared-config`, { headers: bootstrap() });
+    const get = await fetch(`${baseUrl}/v1/murrmure/shared-config`, { headers: bootstrap() });
     const body = await get.json();
-    expect(body.capabilityProjects).toEqual(projects);
+    expect(body.flowProjects).toEqual(projects);
   });
 
   test("drops malformed project entries", async () => {
-    const put = await fetch(`${baseUrl}/v1/studio/shared-config/projects`, {
+    const put = await fetch(`${baseUrl}/v1/murrmure/shared-config/projects`, {
       method: "PUT",
       headers: bootstrap(),
-      body: JSON.stringify({ capabilityProjects: [{ package_id: "", source: "x" }, { source: "no-id" }, 42] }),
+      body: JSON.stringify({ flowProjects: [{ flow_id: "", source: "x" }, { source: "no-id" }, 42] }),
     });
-    expect((await put.json()).capabilityProjects).toEqual([]);
+    expect((await put.json()).flowProjects).toEqual([]);
   });
 });

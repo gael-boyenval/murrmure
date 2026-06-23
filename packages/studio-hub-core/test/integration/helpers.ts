@@ -33,12 +33,12 @@ export function resetFixedIds() {
 export async function makeHub() {
   resetFixedIds();
   const kernelPersistence = new InMemoryPersistence();
-  const studioPersistence = new MemoryStudioPersistence();
+  const murrmurePersistence = new MemoryStudioPersistence();
   const ids = fixedIdPort();
   const clock = fixedClockPort();
 
   const bootstrapToken = "01JBOOTSTRAPTOKEN00000001";
-  await studioPersistence.insertToken(
+  await murrmurePersistence.insertToken(
     {
       token_id: bootstrapToken,
       actor_id: "actor_bootstrap",
@@ -62,22 +62,22 @@ export async function makeHub() {
     readFileSync(join(FIXTURES, "contracts/linear-demo-v2.json"), "utf-8"),
   );
   const contract = ContractV2Schema.parse(contractRaw);
-  await pinContract(studioPersistence, "cref_linear_demo", contract);
+  await pinContract(murrmurePersistence, "cref_linear_demo", contract);
 
   const { kernel } = createHubKernel({
     kernelPersistence,
-    studioPersistence,
+    murrmurePersistence,
     ids,
     clock,
   });
 
-  const handler = new HubHandler(kernel, studioPersistence, ids, clock);
+  const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);
 
   return {
     handler,
     kernel,
     kernelPersistence,
-    studioPersistence,
+    murrmurePersistence,
     bootstrapToken,
     contract,
     ids,

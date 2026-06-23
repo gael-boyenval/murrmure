@@ -1,30 +1,31 @@
-import type { Hono } from "hono";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Hono } from "hono";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { sourceBlobPath } from "../../bundle-store.js";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { normalizeTriggerBody } from "../triggers/index.js";
 import { ingestFlowBundle } from "../../bundle-ingest.js";
 
 export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
-  const { handler, studioPersistence } = ctx;
+  const { handler, murrmurePersistence } = ctx;
   const config = handler.config;
 
   app.get("/v1/auth/whoami", async (c) => {
-    const auth = await requireToken(studioPersistence, c.req.raw);
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const whoami = await handler.query("auth.whoami", {
       space_id: auth.space_id,
       token_id: auth.token_id,
     });
-    if (!whoami) return c.json({ code: STUDIO_DENIAL_CODES.TOKEN_DENIED, message: "Invalid token" }, 403);
+    if (!whoami) return c.json({ code: MURRMURE_DENIAL_CODES.TOKEN_DENIED, message: "Invalid token" }, 403);
     return c.json(whoami);
   });
 
   app.get("/v1/spaces", async (c) => {
-    const auth = await requireToken(studioPersistence, c.req.raw);
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:enter");
     if (scopeCheck) return scopeCheck;
@@ -46,7 +47,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.patch("/v1/spaces/:space_id", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -59,7 +60,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.post("/v1/spaces/:space_id/archive", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -73,21 +74,19 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/flows", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
 
     const installs = await config.listCapabilities(space_id);
-    return c.json({
-      flows: installs.map((install) => ({ ...install, flow_id: install.package_id })),
-    });
+    return c.json({ flows: installs });
   });
 
   app.post("/v1/spaces/:space_id/flows/install", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -105,7 +104,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
       | undefined;
 
     if (body.bundle) {
-      const ingested = await ingestFlowBundle(ctx.config.dataDir, studioPersistence, {
+      const ingested = await ingestFlowBundle(ctx.config.dataDir, murrmurePersistence, {
         flow_id: flowId,
         package_id: body.package_id,
         version: body.version,
@@ -127,7 +126,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
     const result = await config.installCapability(
       space_id,
-      { ...body, package_id: flowId },
+      { ...body, flow_id: flowId },
       actorKind(auth),
       bundleMeta,
     );
@@ -140,21 +139,48 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/flows/:install_id", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
 
     const install = await config.getCapability(space_id, install_id);
     if (!install) return c.json({ code: "not_found", message: "Install not found" }, 404);
-    return c.json({ ...install, flow_id: install.package_id });
+    return c.json(install);
+  });
+
+  app.get("/v1/spaces/:space_id/flows/:install_id/source", async (c) => {
+    const space_id = c.req.param("space_id");
+    const install_id = c.req.param("install_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const scopeCheck = requireScope(auth, "space:read");
+    if (scopeCheck) return scopeCheck;
+
+    const install = await config.getCapability(space_id, install_id);
+    if (!install?.source_digest) {
+      return c.json({ code: "source_not_found", message: "No source snapshot for this install" }, 404);
+    }
+
+    const sourcePath = sourceBlobPath(ctx.config.dataDir, install.flow_id, install.version);
+    if (!existsSync(sourcePath)) {
+      return c.json({ code: "source_not_found", message: "Source blob missing on hub" }, 404);
+    }
+
+    const body = readFileSync(sourcePath);
+    return new Response(body, {
+      headers: {
+        "content-type": "application/zstd",
+        "content-disposition": `attachment; filename="${install.flow_id}-${install.version}-source.tar.zst"`,
+      },
+    });
   });
 
   app.patch("/v1/spaces/:space_id/flows/:install_id/config", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:configure");
     if (scopeCheck) return scopeCheck;
@@ -167,7 +193,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/evolution/validate", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json().catch(() => ({}));
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -179,7 +205,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/evolution/test", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json().catch(() => ({}));
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -191,7 +217,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/evolution/promote", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json().catch(() => ({}));
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -203,7 +229,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/evolution/rollback", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -217,7 +243,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const from = c.req.query("from") ?? "2.0.0";
     const to = c.req.query("to") ?? "3.0.0";
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -228,7 +254,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/members", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -240,7 +266,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/members", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -253,7 +279,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const member_id = c.req.param("member_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -266,7 +292,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.delete("/v1/spaces/:space_id/members/:member_id", async (c) => {
     const space_id = c.req.param("space_id");
     const member_id = c.req.param("member_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -277,7 +303,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/grants", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -289,7 +315,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/grants", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -301,7 +327,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/grants/:grant_id/revoke", async (c) => {
     const space_id = c.req.param("space_id");
     const grant_id = c.req.param("grant_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -313,7 +339,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/grants/:grant_id/rotate", async (c) => {
     const space_id = c.req.param("space_id");
     const grant_id = c.req.param("grant_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -325,7 +351,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
   app.get("/v1/spaces/:space_id/triggers", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -337,7 +363,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/triggers", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
@@ -349,7 +375,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.post("/v1/spaces/:space_id/triggers/:trigger_id/disable", async (c) => {
     const space_id = c.req.param("space_id");
     const trigger_id = c.req.param("trigger_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
@@ -361,7 +387,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   app.get("/v1/spaces/:space_id/triggers/deliveries", async (c) => {
     const space_id = c.req.param("space_id");
     const limit = Number(c.req.query("limit") ?? "50");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -374,7 +400,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const space_id = c.req.param("space_id");
     const trigger_id = c.req.param("trigger_id");
     const body = await c.req.json();
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
@@ -384,10 +410,10 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   });
 
   app.get("/v1/ops/grants/export", async (c) => {
-    const auth = await requireToken(studioPersistence, c.req.raw);
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     if (!hasScope(auth, "space:admin")) {
-      return denialResponse(STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
+      return denialResponse(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
         message: "Hub operator access required",
         hint: { required_scope: "space:admin" },
       });
@@ -398,7 +424,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   });
 
   app.get("/v1/ops/federation/status", async (c) => {
-    const auth = await requireToken(studioPersistence, c.req.raw);
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;

@@ -85,7 +85,7 @@ If an agent changed server/UI but skipped version + pipeline:
 
 1. Bump semver in manifest + contract.
 2. Re-run the full checklist from SKILL.md.
-3. Rotate or mint a new grant if `capability_acl` was wrong.
+3. Rotate or mint a new grant if `flow_acl` was wrong.
 4. Reload MCP.
 
 ## contract_ref_id

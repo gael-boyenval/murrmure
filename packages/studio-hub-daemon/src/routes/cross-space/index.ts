@@ -5,17 +5,17 @@ import { requireScope } from "../config/scopes.js";
 import { executeCrossSpaceAsk } from "../../cross-space-query.js";
 
 export function mountCrossSpaceRoutes(app: Hono, ctx: DaemonContext): void {
-  const { studioPersistence, handler } = ctx;
+  const { murrmurePersistence, handler } = ctx;
 
   app.post("/v1/spaces/:space_id/queries/ask", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
 
     const body = await c.req.json();
-    const result = await executeCrossSpaceAsk(handler, ctx, studioPersistence, space_id, auth.actor_id, {
+    const result = await executeCrossSpaceAsk(handler, ctx, murrmurePersistence, space_id, auth.actor_id, {
       target_space_id: String(body.target_space_id ?? ""),
       query_type: String(body.query_type ?? ""),
       params: (body.params as Record<string, unknown>) ?? {},
@@ -39,12 +39,12 @@ export function mountCrossSpaceRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.get("/v1/spaces/:space_id/queries/:query_id", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
 
-    const query = await studioPersistence.getQuery(c.req.param("query_id"));
+    const query = await murrmurePersistence.getQuery(c.req.param("query_id"));
     if (!query) return c.json({ code: "not_found" }, 404);
     return c.json(query);
   });

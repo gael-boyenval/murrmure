@@ -15,7 +15,7 @@ function flag(name) {
 const port = Number(flag("--port") ?? "0");
 const bundlePath = flag("--bundle") ?? "";
 const prefix = flag("--prefix") ?? "/api/capability";
-const bridgePort = process.env.STUDIO_BRIDGE_PORT ?? "8787";
+const bridgePort = process.env.MURRMURE_BRIDGE_PORT ?? process.env.MURRMURE_BRIDGE_PORT ?? "8787";
 
 const mountPath = pathToFileURL(join(bundlePath, "server", "mount.mjs")).href;
 const mod = await import(mountPath);
@@ -71,18 +71,18 @@ function addRoute(method, path, handler) {
 function createContext(requestHeaders) {
   const hub = createHubBridge({
     bridgeUrl: `http://127.0.0.1:${bridgePort}`,
-    workerToken: process.env.STUDIO_WORKER_TOKEN ?? "",
+    workerToken: process.env.MURRMURE_WORKER_TOKEN ?? process.env.MURRMURE_WORKER_TOKEN ?? "",
     getRequestHeaders: () => requestHeaders,
   });
 
   return {
-    spaceId: process.env.STUDIO_SPACE_ID ?? "",
-    installId: process.env.STUDIO_INSTALL_ID ?? "",
-    packageId: process.env.STUDIO_PACKAGE_ID ?? "",
-    flowId: process.env.STUDIO_PACKAGE_ID ?? "",
-    version: process.env.STUDIO_VERSION ?? "",
+    spaceId: process.env.MURRMURE_SPACE_ID ?? process.env.MURRMURE_SPACE_ID ?? "",
+    installId: process.env.MURRMURE_INSTALL_ID ?? process.env.MURRMURE_INSTALL_ID ?? "",
+    packageId: process.env.MURRMURE_FLOW_ID ?? process.env.MURRMURE_FLOW_ID ?? "",
+    flowId: process.env.MURRMURE_FLOW_ID ?? process.env.MURRMURE_FLOW_ID ?? "",
+    version: process.env.MURRMURE_VERSION ?? process.env.MURRMURE_VERSION ?? "",
     routesPrefix: prefix,
-    contractRefId: process.env.STUDIO_CONTRACT_REF_ID ?? "",
+    contractRefId: process.env.MURRMURE_CONTRACT_REF_ID ?? process.env.MURRMURE_CONTRACT_REF_ID ?? "",
     hub,
     getInstallConfig: () => hub.getInstallConfig(),
   };

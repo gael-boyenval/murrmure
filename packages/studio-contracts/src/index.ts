@@ -7,6 +7,7 @@ export * from "./entities/space.js";
 export * from "./entities/instance.js";
 export * from "./entities/grant.js";
 export * from "./entities/gate.js";
+export * from "./entities/flow.js";
 export * from "./entities/capability.js";
 export * from "./entities/member.js";
 export * from "./errors/denial.js";

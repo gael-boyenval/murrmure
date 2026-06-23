@@ -6,11 +6,11 @@ import { executeLiveApply, executeUnmount } from "../../live-apply.js";
 import { bareSpaceId } from "../../space-id.js";
 
 export function mountFlowRuntimeRoutes(app: Hono, ctx: DaemonContext): void {
-  const { studioPersistence } = ctx;
+  const { murrmurePersistence } = ctx;
 
   app.get("/v1/spaces/:space_id/flows/live", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
@@ -21,7 +21,7 @@ export function mountFlowRuntimeRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/v1/spaces/:space_id/flows/:install_id/apply", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
 
     const result = await executeLiveApply(app, ctx, space_id, install_id, auth);
@@ -39,7 +39,7 @@ export function mountFlowRuntimeRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.post("/v1/spaces/:space_id/flows/rollback", async (c) => {
     const space_id = c.req.param("space_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
@@ -47,8 +47,8 @@ export function mountFlowRuntimeRoutes(app: Hono, ctx: DaemonContext): void {
     const body = await c.req.json();
     const flowId = String(body.flow_id ?? body.package_id ?? "");
     const toVersion = String(body.to_version ?? "");
-    const installs = await studioPersistence.listCapabilityInstalls(bareSpaceId(space_id));
-    const target = installs.find((i) => i.package_id === flowId && i.version === toVersion);
+    const installs = await murrmurePersistence.listFlowInstalls(bareSpaceId(space_id));
+    const target = installs.find((i) => i.flow_id === flowId && i.version === toVersion);
     if (!target) {
       return c.json({ code: "not_found", message: "Install version not found" }, 404);
     }
@@ -69,18 +69,18 @@ export function mountFlowRuntimeRoutes(app: Hono, ctx: DaemonContext): void {
   app.post("/v1/spaces/:space_id/flows/:install_id/unmount", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
-    const auth = await requireToken(studioPersistence, c.req.raw, space_id);
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
-    const install = await studioPersistence.getCapabilityInstall(install_id);
+    const install = await murrmurePersistence.getFlowInstall(install_id);
     if (!install || bareSpaceId(install.space_id) !== bareSpaceId(space_id)) {
       return c.json({ code: "not_found", message: "Install not found" }, 404);
     }
-    await executeUnmount(app, ctx, space_id, install.package_id);
-    await studioPersistence.updateCapabilityInstall(install_id, { evolution_state: "superseded" });
-    return c.json({ ok: true, flow_id: install.package_id, package_id: install.package_id });
+    await executeUnmount(app, ctx, space_id, install.flow_id);
+    await murrmurePersistence.updateFlowInstall(install_id, { evolution_state: "superseded" });
+    return c.json({ ok: true, flow_id: install.flow_id });
   });
 }
 

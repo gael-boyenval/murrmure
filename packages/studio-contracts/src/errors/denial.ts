@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SpaceIdSchema } from "../ids.js";
 
-export const StudioDenialSchema = z.object({
+export const MurrmureDenialSchema = z.object({
   code: z.string(),
   message: z.string(),
   retryable: z.boolean().optional(),
@@ -16,9 +16,9 @@ export const StudioDenialSchema = z.object({
     .optional(),
 });
 
-export type StudioDenial = z.infer<typeof StudioDenialSchema>;
+export type MurrmureDenial = z.infer<typeof MurrmureDenialSchema>;
 
-export const STUDIO_DENIAL_CODES = {
+export const MURRMURE_DENIAL_CODES = {
   TOKEN_DENIED: "token_denied",
   SCOPE_ENFORCEMENT_FAILURE: "scope_enforcement_failure",
   TRANSITION_DENIED: "transition_denied",
@@ -40,3 +40,10 @@ export const STUDIO_DENIAL_CODES = {
   MCP_TOOL_COLLISION: "MCP_TOOL_COLLISION",
   ROUTE_PREFIX_COLLISION: "ROUTE_PREFIX_COLLISION",
 } as const;
+
+/** @deprecated use MurrmureDenialSchema */
+export const StudioDenialSchema = MurrmureDenialSchema;
+/** @deprecated use MurrmureDenial */
+export type StudioDenial = MurrmureDenial;
+/** @deprecated use MURRMURE_DENIAL_CODES */
+export const STUDIO_DENIAL_CODES = MURRMURE_DENIAL_CODES;

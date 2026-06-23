@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "studio-hub": "./bin/studio-hub"
+    "murrmure-hub": "./bin/murrmure-hub",
+    "murrmure-hub": "./bin/murrmure-hub"
   },
   "exports": {
     ".": "./src/index.ts"
@@ -20,7 +21,6 @@
     "@hono/node-server": "^1.14.1",
     "@murrmure/runtime-kernel": "workspace:*",
     "@murrmure/runtime-persistence": "workspace:*",
-    "@murrmure/cli": "workspace:*",
     "@murrmure/flow-dev-kit": "workspace:*",
     "@murrmure/contracts": "workspace:*",
     "@murrmure/hub-core": "workspace:*",
@@ -31,6 +31,7 @@
     "ulid": "^2.3.0"
   },
   "devDependencies": {
+    "@murrmure/cli": "workspace:*",
     "@types/better-sqlite3": "^7.6.12",
     "tsx": "^4.19.3"
   }

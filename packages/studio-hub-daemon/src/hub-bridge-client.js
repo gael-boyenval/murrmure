@@ -1,5 +1,5 @@
 /**
- * Host-bridge client injected into capability worker context by capability-worker-entry.js.
+ * Host-bridge client injected into flow worker context by capability-worker-entry.js.
  * Plain JavaScript — loaded by the bare node worker entry, not bundled into mount.mjs.
  */
 
@@ -9,15 +9,15 @@ export function createHubBridge(opts) {
   async function invoke(body) {
     const headers = {
       "Content-Type": "application/json",
-      "X-Studio-Worker-Token": workerToken,
+      "X-Murrmure-Worker-Token": workerToken,
     };
     const reqHeaders = getRequestHeaders();
     const caller =
-      reqHeaders["x-studio-caller-token"] ??
+      reqHeaders["x-murrmure-caller-token"] ??
       (reqHeaders.authorization ? reqHeaders.authorization.replace(/^Bearer /, "") : undefined);
-    if (caller) headers["X-Studio-Caller-Token"] = caller;
-    if (reqHeaders["x-studio-internal-space"]) {
-      headers["X-Studio-Internal-Space"] = reqHeaders["x-studio-internal-space"];
+    if (caller) headers["X-Murrmure-Caller-Token"] = caller;
+    if (reqHeaders["x-murrmure-internal-space"]) {
+      headers["X-Murrmure-Internal-Space"] = reqHeaders["x-murrmure-internal-space"];
     }
 
     const res = await fetch(`${bridgeUrl}/internal/worker-bridge/invoke`, {
@@ -45,7 +45,7 @@ export function createHubBridge(opts) {
     },
     getInstallConfig() {
       try {
-        return JSON.parse(process.env.STUDIO_INSTALL_CONFIG || "{}");
+        return JSON.parse(process.env.MURRMURE_INSTALL_CONFIG || process.env.MURRMURE_INSTALL_CONFIG || "{}");
       } catch {
         return {};
       }

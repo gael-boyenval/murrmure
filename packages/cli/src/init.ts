@@ -429,7 +429,7 @@ export function flowCanvasFrame(page: Page): FrameLocator {
 }
 `;
 
-const E2E_HARNESS_SIMULATED_STUDIO_MACHINE = `import type { APIRequestContext } from "@playwright/test";
+const E2E_HARNESS_SIMULATED_MURRMURE_MACHINE = `import type { APIRequestContext } from "@playwright/test";
 
 export async function applyFixture(request: APIRequestContext, fixture: string): Promise<void> {
   const response = await request.post(\`/sim/fixtures/\${fixture}/apply\`);
@@ -443,7 +443,7 @@ const E2E_CANVAS_SPEC = `import { expect, test } from "@playwright/test";
 import { flowCanvasFrame } from "./harness/simulated-shell";
 import { applyFixture } from "./harness/simulated-murrmure-machine";
 
-test("renders capability canvas from simulator", async ({ page, request }) => {
+test("renders flow canvas from simulator", async ({ page, request }) => {
   await applyFixture(request, "live-install-ready");
   await page.goto("/");
   const frame = flowCanvasFrame(page);
@@ -509,7 +509,7 @@ function initFromExample(
     rewriteJsonId(join(dir, "contract", "contract.json"), `"id": "${example}"`, `"id": "${id}"`);
     writeFileSync(
       join(dir, "murrmure.flow.yaml"),
-      `name: ${id}\ndescription: Forked from the ${example} example capability.\n`,
+      `name: ${id}\ndescription: Forked from the ${example} example flow.\n`,
     );
   }
 
@@ -578,11 +578,11 @@ export function initFlow(
   );
   writeFileSync(
     join(dir, "tests", "e2e", "harness", "simulated-murrmure-machine.ts"),
-    E2E_HARNESS_SIMULATED_STUDIO_MACHINE,
+    E2E_HARNESS_SIMULATED_MURRMURE_MACHINE,
   );
   writeFileSync(
     join(dir, "murrmure.flow.yaml"),
-    `name: ${id}\ndescription: User-authored capability\n`,
+    `name: ${id}\ndescription: User-authored flow\n`,
   );
   writeFileSync(
     join(dir, "tests", "contract", "reachability.test.ts"),

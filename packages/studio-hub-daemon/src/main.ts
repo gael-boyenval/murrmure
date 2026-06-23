@@ -18,7 +18,7 @@ import { ControlBus } from "./control-bus.js";
 import { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
 import { registerPlatformMcpHandlers } from "./mcp-handlers.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
-import { CapabilityWorkerPool } from "./capability-worker-pool.js";
+import { FlowWorkerPool } from "./flow-worker-pool.js";
 import { handleWorkerCrash } from "./worker-supervision.js";
 import { blobDir } from "./bundle-store.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
@@ -43,7 +43,7 @@ export async function startHubDaemon(config: DaemonConfig) {
 
   const bootstrapBare = config.bootstrapToken ?? "01JBOOTSTRAPTOKEN00000001";
   ensureBootstrapToken(db, bootstrapBare, "actor_bootstrap", "bootstrap");
-  const studioPersistence = createSqliteStudioPersistence(db);
+  const murrmurePersistence = createSqliteStudioPersistence(db);
 
   for (const [refId, file] of [
     ["cref_linear_demo", "linear-demo-v2.json"],
@@ -51,24 +51,24 @@ export async function startHubDaemon(config: DaemonConfig) {
   ] as const) {
     const contractPath = join(FIXTURES, file);
     const contract = ContractV2Schema.parse(JSON.parse(readFileSync(contractPath, "utf-8")));
-    await pinContract(studioPersistence, refId, contract);
+    await pinContract(murrmurePersistence, refId, contract);
   }
 
   const featureSpecContract = ContractV2Schema.parse(JSON.parse(readFileSync(FEATURE_SPEC_CONTRACT, "utf-8")));
-  await pinContract(studioPersistence, "cref_feature_spec", featureSpecContract);
+  await pinContract(murrmurePersistence, "cref_feature_spec", featureSpecContract);
 
   const ids = { ulid: () => ulid() };
   const clock = { nowIso: () => new Date().toISOString() };
 
-  const { kernel } = createHubKernel({ kernelPersistence, studioPersistence, ids, clock });
-  const handler = new HubHandler(kernel, studioPersistence, ids, clock);
+  const { kernel } = createHubKernel({ kernelPersistence, murrmurePersistence, ids, clock });
+  const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);
 
   const mountRegistry = new MountRegistry();
-  const mcpToolRegistry = new McpToolRegistry(mountRegistry, studioPersistence);
+  const mcpToolRegistry = new McpToolRegistry(mountRegistry, murrmurePersistence);
   const controlBus = new ControlBus();
   const mcpWakeDispatcher = new McpWakeDispatcher(controlBus, handler);
-  const triggerDispatcher = new TriggerDispatcher(studioPersistence, mcpWakeDispatcher, handler);
-  const workerPool = new CapabilityWorkerPool();
+  const triggerDispatcher = new TriggerDispatcher(murrmurePersistence, mcpWakeDispatcher, handler);
+  const workerPool = new FlowWorkerPool();
 
   const originalExecute = handler.execute.bind(handler);
   handler.execute = async (cmd) => {
@@ -91,9 +91,9 @@ export async function startHubDaemon(config: DaemonConfig) {
 
   const ctx: DaemonContext = {
     handler,
-    studioPersistence,
+    murrmurePersistence,
     config,
-    capabilities: ["platform"],
+    flows: ["platform"],
     startedAt: new Date(),
     sseSubscribers: new Set(),
     mountRegistry,
@@ -127,20 +127,20 @@ export async function startHubDaemon(config: DaemonConfig) {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  console.log(`Studio hub daemon listening on :${config.port}`);
+  console.log(`Murrmure hub listening on :${config.port}`);
   return { handler, server, db, ctx };
 }
 
 async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Promise<void> {
-  const spaces = await ctx.studioPersistence.listSpaces();
+  const spaces = await ctx.murrmurePersistence.listSpaces();
   for (const space of spaces) {
-    const installs = await ctx.studioPersistence.listCapabilityInstalls(addSpaceId(space.space_id));
+    const installs = await ctx.murrmurePersistence.listFlowInstalls(addSpaceId(space.space_id));
     for (const install of installs) {
       if (install.evolution_state !== "live" || !install.bundle_digest) continue;
       const blobPath = blobDir(ctx.config.dataDir, install.bundle_digest);
       let mcpTools: string[] = [];
       let queryTypes: string[] = [];
-      let routesPrefix = install.routes_prefix ?? `/api/${install.package_id}`;
+      let routesPrefix = install.routes_prefix ?? `/api/${install.flow_id}`;
       try {
         const manifestRaw = JSON.parse(readFileSync(join(blobPath, "manifest.json"), "utf-8")) as {
           mcp_tools_by_version?: Record<string, string[]>;
@@ -155,7 +155,7 @@ async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Pro
       }
 
       await ctx.workerPool.spawn({
-        packageId: install.package_id,
+        packageId: install.flow_id,
         digest: install.bundle_digest,
         blobPath,
         routesPrefix,
@@ -170,7 +170,7 @@ async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Pro
       await ctx.mountRegistry.apply(app, ctx, {
         install_id: install.install_id,
         space_id: addSpaceId(install.space_id),
-        package_id: install.package_id,
+        package_id: install.flow_id,
         semver: install.version,
         contract_ref_id: install.contract_ref_id,
         routes_prefix: routesPrefix,
@@ -186,7 +186,7 @@ async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Pro
 if (import.meta.url === `file://${process.argv[1]}`) {
   const databasePath = process.env.DATABASE_PATH ?? "./data/studio.db";
   const port = Number(process.env.PORT ?? "8787");
-  const dataDir = process.env.STUDIO_DATA_DIR ?? join(homedir(), ".studio");
-  const defaultSpaceId = process.env.STUDIO_SPACE_ID ?? "";
+  const dataDir = process.env.MURRMURE_DATA_DIR ?? process.env.MURRMURE_DATA_DIR ?? join(homedir(), ".murrmure");
+  const defaultSpaceId = process.env.MURRMURE_SPACE_ID ?? "";
   await startHubDaemon({ databasePath, port, dataDir, defaultSpaceId });
 }

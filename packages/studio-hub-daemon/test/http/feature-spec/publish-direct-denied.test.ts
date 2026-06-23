@@ -59,7 +59,7 @@ describe("feature-spec/publish-direct-denied", () => {
       body: JSON.stringify({
         label: "spec-agent",
         scopes: ["space:read", "state:transition", "event:emit", "blob:write"],
-        capability_acl: ["feature-spec"],
+        flow_acl: ["feature-spec"],
       }),
     });
     token = (await grant.json()).token;

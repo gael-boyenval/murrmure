@@ -10,7 +10,7 @@ export interface ExampleBundle extends StagedBundle {
 }
 
 /**
- * Build a reference example flow from examples/capabilities/<id> and stage
+ * Build a reference example flow from examples/flows/<id> and stage
  * it for local-path install.
  */
 export async function buildExampleBundle(opts: {

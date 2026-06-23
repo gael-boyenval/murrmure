@@ -22,7 +22,7 @@ import type {
   BlobWriteCommand,
   InstanceMetadataPatchCommand,
 } from "@murrmure/contracts";
-import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { HubKernel } from "../kernel.js";
 import { mapKernelResult, scopeEnforcementDenial } from "../bridge/errors.js";
 import { mapWaitCondition } from "../bridge/wait-condition.js";
@@ -205,7 +205,7 @@ export class HubHandler {
   private async handleInstanceCreate(cmd: InstanceCreateCommand): Promise<CommandResult> {
     const cref = await this.studio.getContractRef(cmd.contract_ref_id);
     if (!cref) {
-      return denialResult(STUDIO_DENIAL_CODES.CONTRACT_VALIDATION_DENIED, { message: "Unknown contract ref" }, HTTP_SEMANTIC.FORBIDDEN);
+      return denialResult(MURRMURE_DENIAL_CODES.CONTRACT_VALIDATION_DENIED, { message: "Unknown contract ref" }, HTTP_SEMANTIC.FORBIDDEN);
     }
 
     const p = this.toProvenance(cmd.provenance);
@@ -487,7 +487,7 @@ export class HubHandler {
   private async handleQueryAnswer(cmd: QueryAnswerCommand): Promise<CommandResult> {
     const query = await this.studio.getQuery(cmd.query_id);
     if (!query) {
-      return denialResult(STUDIO_DENIAL_CODES.QUERY_FAILED, { reason: "NOT_FOUND" }, HTTP_SEMANTIC.NOT_FOUND);
+      return denialResult(MURRMURE_DENIAL_CODES.QUERY_FAILED, { reason: "NOT_FOUND" }, HTTP_SEMANTIC.NOT_FOUND);
     }
     const schemaRaw = (query.schema_json ?? query.schema) as string | Record<string, unknown>;
     const schema =
@@ -495,7 +495,7 @@ export class HubHandler {
     const required = (schema.required as string[]) ?? [];
     for (const field of required) {
       if (!(field in cmd.payload)) {
-        return denialResult(STUDIO_DENIAL_CODES.QUERY_FAILED, { reason: "SCHEMA_MISMATCH", field }, HTTP_SEMANTIC.CONFLICT);
+        return denialResult(MURRMURE_DENIAL_CODES.QUERY_FAILED, { reason: "SCHEMA_MISMATCH", field }, HTTP_SEMANTIC.CONFLICT);
       }
     }
     await this.studio.answerQuery(cmd.query_id, cmd.payload);
@@ -505,7 +505,7 @@ export class HubHandler {
   private async handleFederationEmit(cmd: FederationEmitCommand): Promise<CommandResult> {
     const hub = await this.studio.getFederationHub(cmd.target_hub_id);
     if (!hub) {
-      return denialResult(STUDIO_DENIAL_CODES.FEDERATION_DENIED, { message: "Unknown hub" }, HTTP_SEMANTIC.FORBIDDEN);
+      return denialResult(MURRMURE_DENIAL_CODES.FEDERATION_DENIED, { message: "Unknown hub" }, HTTP_SEMANTIC.FORBIDDEN);
     }
     const outbound_id = this.ids.ulid();
     await this.studio.enqueueFederationOutbound({
@@ -630,7 +630,7 @@ export class HubHandler {
 
     if (inst.revision !== cmd.expected_revision) {
       return denialResult(
-        STUDIO_DENIAL_CODES.CONTRACT_VALIDATION_DENIED,
+        MURRMURE_DENIAL_CODES.CONTRACT_VALIDATION_DENIED,
         { message: "revision mismatch", expected: cmd.expected_revision, actual: inst.revision },
         HTTP_SEMANTIC.CONFLICT,
       );

@@ -79,7 +79,7 @@ export async function invokeWorkerTool(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${tokenCtx.token_id}`,
-    "X-Studio-Caller-Token": tokenCtx.token_id,
+    "X-Murrmure-Caller-Token": tokenCtx.token_id,
   };
 
   const res = await fetch(url.toString(), {
@@ -113,9 +113,9 @@ export async function invokeWorkerQuery(
 
   const workerToken = ctx.workerPool.getToken(mount.package_id, mount.bundle_digest);
   const headers: Record<string, string> = {
-    "X-Studio-Internal-Space": targetSpaceId.startsWith("spc_") ? targetSpaceId : `spc_${targetSpaceId}`,
+    "X-Murrmure-Internal-Space": targetSpaceId.startsWith("spc_") ? targetSpaceId : `spc_${targetSpaceId}`,
   };
-  if (workerToken) headers["X-Studio-Worker-Token"] = workerToken;
+  if (workerToken) headers["X-Murrmure-Worker-Token"] = workerToken;
 
   const res = await fetch(url.toString(), { headers });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
