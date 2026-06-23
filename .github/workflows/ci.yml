@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Build, test, and pack smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Acceptance tests
+        run: pnpm test:acceptance
+
+      - name: Pack smoke
+        run: |
+          set -euo pipefail
+          PACK_DIR="$(mktemp -d)"
+          FLOW_DIR="$(mktemp -d)"
+
+          pnpm -C packages/flow-dev-kit pack --pack-destination "$PACK_DIR"
+          pnpm -C packages/cli pack --pack-destination "$PACK_DIR"
+
+          CLI_TGZ="$(find "$PACK_DIR" -name 'murrmure-cli-*.tgz' | head -n 1)"
+          if [ -z "$CLI_TGZ" ]; then
+            echo "CLI tarball not found in $PACK_DIR"
+            ls -la "$PACK_DIR"
+            exit 1
+          fi
+
+          npm install -g "$CLI_TGZ"
+          mrmr flow init test-flow --dir "$FLOW_DIR/test-flow"
+
+          test -f "$FLOW_DIR/test-flow/flow.manifest.json"
+          test -f "$FLOW_DIR/test-flow/package.json"

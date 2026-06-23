@@ -21,7 +21,8 @@ export default defineConfig({
       project("@studio/hub-core", "packages/studio-hub-core"),
       project("@studio/hub-persistence", "packages/studio-hub-persistence"),
       project("@studio/hub-daemon", "packages/studio-hub-daemon"),
-      project("@studio/capability-sdk", "packages/capability-sdk"),
+      project("@murrmure/cli", "packages/cli"),
+      project("@murrmure/flow-dev-kit", "packages/flow-dev-kit"),
     ],
   },
 });

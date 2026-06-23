@@ -98,12 +98,12 @@ export async function executeLiveApply(
     };
   }
 
-  if (kind === "agent" && !hasScope(auth, "capability:install")) {
+  if (kind === "agent" && !hasScope(auth, "flow:install")) {
     return {
       ok: false,
       code: STUDIO_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
-      message: "Capability install permission required",
-      hint: { required_scope: "capability:install" },
+      message: "Flow install permission required",
+      hint: { required_scope: "flow:install" },
       http_status: 403,
     };
   }

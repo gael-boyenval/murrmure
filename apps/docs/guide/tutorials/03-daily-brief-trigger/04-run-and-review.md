@@ -8,12 +8,12 @@ Open **Runtime → [daily brief space]** and load the `daily-brief` canvas.
 
 Click **Run daily brief**.
 
-## 2. Observe Studio communication sequence
+## 2. Observe Murrmure communication sequence
 
 After click, confirm this order:
 
-1. Capability server creates instance in `pending_agent`.
-2. Capability server appends event `brief.requested`.
+1. Flow server creates instance in `pending_agent`.
+2. Flow server appends event `brief.requested`.
 3. Trigger matches event and dispatches `mcp_wake`.
 4. Delivery log row moves pending/in-flight → delivered.
 5. Agent handles `handle_brief_requested`.
@@ -35,7 +35,7 @@ When `auto_resolve` is false:
 
 When agent submits with `auto_resolve: true`:
 
-- Studio records output.
+- Murrmure records output.
 - Transition `submit_and_resolve` fires.
 - Instance is immediately `resolved`.
 - Human can still open the instance history in Runtime/Audit.

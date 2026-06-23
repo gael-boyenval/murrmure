@@ -129,7 +129,7 @@ Expected MCP sequence:
    - `query_type: "brief_summary@1"`
    - `params: { "brief_key": "ins_..." }`
 2. Receive summary JSON (resolved cross-space read)
-3. Dev writes local markdown file (outside Studio control plane)
+3. Dev writes local markdown file (outside Murrmure control plane)
 
 ## Pending vs resolved timeline
 

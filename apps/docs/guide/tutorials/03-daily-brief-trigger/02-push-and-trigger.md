@@ -1,22 +1,22 @@
-# Part 2 — Push capability and register trigger
+# Part 2 — Push flow and register trigger
 
-This page wires Studio transport end-to-end:
+This page wires Murrmure transport end-to-end:
 
 `brief.requested` (source event) → trigger match → `mcp_wake` on target agent space.
 
 ## 1. Push and promote `daily-brief`
 
-Use your capability space (example `spc_daily_brief`):
+Use your flow space (example `spc_daily_brief`):
 
 ```bash
-export STUDIO_HUB_URL=https://api.studio.dev   # or self-hosted URL
-export STUDIO_TOKEN=tok_admin_or_install
-export STUDIO_SPACE_ID=spc_daily_brief
+export MURRMURE_HUB_URL=https://api.murrmure.dev   # or self-hosted URL
+export MURRMURE_TOKEN=tok_admin_or_install
+export MURRMURE_SPACE_ID=spc_daily_brief
 
-studio capability push --space spc_daily_brief --json
+mrmr flow push --space spc_daily_brief --json
 ```
 
-Then in **Configure → Capabilities** run:
+Then in **Configure → Flows** run:
 
 1. Validate
 2. Test

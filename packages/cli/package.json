@@ -1,0 +1,45 @@
+{
+  "name": "@murrmure/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "murrmure": "./dist/cli.js",
+    "mrmr": "./dist/cli.js",
+    "murrmure-mcp": "./dist/mcp.js",
+    "mrmr-mcp": "./dist/mcp.js"
+  },
+  "exports": {
+    ".": "./dist/cli.js",
+    "./mcp": "./dist/mcp.js",
+    "./api": "./dist/api.js"
+  },
+  "files": ["dist", "templates", "skill", "VERSION"],
+  "scripts": {
+    "build": "tsup",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "esbuild": "^0.25.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@murrmure/flow-dev-kit": "workspace:*",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gael-boyenval/murrmure.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/gael-boyenval/murrmure/issues"
+  },
+  "homepage": "https://github.com/gael-boyenval/murrmure#readme",
+  "license": "ISC"
+}

@@ -81,11 +81,11 @@ describe("http/config/first-week-setup", () => {
   });
 
   test("install review-loop to sandbox", async () => {
-    const res = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/capabilities/install`, {
+    const res = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/flows/install`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({
-        package_id: "review-loop",
+        flow_id: "review-loop",
         version: "2.0.0",
         config: { production_gate_enabled: true, required_approver_role: "product_lead" },
         target_state: "live",

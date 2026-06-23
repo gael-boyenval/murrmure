@@ -5,8 +5,8 @@ const SCOPE_MESSAGES: Record<string, string> = {
   "space:admin": "Administrator access required for this action",
   "space:read": "Read access to this space is required",
   "space:enter": "You need permission to enter this space",
-  "capability:install": "Capability install permission required",
-  "capability:configure": "Capability configure permission required",
+  "flow:install": "Flow install permission required",
+  "flow:configure": "Flow configure permission required",
   "trigger:register": "Trigger register permission required",
 };
 

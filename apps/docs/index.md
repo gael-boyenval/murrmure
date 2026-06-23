@@ -2,13 +2,13 @@
 layout: home
 
 hero:
-  name: Studio
+  name: Murrmure
   text: Where humans and AI agents do the work together
-  tagline: Your coding agents move fast. Studio gives your team a shared room to review, approve, and keep score — so nothing gets lost in chat.
+  tagline: Your coding agents move fast. Murrmure gives your team a shared room to review, approve, and keep score — so nothing gets lost in chat.
   actions:
     - theme: brand
       text: Create an account
-      link: https://app.studio.dev/signup
+      link: https://app.murrmure.dev/signup
     - theme: alt
       text: See how it works
       link: /guide/introduction
@@ -31,5 +31,5 @@ features:
   - title: Agents connect in one paste
     details: Operators drop a single config from the dashboard into their coding agent. Each agent gets its own scoped access you can revoke anytime.
   - title: Build your own workflows
-    details: Review rounds and feature specs come built in. Need something specific to your team? Author custom capabilities and roll them out without downtime.
+    details: Review rounds and feature specs come built in. Need something specific to your team? Author custom flows and roll them out without downtime.
 ---

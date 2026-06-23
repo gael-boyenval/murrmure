@@ -71,7 +71,7 @@ describe("capability-runtime/grant-scoped-tool-list", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "builder-with-feature-spec",
-        scopes: ["space:read", "state:transition", "capability:install"],
+        scopes: ["space:read", "state:transition", "flow:install"],
         capability_acl: ["review-loop", "feature-spec"],
       }),
     });

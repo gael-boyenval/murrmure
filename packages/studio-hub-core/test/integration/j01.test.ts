@@ -25,7 +25,7 @@ describe("j01/happy-path", () => {
       token_id: "01JDEVTOKEN000000000001",
       actor_id: "actor_dev",
       space_id: bareSpace,
-      scopes: ["state:transition", "capability:install", "space:read"],
+      scopes: ["state:transition", "flow:install", "space:read"],
     });
     await mintActorToken(hub.studioPersistence, {
       token_id: "01JMAYATOKEN00000000001",
@@ -119,7 +119,7 @@ describe("j01/reviewer-gate", () => {
       token_id: "01JDEVTOKEN000000000002",
       actor_id: "actor_dev",
       space_id: bareSpace,
-      scopes: ["state:transition", "capability:install"],
+      scopes: ["state:transition", "flow:install"],
     });
     await mintActorToken(hub.studioPersistence, {
       token_id: "01JMAYATOKEN00000000002",
@@ -210,7 +210,7 @@ describe("policy/harness-mismatch", () => {
         token_id: "01JSARAHTOKEN000000001",
         actor_id: "actor_sarah",
         space_id: bareSpace,
-        scopes: ["state:transition", "capability:install"],
+        scopes: ["state:transition", "flow:install"],
         harness_id: "human_only",
         status: "active",
       },
@@ -248,7 +248,7 @@ describe("j01/wait-bridge", () => {
       token_id: "01JDEVTOKEN000000000003",
       actor_id: "actor_dev",
       space_id: bareSpace,
-      scopes: ["state:transition", "capability:install", "space:read"],
+      scopes: ["state:transition", "flow:install", "space:read"],
     });
     const devTok = addTokenId("01JDEVTOKEN000000000003");
 

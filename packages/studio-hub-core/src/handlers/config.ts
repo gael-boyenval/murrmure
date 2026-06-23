@@ -20,7 +20,7 @@ const GRANT_TEMPLATES: Record<string, string[]> = {
     "blob:read",
     "blob:write",
   ],
-  admin: ["space:admin", "space:read", "space:enter", "capability:install", "trigger:register"],
+  admin: ["space:admin", "space:read", "space:enter", "flow:install", "trigger:register"],
 };
 
 export class ConfigHandler {
@@ -157,6 +157,7 @@ export class ConfigHandler {
       contract_ref_id: string;
       routes_prefix: string;
       canvas_route: string;
+      source_digest?: string;
     },
   ): Promise<CommandResult> {
     const bare = stripSpaceId(space_id);
@@ -193,6 +194,7 @@ export class ConfigHandler {
         evolution_state: targetState,
         config: body.config,
         bundle_digest: bundleMeta.bundle_digest,
+        source_digest: bundleMeta.source_digest,
         source_metadata: body.source_metadata,
         routes_prefix: bundleMeta.routes_prefix,
         canvas_route: bundleMeta.canvas_route,
@@ -211,6 +213,7 @@ export class ConfigHandler {
         evolution_state: targetState,
         contract_ref_id: bundleMeta.contract_ref_id,
         bundle_digest: bundleMeta.bundle_digest,
+        source_digest: bundleMeta.source_digest,
         source_metadata: body.source_metadata,
         routes_prefix: bundleMeta.routes_prefix,
         canvas_route: bundleMeta.canvas_route,

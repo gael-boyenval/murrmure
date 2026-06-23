@@ -1,6 +1,6 @@
 # Configuration
 
-The **Configuration** surface is where team admins set up Studio. Everything here is done in the **browser** — no curl, no API scripts.
+The **Configuration** surface is where team admins set up Murrmure. Everything here is done in the **browser** — no curl, no API scripts.
 
 Toggle **Runtime | Configure** in the top bar. Requires a token with **`space:admin`** (or bootstrap on self-hosted).
 
@@ -32,47 +32,47 @@ Sets `studio_setup_complete` in the browser.
 
 **Configure → [space]** shows install/preview policy (read-only in v0).
 
-## Capabilities
+## Flows
 
-**Configure → [space] → Capabilities**
+**Configure → [space] → Flows**
 
-### User-authored capabilities (CDK)
+### User-authored flows (FDK)
 
-New workflows are built **outside** the platform repo with `@studio/capability-sdk`:
+New workflows are built **outside** the platform repo with `@murrmure/cli`:
 
-1. **New capability** — onboarding steps (`/configure/spaces/:id/capabilities/new`)
+1. **New flow** — onboarding steps (`/configure/spaces/:id/flows/new`)
 2. Builder runs `init` → `validate` → `build` → `push` from their machine
 3. Install appears as **draft** with `source_path`, `bundle_digest`, `built_at`
 4. **Validate → Test → Promote → Apply live** (same evolution pipeline as below)
 
-Full walkthrough: **[Capabilities tutorial](./capabilities-tutorial)**.
+Full walkthrough: **[Flows tutorial](./flows-tutorial)**.
 
-### Reference examples (CDK)
+### Reference examples (FDK)
 
-Install reference capabilities from `examples/capabilities/` via CDK push or local-path bundle:
+Install reference flows from `examples/flows/` via FDK push or local-path bundle:
 
 | Example | Purpose |
 |---------|---------|
 | **review-loop** | Review sessions (worker bundle) |
 | **feature-spec** | Structured specs + `spec.published` triggers |
 
-Use the [capabilities tutorial](./capabilities-tutorial) for custom workflows.
+Use the [flows tutorial](./flows-tutorial) for custom workflows.
 
 ### Install → live
 
-1. **Push from CDK** — `studio capability push --space …` creates **`draft`**
-2. **Configure → Capabilities → [install]** — **Validate** → **Test** → **Promote**
-3. **Apply live (CLI)** — `studio capability apply --space … --install ins_…` mounts the worker and publishes MCP tools
+1. **Push from CDK** — `mrmr flow push --space …` creates **`draft`**
+2. **Configure → Flows → [install]** — **Validate** → **Test** → **Promote**
+3. **Apply live (CLI)** — `mrmr flow apply --space … --install ins_…` mounts the worker and publishes MCP tools
 
 ::: tip Full walkthrough
-See **[Capability evolution pipeline](./capability-evolution)** — state meanings, what each button does, contract diff, gates, and verification commands (including **`app-live-review`**).
+See **[Flow evolution pipeline](./flow-evolution)** — state meanings, what each button does, contract diff, gates, and verification commands (including **`app-live-review`**).
 :::
 
 Breaking semver promotes may create **`promoted_pending`** — approve under **Runtime → Gates** before apply.
 
-Install config fields come from your bundle's `contract/config.schema.json` (CDK) or package defaults (reference catalog).
+Install config fields come from your bundle's `contract/config.schema.json` (FDK) or package defaults (reference catalog).
 
-Contributors and builders: [Capabilities tutorial](./capabilities-tutorial).
+Contributors and builders: [Flows tutorial](./flows-tutorial).
 
 ## Agent grants
 
@@ -84,9 +84,9 @@ Contributors and builders: [Capabilities tutorial](./capabilities-tutorial).
 | Harness | `cursor-local`, `ci`, … |
 | Template | **Worker** (agents) or **Admin** (setup) |
 
-Copy the **one-time token** into MCP config (`STUDIO_HUB_TOKEN`). The setup wizard also prints a full MCP JSON snippet.
+Copy the **one-time token** into MCP config (`MURRMURE_HUB_TOKEN`). The setup wizard also prints a full MCP JSON snippet.
 
-**Worker** scopes include `state:transition`, `event:emit`, `blob:write`, `space:read`. Domain tools (review, feature-spec) appear when the matching capability is **live** in that space.
+**Worker** scopes include `state:transition`, `event:emit`, `blob:write`, `space:read`. Domain tools (review, feature-spec) appear when the matching flow is **live** in that space.
 
 Revoke from the grants list if a token leaks.
 
@@ -120,8 +120,8 @@ To allow another space to **`query_ask`** into this space, set `query_policy.inb
 ## Self-hosted operators
 
 ```bash
-pnpm --filter @studio/hub-daemon start
-pnpm --filter @studio/shell-web dev
+pnpm --filter @murrmure/hub-daemon start
+pnpm --filter @murrmure/shell-web dev
 ```
 
 Open the shell → **`/connect`** → bootstrap token → **`/setup`**.

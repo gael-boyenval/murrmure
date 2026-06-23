@@ -1,6 +1,6 @@
 # Browser app
 
-Studio runs in the browser — **[app.studio.dev](https://app.studio.dev)** on cloud, or your org's self-hosted shell URL. No desktop app, no repo clone, **no curl** for normal setup or daily work.
+Murrmure runs in the browser — **[app.murrmure.dev](https://app.murrmure.dev)** on cloud, or your org's self-hosted shell URL. No desktop app, no repo clone, **no curl** for normal setup or daily work.
 
 ## Two modes
 
@@ -8,7 +8,7 @@ Toggle **Runtime | Configure** in the top bar.
 
 | Mode | Who | What you do |
 |------|-----|-------------|
-| **Configure** | Admins | Spaces, capabilities, agent grants, members, triggers |
+| **Configure** | Admins | Spaces, flows, agent grants, members, triggers |
 | **Runtime** | Everyone with access | Instances, gates, audit, review canvas, spec canvas |
 
 If you only review or approve gates, you stay in **Runtime**. If you set up the team, use **Configure** first.
@@ -17,7 +17,7 @@ If you only review or approve gates, you stay in **Runtime**. If you set up the 
 
 On first visit you land on **`/connect`**:
 
-1. **Hub URL** — e.g. `http://127.0.0.1:8787` (local) or `https://studio.yourcompany.com`
+1. **Hub URL** — e.g. `http://127.0.0.1:8787` (local) or `https://murrmure.yourcompany.com`
 2. **Token** — bootstrap token during setup, or an admin grant afterward
 3. **Save & continue** → **`/setup`** wizard (first run) or **`/configure`**
 
@@ -50,19 +50,19 @@ Marks setup complete and stores your connection in the browser.
 When creating a space, set **install policy**:
 
 - `authorized_agents` — agents may install/evolve in this space (sandbox)
-- `human_only` — only humans install capabilities (production)
+- `human_only` — only humans install flows (production)
 
-Copy the **space id** (`spc_…`) — agents need it in MCP config as `STUDIO_SPACE_ID`.
+Copy the **space id** (`spc_…`) — agents need it in MCP config as `MURRMURE_SPACE_ID`.
 
-## Configure — capabilities
+## Configure — flows
 
-**Configure → [space] → Capabilities**
+**Configure → [space] → Flows**
 
 | Action | Navigation |
 |--------|------------|
-| List installs | **`/configure/spaces/:spaceId/capabilities`** |
-| Install from catalog | **Install capability** → **`…/capabilities/install`** |
-| Evolution pipeline | **`…/capabilities/:installId`** — Validate, Test, Promote |
+| List installs | **`/configure/spaces/:spaceId/flows`** |
+| Install from catalog | **Install flow** → **`…/flows/install`** |
+| Evolution pipeline | **`…/flows/:installId`** — Validate, Test, Promote |
 
 Bundled packages: **Review loop**, **Feature spec**.
 
@@ -70,12 +70,12 @@ Typical path to go live:
 
 1. **Push from CDK** (or install) — creates **`draft`**
 2. Open the install → **Validate** → **Test** → **Promote**
-3. Run **`studio capability apply --space … --install ins_…`** — mounts worker + MCP (CLI today)
+3. Run **`mrmr flow apply --space … --install ins_…`** — mounts worker + MCP (CLI today)
 4. When truly **`live`**, MCP tools and `/api/*` routes for that package are active
 
 If promote waits on a production gate, open **Runtime → Gates** and **Approve** before apply.
 
-See **[Capability evolution pipeline](./capability-evolution)** for a full step-by-step (states, contract diff, CLI vs browser, troubleshooting). Example packages: `app-live-review`, `preview-review`.
+See **[Flow evolution pipeline](./flow-evolution)** for a full step-by-step (states, contract diff, CLI vs browser, troubleshooting). Example packages: `app-live-review`, `preview-review`.
 
 ## Configure — agent grants
 
@@ -92,9 +92,9 @@ Mint wizard:
 - **Harness** — `cursor-local`, `ci`, etc.
 - **Template** — **Worker** (agent) or **Admin** (setup)
 
-Copy the **one-time token** immediately — it is not shown again. Paste into your agent MCP config as `STUDIO_HUB_TOKEN`.
+Copy the **one-time token** immediately — it is not shown again. Paste into your agent MCP config as `MURRMURE_HUB_TOKEN`.
 
-After installing capabilities in a space, mint grants so agents can use those packages' MCP tools (review sessions, feature specs, etc.).
+After installing flows in a space, mint grants so agents can use those packages' MCP tools (review sessions, feature specs, etc.).
 
 ## Configure — members & triggers
 
@@ -112,7 +112,7 @@ After installing capabilities in a space, mint grants so agents can use those pa
 | Register from template | **Register trigger** → **`…/triggers/new`** |
 | Delivery log | **Delivery log** button on triggers page |
 
-The register form shows an **event catalog** (from live capabilities) and bundled **templates**:
+The register form shows an **event catalog** (from live flows) and bundled **templates**:
 
 | Template | When | Action |
 |----------|------|--------|
@@ -146,7 +146,7 @@ Share the URL from the address bar with reviewers.
 
 **`/spaces/:spaceId/specs/:specKey`**
 
-Requires **Feature spec** capability live in the space.
+Requires **Feature spec** flow live in the space.
 
 - **Sections** — read structured content the agent drafted
 - **Context refs** — URLs and blob refs attached via MCP (`add_context_ref`)
@@ -165,7 +165,7 @@ When a workflow needs human approval:
 2. Find the pending gate (instance id shown)
 3. **Approve**
 
-Used for production capability promotes, review-loop production gates, and spec review paths.
+Used for production flow promotes, review-loop production gates, and spec review paths.
 
 ## Audit export
 

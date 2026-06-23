@@ -197,6 +197,9 @@ export function migrateStudio(db: Database.Database): void {
     db.exec(`ALTER TABLE capability_installs ADD COLUMN routes_prefix TEXT`);
     db.exec(`ALTER TABLE capability_installs ADD COLUMN canvas_route TEXT`);
   }
+  if (!capColNames.has("source_digest")) {
+    db.exec(`ALTER TABLE capability_installs ADD COLUMN source_digest TEXT`);
+  }
 }
 
 export function ensureBootstrapToken(db: Database.Database, token: string, actorId: string, spaceId: string): void {
@@ -210,7 +213,7 @@ export function ensureBootstrapToken(db: Database.Database, token: string, actor
     "state:transition",
     "event:read",
     "event:emit",
-    "capability:install",
+    "flow:install",
     "trigger:register",
     "blob:read",
     "blob:write",

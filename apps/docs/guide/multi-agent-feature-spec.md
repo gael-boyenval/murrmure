@@ -28,9 +28,9 @@ Flow:
 
 ## Prerequisites
 
-1. [Studio account](./account) or [self-hosted](./self-hosted) hub + shell
+1. [Murrmure account](./account) or [self-hosted](./self-hosted) hub + shell
 2. **Workspace admin** — you run Configure, not curl
-3. On each agent machine: `npm install -g @studio/hub-mcp`
+3. On each agent machine: `npm install -g @murrmure/cli`
 4. Three directories:
 
    ```
@@ -61,12 +61,12 @@ Self-hosted: complete **`/connect`** + **`/setup`** first if you have not alread
 
 ### 1.2 Install Feature spec (orchestrator space)
 
-**Configure → Orchestrator → Capabilities → Install capability**
+**Configure → Orchestrator → Flows → Install flow**
 
 1. Choose **Feature spec documents**
 2. Open the install → **Validate** → **Test** → **Promote** → **`live`**
 
-For direct publish without a review gate, install config should allow **`skip_review`** (default in catalog may require review — use capability config when the configure UI exposes it; until then promote with wizard defaults and use **Publish** on the spec canvas after agent reaches `draft`).
+For direct publish without a review gate, install config should allow **`skip_review`** (default in catalog may require review — use flow config when the configure UI exposes it; until then promote with wizard defaults and use **Publish** on the spec canvas after agent reaches `draft`).
 
 ### 1.3 Mint agent grants
 
@@ -112,12 +112,13 @@ Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_ORCHESTRATOR_GRANT",
-        "STUDIO_SPACE_ID": "spc_orchestrator"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR_GRANT",
+        "MURRMURE_SPACE_ID": "spc_orchestrator"
       }
     }
   }
@@ -126,11 +127,11 @@ Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
 
 Use your hub URL on self-hosted. Add optional second MCP servers with read grants on Knowledge/Dev spaces if the orchestrator needs **`get_spec`** on those spaces.
 
-Dev agent only needs its own `studio` server on the Dev space — wakes and cross-space reads use **`query_ask`** when query policy allows.
+Dev agent only needs its own `mrmr` server on the Dev space — wakes and cross-space reads use **`query_ask`** when query policy allows.
 
 ### `~/work/knowledge-base/` and `~/work/dev-project/`
 
-Same shape — one `studio` server each, with that folder's token and `STUDIO_SPACE_ID`.
+Same shape — one `mrmr` server each, with that folder's token and `MURRMURE_SPACE_ID`.
 
 Reload MCP in every window.
 
@@ -249,11 +250,11 @@ sequenceDiagram
 
 | Mistake | Fix |
 |---------|-----|
-| One token in all three IDEs | Three grants, three `STUDIO_SPACE_ID` values |
-| MCP tools missing | Capability **Promote** to **`live`**; reload MCP |
+| One token in all three IDEs | Three grants, three `MURRMURE_SPACE_ID` values |
+| MCP tools missing | Flow **Promote** to **`live`**; reload MCP |
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
-| Wrong space in MCP config | Match `STUDIO_SPACE_ID` to grant's space |
+| Wrong space in MCP config | Match `MURRMURE_SPACE_ID` to grant's space |
 | Dev not woken after publish | Register **Spec published → wake dev** trigger; check **Delivery log** |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |

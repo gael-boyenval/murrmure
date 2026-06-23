@@ -8,9 +8,9 @@ In **Configure → [target space] → Agent grants → Mint grant**:
 
 - Template: Worker
 - Scopes: include `space:read`, `state:transition`, `event:emit`
-- Capability ACL: include `daily-brief`
+- Flow ACL: include `daily-brief`
 
-Without ACL + live capability, `submit_brief_output` will not appear in MCP.
+Without ACL + live flow, `submit_brief_output` will not appear in MCP.
 
 ## 2. MCP client config
 
@@ -19,12 +19,13 @@ Use the minted token in your client config (example Cursor):
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_...",
-        "STUDIO_SPACE_ID": "spc_agent_personal"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_...",
+        "MURRMURE_SPACE_ID": "spc_agent_personal"
       }
     }
   }
@@ -51,7 +52,7 @@ Agent behavior:
 3. Build formatted output in markdown + structured json.
 4. Call `submit_brief_output`.
 
-One-line data source rule: the agent gathers from your local tools; Studio only coordinates state, wake, and review.
+One-line data source rule: the agent gathers from your local tools; Murrmure only coordinates state, wake, and review.
 
 ## 4. `submit_brief_output` example payload
 
@@ -85,7 +86,7 @@ If your harness does not process wake callbacks, use platform wait:
 | Agent stage | Pending | Resolved |
 |-------------|---------|----------|
 | Wake handling | Wake not received yet | Wake payload received and parsed |
-| Submit call | Preparing/gathering local data | `submit_brief_output` accepted by Studio |
+| Submit call | Preparing/gathering local data | `submit_brief_output` accepted by Murrmure |
 | Optional wait for done | Waiting on human action | Instance reaches `resolved` |
 
 ## Next

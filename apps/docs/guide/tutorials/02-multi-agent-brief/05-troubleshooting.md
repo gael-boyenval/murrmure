@@ -6,7 +6,7 @@ Use this page when pending states do not resolve as expected.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `open_brief` / `patch_section` missing in orchestrator | `team-brief` not live, or ACL missing | Re-open `Configure -> Orchestrator -> Capabilities`, run `Validate/Test/Promote/Apply live`, verify orchestrator grant ACL includes `team-brief`, reload MCP |
+| `open_brief` / `patch_section` missing in orchestrator | `team-brief` not live, or ACL missing | Re-open `Configure -> Orchestrator -> Flows`, run `Validate/Test/Promote/Apply live`, verify orchestrator grant ACL includes `team-brief`, reload MCP |
 | Brief stuck in `gathering` | Orchestrator never sent `transition` event `context_ready` | Ask orchestrator to call `transition` with `event: "context_ready"` |
 | Publish button disabled | Brief not in `pending_publish` | Ask orchestrator to `transition` with `event: "request_publish"` |
 | `wait_for_publish` stays pending forever | Human publish step not completed | Open Runtime brief page and click Publish |
@@ -23,7 +23,7 @@ When a run stalls, use this order:
 1. Resolve brief state first (`pending_publish` -> `published`).
 2. Resolve trigger delivery second (`pending`/`failed` -> `resolved`).
 3. Resolve cross-space fetch third (`query_ask` success).
-4. Run local dev write last (outside Studio).
+4. Run local dev write last (outside Murrmure).
 
 ## Safe rerun strategy
 

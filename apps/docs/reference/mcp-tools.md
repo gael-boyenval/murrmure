@@ -1,6 +1,6 @@
 # MCP tools
 
-Package: **`@studio/hub-mcp`** — the primary way agents talk to Studio.
+Package: **`@murrmure/cli`** — the primary way agents talk to Murrmure.
 
 Humans use the **[browser app](../guide/browser)** (Configure + Runtime). This reference is for **agent operators** wiring MCP.
 
@@ -12,35 +12,35 @@ On a **self-hosted hub**, the daemon exposes the same tools over HTTP at `/v1/mc
 
 | Variable | Description |
 |----------|-------------|
-| `STUDIO_HUB_URL` | API base, e.g. `https://api.studio.dev` or `http://127.0.0.1:8787` |
-| `STUDIO_HUB_TOKEN` | Grant token `tok_…` |
-| `STUDIO_SPACE_ID` | Default space — **not** passed in most tool args |
+| `MURRMURE_HUB_URL` | API base, e.g. `https://api.murrmure.dev` or `http://127.0.0.1:8787` |
+| `MURRMURE_HUB_TOKEN` | Grant token `tok_…` |
+| `MURRMURE_SPACE_ID` | Default space — **not** passed in most tool args |
 
-Legacy aliases: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, and CDK `STUDIO_TOKEN` (for the token only).
+Legacy aliases: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, and FDK `MURRMURE_TOKEN` (for the token only).
 
 ## Grant-filtered catalog
 
 The hub builds your tool list from:
 
 1. **Scopes** on the grant token (`space:read`, `state:transition`, …)
-2. **`capability_acl`** on the grant — which installed packages you may use (e.g. `["review-loop", "feature-spec"]`)
-3. **Live mounts** — capability must be installed *and* applied live in the space
+2. **`flow_acl`** on the grant — which installed packages you may use (e.g. `["review-loop", "feature-spec"]`)
+3. **Live mounts** — flow must be installed *and* applied live in the space
 
-Platform tools (e.g. `transition`) never imply domain tools (`open_spec`, `create_review_session`) unless the package is in `capability_acl` and live.
+Platform tools (e.g. `transition`) never imply domain tools (`open_spec`, `create_review_session`) unless the package is in `flow_acl` and live.
 
-Mint grants with explicit ACL when using multiple capabilities:
+Mint grants with explicit ACL when using multiple flows:
 
 ```json
 {
   "label": "spec-agent",
   "scopes": ["space:read", "state:transition", "event:emit", "blob:write"],
-  "capability_acl": ["feature-spec"]
+  "flow_acl": ["feature-spec"]
 }
 ```
 
-`capability:install` is required to **install or apply** capabilities, not to call domain tools once live.
+`flow:install` is required to **install or apply** flows, not to call domain tools once live.
 
-Domain **`instance.create`** (e.g. `open_spec`) is allowed with **`state:transition`** when using a capability contract — you do not need `capability:install` on worker grants.
+Domain **`instance.create`** (e.g. `open_spec`) is allowed with **`state:transition`** when using a flow contract — you do not need `flow:install` on worker grants.
 
 ## Reconnect / handshake
 
@@ -73,7 +73,7 @@ Platform tool: **`contract_versions`** — pinned contract refs for the space.
 
 Use when an agent in one space needs **scoped data** from another space without a write token there.
 
-| `query_type` | Target capability | Returns |
+| `query_type` | Target flow | Returns |
 |--------------|-------------------|---------|
 | `spec_summary@1` | feature-spec (live) | `title`, `version`, `summary`, `section_count`, `published_at` — **no `body_ref`** |
 
@@ -83,7 +83,7 @@ HTTP equivalent: `POST /v1/spaces/{id}/queries/ask`.
 
 ## Review tools (`review-loop`)
 
-Requires live **review-loop** install + `capability_acl` including `review-loop`.
+Requires live **review-loop** install + `flow_acl` including `review-loop`.
 
 | Tool | Scope | Description |
 |------|-------|-------------|
@@ -95,7 +95,7 @@ HTTP equivalents: `/api/sessions/*`.
 
 ## Feature-spec tools (`feature-spec`)
 
-Requires live **feature-spec** install + `capability_acl` including `feature-spec`.
+Requires live **feature-spec** install + `flow_acl` including `feature-spec`.
 
 | Tool | Scope | Description |
 |------|-------|-------------|
@@ -117,12 +117,13 @@ Paste from dashboard, or:
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_…",
-        "STUDIO_SPACE_ID": "spc_…"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_…",
+        "MURRMURE_SPACE_ID": "spc_…"
       }
     }
   }

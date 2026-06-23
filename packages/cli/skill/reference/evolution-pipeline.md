@@ -1,0 +1,99 @@
+# Evolution pipeline
+
+Normative workflow for getting flow changes into a space. **Editing files alone does nothing at runtime** until push + evolution + apply complete.
+
+## State machine
+
+```
+draft → validated → tested → live (or promoted_pending → live after gate)
+```
+
+| State | Runtime MCP + routes? |
+|-------|-------------------------|
+| `draft` | No |
+| `validated` | No |
+| `tested` | No |
+| `promoted_pending` | No (approve gate first) |
+| `live` | **Yes** (after apply) |
+
+## Version bumps (required on every change)
+
+Bump **both** files to the **same** semver:
+
+- `flow.manifest.json` → `"version"`
+- `contract/contract.json` → `"version"`
+
+Also update `mcp_tools_by_version` keys when tool sets change.
+
+| Change type | Semver | Example |
+|-------------|--------|---------|
+| Bug fix, same contract | PATCH | `0.1.0` → `0.1.1` |
+| New tool, backward compatible | MINOR | `0.1.1` → `0.2.0` |
+| Breaking contract / states | MAJOR | `0.2.0` → `1.0.0` |
+
+Push without a version bump updates the wrong install row or fails digest checks. **This is the most common agent mistake.**
+
+## Full pipeline (CLI)
+
+```bash
+export MURRMURE_HUB_URL=http://127.0.0.1:8787
+export MURRMURE_TOKEN=tok_…
+SPACE=spc_ui_sandbox
+
+# 1 — local
+mrmr flow validate . --json
+mrmr flow build . --json
+
+# 2 — register bundle (creates/updates draft install)
+mrmr flow push --space $SPACE --json
+# → save install_id
+
+INSTALL=ins_…
+
+# 3 — hub evolution
+mrmr flow validate --space $SPACE --install $INSTALL --json
+mrmr flow test --space $SPACE --install $INSTALL --json
+mrmr flow promote --space $SPACE --install $INSTALL --json
+mrmr flow apply --space $SPACE --install $INSTALL --json
+```
+
+`push` output includes `next_steps: ["validate", "test", "promote", "apply"]` — run all of them.
+
+## Verify live
+
+```bash
+curl -s -H "Authorization: Bearer $MURRMURE_TOKEN" \
+  "$MURRMURE_HUB_URL/v1/spaces/$SPACE/flows/live" | jq .
+
+curl -s -H "Authorization: Bearer $MURRMURE_TOKEN" \
+  "$MURRMURE_HUB_URL/v1/mcp/catalog?space_id=$SPACE" | jq '.tools[].name'
+```
+
+Reload MCP in the agent client after apply.
+
+## Browser equivalent
+
+**Configure → [space] → Flows → [install]** — Validate, Test, Promote. **Apply** is CLI-only today.
+
+## Breaking promotes
+
+Major semver → `promoted_pending` + gate. Approve under **Runtime → Gates**, then `mrmr flow apply`.
+
+## After code-only edits (agent recovery)
+
+If an agent changed server/UI but skipped version + pipeline:
+
+1. Bump semver in manifest + contract.
+2. Re-run the full checklist from SKILL.md.
+3. Rotate or mint a new grant if `capability_acl` was wrong.
+4. Reload MCP.
+
+## contract_ref_id
+
+Hub assigns `cref_{flow_id}_{contract_major}` at ingest. Worker must create instances with:
+
+```typescript
+contract_ref_id: ctx.contractRefId
+```
+
+Mismatch → instance appears in Runtime without an **Open canvas** link.

@@ -1,14 +1,14 @@
 # Connect your agent (MCP)
 
-Studio agents connect through **MCP**. Humans/admins continue using the browser shell.
+Murrmure agents connect through **MCP**. Humans/admins continue using the browser shell.
 
 For normal usage, you should not need curl or raw HTTP calls.
 
 ## What MCP gives your agent
 
 - Platform tools like `get_space_state`, `transition`, `wait_for_state`, `emit_event`
-- Capability tools when installed and live in the space (for example review/spec tools)
-- Space-scoped operation based on `STUDIO_SPACE_ID`
+- Flow tools when installed and live in the space (for example review/spec tools)
+- Space-scoped operation based on `MURRMURE_SPACE_ID`
 
 ## Before you start
 
@@ -16,14 +16,14 @@ For normal usage, you should not need curl or raw HTTP calls.
 2. Target space exists (`spc_...`)
 3. Admin minted a grant token (`tok_...`) in **Configure → Agent grants**
 4. Node.js 20+
-5. `@studio/hub-mcp` installed (see [Installation](./installation))
+5. `@murrmure/cli` installed (see [Installation](./installation))
 
-**Capability builders:** install the [Agent skill](./agent-skill) (`studio skill install`) so coding agents follow version bumps and the evolution pipeline — separate from MCP hub access.
+**Flow builders:** install the [Agent skill](./agent-skill) (`mrmr skill install`) so coding agents follow version bumps and the evolution pipeline — separate from MCP hub access.
 
 ## 1) Install MCP package
 
 ```bash
-npm install -g @studio/hub-mcp
+npm install -g @murrmure/cli
 ```
 
 ## 2) Get connection values
@@ -40,31 +40,32 @@ For self-hosted first-run setup, `/setup` also shows a prefilled MCP snippet.
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_...",
-        "STUDIO_SPACE_ID": "spc_..."
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_...",
+        "MURRMURE_SPACE_ID": "spc_..."
       }
     }
   }
 }
 ```
 
-For self-hosted, set `STUDIO_HUB_URL` to your hub URL.
+For self-hosted, set `MURRMURE_HUB_URL` to your hub URL.
 
 ### Field reference
 
 | Field | Required | Example | Source |
 |------|----------|---------|--------|
-| `STUDIO_HUB_URL` | Yes | `https://api.studio.dev` | Cloud default or your self-hosted hub URL |
-| `STUDIO_HUB_TOKEN` | Yes | `tok_...` | Minted grant token |
-| `STUDIO_SPACE_ID` | Yes | `spc_ui_sandbox` | Space detail page / URL context |
+| `MURRMURE_HUB_URL` | Yes | `https://api.murrmure.dev` | Cloud default or your self-hosted hub URL |
+| `MURRMURE_HUB_TOKEN` | Yes | `tok_...` | Minted grant token |
+| `MURRMURE_SPACE_ID` | Yes | `spc_ui_sandbox` | Space detail page / URL context |
 
-**Monorepo dev:** point `command` at `packages/studio-hub-mcp/bin/studio-hub-mcp` (or `pnpm link` / global install from the workspace).
+**Monorepo dev:** point `command` at `packages/murrmure/bin/murrmure` (or `pnpm link` / global install from the workspace).
 
-Legacy aliases still accepted by the server: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, `STUDIO_TOKEN` (CDK).
+Legacy aliases still accepted by the server: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, `MURRMURE_TOKEN` (FDK).
 
 ## 4) Reload client and verify
 
@@ -86,8 +87,8 @@ If you get valid JSON responses, the connection is healthy.
 | `feature-spec` is live in this space | Spec tools appear (`open_spec`, `patch_spec_section`, `transition_spec`, ...) |
 
 If a tool is missing, check:
-1. correct `STUDIO_SPACE_ID`
-2. capability is **live**
+1. correct `MURRMURE_SPACE_ID`
+2. flow is **live**
 3. token grant/scopes/ACL allow it
 
 ## Review tools
@@ -143,19 +144,19 @@ Prefer triggers + `query_ask` over polling or manual prompts.
 
 | Symptom | Usually means | Fix |
 |--------|----------------|-----|
-| `TOOL_NOT_AUTHORIZED` | Missing scope or capability not live | Fix grant template/scopes or promote capability |
+| `TOOL_NOT_AUTHORIZED` | Missing scope or flow not live | Fix grant template/scopes or promote flow |
 | 401/403 errors | Token invalid/revoked | Mint a new grant token |
-| Expected tools not listed | Wrong space id | Set correct `STUDIO_SPACE_ID` and reload MCP |
+| Expected tools not listed | Wrong space id | Set correct `MURRMURE_SPACE_ID` and reload MCP |
 | Works in browser, fails in agent | Browser auth != MCP token auth | Use minted `tok_...`, not browser session |
 
 ## Where CLI fits
 
-`@studio/cli` is optional for scripts/CI.  
+`@murrmure/cli` is optional for scripts/CI.  
 Interactive coding-agent workflows should use MCP as the primary interface.
 
 ## Next
 
-- [Agent skill](./agent-skill) — capability authoring checklist for coding agents
+- [Agent skill](./agent-skill) — flow authoring checklist for coding agents
 - [Installation and dependencies](./installation)
 - [Quick start](./quick-start)
 - [Browser app](./browser)

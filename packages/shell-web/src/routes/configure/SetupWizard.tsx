@@ -146,7 +146,7 @@ export function SetupWizard() {
       {step === 4 && workerToken && (
         <div style={{ marginTop: 12, padding: 12, background: "#f5f5f5", borderRadius: 6 }}>
           <strong>MCP snippet</strong>
-          <pre style={{ fontSize: 12, overflow: "auto" }}>{`{\n  "mcpServers": {\n    "studio": {\n      "command": "studio-hub-mcp",\n      "env": {\n        "STUDIO_HUB_URL": "${hubUrl}",\n        "STUDIO_HUB_TOKEN": "${workerToken}",\n        "STUDIO_SPACE_ID": "${sandboxId || "spc_ui_sandbox"}"\n      }\n    }\n  }\n}`}</pre>
+          <pre style={{ fontSize: 12, overflow: "auto" }}>{`{\n  "mcpServers": {\n    "murrmure": {\n      "command": "murrmure",\n      "args": ["mcp"],\n      "env": {\n        "MURRMURE_HUB_URL": "${hubUrl}",\n        "MURRMURE_HUB_TOKEN": "${workerToken}",\n        "MURRMURE_SPACE_ID": "${sandboxId || "spc_ui_sandbox"}"\n      }\n    }\n  }\n}`}</pre>
         </div>
       )}
 

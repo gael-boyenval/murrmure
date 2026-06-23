@@ -5,22 +5,22 @@ Fix issues in the **browser** and **MCP** first — not with curl.
 ## "Invalid token" or 403 from agent
 
 1. Token expired or revoked → **Configure → Agent grants → Revoke** old, mint new
-2. Wrong space → `STUDIO_SPACE_ID` must match grant's space (`spc_…`)
+2. Wrong space → `MURRMURE_SPACE_ID` must match grant's space (`spc_…`)
 3. Missing scope → mint **Worker** or **Admin** template, not a custom stripped token
-4. **`TOOL_NOT_AUTHORIZED`** → capability not **live**; run **Validate → Test → Promote** in Configure
+4. **`TOOL_NOT_AUTHORIZED`** → flow not **live**; run **Validate → Test → Promote** in Configure
 
 Self-hosted: re-check **`/connect`** hub URL and token.
 
-Run `studio whoami` after `studio login` (CLI optional).
+Run `mrmr whoami` after `mrmr login` (CLI optional).
 
 ## MCP tools not showing in Cursor
 
 1. Reload Cursor after pasting MCP config
-2. Confirm `studio-hub-mcp` or `npx @studio/hub-mcp` is on PATH (monorepo: point `command` at `packages/studio-hub-mcp/bin/studio-hub-mcp`)
-3. Env vars must be **`STUDIO_HUB_URL`**, **`STUDIO_HUB_TOKEN`**, **`STUDIO_SPACE_ID`** — not `STUDIO_API_*` (legacy aliases work in recent builds)
+2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH (monorepo: point `command` at `packages/murrmure/bin/murrmure`)
+3. Env vars must be **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`** — not `STUDIO_API_*` (legacy aliases work in recent builds)
 4. Check MCP logs in Cursor settings
-5. Capability not **live** → **Configure → Capabilities → [install] → Promote**
-6. Wrong `STUDIO_SPACE_ID` in env
+5. Flow not **live** → **Configure → Flows → [install] → Promote**
+6. Wrong `MURRMURE_SPACE_ID` in env
 7. Self-hosted: hub URL must match **`/connect`** value
 
 ## `wait_for_review` times out
@@ -37,7 +37,7 @@ Run `studio whoami` after `studio login` (CLI optional).
 
 ## Spec canvas empty or 403
 
-- **Feature spec** capability must be **live** in that space
+- **Feature spec** flow must be **live** in that space
 - Open from **Runtime → Instances → Open spec**
 - Agent creates specs via **`open_spec`** — not manually in UI
 
@@ -53,15 +53,15 @@ Run `studio whoami` after `studio login` (CLI optional).
 - Dev agent must call **`POST /v1/mcp/session/handshake`** (Cursor reload after MCP config)
 - Check **Configure → Triggers → Delivery log** for `success` vs dedup/failure
 
-## CLI: `studio login` fails
+## CLI: `mrmr login` fails
 
 - Corporate proxy may block OAuth — paste grant token from **Configure**
-- Self-hosted: set `STUDIO_HUB_URL` to hub URL before login
+- Self-hosted: set `MURRMURE_HUB_URL` to hub URL before login
 
 ## Self-hosted: hub won't start
 
 - **Port in use** — change `PORT`
-- **Lock held** — one `studio-hub serve` per `STUDIO_DATA_DIR`
+- **Lock held** — one `murrmure-hub serve` per `MURRMURE_DATA_DIR`
 - **Database permissions** — `DATABASE_PATH` must be writable
 
 ## Self-hosted: shell won't load data
@@ -75,10 +75,10 @@ Run `studio whoami` after `studio login` (CLI optional).
 Install the [Agent skill](./agent-skill) at your repo root:
 
 ```bash
-studio skill install
+mrmr skill install
 ```
 
-Reload Cursor so the agent loads `studio-capability` skill. It mandates semver bumps and validate → build → push → hub validate/test/promote/apply before claiming a capability is live.
+Reload Cursor so the agent loads `murrmure-flow` skill. It mandates semver bumps and validate → build → push → hub validate/test/promote/apply before claiming a flow is live.
 
 ## Still stuck?
 

@@ -66,7 +66,7 @@ describe("capability-runtime/promote-tool-refresh", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "dev-worker",
-        scopes: ["space:read", "state:transition", "capability:install"],
+        scopes: ["space:read", "state:transition", "flow:install"],
         capability_acl: ["review-loop", "feature-spec"],
       }),
     });
@@ -110,7 +110,7 @@ describe("capability-runtime/promote-tool-refresh", () => {
       body: JSON.stringify({ space_id: sandboxId, client_id: "cursor-local-uuid", last_ack_seq: 0 }),
     });
 
-    const apply = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/capabilities/${bumpBody.install_id}/apply`, {
+    const apply = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/flows/${bumpBody.install_id}/apply`, {
       method: "POST",
       headers: { Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000001")}`, "Content-Type": "application/json" },
     });

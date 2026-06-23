@@ -9,12 +9,13 @@ File: `~/work/orchestrator/.cursor/mcp.json`
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_ORCHESTRATOR",
-        "STUDIO_SPACE_ID": "spc_orchestrator"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR",
+        "MURRMURE_SPACE_ID": "spc_orchestrator"
       }
     }
   }
@@ -24,7 +25,7 @@ File: `~/work/orchestrator/.cursor/mcp.json`
 Expected tools after MCP reload:
 
 - Platform: `transition`, `wait_for_state`, `emit_event`, `query_ask`
-- Capability: `open_brief`, `patch_section`, `get_brief`, `wait_for_publish`
+- Flow: `open_brief`, `patch_section`, `get_brief`, `wait_for_publish`
 
 ## 2. Knowledge window
 
@@ -33,12 +34,13 @@ File: `~/work/knowledge-base/.cursor/mcp.json`
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_KNOWLEDGE",
-        "STUDIO_SPACE_ID": "spc_knowledge"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_KNOWLEDGE",
+        "MURRMURE_SPACE_ID": "spc_knowledge"
       }
     }
   }
@@ -47,7 +49,7 @@ File: `~/work/knowledge-base/.cursor/mcp.json`
 
 Expected tools:
 
-- Platform only (no custom capability required in knowledge space).
+- Platform only (no custom flow required in knowledge space).
 
 ## 3. Dev window
 
@@ -56,12 +58,13 @@ File: `~/work/dev-project/.cursor/mcp.json`
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_DEV",
-        "STUDIO_SPACE_ID": "spc_dev"
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_DEV",
+        "MURRMURE_SPACE_ID": "spc_dev"
       }
     }
   }
@@ -89,7 +92,7 @@ Quick checks:
 | Knowledge | No `team-brief` tools visible (expected) |
 | Dev | `query_ask` succeeds once query policy allowlist is set |
 
-Self-hosted users: replace `https://api.studio.dev` with your hub URL in all three files.
+Self-hosted users: replace `https://api.murrmure.dev` with your hub URL in all three files.
 
 ## 5. Keep runtime tab open
 

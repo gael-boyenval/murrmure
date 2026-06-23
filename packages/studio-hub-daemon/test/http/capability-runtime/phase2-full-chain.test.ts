@@ -52,11 +52,11 @@ describe("capability-runtime/phase2-full-chain", () => {
   afterAll(() => cleanup?.());
 
   test("push → install → validate → test → apply → live worker", async () => {
-    const install = await fetch(`${baseUrl}/v1/spaces/${spaceId}/capabilities/install`, {
+    const install = await fetch(`${baseUrl}/v1/spaces/${spaceId}/flows/install`, {
       method: "POST",
       headers: bootstrap(),
       body: JSON.stringify({
-        package_id: PACKAGE_ID,
+        flow_id: PACKAGE_ID,
         version: staged.version,
         target_state: "draft",
         bundle: { mode: "local-path", local_path: staged.stageDir },
@@ -82,7 +82,7 @@ describe("capability-runtime/phase2-full-chain", () => {
     });
     expect(tested.status).toBe(200);
 
-    const apply = await fetch(`${baseUrl}/v1/spaces/${spaceId}/capabilities/${installId}/apply`, {
+    const apply = await fetch(`${baseUrl}/v1/spaces/${spaceId}/flows/${installId}/apply`, {
       method: "POST",
       headers: bootstrap(),
     });
@@ -90,7 +90,7 @@ describe("capability-runtime/phase2-full-chain", () => {
     const applyBody = await apply.json();
     expect(applyBody.mount_applied).toBe(true);
 
-    const live = await fetch(`${baseUrl}/v1/spaces/${spaceId}/capabilities/live`, {
+    const live = await fetch(`${baseUrl}/v1/spaces/${spaceId}/flows/live`, {
       headers: bootstrap(),
     });
     const liveBody = await live.json();
@@ -104,7 +104,7 @@ describe("capability-runtime/phase2-full-chain", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "dev-worker",
-        scopes: ["space:read", "capability:install"],
+        scopes: ["space:read", "flow:install"],
         capability_acl: [PACKAGE_ID],
       }),
     });
@@ -119,14 +119,14 @@ describe("capability-runtime/phase2-full-chain", () => {
     const health = await fetch(`${baseUrl}/api/${PACKAGE_ID}/health`);
     expect(health.status).toBe(200);
     const healthBody = await health.json();
-    expect(healthBody).toMatchObject({ ok: true, package: PACKAGE_ID });
+    expect(healthBody).toMatchObject({ ok: true, flow: PACKAGE_ID });
 
-    const shell = await fetch(`${baseUrl}/capabilities/${PACKAGE_ID}/${staged.version}/ui/shell.html`);
+    const shell = await fetch(`${baseUrl}/flows/${PACKAGE_ID}/${staged.version}/ui/shell.html`);
     expect(shell.status).toBe(200);
     expect(shell.headers.get("content-type")).toContain("text/html");
 
     const traversal = await fetch(
-      `${baseUrl}/capabilities/${PACKAGE_ID}/${staged.version}/ui/..%2f..%2fmanifest.json`,
+      `${baseUrl}/flows/${PACKAGE_ID}/${staged.version}/ui/..%2f..%2fmanifest.json`,
     );
     expect(traversal.status).toBe(404);
   });

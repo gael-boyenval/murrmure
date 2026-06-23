@@ -1,10 +1,10 @@
-# Agent skill package (`@studio/skill`)
+# Agent skill package (`@murrmure/skill`)
 
-Reference for the distributable Cursor skill used by capability-building agents.
+Reference for the distributable Cursor skill used by flow-building agents.
 
 Guide: [Agent skill](../guide/agent-skill).
 
-Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentStudio/blob/main/studio-specs/current/build-capability/15-agent-skill-package.md) (`studio-specs/current/build-capability/15-agent-skill-package.md`).
+Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentStudio/blob/main/studio-specs/current/build-flow/15-agent-skill-package.md) (`studio-specs/current/build-flow/15-agent-skill-package.md`).
 
 ---
 
@@ -12,10 +12,10 @@ Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentSt
 
 | Field | Value |
 |-------|-------|
-| npm name | `@studio/skill` |
-| Monorepo path | `packages/studio-skill` |
-| Cursor skill id | `studio-capability` |
-| Binaries | `studio-skill`; also `studio skill` via `@studio/capability-sdk` |
+| npm name | `@murrmure/skill` |
+| Monorepo path | `packages/cli/skill` |
+| Cursor skill id | `murrmure-flow` |
+| Binaries | `mrmr skill`; also `mrmr skill` via `@murrmure/cli` |
 
 ---
 
@@ -23,11 +23,11 @@ Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentSt
 
 | Command | Description |
 |---------|-------------|
-| `studio skill install [--dir path] [--json]` | Copy skill to `{dir}/.cursor/skills/studio-capability/` |
-| `studio skill update [--dir path] [--json]` | Refresh (overwrite) installed skill |
-| `studio skill version [--dir path] [--json]` | Print package VERSION and default install path |
+| `mrmr skill install [--dir path] [--json]` | Copy skill to `{dir}/.cursor/skills/murrmure-flow/` |
+| `mrmr skill update [--dir path] [--json]` | Refresh (overwrite) installed skill |
+| `mrmr skill version [--dir path] [--json]` | Print package VERSION and default install path |
 
-`studio capability init <id> [--with-skill]` calls `install` after scaffold.
+`mrmr flow init <id> [--with-skill]` calls `install` after scaffold.
 
 ---
 
@@ -35,16 +35,16 @@ Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentSt
 
 ```typescript
 import {
-  installStudioSkill,
+  installMurrmureSkill,
   defaultInstallPath,
   readSkillVersion,
   skillSourceDir,
-} from "@studio/skill";
+} from "@murrmure/skill";
 ```
 
 | Export | Returns |
 |--------|---------|
-| `installStudioSkill(targetRoot?)` | `{ ok: true, path, version }` |
+| `installMurrmureSkill(targetRoot?)` | `{ ok: true, path, version }` |
 | `defaultInstallPath(targetRoot)` | Absolute path to installed skill dir |
 | `readSkillVersion()` | Contents of package `VERSION` file |
 | `skillSourceDir()` | Path to bundled `skill/` source tree |
@@ -52,7 +52,7 @@ import {
 CLI routing:
 
 ```typescript
-import { runSkillCli } from "@studio/skill/cli";
+import { runSkillCli } from "@murrmure/skill/cli";
 await runSkillCli(["install", "--dir", "/path/to/repo"]);
 ```
 
@@ -61,23 +61,23 @@ await runSkillCli(["install", "--dir", "/path/to/repo"]);
 ## Source tree (package)
 
 ```text
-packages/studio-skill/
+packages/cli/skill/
 ├── VERSION
 ├── skill/
 │   ├── SKILL.md
 │   └── reference/
 │       ├── evolution-pipeline.md
-│       ├── capability-authoring.md
+│       ├── flow-authoring.md
 │       ├── cli.md
 │       └── mcp.md
 ├── src/
 │   ├── install.ts
 │   ├── cli.ts
 │   └── index.ts
-└── bin/studio-skill
+└── via `mrmr skill`
 ```
 
-Installed copy mirrors `skill/` under `.cursor/skills/studio-capability/`.
+Installed copy mirrors `skill/` under `.cursor/skills/murrmure-flow/`.
 
 ---
 
@@ -86,10 +86,10 @@ Installed copy mirrors `skill/` under `.cursor/skills/studio-capability/`.
 ```json
 {
   "ok": true,
-  "path": "/path/to/repo/.cursor/skills/studio-capability",
+  "path": "/path/to/repo/.cursor/skills/murrmure-flow",
   "version": "0.1.0",
   "command": "install",
-  "message": "Installed studio-capability skill to …"
+  "message": "Installed murrmure-flow skill to …"
 }
 ```
 
@@ -99,26 +99,26 @@ Installed copy mirrors `skill/` under `.cursor/skills/studio-capability/`.
 
 `SKILL.md` MUST include:
 
-- Platform model table (hub / capability / shell / MCP)
+- Platform model table (hub / flow / shell / MCP)
 - Copy-paste evolution checklist
 - Links to four reference files (no deeper nesting)
 
-Reference files summarize agent-actionable steps; they do not replace [Capability SDK](./capability-sdk) or [MCP tools](./mcp-tools) reference.
+Reference files summarize agent-actionable steps; they do not replace [Flow Dev Kit](./flow-dev-kit) or [MCP tools](./mcp-tools) reference.
 
 ---
 
 ## Tests
 
 ```bash
-pnpm --filter @studio/skill test
+pnpm --filter @murrmure/skill test
 ```
 
-Covers `installStudioSkill` file copy and `SKILL.md` presence.
+Covers `installMurrmureSkill` file copy and `SKILL.md` presence.
 
 ---
 
 ## Related
 
-- [Capability SDK CLI](./capability-sdk)
+- [Flow Dev Kit CLI](./flow-dev-kit)
 - [MCP tools](./mcp-tools)
 - [Agent skill guide](../guide/agent-skill)

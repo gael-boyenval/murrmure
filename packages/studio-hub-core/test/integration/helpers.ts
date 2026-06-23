@@ -48,7 +48,7 @@ export async function makeHub() {
         "space:read",
         "state:transition",
         "event:emit",
-        "capability:install",
+        "flow:install",
         "trigger:register",
         "blob:write",
         "federation:emit",

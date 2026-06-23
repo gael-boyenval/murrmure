@@ -49,7 +49,7 @@ describe("capability-runtime/reconnect-outbox-replay", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "dev-worker",
-        scopes: ["space:read", "state:transition", "capability:install"],
+        scopes: ["space:read", "state:transition", "flow:install"],
         capability_acl: ["review-loop", "feature-spec"],
       }),
     });
@@ -89,7 +89,7 @@ describe("capability-runtime/reconnect-outbox-replay", () => {
       apply: false,
     });
     const bumpBody = { install_id: bump.install_id };
-    await fetch(`${baseUrl}/v1/spaces/${sandboxId}/capabilities/${bumpBody.install_id}/apply`, {
+    await fetch(`${baseUrl}/v1/spaces/${sandboxId}/flows/${bumpBody.install_id}/apply`, {
       method: "POST",
       headers: { Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000001")}`, "Content-Type": "application/json" },
     });

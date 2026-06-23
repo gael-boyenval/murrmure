@@ -7,10 +7,10 @@ import type { DaemonContext } from "./context.js";
 import { broadcastSse } from "./context.js";
 import { parseBearer, requireToken } from "./auth.js";
 import { handleSseSubscribe, journalTypeToSseEvent } from "./sse.js";
-import { mountCapabilityStaticRoutes } from "./routes/capability-static.js";
+import { mountFlowStaticRoutes } from "./routes/flow-static.js";
 import { mountCapabilities } from "./mount.js";
 import { mountConfigRoutes } from "./routes/config/index.js";
-import { mountCapabilityRuntimeRoutes } from "./routes/capabilities/index.js";
+import { mountFlowRuntimeRoutes } from "./routes/flows/index.js";
 import { mountCrossSpaceRoutes } from "./routes/cross-space/index.js";
 import { mountTriggerRoutes } from "./routes/triggers/index.js";
 import { mountMcpRoutes } from "./routes/mcp/index.js";
@@ -370,17 +370,17 @@ export function createHubApp(ctx: DaemonContext) {
     return new Response(res.body, { status: res.status, headers: res.headers });
   });
 
-  // Runtime routes own the literal `/capabilities/live` route; mount them
-  // before the config routes whose `/capabilities/:install_id` param route
+  // Runtime routes own the literal `/flows/live` route; mount them
+  // before the config routes whose `/flows/:install_id` param route
   // would otherwise shadow it.
-  mountCapabilityRuntimeRoutes(app, ctx);
+  mountFlowRuntimeRoutes(app, ctx);
   mountConfigRoutes(app, ctx);
   mountStudioRoutes(app, ctx);
   mountCrossSpaceRoutes(app, ctx);
   mountTriggerRoutes(app, ctx);
   mountMcpRoutes(app, ctx);
   mountCapabilities(app, ctx);
-  mountCapabilityStaticRoutes(app, ctx);
+  mountFlowStaticRoutes(app, ctx);
 
   return app;
 }

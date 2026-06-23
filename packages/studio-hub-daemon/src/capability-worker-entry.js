@@ -79,6 +79,7 @@ function createContext(requestHeaders) {
     spaceId: process.env.STUDIO_SPACE_ID ?? "",
     installId: process.env.STUDIO_INSTALL_ID ?? "",
     packageId: process.env.STUDIO_PACKAGE_ID ?? "",
+    flowId: process.env.STUDIO_PACKAGE_ID ?? "",
     version: process.env.STUDIO_VERSION ?? "",
     routesPrefix: prefix,
     contractRefId: process.env.STUDIO_CONTRACT_REF_ID ?? "",

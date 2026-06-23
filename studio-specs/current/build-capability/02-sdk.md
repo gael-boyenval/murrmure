@@ -1,9 +1,9 @@
-# BC1–BC2 (+ BC5b) — Capability SDK and dev kit
+# BC1–BC2 (+ BC5b) — Murrmure CLI and Flow Dev Kit
 
-Expand P5 scaffold into the **builder surface** for user-project capabilities.
+Expand P5 scaffold into the **builder surface** for user-project flows.
 
-- Build/deploy layer: `@studio/capability-sdk` (library + CLI binary `studio`)
-- Runtime authoring layer: `@studio/capability-dev-kit` (React helpers, providers, hooks, scaffolded UI primitives)
+- **CLI (all commands):** `@murrmure/cli` — bins `murrmure` / `mrmr`; subcommands `flow`, `skill`, `mcp`, hub ops
+- **Runtime authoring library:** `@murrmure/flow-dev-kit` — React helpers, providers, hooks, schema, host/server types
 
 > **Kit definition:** [cdk.md](./cdk.md) · **Manifest v1:** [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md) · **HTTP:** [06-install-push-apply-http-contract.md](./06-install-push-apply-http-contract.md)
 
@@ -11,21 +11,16 @@ Expand P5 scaffold into the **builder surface** for user-project capabilities.
 
 ## Package surface
 
-See [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md) for canonical `CapabilityManifestSchema` v1.
+See [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md) for canonical `FlowManifestSchema` v1 (`flow.manifest.json`).
 
 ```typescript
-// @studio/capability-sdk
-export function initCapability(id: string, dir: string): { ok: boolean; path: string };
-export function validateCapabilityRoot(dir: string, opts?: { json?: boolean }): ValidateResult;
-export function buildCapabilityRoot(dir: string, opts?: BuildOptions): BuildResult;
-export function stagePath(packageId: string, version: string): string;
+// @murrmure/flow-dev-kit
+export function createFlowMount(...): (root: HTMLElement, ctx: FlowHostContext) => () => void;
+export function createHubBridgeClient(...): HubBridgeClient;
+export function validateFlowRoot(dir: string, opts?: { postBuild?: boolean }): ValidateResult;
 ```
 
-```typescript
-// @studio/capability-dev-kit (React-first runtime authoring helpers)
-export function createCapabilityMount(...args: unknown[]): (root: HTMLElement, ctx: unknown) => () => void;
-export function createHubBridgeClient(...args: unknown[]): { fetch: (path: string, init?: RequestInit) => Promise<Response> };
-```
+CLI commands are bundled in `@murrmure/cli` (not imported by flow apps at runtime).
 
 ---
 
@@ -33,18 +28,18 @@ export function createHubBridgeClient(...args: unknown[]): { fetch: (path: strin
 
 | Command | Phase | Action |
 |---------|-------|--------|
-| `studio capability init <id> [--dir path] [--from-example name] [--install] [--with-skill]` | BC0 | Scaffold strict React project + package.json + tests; optional Cursor skill install |
-| `studio capability validate [path] [--json]` | BC0 | Lens A offline + structured errors + dependency policy checks |
-| `studio capability build [path]` | BC1 | Bundle ui + server → stage |
-| `studio capability push --space <id>` | BC2 | Install v2 draft; writes `.push-state.json` |
-| `studio capability status [path] [--json]` | BC2 | Read push-state + hub install row |
-| `studio capability list --space <id> [--json]` | BC2 | List installs for space |
-| `studio capability doctor [--json]` | BC2 | Hub reachability, token scopes, policy |
-| `studio capability test [path]` | BC1 | User vitest + optional hub integration |
-| `studio capability dev [path] --space <id>` | BC5 | Watch + rebuild + push + reload |
-| `studio capability dev [path] --sim [--port <n>]` | BC5b | Thin local shell + simulated Studio state machine for local testing |
-| `studio capability validate\|test\|promote\|apply --space <id> --install <id>` | BC2 | Evolution HTTP parity |
-| `studio skill install\|update\|version [--dir path]` | BC15 | Install `@studio/skill` Cursor agent guidance ([15](./15-agent-skill-package.md)) |
+| `mrmr flow init <id> [--dir path] [--from-example name] [--with-skill]` | BC0 | Scaffold strict React project + package.json + tests |
+| `mrmr flow validate [path] [--json]` | BC0 | Lens A offline + structured errors + dependency policy checks |
+| `mrmr flow build [path]` | BC1 | Bundle ui + server → stage; writes `bundle.tar.zst` + `source.tar.zst` |
+| `mrmr flow push --space <id>` | BC2 | Install v3 draft; writes `.flow-push-state.json` |
+| `mrmr flow status [path] [--json]` | BC2 | Read push-state + hub install row |
+| `mrmr flow list --space <id> [--json]` | BC2 | List installs for space |
+| `mrmr flow doctor [--json]` | BC2 | Hub reachability, token scopes, dev-kit version skew |
+| `mrmr flow dev [path] --space <id>` | BC5 | Watch + rebuild + push + reload |
+| `mrmr flow dev [path] --sim [--port <n>]` | BC5b | Thin local shell + simulated state machine |
+| `mrmr flow validate\|test\|promote\|apply --space <id> --install <id>` | BC2 | Evolution HTTP parity |
+| `mrmr skill install\|update\|version [--dir path]` | BC15 | Install `murrmure-flow` Cursor skill ([15](./15-agent-skill-package.md)) |
+| `murrmure mcp` | BC7 | MCP stdio server (alias bins: `murrmure-mcp`, `mrmr-mcp`) |
 
 **All commands:** `--json` for agent parity (PAR-04).
 

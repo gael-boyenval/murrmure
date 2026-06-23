@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1",
+  "id": "review-loop",
+  "version": "2.0.0",
+  "routes_prefix": "/api/review-loop",
+  "ui": {
+    "entry": "ui/entry.js",
+    "canvas_route": "/spaces/:spaceId/instances/:instanceId/canvas/review-loop",
+    "shell_html": "ui/shell.html"
+  },
+  "server": {
+    "mount_module": "server/mount.mjs"
+  },
+  "mcp_tools_by_version": {
+    "2.0.0": ["create_review_session", "get_session", "wait_for_review"]
+  },
+  "config_schema": "contract/config.schema.json",
+  "tests": {
+    "contract": "tests/contract/reachability.test.ts"
+  }
+}

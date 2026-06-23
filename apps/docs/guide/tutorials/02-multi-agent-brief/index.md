@@ -1,8 +1,8 @@
-# Tutorial 2 — Multi-agent brief (custom capability)
+# Tutorial 2 — Multi-agent brief (custom flow)
 
 Three folders. Three spaces. Three agents.
 
-The orchestrator agent drafts a brief with a **new custom capability** (`team-brief`), knowledge and dev agents contribute answers through prompts, you publish in the browser, and a trigger sends **`mcp_wake`** to the dev space.
+The orchestrator agent drafts a brief with a **new custom flow** (`team-brief`), knowledge and dev agents contribute answers through prompts, you publish in the browser, and a trigger sends **`mcp_wake`** to the dev space.
 
 This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
 
@@ -16,8 +16,8 @@ This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
 
 ## What stays minimal
 
-- Only one custom capability: `team-brief` in orchestrator space.
-- No second custom capability in knowledge/dev spaces.
+- Only one custom flow: `team-brief` in orchestrator space.
+- No second custom flow in knowledge/dev spaces.
 - Knowledge and dev contributions are prompt-based; orchestrator merges with MCP section patches.
 - Human publish stays explicit in Runtime UI (no auto-publish).
 
@@ -33,7 +33,7 @@ This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
 
 ## Pages in this tutorial
 
-1. [Build orchestrator capability](./01-build-orchestrator-capability)
+1. [Build orchestrator flow](./01-build-orchestrator-flow)
 2. [Admin setup](./02-admin-setup)
 3. [Connect agents](./03-connect-agents)
 4. [Run workflow](./04-run-workflow)
@@ -41,10 +41,10 @@ This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
 
 ## Prerequisites
 
-- [Capabilities tutorial](/guide/capabilities-tutorial) completed once
+- [Flows tutorial](/guide/flows-tutorial) completed once
 - Cloud workspace or self-hosted hub already reachable
 - Three local folders and three Cursor windows
 
 ## Next
 
-[Part 1 — Build `team-brief` →](./01-build-orchestrator-capability)
+[Part 1 — Build `team-brief` →](./01-build-orchestrator-flow)

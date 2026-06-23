@@ -13,8 +13,8 @@ export interface PolicyContext {
 
 const SCOPE_MAP: Record<string, string> = {
   "space.create": "space:admin",
-  "instance.create": "capability:install",
-  "aggregate.create": "capability:install",
+  "instance.create": "flow:install",
+  "aggregate.create": "flow:install",
   "state.transition": "state:transition",
   "gate.resolve": "state:transition",
   "event.append": "event:emit",

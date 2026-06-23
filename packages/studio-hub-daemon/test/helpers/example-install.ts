@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildCapabilityRoot } from "@studio/capability-sdk";
+import { buildFlowRoot } from "@murrmure/cli/api";
 import { buildScaffoldBundle, type StagedBundle } from "./cdk-install.js";
 
 const REPO_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "../../../..");
@@ -10,7 +10,7 @@ export interface ExampleBundle extends StagedBundle {
 }
 
 /**
- * Build a reference example capability from examples/capabilities/<id> and stage
+ * Build a reference example flow from examples/capabilities/<id> and stage
  * it for local-path install.
  */
 export async function buildExampleBundle(opts: {
@@ -19,7 +19,7 @@ export async function buildExampleBundle(opts: {
   version?: string;
 }): Promise<ExampleBundle> {
   const sourceDir = join(REPO_ROOT, "examples/capabilities", opts.exampleId);
-  const built = await buildCapabilityRoot(sourceDir, {
+  const built = await buildFlowRoot(sourceDir, {
     outDir: join(opts.hubDataDir, "staging", opts.exampleId, opts.version ?? "default"),
   });
   if (!built.ok) {
@@ -32,6 +32,7 @@ export async function buildExampleBundle(opts: {
 
   return {
     packageId: opts.exampleId,
+    flowId: opts.exampleId,
     version,
     stageDir: built.stageDir,
     digest: built.bundleDigest,
@@ -43,7 +44,7 @@ export async function buildExampleBundle(opts: {
 export { buildScaffoldBundle, type StagedBundle };
 
 /**
- * Install, validate, test, and optionally apply an example capability bundle.
+ * Install, validate, test, and optionally apply an example flow bundle.
  */
 export async function installExampleCapability(opts: {
   baseUrl: string;
@@ -62,11 +63,11 @@ export async function installExampleCapability(opts: {
     version: opts.version,
   });
 
-  const install = await fetch(`${opts.baseUrl}/v1/spaces/${opts.spaceId}/capabilities/install`, {
+  const install = await fetch(`${opts.baseUrl}/v1/spaces/${opts.spaceId}/flows/install`, {
     method: "POST",
     headers: opts.bootstrapHeaders(),
     body: JSON.stringify({
-      package_id: staged.packageId,
+      flow_id: staged.flowId,
       version: staged.version,
       target_state: opts.targetState ?? "draft",
       config: opts.config ?? {},
@@ -87,7 +88,7 @@ export async function installExampleCapability(opts: {
   }
 
   if (opts.apply !== false) {
-    const apply = await fetch(`${opts.baseUrl}/v1/spaces/${opts.spaceId}/capabilities/${installId}/apply`, {
+    const apply = await fetch(`${opts.baseUrl}/v1/spaces/${opts.spaceId}/flows/${installId}/apply`, {
       method: "POST",
       headers: opts.bootstrapHeaders(),
     });

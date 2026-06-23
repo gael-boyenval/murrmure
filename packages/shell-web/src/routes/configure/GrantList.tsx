@@ -106,12 +106,13 @@ function mcpSnippet(token: string, spaceId: string): string {
   const hubUrl = getStoredHubUrl();
   return `{
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "${hubUrl}",
-        "STUDIO_HUB_TOKEN": "${token}",
-        "STUDIO_SPACE_ID": "${spaceId}"
+        "MURRMURE_HUB_URL": "${hubUrl}",
+        "MURRMURE_HUB_TOKEN": "${token}",
+        "MURRMURE_SPACE_ID": "${spaceId}"
       }
     }
   }
@@ -304,7 +305,7 @@ export function GrantMintWizard({ spaceId }: { spaceId: string }) {
           <strong style={{ display: "block", marginTop: 12 }}>MCP config snippet</strong>
           <pre style={{ fontSize: 12, overflow: "auto" }}>{mcpSnippet(mintedToken, spaceId)}</pre>
           <p style={{ fontSize: 12, color: "#666" }}>
-            Reload MCP in Cursor after updating <code>STUDIO_HUB_TOKEN</code>.
+            Reload MCP in Cursor after updating <code>MURRMURE_HUB_TOKEN</code>.
           </p>
         </div>
       )}

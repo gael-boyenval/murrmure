@@ -1,6 +1,6 @@
 # Self-hosted hub
 
-Most teams use **Studio Cloud** at [app.studio.dev](https://app.studio.dev). This page is for **operators** who run the hub on their own network.
+Most teams use **Murrmure Cloud** at [app.murrmure.dev](https://app.murrmure.dev). This page is for **operators** who run the hub on their own network.
 
 End users still use the **browser shell** and **MCP** — they do not clone the monorepo or run curl.
 
@@ -13,11 +13,11 @@ End users still use the **browser shell** and **MCP** — they do not clone the 
 ## Operator install
 
 ```bash
-npm install -g @studio/hub
-export DATABASE_PATH=/var/lib/studio/studio.db
+npm install -g @murrmure/hub
+export DATABASE_PATH=/var/lib/murrmure/murrmure.db
 export PORT=8787
-export STUDIO_DATA_DIR=/var/lib/studio
-studio-hub serve
+export MURRMURE_DATA_DIR=/var/lib/murrmure
+murrmure-hub serve
 ```
 
 Put TLS on a reverse proxy (nginx, Caddy). The hub process does not terminate TLS.
@@ -25,8 +25,8 @@ Put TLS on a reverse proxy (nginx, Caddy). The hub process does not terminate TL
 **Contributors** run from the monorepo instead:
 
 ```bash
-pnpm --filter @studio/hub-daemon start
-pnpm --filter @studio/shell-web dev
+pnpm --filter @murrmure/hub-daemon start
+pnpm --filter @murrmure/shell-web dev
 ```
 
 ## First-time setup (browser only)
@@ -42,8 +42,8 @@ No curl required for any of the above.
 
 | Setting | Cloud | Self-hosted |
 |---------|-------|-------------|
-| Browser | `https://app.studio.dev` | `https://studio.yourcompany.com` |
-| MCP `STUDIO_HUB_URL` | Cloud API | Your hub URL |
+| Browser | `https://app.murrmure.dev` | `https://murrmure.yourcompany.com` |
+| MCP `MURRMURE_HUB_URL` | Cloud API | Your hub URL |
 | Shell connect | SSO | **`/connect`** + token |
 
 Mint agent grants in **Configure → Agent grants** — same flow as cloud, different hostname.
@@ -55,7 +55,7 @@ Typical patterns:
 - **Local admin** runs setup wizard, invites users by email
 - **OIDC / SAML** wired to your IdP (deployment-specific)
 
-Online signup at `app.studio.dev` does not apply to private hubs unless you federate workspaces.
+Online signup at `app.murrmure.dev` does not apply to private hubs unless you federate workspaces.
 
 ## Single instance
 

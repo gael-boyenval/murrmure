@@ -402,8 +402,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const bareSpace = row.space_id.startsWith("spc_") ? row.space_id.slice(4) : row.space_id;
     this.db
       .prepare(
-        `INSERT INTO capability_installs (install_id, space_id, package_id, version, contract_ref_id, evolution_state, config_json, gate_id, bundle_digest, source_metadata_json, routes_prefix, canvas_route, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO capability_installs (install_id, space_id, package_id, version, contract_ref_id, evolution_state, config_json, gate_id, bundle_digest, source_digest, source_metadata_json, routes_prefix, canvas_route, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         bareInstall,
@@ -415,6 +415,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         JSON.stringify(row.config ?? {}),
         row.gate_id ?? null,
         row.bundle_digest ?? null,
+        row.source_digest ?? null,
         row.source_metadata ? JSON.stringify(row.source_metadata) : null,
         row.routes_prefix ?? null,
         row.canvas_route ?? null,
@@ -433,6 +434,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       config: parseJson(row.config_json),
       gate_id: row.gate_id ?? undefined,
       bundle_digest: row.bundle_digest ?? undefined,
+      source_digest: row.source_digest ?? undefined,
       source_metadata: row.source_metadata_json ? parseJson(row.source_metadata_json) : undefined,
       routes_prefix: row.routes_prefix ?? undefined,
       canvas_route: row.canvas_route ?? undefined,
@@ -476,7 +478,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const next = { ...current, ...patch };
     this.db
       .prepare(
-        `UPDATE capability_installs SET evolution_state = ?, config_json = ?, gate_id = ?, version = ?, bundle_digest = ?, source_metadata_json = ?, routes_prefix = ?, canvas_route = ? WHERE install_id = ?`,
+        `UPDATE capability_installs SET evolution_state = ?, config_json = ?, gate_id = ?, version = ?, bundle_digest = ?, source_digest = ?, source_metadata_json = ?, routes_prefix = ?, canvas_route = ? WHERE install_id = ?`,
       )
       .run(
         next.evolution_state,
@@ -484,6 +486,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         next.gate_id ?? null,
         next.version,
         next.bundle_digest ?? null,
+        next.source_digest ?? null,
         next.source_metadata ? JSON.stringify(next.source_metadata) : null,
         next.routes_prefix ?? null,
         next.canvas_route ?? null,

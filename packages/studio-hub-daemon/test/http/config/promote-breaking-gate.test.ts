@@ -59,11 +59,11 @@ describe("http/config/promote-breaking-gate", () => {
   });
 
   test("breaking promote triggers promoted_pending gate", async () => {
-    const install = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/capabilities/install`, {
+    const install = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/flows/install`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({
-        package_id: "review-loop",
+        flow_id: "review-loop",
         version: "3.0.0",
         config: { production_gate_enabled: true },
         target_state: "draft",

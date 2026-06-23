@@ -9,7 +9,7 @@ export const PLATFORM_SCOPES = [
   "state:transition",
   "blob:read",
   "blob:write",
-  "capability:install",
+  "flow:install",
   "trigger:register",
   "federation:emit",
   "space:admin",

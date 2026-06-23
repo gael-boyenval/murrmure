@@ -1,20 +1,28 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { validateCapabilityRoot } from "@studio/capability-sdk";
+import { validateFlowRoot } from "@murrmure/flow-dev-kit/validate";
 import { pinContract } from "@studio/hub-core";
 import { ContractV2Schema } from "@studio/contracts";
 import type { StudioPersistencePort } from "@studio/hub-persistence";
 import {
   assignContractRefId,
   ingestLocalBundle,
+  ingestSourceBlob,
   readBundleManifest,
   resolveAllowlistedPath,
 } from "./bundle-store.js";
 
 export interface BundleIngestInput {
-  package_id: string;
+  flow_id?: string;
+  /** @deprecated use flow_id */
+  package_id?: string;
   version: string;
   bundle: {
+    mode: string;
+    local_path?: string;
+    digest?: string;
+  };
+  source?: {
     mode: string;
     local_path?: string;
     digest?: string;
@@ -22,7 +30,7 @@ export interface BundleIngestInput {
   source_metadata?: Record<string, unknown>;
 }
 
-export async function ingestCapabilityBundle(
+export async function ingestFlowBundle(
   hubDataDir: string,
   studio: StudioPersistencePort,
   input: BundleIngestInput,
@@ -35,9 +43,15 @@ export async function ingestCapabilityBundle(
       routes_prefix: string;
       canvas_route: string;
       mcp_tools: string[];
+      source_digest?: string;
     }
   | { ok: false; code: string; message: string }
 > {
+  const flowId = input.flow_id ?? input.package_id;
+  if (!flowId) {
+    return { ok: false, code: "MANIFEST_INVALID", message: "flow_id required" };
+  }
+
   if (input.bundle.mode !== "local-path" || !input.bundle.local_path) {
     return { ok: false, code: "BUNDLE_NOT_FOUND", message: "Only local-path bundle mode supported in v1" };
   }
@@ -47,10 +61,14 @@ export async function ingestCapabilityBundle(
     return { ok: false, code: "LOCAL_PATH_DENIED", message: "Path outside allowlist" };
   }
 
+  if (input.source && !existsSync(join(resolved, "source.tar.zst"))) {
+    return { ok: false, code: "SOURCE_BUNDLE_MISSING", message: "source.tar.zst missing from staged bundle" };
+  }
+
   const ingested = await ingestLocalBundle(hubDataDir, resolved, input.bundle.digest);
   if (!ingested.ok) return ingested;
 
-  const validation = validateCapabilityRoot(resolved, { postBuild: true });
+  const validation = validateFlowRoot(resolved, { postBuild: true });
   if (!validation.ok) {
     return {
       ok: false,
@@ -60,13 +78,31 @@ export async function ingestCapabilityBundle(
   }
 
   const manifest = readBundleManifest(ingested.blobPath);
-  if (manifest.id !== input.package_id) {
-    return { ok: false, code: "MANIFEST_INVALID", message: "package_id mismatch" };
+  if (manifest.id !== flowId) {
+    return { ok: false, code: "MANIFEST_INVALID", message: "flow_id mismatch" };
+  }
+
+  let source_digest: string | undefined;
+  if (input.source?.local_path || input.source?.digest) {
+    let sourcePath: string | undefined;
+    if (input.source.local_path) {
+      const resolvedSource = resolveAllowlistedPath(input.source.local_path, hubDataDir);
+      if (!resolvedSource) {
+        return { ok: false, code: "LOCAL_PATH_DENIED", message: "Source path outside allowlist" };
+      }
+      sourcePath = resolvedSource;
+    } else {
+      sourcePath = join(resolved, "source.tar.zst");
+    }
+
+    const stored = await ingestSourceBlob(hubDataDir, flowId, input.version, sourcePath, input.source.digest);
+    if (!stored.ok) return stored;
+    source_digest = stored.digest;
   }
 
   const contractRaw = JSON.parse(readFileSync(join(ingested.blobPath, "contract", "contract.json"), "utf-8"));
   const contract = ContractV2Schema.parse(contractRaw);
-  const contract_ref_id = assignContractRefId(input.package_id, contractRaw as Record<string, unknown>);
+  const contract_ref_id = assignContractRefId(flowId, contractRaw as Record<string, unknown>);
   await pinContract(studio, contract_ref_id, contract);
 
   const mcpByVersion = manifest.mcp_tools_by_version as Record<string, string[]>;
@@ -77,8 +113,18 @@ export async function ingestCapabilityBundle(
     bundle_digest: ingested.digest,
     blob_path: ingested.blobPath,
     contract_ref_id,
-    routes_prefix: String((manifest.routes_prefix as string) ?? `/api/${input.package_id}`),
+    routes_prefix: String((manifest.routes_prefix as string) ?? `/api/${flowId}`),
     canvas_route: String((manifest.ui as { canvas_route?: string })?.canvas_route ?? ""),
     mcp_tools,
+    source_digest,
   };
+}
+
+/** @deprecated use ingestFlowBundle */
+export async function ingestCapabilityBundle(
+  hubDataDir: string,
+  studio: StudioPersistencePort,
+  input: BundleIngestInput & { package_id: string },
+) {
+  return ingestFlowBundle(hubDataDir, studio, input);
 }

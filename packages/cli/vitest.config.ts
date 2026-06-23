@@ -1,0 +1,10 @@
+import { defineConfig } from "vitest/config";
+import { sharedTestConfig } from "../../vitest.shared";
+
+export default defineConfig({
+  test: {
+    ...sharedTestConfig,
+    name: "@murrmure/cli",
+    root: import.meta.dirname,
+  },
+});

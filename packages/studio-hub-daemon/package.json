@@ -14,13 +14,14 @@
     "typecheck": "tsc -p tsconfig.json",
     "dev": "node --import tsx src/main.ts",
     "start": "node --import tsx src/main.ts",
-    "test": "vitest run"
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "@runtime/kernel": "workspace:*",
     "@runtime/persistence": "workspace:*",
-    "@studio/capability-sdk": "workspace:*",
+    "@murrmure/cli": "workspace:*",
+    "@murrmure/flow-dev-kit": "workspace:*",
     "@studio/contracts": "workspace:*",
     "@studio/hub-core": "workspace:*",
     "@studio/hub-persistence": "workspace:*",

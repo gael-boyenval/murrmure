@@ -31,11 +31,11 @@ Then, for each space:
 
 ## 2. Install only `team-brief` in orchestrator space
 
-From Part 1 you already pushed the capability bundle to `spc_orchestrator`.
+From Part 1 you already pushed the flow bundle to `spc_orchestrator`.
 
 Now click through:
 
-1. `Configure -> Orchestrator -> Capabilities`
+1. `Configure -> Orchestrator -> Flows`
 2. Open `team-brief` install row
 3. Click `Validate`
 4. Click `Test`
@@ -66,8 +66,8 @@ Recommended labels:
 
 Grant guidance:
 
-- Orchestrator grant: capability ACL includes `team-brief`.
-- Knowledge + Dev grants: no capability ACL required for this tutorial.
+- Orchestrator grant: flow ACL includes `team-brief`.
+- Knowledge + Dev grants: no flow ACL required for this tutorial.
 - Keep tokens separate (never reuse one token in all windows).
 
 ## 4. Allow `query_ask` from dev to orchestrator

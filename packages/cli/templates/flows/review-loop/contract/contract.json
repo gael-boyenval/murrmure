@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "2.0",
+  "id": "review-loop",
+  "version": "2.0.0",
+  "initial_state": "awaiting_review",
+  "terminal_states": ["converged", "production_approved", "aborted"],
+  "metadata_schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "assigned_reviewer": { "type": "string" },
+      "review": {
+        "type": "object",
+        "description": "Capability bag — SessionJson subset validated by the capability."
+      }
+    }
+  },
+  "states": [
+    { "id": "awaiting_review", "kind": "active" },
+    { "id": "awaiting_agent", "kind": "active" },
+    { "id": "changes_made", "kind": "active" },
+    { "id": "converged", "kind": "active" },
+    { "id": "production_approved", "kind": "terminal" },
+    { "id": "aborted", "kind": "terminal" }
+  ],
+  "transitions": [
+    {
+      "id": "open_review",
+      "from": "awaiting_review",
+      "to": "awaiting_review",
+      "event": "open_review",
+      "actors": ["agent:*"],
+      "condition": null,
+      "gate": null,
+      "emit": ["review.opened"]
+    },
+    {
+      "id": "finish_review",
+      "from": "awaiting_review",
+      "to": "awaiting_agent",
+      "event": "finish_review",
+      "actors": ["human:*"],
+      "condition": null,
+      "gate": null,
+      "emit": ["review.finished"]
+    },
+    {
+      "id": "agent_done",
+      "from": "awaiting_agent",
+      "to": "changes_made",
+      "event": "agent_done",
+      "actors": ["agent:*"],
+      "condition": null,
+      "gate": null,
+      "emit": ["review.changes_made"]
+    },
+    {
+      "id": "second_finish",
+      "from": "changes_made",
+      "to": "converged",
+      "event": "finish_review",
+      "actors": ["human:*"],
+      "condition": null,
+      "gate": null,
+      "emit": ["review.converged"]
+    },
+    {
+      "id": "request_production",
+      "from": "converged",
+      "to": "production_approved",
+      "event": "request_production",
+      "actors": ["agent:*", "human:*"],
+      "condition": null,
+      "gate": {
+        "mode": "any",
+        "assignees": ["human:*"]
+      },
+      "emit": ["production.approved"]
+    },
+    {
+      "id": "abort",
+      "from": "awaiting_review",
+      "to": "aborted",
+      "event": "abort",
+      "actors": ["human:*", "agent:*"],
+      "condition": null,
+      "gate": null,
+      "emit": ["review.aborted"]
+    }
+  ],
+  "events": {
+    "declarations": [
+      { "type": "review.opened", "schema": { "type": "object" } },
+      { "type": "review.finished", "schema": { "type": "object" } },
+      { "type": "review.changes_made", "schema": { "type": "object" } },
+      { "type": "review.converged", "schema": { "type": "object" } },
+      { "type": "production.approved", "schema": { "type": "object" } },
+      { "type": "review.aborted", "schema": { "type": "object" } }
+    ]
+  }
+}

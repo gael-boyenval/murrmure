@@ -18,29 +18,32 @@ docs are in [../archives/README.md](../archives/README.md). On conflict,
 | Product + review chrome | [product/spec.md](./product/spec.md) | [bridges/product.md](./bridges/product.md) | [fixtures/product/](./fixtures/product/) |
 | Config shell | [config/spec.md](./config/spec.md) | [bridges/config.md](./bridges/config.md) | [fixtures/config/](./fixtures/config/) |
 
-## Capability platform
+## Flow platform (Murrmure FDK)
 
 | Domain | Spec | Bridge | Fixtures |
 |--------|------|--------|----------|
-| Capability runtime | [capability-runtime/spec.md](./capability-runtime/spec.md) | [bridges/capability-runtime.md](./bridges/capability-runtime.md) | [fixtures/capability-runtime/](./fixtures/capability-runtime/) |
+| Flow runtime | [capability-runtime/spec.md](./capability-runtime/spec.md) | [bridges/capability-runtime.md](./bridges/capability-runtime.md) | [fixtures/capability-runtime/](./fixtures/capability-runtime/) |
 | Triggers | [triggers/spec.md](./triggers/spec.md) | [bridges/triggers.md](./bridges/triggers.md) | [fixtures/triggers/](./fixtures/triggers/) |
 | Cross-space (XS0) | [cross-space/spec.md](./cross-space/spec.md) | [bridges/cross-space.md](./bridges/cross-space.md) | [fixtures/cross-space/](./fixtures/cross-space/) |
-| Feature-spec (reference capability) | [capabilities/feature-spec.md](./capabilities/feature-spec.md) | [bridges/feature-spec.md](./bridges/feature-spec.md) | [fixtures/feature-spec/](./fixtures/feature-spec/) |
+| Feature-spec (reference flow) | [capabilities/feature-spec.md](./capabilities/feature-spec.md) | [bridges/feature-spec.md](./bridges/feature-spec.md) | [fixtures/feature-spec/](./fixtures/feature-spec/) |
 
-## Capability Developer Kit (CDK)
+## Flow Dev Kit (FDK)
 
-How users author, build, push, and run their own capabilities — see
-[build-capability/README.md](./build-capability/README.md). Key normative docs:
+How users author, build, push, and run their own flows — see
+[build-capability/README.md](./build-capability/README.md). Published packages:
+`@murrmure/cli` + `@murrmure/flow-dev-kit` ([ADR-001](../ADR/ADR-001-murrmure-publish.md)).
+
+Key normative docs (being updated toward flow/Murrmure vocabulary):
 
 - [build-capability/cdk.md](./build-capability/cdk.md) — kit definition
-- [build-capability/02-sdk.md](./build-capability/02-sdk.md) — `@studio/capability-sdk` CLI
-- [build-capability/05-manifest-and-bundle-schema.md](./build-capability/05-manifest-and-bundle-schema.md) — manifest + bundle + digest
+- [build-capability/02-sdk.md](./build-capability/02-sdk.md) — CLI + flow-dev-kit
+- [build-capability/05-manifest-and-bundle-schema.md](./build-capability/05-manifest-and-bundle-schema.md) — `flow.manifest.json`, bundle + source archives
 - [build-capability/09-security-execution-boundaries.md](./build-capability/09-security-execution-boundaries.md) — isolation model
-- [build-capability/12-worker-runtime-and-host-bridge.md](./build-capability/12-worker-runtime-and-host-bridge.md) — worker runtime, router, host-bridge debundle contract
-- [build-capability/15-agent-skill-package.md](./build-capability/15-agent-skill-package.md) — `@studio/skill` Cursor agent skill
-- [build-capability/acceptance.md](./build-capability/acceptance.md) — CDK definition of done
+- [build-capability/12-worker-runtime-and-host-bridge.md](./build-capability/12-worker-runtime-and-host-bridge.md) — worker runtime, host-bridge
+- [build-capability/15-agent-skill-package.md](./build-capability/15-agent-skill-package.md) — `murrmure-flow` Cursor skill (bundled in CLI)
+- [build-capability/acceptance.md](./build-capability/acceptance.md) — FDK definition of done
 
-Runnable reference capabilities live in the repo at
+Runnable reference flows live in the repo at
 [`examples/capabilities/`](../../examples/capabilities/), not in `packages/`.
 
 ## Doc types

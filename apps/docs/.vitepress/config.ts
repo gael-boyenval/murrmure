@@ -15,8 +15,8 @@ function mermaidPlainFence(md: MarkdownIt) {
 }
 
 export default defineConfig({
-  title: "Studio",
-  description: "Install, configure, and use Studio — human/agent coordination with clear handoffs and audit trails.",
+  title: "Murrmure",
+  description: "Install, configure, and use Murrmure — human/agent coordination with clear handoffs and audit trails.",
   lang: "en-US",
   markdown: {
     config: mermaidPlainFence,
@@ -30,10 +30,10 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/introduction" },
       { text: "Tutorials", link: "/guide/tutorials/" },
-      { text: "Why Studio", link: "/guide/why-studio" },
+      { text: "Why Murrmure", link: "/guide/why-murrmure" },
       { text: "Reference", link: "/reference/environment" },
-      { text: "Sign in", link: "https://app.studio.dev" },
-      { text: "Sign up", link: "https://app.studio.dev/signup" },
+      { text: "Sign in", link: "https://app.murrmure.dev" },
+      { text: "Sign up", link: "https://app.murrmure.dev/signup" },
     ],
     sidebar: {
       "/guide/": [
@@ -41,14 +41,14 @@ export default defineConfig({
           text: "Getting started",
           items: [
             { text: "Introduction", link: "/guide/introduction" },
-            { text: "Why Studio", link: "/guide/why-studio" },
+            { text: "Why Murrmure", link: "/guide/why-murrmure" },
             { text: "How it fits together", link: "/guide/how-it-fits-together" },
             { text: "Create an account", link: "/guide/account" },
             { text: "Install dependencies", link: "/guide/installation" },
             { text: "Connect your agent (MCP)", link: "/guide/agents-mcp" },
             { text: "Quick start (5 minutes)", link: "/guide/quick-start" },
             { text: "Browser app", link: "/guide/browser" },
-            { text: "Capability evolution", link: "/guide/capability-evolution" },
+            { text: "Flow evolution", link: "/guide/flow-evolution" },
           ],
         },
         {
@@ -61,7 +61,7 @@ export default defineConfig({
               link: "/guide/tutorials/01-local-preview-review/",
               items: [
                 { text: "Overview", link: "/guide/tutorials/01-local-preview-review/" },
-                { text: "Scaffold capability", link: "/guide/tutorials/01-local-preview-review/01-scaffold-capability" },
+                { text: "Scaffold flow", link: "/guide/tutorials/01-local-preview-review/01-scaffold-flow" },
                 { text: "Install and connect", link: "/guide/tutorials/01-local-preview-review/02-install-and-connect" },
                 { text: "Run feedback loop", link: "/guide/tutorials/01-local-preview-review/03-run-feedback-loop" },
               ],
@@ -71,7 +71,7 @@ export default defineConfig({
               link: "/guide/tutorials/02-multi-agent-brief/",
               items: [
                 { text: "Overview", link: "/guide/tutorials/02-multi-agent-brief/" },
-                { text: "Build capability", link: "/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-capability" },
+                { text: "Build flow", link: "/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-flow" },
                 { text: "Admin setup", link: "/guide/tutorials/02-multi-agent-brief/02-admin-setup" },
                 { text: "Connect agents", link: "/guide/tutorials/02-multi-agent-brief/03-connect-agents" },
                 { text: "Run workflow", link: "/guide/tutorials/02-multi-agent-brief/04-run-workflow" },
@@ -83,7 +83,7 @@ export default defineConfig({
               link: "/guide/tutorials/03-daily-brief-trigger/",
               items: [
                 { text: "Overview", link: "/guide/tutorials/03-daily-brief-trigger/" },
-                { text: "Scaffold capability", link: "/guide/tutorials/03-daily-brief-trigger/01-scaffold-daily-brief" },
+                { text: "Scaffold flow", link: "/guide/tutorials/03-daily-brief-trigger/01-scaffold-daily-brief" },
                 { text: "Push and trigger", link: "/guide/tutorials/03-daily-brief-trigger/02-push-and-trigger" },
                 { text: "Connect agent", link: "/guide/tutorials/03-daily-brief-trigger/03-connect-agent" },
                 { text: "Run and review", link: "/guide/tutorials/03-daily-brief-trigger/04-run-and-review" },
@@ -100,10 +100,10 @@ export default defineConfig({
           ],
         },
         {
-          text: "Capabilities",
+          text: "Flows",
           items: [
-            { text: "Tutorial (complete)", link: "/guide/capabilities-tutorial" },
-            { text: "Overview", link: "/guide/creating-capabilities" },
+            { text: "Tutorial (complete)", link: "/guide/flows-tutorial" },
+            { text: "Overview", link: "/guide/creating-flows" },
             { text: "Agent skill", link: "/guide/agent-skill" },
           ],
         },
@@ -129,14 +129,14 @@ export default defineConfig({
             { text: "Environment variables", link: "/reference/environment" },
             { text: "HTTP API overview", link: "/reference/http-api" },
             { text: "MCP tools", link: "/reference/mcp-tools" },
-            { text: "Capability SDK CLI", link: "/reference/capability-sdk" },
+            { text: "Flow Dev Kit CLI", link: "/reference/flow-dev-kit" },
             { text: "Agent skill package", link: "/reference/agent-skill" },
           ],
         },
       ],
     },
     footer: {
-      message: "Studio — where humans and agents do the work together.",
+      message: "Murrmure — where humans and agents do the work together.",
       copyright: "Copyright © 2026",
     },
   },

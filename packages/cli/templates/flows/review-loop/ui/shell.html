@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Capability</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import { mount } from "./entry.js";
+
+      const root = document.getElementById("root");
+      if (!root) {
+        throw new Error("Missing #root mount element");
+      }
+
+      let seq = 0;
+      let cleanup = null;
+      const pending = new Map();
+
+      const bridgeFetch = (path, init) =>
+        new Promise((resolve, reject) => {
+          const id = `hub-fetch-${seq++}`;
+          pending.set(id, { resolve, reject });
+          window.parent.postMessage({ type: "hub-fetch", id, path, init }, "*");
+          window.setTimeout(() => {
+            if (!pending.has(id)) {
+              return;
+            }
+            pending.delete(id);
+            reject(new Error("hub-fetch timeout"));
+          }, 10000);
+        });
+
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (!data || typeof data !== "object") {
+          return;
+        }
+
+        if (data.type === "hub-fetch-result" && typeof data.id === "string") {
+          const request = pending.get(data.id);
+          if (!request) {
+            return;
+          }
+          pending.delete(data.id);
+          request.resolve(
+            new Response(data.body ?? null, {
+              status: typeof data.status === "number" ? data.status : 500,
+              headers: typeof data.headers === "object" && data.headers ? data.headers : {},
+            }),
+          );
+          return;
+        }
+
+        if (data.type === "reload") {
+          window.location.reload();
+          return;
+        }
+
+        if (data.type === "init" && data.ctx && typeof data.ctx === "object") {
+          if (typeof cleanup === "function") {
+            cleanup();
+          }
+          cleanup = mount(root, {
+            ...data.ctx,
+            postMessage: (msg) => window.parent.postMessage(msg, "*"),
+            hubFetch: bridgeFetch,
+          });
+        }
+      });
+
+      window.parent.postMessage({ type: "shell-ready" }, "*");
+    </script>
+  </body>
+</html>

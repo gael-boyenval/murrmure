@@ -47,7 +47,7 @@ describe("http/config/deny-install-prod", () => {
         label: "Builder agent",
         harness: "cursor-local",
         template: "worker",
-        scopes: ["capability:install"],
+        scopes: ["flow:install"],
       }),
     });
     const grantBody = await grantRes.json();
@@ -62,14 +62,14 @@ describe("http/config/deny-install-prod", () => {
   afterAll(() => cleanup?.());
 
   test("agent install blocked on human_only production space", async () => {
-    const res = await fetch(`${baseUrl}/v1/spaces/spc_ui_production/capabilities/install`, {
+    const res = await fetch(`${baseUrl}/v1/spaces/spc_ui_production/flows/install`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${agentToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        package_id: "brand-check",
+        flow_id: "brand-check",
         version: "1.0.0",
         target_state: "live",
       }),

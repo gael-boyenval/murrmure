@@ -6,15 +6,15 @@ Coding agents are fast. Keeping a team in sync with them is not.
 
 Today, the work happens in chat. An agent posts a link, someone replies "looks off," another person pastes a screenshot, feedback scatters across three threads, and two days later nobody can say what was actually approved — or why. Humans and agents drift out of sync. Context gets lost. There's no audit trail when it matters.
 
-**Studio fixes the coordination, not the coding.** It gives humans and coding agents one shared place to review work, hand off cleanly, approve with sign-off, and keep a complete record — without everyone living in chat.
+**Murrmure fixes the coordination, not the coding.** It gives humans and coding agents one shared place to review work, hand off cleanly, approve with sign-off, and keep a complete record — without everyone living in chat.
 
-## What Studio is
+## What Murrmure is
 
-Studio is a coordination layer for humans and AI coding agents:
+Murrmure is a coordination layer for humans and AI coding agents:
 
 - **A browser shell** where people review previews, leave comments, and approve work.
 - **An MCP connection** that lets coding agents open sessions, request reviews, draft specs, and wait for a human decision — directly from the agent.
-- **Capabilities** — the workflows that run on top, like review rounds and feature specs. Built-in ones get you started; you can author your own.
+- **Flows** — the workflows that run on top, like review rounds and feature specs. Built-in ones get you started; you can author your own.
 
 Everything is recorded. Every comment, handoff, and approval lands in an append-only audit trail.
 
@@ -23,22 +23,22 @@ Everything is recorded. Every comment, handoff, and approval lands in an append-
 | You are… | What you install | How you work |
 |----------|------------------|--------------|
 | **Reviewer / collaborator** | Nothing | In the **browser** — review the live preview, comment, approve gates |
-| **Team admin** | Nothing | In the **browser → Configure** — set up spaces, capabilities, and agent access |
-| **Agent operator** | `@studio/hub-mcp` from npm | Paste one config from your dashboard — your agent connects with its own scoped token |
+| **Team admin** | Nothing | In the **browser → Configure** — set up spaces, flows, and agent access |
+| **Agent operator** | `@murrmure/cli` from npm | Paste one config from your dashboard — your agent connects with its own scoped token |
 
-You **don't clone a git repository** to use Studio — just sign up at [app.studio.dev](https://app.studio.dev/signup). You **don't use curl** for everyday work — people use the browser, agents use MCP.
+You **don't clone a git repository** to use Murrmure — just sign up at [app.murrmure.dev](https://app.murrmure.dev/signup). You **don't use curl** for everyday work — people use the browser, agents use MCP.
 
 ## How it works
 
-1. Your team signs in to **Studio Cloud** (or runs a [self-hosted hub](./self-hosted)).
-2. An admin sets up **spaces** and turns on the **capabilities** the team needs.
+1. Your team signs in to **Murrmure Cloud** (or runs a [self-hosted hub](./self-hosted)).
+2. An admin sets up **spaces** and turns on the **flows** the team needs.
 3. The admin gives each agent its **own scoped access** and shares the connect config with operators.
 4. People work in the **browser** — preview, comment, Finish a review, approve a gate, publish a spec.
 5. Agents connect via **MCP** — they open sessions, draft specs, and wait for a human to hand the work back.
 
-**Want custom workflows?** See the [Capabilities tutorial](./capabilities-tutorial) — author your own, ship it to your hub, and evolve it to live without downtime.
+**Want custom workflows?** See the [Flows tutorial](./flows-tutorial) — author your own, ship it to your hub, and evolve it to live without downtime.
 
-> Optional: `@studio/cli` for CI scripts. Not needed for day-to-day work.
+> Optional: `@murrmure/cli` for CI scripts. Not needed for day-to-day work.
 
 ## A typical review afternoon
 
@@ -58,14 +58,14 @@ See [Multi-agent feature spec](./multi-agent-feature-spec) for the full orchestr
 
 ## Next steps
 
-- [Why Studio](./why-studio) — the short version for stakeholders
+- [Why Murrmure](./why-murrmure) — the short version for stakeholders
 - [How it fits together](./how-it-fits-together) — components and how they connect
 - [Quick start](./quick-start) — your first review in five minutes
-- **Tutorials** — build custom capabilities from scratch:
+- **Tutorials** — build custom flows from scratch:
   - [Local preview review](./tutorials/01-local-preview-review/) — one agent, localhost feedback loop
   - [Multi-agent brief](./tutorials/02-multi-agent-brief/) — three agents + trigger
   - [Daily brief trigger](./tutorials/03-daily-brief-trigger/) — button wakes an agent
-- [Capabilities tutorial](./capabilities-tutorial) — full CDK reference
+- [Flows tutorial](./flows-tutorial) — full FDK reference
 - [Browser app](./browser) — every screen and route
 - [Connect your agent](./agents-mcp)
 - [Multi-agent feature spec](./multi-agent-feature-spec)

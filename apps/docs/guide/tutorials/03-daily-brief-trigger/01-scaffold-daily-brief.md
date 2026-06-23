@@ -1,15 +1,15 @@
 # Part 1 — Scaffold `daily-brief`
 
-Build a fresh custom capability from scratch with `@studio/capability-sdk`.
+Build a fresh custom flow from scratch with `@murrmure/cli`.
 
 ## 1. Scaffold the project
 
 ```bash
 mkdir ~/work/daily-brief && cd ~/work/daily-brief
 npm init -y
-npm install -D @studio/capability-sdk
-studio capability init daily-brief --dir ./capabilities/daily-brief
-cd capabilities/daily-brief
+npm install -D @murrmure/cli
+mrmr flow init daily-brief --dir ./flows/daily-brief
+cd flows/daily-brief
 ```
 
 ## 2. Define the contract states and events
@@ -92,7 +92,7 @@ State flow:
 
 ## 3. Canvas bridge + button UI
 
-Copy `ui/src/lib/hub-client.ts` from [Tutorial 1](../01-local-preview-review/01-scaffold-capability) and reuse it as your canvas API client.
+Copy `ui/src/lib/hub-client.ts` from [Tutorial 1](../01-local-preview-review/01-scaffold-flow) and reuse it as your canvas API client.
 
 ### `ui/src/mount.tsx`
 
@@ -163,7 +163,7 @@ window.addEventListener("message", (ev) => {
 });
 ```
 
-The **Run daily brief** button calls your capability server, which creates an instance and emits `brief.requested` (trigger source). It does not call the agent directly.
+The **Run daily brief** button calls your flow server, which creates an instance and emits `brief.requested` (trigger source). It does not call the agent directly.
 
 ## 4. MCP tools (`contract/mcp-tools.json`)
 
@@ -188,7 +188,7 @@ The **Run daily brief** button calls your capability server, which creates an in
 }
 ```
 
-In `capability.manifest.json`, include:
+In `flow.manifest.json`, include:
 
 ```json
 "mcp_tools_by_version": {
@@ -201,12 +201,12 @@ In `capability.manifest.json`, include:
 Copy `server/hub.ts` from Tutorial 1. Then implement:
 
 ```typescript
-import type { CapabilityServerContext } from "@studio/capability-sdk/server";
+import type { FlowServerContext } from "@murrmure/flow-dev-kit/server";
 import { hubJson } from "./hub.js";
 
 type Ctx = { req: { json: () => unknown }; json: (v: unknown) => unknown };
 
-export function mountRoutes(app: { post: Function }, ctx: CapabilityServerContext) {
+export function mountRoutes(app: { post: Function }, ctx: FlowServerContext) {
   const space = ctx.spaceId;
 
   app.post("/requests", async (c: Ctx) => {
@@ -299,10 +299,10 @@ The browser button emits the event; the trigger handles agent wake; the agent an
 ## 6. Validate and build
 
 ```bash
-studio capability validate . --json
-studio capability build .
+mrmr flow validate . --json
+mrmr flow build .
 ```
 
 ## Next
 
-[Part 2 — Push capability and register trigger →](./02-push-and-trigger)
+[Part 2 — Push flow and register trigger →](./02-push-and-trigger)

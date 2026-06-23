@@ -57,7 +57,7 @@ describe("capability-runtime/rollback-live-mount", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "builder",
-        scopes: ["space:read", "state:transition", "capability:install"],
+        scopes: ["space:read", "state:transition", "flow:install"],
         capability_acl: ["feature-spec"],
       }),
     });
@@ -82,15 +82,15 @@ describe("capability-runtime/rollback-live-mount", () => {
       apply: false,
     });
     const v11Body = { install_id: v11.install_id };
-    await fetch(`${baseUrl}/v1/spaces/${spaceId}/capabilities/${v11Body.install_id}/apply`, {
+    await fetch(`${baseUrl}/v1/spaces/${spaceId}/flows/${v11Body.install_id}/apply`, {
       method: "POST",
       headers: bootstrap(),
     });
 
-    const rollback = await fetch(`${baseUrl}/v1/spaces/${spaceId}/capabilities/rollback`, {
+    const rollback = await fetch(`${baseUrl}/v1/spaces/${spaceId}/flows/rollback`, {
       method: "POST",
       headers: bootstrap(),
-      body: JSON.stringify({ package_id: "feature-spec", to_version: "1.0.0" }),
+      body: JSON.stringify({ flow_id: "feature-spec", to_version: "1.0.0" }),
     });
     expect(rollback.status).toBe(200);
     expect((await rollback.json()).tools_removed).toEqual(

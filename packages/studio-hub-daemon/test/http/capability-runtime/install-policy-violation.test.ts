@@ -61,7 +61,7 @@ describe("capability-runtime/install-policy-violation", () => {
       body: JSON.stringify({
         label: "agent-installer",
         harness: "cloud-worker",
-        scopes: ["capability:install", "space:read"],
+        scopes: ["flow:install", "space:read"],
         capability_acl: ["review-loop"],
       }),
     });
@@ -71,7 +71,7 @@ describe("capability-runtime/install-policy-violation", () => {
   afterAll(() => cleanup?.());
 
   test("agent apply on human_only prod → 403 INSTALL_POLICY_VIOLATION", async () => {
-    const res = await fetch(`${baseUrl}/v1/spaces/${prodId}/capabilities/${installId}/apply`, {
+    const res = await fetch(`${baseUrl}/v1/spaces/${prodId}/flows/${installId}/apply`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${agentToken}`,
@@ -84,7 +84,7 @@ describe("capability-runtime/install-policy-violation", () => {
   });
 
   test("human apply succeeds", async () => {
-    const res = await fetch(`${baseUrl}/v1/spaces/${prodId}/capabilities/${installId}/apply`, {
+    const res = await fetch(`${baseUrl}/v1/spaces/${prodId}/flows/${installId}/apply`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000001")}`,

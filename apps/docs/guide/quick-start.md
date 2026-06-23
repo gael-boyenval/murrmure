@@ -2,11 +2,11 @@
 
 Goal: get one human and one agent through a complete review handoff using browser + MCP.
 
-If architecture is new, skim [How Studio fits together](./how-it-fits-together) first (2 minutes).
+If architecture is new, skim [How Murrmure fits together](./how-it-fits-together) first (2 minutes).
 
 ## 1) Sign in
 
-- **Cloud:** [app.studio.dev/signup](https://app.studio.dev/signup)
+- **Cloud:** [app.murrmure.dev/signup](https://app.murrmure.dev/signup)
 - **Self-hosted:** open your shell URL, then complete `/connect` and `/setup`
 
 ## 2) Create (or pick) a space
@@ -17,11 +17,11 @@ In **Configure**:
 2. For sandbox use, choose install policy `authorized_agents`
 3. Copy the space id (`spc_...`) — you need it for MCP config
 
-## 3) Install the Review loop capability
+## 3) Install the Review loop flow
 
-In **Configure → [space] → Capabilities**:
+In **Configure → [space] → Flows**:
 
-1. Click **Install capability**
+1. Click **Install flow**
 2. Choose **Human ↔ agent review** (`review-loop`)
 3. Open the install row and run: **Validate → Test → Promote → Apply live**
 4. Confirm state is **`live`**
@@ -40,7 +40,7 @@ In **Configure → [space] → Agent grants**:
 Install package:
 
 ```bash
-npm install -g @studio/hub-mcp
+npm install -g @murrmure/cli
 ```
 
 Paste MCP config into Cursor/Claude:
@@ -48,12 +48,13 @@ Paste MCP config into Cursor/Claude:
 ```json
 {
   "mcpServers": {
-    "studio": {
-      "command": "studio-hub-mcp",
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
       "env": {
-        "STUDIO_HUB_URL": "https://api.studio.dev",
-        "STUDIO_HUB_TOKEN": "tok_...",
-        "STUDIO_SPACE_ID": "spc_..."
+        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_TOKEN": "tok_...",
+        "MURRMURE_SPACE_ID": "spc_..."
       }
     }
   }

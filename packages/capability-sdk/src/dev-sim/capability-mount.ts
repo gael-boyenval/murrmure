@@ -155,7 +155,13 @@ async function loadMountModule(stageDir: string, serverContext: CapabilityServer
   }
 
   const routes: Route[] = [];
-  const app = {
+  type MountApp = {
+    get(path: string, handler: Route["handler"]): void;
+    post(path: string, handler: Route["handler"]): void;
+    patch(path: string, handler: Route["handler"]): void;
+    route(): void;
+  };
+  const app: MountApp = {
     get(path: string, handler: Route["handler"]) {
       routes.push({ method: "GET", path, handler });
     },
@@ -171,7 +177,7 @@ async function loadMountModule(stageDir: string, serverContext: CapabilityServer
   };
 
   const moduleUrl = `${pathToFileURL(mountPath).href}?t=${Date.now()}`;
-  const mod = (await import(moduleUrl)) as { mountRoutes?: (app: typeof app, ctx: CapabilityServerContext) => void };
+  const mod = (await import(moduleUrl)) as { mountRoutes?: (app: MountApp, ctx: CapabilityServerContext) => void };
   if (typeof mod.mountRoutes === "function") {
     mod.mountRoutes(app, serverContext);
   } else {

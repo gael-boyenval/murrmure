@@ -3,10 +3,10 @@
 ::: tip Who is this for?
 **Integrators and automation authors** — not reviewers, admins, or agent operators.
 
-Day-to-day Studio use is **browser (Configure + Runtime)** and **MCP**. You should not need curl for spaces, grants, capabilities, reviews, or feature specs.
+Day-to-day Murrmure use is **browser (Configure + Runtime)** and **MCP**. You should not need curl for spaces, grants, flows, reviews, or feature specs.
 :::
 
-Studio Cloud exposes a REST API at **`https://api.studio.dev`**. Self-hosted teams use their hub URL.
+Murrmure Cloud exposes a REST API at **`https://api.murrmure.dev`**. Self-hosted teams use their hub URL.
 
 ## Authentication
 
@@ -40,7 +40,7 @@ Path `space_id` must match token scope (unless admin bootstrap on self-hosted).
 
 ## Configuration API (CS0)
 
-Admin and setup routes — require appropriate scopes (`space:admin`, `capability:install`, etc.).
+Admin and setup routes — require appropriate scopes (`space:admin`, `flow:install`, etc.).
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
@@ -48,26 +48,26 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `capabilit
 | `GET` | `/v1/spaces` | `space:enter` | List granted spaces |
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
-| `GET` | `/v1/spaces/{id}/capabilities` | `space:read` | List installs |
-| `POST` | `/v1/spaces/{id}/capabilities/install` | `capability:install` | Install capability |
-| `GET` | `/v1/spaces/{id}/capabilities/{install}` | `space:read` | Install detail |
-| `PATCH` | `/v1/spaces/{id}/capabilities/{install}/config` | `capability:configure` | Update config |
-| `POST` | `/v1/spaces/{id}/evolution/validate` | `capability:install` | Lens A validate |
-| `POST` | `/v1/spaces/{id}/evolution/test` | `capability:install` | Contract tests |
-| `POST` | `/v1/spaces/{id}/evolution/promote` | `capability:install` | Promote (may gate) |
-| `POST` | `/v1/spaces/{id}/evolution/rollback` | `capability:install` | Rollback version |
+| `GET` | `/v1/spaces/{id}/flows` | `space:read` | List installs |
+| `POST` | `/v1/spaces/{id}/flows/install` | `flow:install` | Install flow |
+| `GET` | `/v1/spaces/{id}/flows/{install}` | `space:read` | Install detail |
+| `PATCH` | `/v1/spaces/{id}/flows/{install}/config` | `flow:configure` | Update config |
+| `POST` | `/v1/spaces/{id}/evolution/validate` | `flow:install` | Lens A validate |
+| `POST` | `/v1/spaces/{id}/evolution/test` | `flow:install` | Contract tests |
+| `POST` | `/v1/spaces/{id}/evolution/promote` | `flow:install` | Promote (may gate) |
+| `POST` | `/v1/spaces/{id}/evolution/rollback` | `flow:install` | Rollback version |
 | `GET` | `/v1/spaces/{id}/contracts/diff` | `space:read` | Contract diff summary |
 | `GET` | `/v1/spaces/{id}/members` | `space:admin` | List members |
 | `POST` | `/v1/spaces/{id}/members` | `space:admin` | Invite member |
 | `PATCH` | `/v1/spaces/{id}/members/{id}` | `space:admin` | Update role |
 | `DELETE` | `/v1/spaces/{id}/members/{id}` | `space:admin` | Remove member |
 | `GET` | `/v1/spaces/{id}/grants` | `space:admin` | List grants |
-| `POST` | `/v1/spaces/{id}/grants` | `space:admin` | Mint grant (returns one-time token; optional `capability_acl`) |
+| `POST` | `/v1/spaces/{id}/grants` | `space:admin` | Mint grant (returns one-time token; optional `flow_acl`) |
 | `POST` | `/v1/spaces/{id}/grants/{id}/revoke` | `space:admin` | Revoke grant |
 | `POST` | `/v1/spaces/{id}/grants/{id}/rotate` | `space:admin` | Rotate grant |
 | `GET` | `/v1/spaces/{id}/triggers` | `space:read` | List triggers |
 | `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (custom filter/action) |
-| `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live capability contracts |
+| `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live flow contracts |
 | `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Bundled trigger templates |
 | `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (`spec-published-wake-dev`, …) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger:register` | Synthetic event → delivery (debug) |
@@ -96,32 +96,32 @@ Supported `query_type` values:
 
 Denials: `QUERY_POLICY_DENIED` when source space is not on target `query_policy.inbound_allowlist`. MCP: **`query_ask`**.
 
-## Capability runtime (self-hosted hub)
+## Flow runtime (self-hosted hub)
 
-Live mount and MCP bridge routes. Agents on `human_only` spaces cannot apply; agents without `capability:install` cannot apply live mounts.
+Live mount and MCP bridge routes. Agents on `human_only` spaces cannot apply; agents without `flow:install` cannot apply live mounts.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `GET` | `/v1/spaces/{id}/capabilities/live` | `space:read` | Live mounts in the space |
-| `POST` | `/v1/spaces/{id}/capabilities/{install}/apply` | `capability:install` | Mount capability routes + refresh MCP catalog |
-| `POST` | `/v1/spaces/{id}/capabilities/{install}/unmount` | `capability:install` | Remove live mount |
+| `GET` | `/v1/spaces/{id}/flows/live` | `space:read` | Live mounts in the space |
+| `POST` | `/v1/spaces/{id}/flows/{install}/apply` | `flow:install` | Mount flow routes + refresh MCP catalog |
+| `POST` | `/v1/spaces/{id}/flows/{install}/unmount` | `flow:install` | Remove live mount |
 
 ### MCP bridge (`/v1/mcp/*`)
 
-Used by the hub daemon MCP integration (and `@studio/hub-mcp` when pointed at a self-hosted hub). Pass `space_id` as a query param or in the JSON body.
+Used by the hub daemon MCP integration (and `@murrmure/cli` when pointed at a self-hosted hub). Pass `space_id` as a query param or in the JSON body.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `GET` | `/v1/mcp/catalog?space_id=` | token scopes + `capability_acl` | Grant-filtered tool list |
+| `GET` | `/v1/mcp/catalog?space_id=` | token scopes + `flow_acl` | Grant-filtered tool list |
 | `POST` | `/v1/mcp/session/handshake` | valid token | Control-bus ack + replay from `last_ack_seq` |
 | `POST` | `/v1/mcp/tools/call?space_id=` | per-tool scope + ACL | Invoke a tool by name |
 | `POST` | `/v1/mcp/wake` | valid token | Push `mcp_wake` to a connected MCP client |
 
-Grant **`capability_acl`** (e.g. `["review-loop", "feature-spec"]`) limits which installed capability tools appear in the catalog, even when scopes would otherwise allow them.
+Grant **`flow_acl`** (e.g. `["review-loop", "feature-spec"]`) limits which installed flow tools appear in the catalog, even when scopes would otherwise allow them.
 
 ## Review API (`/api/sessions/*`)
 
-Requires **review-loop** capability installed and applied live in the space.
+Requires **review-loop** flow installed and applied live in the space.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -136,7 +136,7 @@ Most integrators should use **MCP** instead of raw HTTP — see [MCP tools](./mc
 
 ## Feature-spec API (`/api/specs/*`)
 
-Requires **feature-spec** capability installed, applied live, and a grant with `capability_acl` including `feature-spec`.
+Requires **feature-spec** flow installed, applied live, and a grant with `flow_acl` including `feature-spec`.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
@@ -162,8 +162,8 @@ Shell UI: `/spaces/{space_id}/specs/{spec_key}`.
 | 403 | `TOKEN_DENIED` | Bad or revoked token |
 | 403 | `SCOPE_ENFORCEMENT_FAILURE` | Token not valid for this space or missing scope |
 | 403 | `INSTALL_POLICY_VIOLATION` | Agent install blocked by space policy |
-| 403 | `TOOL_NOT_AUTHORIZED` | MCP tool missing scope or not in grant `capability_acl` |
-| 403 | `TRANSITION_GUARD_FAILED` | Capability guard (e.g. `publish_direct` when `skip_review: false`) |
+| 403 | `TOOL_NOT_AUTHORIZED` | MCP tool missing scope or not in grant `flow_acl` |
+| 403 | `TRANSITION_GUARD_FAILED` | Flow guard (e.g. `publish_direct` when `skip_review: false`) |
 | 403 | `QUERY_POLICY_DENIED` | Cross-space ask blocked by target `inbound_allowlist` |
 | 403 | `LIVE_APPLY_FAILED` | Live mount could not be applied |
 | 409 | — | Revision conflict; retry with current revision |

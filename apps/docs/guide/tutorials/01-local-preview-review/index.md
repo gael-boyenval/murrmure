@@ -1,6 +1,6 @@
 # Tutorial 1 — Local preview review
 
-One coding agent and one human reviewer collaborate through a **custom** capability named `preview-review` (built from scratch with `@studio/capability-sdk`, not bundled `review-loop`).
+One coding agent and one human reviewer collaborate through a **custom** flow named `preview-review` (built from scratch with `@murrmure/cli`, not bundled `review-loop`).
 
 The agent opens a review session for a localhost preview URL, waits for human feedback, applies updates, and loops until the workflow is complete.
 
@@ -10,29 +10,29 @@ Build and run a minimal communication loop on a local self-hosted hub:
 
 - Agent opens session with `preview_url`
 - Human approves or requests changes from canvas
-- Agent waits on Studio handoff state and reacts
+- Agent waits on Murrmure handoff state and reacts
 - Loop repeats until terminal resolution
 
 ## How to use this tutorial
 
 Follow the parts in order and treat each as a checkpoint:
 
-1. **Part 1** creates the capability contract, tools, strict React UI, and server routes
-2. **Part 2** publishes the capability and wires auth + MCP connectivity
+1. **Part 1** creates the flow contract, tools, strict React UI, and server routes
+2. **Part 2** publishes the flow and wires auth + MCP connectivity
 3. **Part 3** runs the live human-agent review loop and validates completion semantics
 
 ## What you will build
 
 | Piece | Role |
 |-------|------|
-| **`preview-review` capability** | Contract + MCP tools + minimal review canvas |
+| **`preview-review` flow** | Contract + MCP tools + minimal review canvas |
 | **One sandbox space** | Holds the live install and runtime instances |
 | **One worker grant token** | Auth for the coding agent MCP connection |
 | **One localhost preview URL** | The page the human reviewer checks each round |
 
 ## Pending vs resolved model (read first)
 
-Studio coordination has **two separate status layers** in this tutorial: contract state and wait response status.
+Murrmure coordination has **two separate status layers** in this tutorial: contract state and wait response status.
 
 ### Contract states (instance lifecycle)
 
@@ -61,7 +61,7 @@ If wait resolves with `changes_required`, that means a handoff occurred, not com
 
 ## Pages in this tutorial
 
-1. [Part 1 — Scaffold `preview-review`](./01-scaffold-capability)
+1. [Part 1 — Scaffold `preview-review`](./01-scaffold-flow)
 2. [Part 2 — Install and connect](./02-install-and-connect)
 3. [Part 3 — Run the feedback loop](./03-run-feedback-loop)
 
@@ -70,10 +70,10 @@ If wait resolves with `changes_required`, that means a handoff occurred, not com
 - Node.js 20+
 - [Self-hosted hub](../../self-hosted) and shell running locally
 - A sandbox space (for example `spc_ui_sandbox`)
-- `@studio/capability-sdk` for building (`init` also scaffolds `@studio/capability-dev-kit`)
-- `@studio/hub-mcp` for agent runtime
+- `@murrmure/cli` for building (`init` also scaffolds `@murrmure/flow-dev-kit`)
+- `@murrmure/cli` for agent runtime
 - A local app preview URL (for example `http://127.0.0.1:5173`)
 
 ## Next
 
-[Part 1 — Scaffold `preview-review` →](./01-scaffold-capability)
+[Part 1 — Scaffold `preview-review` →](./01-scaffold-flow)

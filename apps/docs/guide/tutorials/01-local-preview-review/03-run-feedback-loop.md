@@ -1,6 +1,6 @@
 # Part 3 — Run the feedback loop
 
-This section focuses on Studio communication between MCP and canvas until the instance reaches terminal `resolved`.
+This section focuses on Murrmure communication between MCP and canvas until the instance reaches terminal `resolved`.
 You will run one review round, interpret the result, and either finish or loop.
 
 ## 1) Agent opens a session for the current preview
@@ -139,7 +139,7 @@ Think in rounds: each round ends only when human action resolves the current wai
 
 | Symptom | Check |
 |---------|-------|
-| Capability tools missing in MCP | `preview-review` is live and grant ACL includes it |
+| Flow tools missing in MCP | `preview-review` is live and grant ACL includes it |
 | Wait stays pending forever | Human has not clicked an action in canvas |
 | Wait resolved with changes but loop did not continue | Agent did not call `signal_changes_applied` |
 | Wrong page reviewed | Agent passed stale `preview_url`; send updated URL in `signal_changes_applied` |
@@ -153,4 +153,4 @@ You are finished when all are true:
 - no further `signal_changes_applied` calls are needed
 
 - [Tutorial index](./index)
-- [How Studio fits together](../../how-it-fits-together)
+- [How Murrmure fits together](../../how-it-fits-together)

@@ -1,8 +1,8 @@
 # Review workflow
 
-The **Review loop** capability is Studio's reference human/agent loop: preview, comments, Finish, structured handoff.
+The **Review loop** flow is Murrmure's reference human/agent loop: preview, comments, Finish, structured handoff.
 
-Install it from **Configure → Capabilities** and promote to **`live`**. Mint a **Worker** grant for your agent.
+Install it from **Configure → Flows** and promote to **`live`**. Mint a **Worker** grant for your agent.
 
 ## States
 

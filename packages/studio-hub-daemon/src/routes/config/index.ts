@@ -6,7 +6,7 @@ import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
 import { STUDIO_DENIAL_CODES } from "@studio/contracts";
 import { normalizeTriggerBody } from "../triggers/index.js";
-import { ingestCapabilityBundle } from "../../bundle-ingest.js";
+import { ingestFlowBundle } from "../../bundle-ingest.js";
 
 export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   const { handler, studioPersistence } = ctx;
@@ -71,34 +71,46 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     return c.json(result.body, result.http_semantic as 200);
   });
 
-  app.get("/v1/spaces/:space_id/capabilities", async (c) => {
+  app.get("/v1/spaces/:space_id/flows", async (c) => {
     const space_id = c.req.param("space_id");
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "space:read");
     if (scopeCheck) return scopeCheck;
 
-    const capabilities = await config.listCapabilities(space_id);
-    return c.json({ capabilities });
+    const installs = await config.listCapabilities(space_id);
+    return c.json({
+      flows: installs.map((install) => ({ ...install, flow_id: install.package_id })),
+    });
   });
 
-  app.post("/v1/spaces/:space_id/capabilities/install", async (c) => {
+  app.post("/v1/spaces/:space_id/flows/install", async (c) => {
     const space_id = c.req.param("space_id");
     const body = await c.req.json();
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:install");
+    const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
+    const flowId = String(body.flow_id ?? body.package_id ?? "");
+
     let bundleMeta:
-      | { bundle_digest: string; contract_ref_id: string; routes_prefix: string; canvas_route: string }
+      | {
+          bundle_digest: string;
+          contract_ref_id: string;
+          routes_prefix: string;
+          canvas_route: string;
+          source_digest?: string;
+        }
       | undefined;
 
     if (body.bundle) {
-      const ingested = await ingestCapabilityBundle(ctx.config.dataDir, studioPersistence, {
+      const ingested = await ingestFlowBundle(ctx.config.dataDir, studioPersistence, {
+        flow_id: flowId,
         package_id: body.package_id,
         version: body.version,
         bundle: body.bundle,
+        source: body.source,
         source_metadata: body.source_metadata,
       });
       if (!ingested.ok) {
@@ -109,17 +121,23 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
         contract_ref_id: ingested.contract_ref_id,
         routes_prefix: ingested.routes_prefix,
         canvas_route: ingested.canvas_route,
+        source_digest: ingested.source_digest,
       };
     }
 
-    const result = await config.installCapability(space_id, body, actorKind(auth), bundleMeta);
+    const result = await config.installCapability(
+      space_id,
+      { ...body, package_id: flowId },
+      actorKind(auth),
+      bundleMeta,
+    );
     if (result.outcome === "denial") {
       return c.json({ code: result.code, ...result.body }, result.http_semantic as 403);
     }
-    return c.json(result.body, 200);
+    return c.json({ ...result.body, flow_id: flowId }, 200);
   });
 
-  app.get("/v1/spaces/:space_id/capabilities/:install_id", async (c) => {
+  app.get("/v1/spaces/:space_id/flows/:install_id", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
@@ -129,16 +147,16 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
 
     const install = await config.getCapability(space_id, install_id);
     if (!install) return c.json({ code: "not_found", message: "Install not found" }, 404);
-    return c.json(install);
+    return c.json({ ...install, flow_id: install.package_id });
   });
 
-  app.patch("/v1/spaces/:space_id/capabilities/:install_id/config", async (c) => {
+  app.patch("/v1/spaces/:space_id/flows/:install_id/config", async (c) => {
     const space_id = c.req.param("space_id");
     const install_id = c.req.param("install_id");
     const body = await c.req.json();
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:configure");
+    const scopeCheck = requireScope(auth, "flow:configure");
     if (scopeCheck) return scopeCheck;
 
     const result = await config.configureCapability(space_id, install_id, body.config ?? body);
@@ -151,7 +169,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const body = await c.req.json().catch(() => ({}));
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:install");
+    const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
     const result = await config.validateEvolution(space_id, body.install_id);
@@ -163,7 +181,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const body = await c.req.json().catch(() => ({}));
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:install");
+    const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
     const result = await config.testEvolution(space_id, body.install_id);
@@ -175,7 +193,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const body = await c.req.json().catch(() => ({}));
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:install");
+    const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
     const result = await config.promoteEvolution(space_id, body);
@@ -187,7 +205,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const body = await c.req.json();
     const auth = await requireToken(studioPersistence, c.req.raw, space_id);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "capability:install");
+    const scopeCheck = requireScope(auth, "flow:install");
     if (scopeCheck) return scopeCheck;
 
     const result = await config.rollbackEvolution(space_id, body.install_id, body.to_version ?? body.toVersion);

@@ -1,6 +1,6 @@
-# How Studio fits together
+# How Murrmure fits together
 
-Studio coordinates humans and agents on the same workflows (reviews, specs, approvals) with clear handoffs and audit history.
+Murrmure coordinates humans and agents on the same workflows (reviews, specs, approvals) with clear handoffs and audit history.
 
 If you remember one thing: **humans use the browser, agents use MCP, and both meet at the hub**.
 
@@ -8,17 +8,17 @@ If you remember one thing: **humans use the browser, agents use MCP, and both me
 
 | Component | Who uses it | Install required? | Main job |
 |-----------|-------------|-------------------|----------|
-| **Browser shell** (`app.studio.dev` or your self-hosted shell URL) | Humans and admins | No | UI for Runtime + Configure (spaces, capabilities, grants, reviews, specs, gates) |
-| **Hub** (cloud API or self-hosted daemon) | Shared backend | Hosted by Studio or your infra team | Stores spaces, journal events, capabilities, grants, and policy |
-| **`@studio/hub-mcp`** | Agent operators (Cursor/Claude/Desktop workers) | Yes | MCP server that exposes Studio tools to agents |
-| **`@studio/cli`** | Optional CI/scripts/operators | Optional | Terminal automation (`health`, `audit export`, scripted transitions) |
-| **`@studio/capability-sdk`** | Capability builders | Only for builders | Build/validate/push custom capabilities from your own repo |
+| **Browser shell** (`app.murrmure.dev` or your self-hosted shell URL) | Humans and admins | No | UI for Runtime + Configure (spaces, flows, grants, reviews, specs, gates) |
+| **Hub** (cloud API or self-hosted daemon) | Shared backend | Hosted by Murrmure or your infra team | Stores spaces, journal events, flows, grants, and policy |
+| **`@murrmure/cli`** | Agent operators (Cursor/Claude/Desktop workers) | Yes | MCP server that exposes Murrmure tools to agents |
+| **`@murrmure/cli`** | Optional CI/scripts/operators | Optional | Terminal automation (`health`, `audit export`, scripted transitions) |
+| **`@murrmure/cli`** | Flow builders | Only for builders | Build/validate/push custom flows from your own repo |
 
 ## Runtime data flow (no diagram tooling)
 
 ```text
 Human reviewer/admin in browser shell
-  - Configure: spaces, capabilities, grants
+  - Configure: spaces, flows, grants
   - Runtime: review/spec canvases, gates
                  |
                  | HTTPS
@@ -27,9 +27,9 @@ Human reviewer/admin in browser shell
         - journal + audit trail
         - spaces + install policy
         - grants + token auth
-        - capability lifecycle
+        - flow lifecycle
                  ^
-                 | MCP via @studio/hub-mcp
+                 | MCP via @murrmure/cli
                  |
 Agent in Cursor/Claude
   - create sessions/specs
@@ -37,54 +37,54 @@ Agent in Cursor/Claude
   - transition workflows
 ```
 
-## Where capabilities fit
+## Where flows fit
 
-Capabilities are installed **per space** (for example `review-loop`, `feature-spec`).
+Flows are installed **per space** (for example `review-loop`, `feature-spec`).
 
-When a capability is **live** in a space, it adds both:
+When a flow is **live** in a space, it adds both:
 
 1. **MCP tools** for agents in that space (for example `create_review_session`, `open_spec`)
 2. **Canvas UI surfaces** in the browser shell under `/spaces/...`
 
-No live capability in a space = no domain-specific MCP tools for that space.
+No live flow in a space = no domain-specific MCP tools for that space.
 
 ## What a normal setup looks like
 
 1. Admin creates a space in **Configure**
-2. Admin installs capability and promotes it to **live**
+2. Admin installs flow and promotes it to **live**
 3. Admin mints an agent grant token (`tok_...`)
 4. Agent operator sets MCP env values:
-   - `STUDIO_HUB_URL`
-   - `STUDIO_HUB_TOKEN`
-   - `STUDIO_SPACE_ID`
+   - `MURRMURE_HUB_URL`
+   - `MURRMURE_HUB_TOKEN`
+   - `MURRMURE_SPACE_ID`
 5. Agent and humans collaborate on the same instance (`ins_...`) through hub-mediated handoffs
 
-## Grants, tokens, and `STUDIO_SPACE_ID`
+## Grants, tokens, and `MURRMURE_SPACE_ID`
 
 - A **grant** defines what one agent can do.
 - Minting a grant returns a one-time token (`tok_...`) for that agent.
-- `STUDIO_SPACE_ID` pins the MCP connection to one space (`spc_...`).
+- `MURRMURE_SPACE_ID` pins the MCP connection to one space (`spc_...`).
 - Tool visibility is filtered by:
   - grant scopes (platform permissions), and
-  - live capabilities in that space (plus any capability ACL restrictions).
+  - live flows in that space (plus any flow ACL restrictions).
 
 Recommended practice: one token per agent process, and separate tokens for local/CI/prod workers.
 
 ## When to use each npm package
 
-- Use **`@studio/hub-mcp`** for day-to-day agent operation in Cursor/Claude.
-- Use **`@studio/cli`** only when you need scripts, CI jobs, or terminal automation.
-- Use **`@studio/capability-sdk`** only when building/evolving capabilities.
+- Use **`@murrmure/cli`** for day-to-day agent operation in Cursor/Claude.
+- Use **`@murrmure/cli`** only when you need scripts, CI jobs, or terminal automation.
+- Use **`@murrmure/cli`** only when building/evolving flows.
 - Human reviewers/admins do not need npm packages for normal usage.
 
 ## Glossary
 
 | Term | Meaning |
 |------|---------|
-| **Hub** | Studio backend (cloud API or self-hosted daemon) that holds spaces, journal events, capabilities, and grants. |
-| **Space** | Project boundary (`spc_...`) where capabilities are installed and instances run. |
+| **Hub** | Murrmure backend (cloud API or self-hosted daemon) that holds spaces, journal events, flows, and grants. |
+| **Space** | Project boundary (`spc_...`) where flows are installed and instances run. |
 | **Grant** | Scoped permission definition for an agent identity; minting produces a token. |
-| **Capability** | Workflow package installed in a space; when live it provides MCP tools + canvas UI. |
+| **Flow** | Workflow package installed in a space; when live it provides MCP tools + canvas UI. |
 | **Instance** | Running workflow item (`ins_...`) such as a review session or spec flow. |
 | **Gate** | Human approval checkpoint required before specific transitions (promote/publish/production actions). |
 

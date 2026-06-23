@@ -17,12 +17,14 @@ The plan should include the goals and functional definition in introduction.
 
 ### phase 3 : execute the plan
 
-Act as an orchestrator
+Act as an orchestrator that will loop until completion
 
-- Run subagents for individual tasks
-- Run subagents to review individual tasks
-- Add your own review
-- loop until completion
+loop model : 
+
+- 1 - Run subagents for individual tasks/phases
+- 2 - Run subagents to review individual tasks/phases
+- 3 - Add your own review
+- 4 - back to 1 with next plan phase
 
 Always write (or instruct subagents) tests to test close to 100% coverage at the boundaries (never implementation details)
 
