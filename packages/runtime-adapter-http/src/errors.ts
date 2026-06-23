@@ -1,5 +1,5 @@
-import type { CommandResult, DenialCode, HttpSemantic } from "@runtime/contracts";
-import { DENIAL_CODES, HTTP_SEMANTIC } from "@runtime/contracts";
+import type { CommandResult, DenialCode, HttpSemantic } from "@murrmure/runtime-contracts";
+import { DENIAL_CODES, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 
 export const ERROR_HTTP_MAP: Record<DenialCode, HttpSemantic> = {
   [DENIAL_CODES.POLICY_DENIED]: HTTP_SEMANTIC.FORBIDDEN,

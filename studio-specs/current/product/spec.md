@@ -7,8 +7,8 @@ Normative spec for **shell, hub daemon edge, review reference capability, and MC
 ### In
 
 - Hub daemon edge: HTTP, SSE, MCP, CLI, ops
-- `@studio/shell-web` — browser shell (runtime + capability canvases)
-- `@studio/hub-client` — typed platform HTTP + SSE client
+- `@murrmure/shell-web` — browser shell (runtime + capability canvases)
+- `@murrmure/hub-client` — typed platform HTTP + SSE client
 - Review reference capability (`examples/capabilities/review-loop/`)
 - Capability SDK scaffold (validate + install manifest)
 
@@ -238,7 +238,7 @@ export interface DaemonContext {
 
 export function mountCapabilities(app: Hono, ctx: DaemonContext): void {
   mountReviewRoutes(app, ctx);
-  // feature-spec, others via capability-runtime live apply
+  // feature-spec, others via flow-runtime live apply
 }
 ```
 
@@ -282,5 +282,5 @@ Fixture: [../fixtures/product/product/j01-review-full-path.json](../fixtures/pro
 ## Extensions (see other specs)
 
 - Config HTTP routes → [config/spec.md](../config/spec.md)
-- Dynamic mount + MCP catalog → [capability-runtime/spec.md](../capability-runtime/spec.md)
+- Dynamic mount + MCP catalog → [flow-runtime/spec.md](../flow-runtime/spec.md)
 - query_ask / query_answer → [cross-space/spec.md](../cross-space/spec.md)

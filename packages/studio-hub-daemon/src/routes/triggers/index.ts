@@ -9,7 +9,7 @@ import {
   listTemplates,
   normalizeTriggerAction,
   normalizeTriggerDedup,
-} from "@studio/triggers-templates";
+} from "@murrmure/triggers-templates";
 import { prefixedSpaceId } from "../../space-id.js";
 
 export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {

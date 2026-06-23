@@ -35,5 +35,5 @@ A builder scaffolds a capability in **their project**, artifacts live under **`~
 ## Non-goals
 
 - Bundled / marketplace capability catalog in the platform repo
-- Shipping reference workflow UI as part of `@studio/shell-web` (use CDK bundles in iframe)
+- Shipping reference workflow UI as part of `@murrmure/shell-web` (use CDK bundles in iframe)
 - Visual contract graph editor in Configure v1

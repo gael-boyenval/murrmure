@@ -1,4 +1,4 @@
-import type { JournalEntry, ReactionSpec } from "@runtime/contracts";
+import type { JournalEntry, ReactionSpec } from "@murrmure/runtime-contracts";
 
 export function matchesReaction(reaction: ReactionSpec, entry: JournalEntry): boolean {
   if (!reaction.enabled) return false;

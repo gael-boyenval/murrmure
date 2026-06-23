@@ -1,4 +1,4 @@
-import type { ConditionPort } from "@runtime/contracts";
+import type { ConditionPort } from "@murrmure/runtime-contracts";
 
 export function createCelConditionPort(): ConditionPort {
   return {

@@ -1,13 +1,13 @@
 import { test, expect } from "vitest";
 import * as fc from "fast-check";
-import { InMemoryPersistence } from "@runtime/persistence";
-import { foldJournalToSnapshot, ENTRY_TYPES } from "@runtime/contracts";
-import type { JournalEntry } from "@runtime/contracts";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
+import { foldJournalToSnapshot, ENTRY_TYPES } from "@murrmure/runtime-contracts";
+import type { JournalEntry } from "@murrmure/runtime-contracts";
 import { isQuorumSatisfied, addVote } from "../../src/checkpoint/lifecycle.js";
-import type { Checkpoint } from "@runtime/contracts";
+import type { Checkpoint } from "@murrmure/runtime-contracts";
 import { matchesWaitCondition } from "../../src/waiters/match.js";
 import { dedupFingerprint } from "../../src/reactions/matcher.js";
-import type { ReactionSpec } from "@runtime/contracts";
+import type { ReactionSpec } from "@murrmure/runtime-contracts";
 
 test("journal seq is strictly monotonic", async () => {
   const store = new InMemoryPersistence();

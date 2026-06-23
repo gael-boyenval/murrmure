@@ -65,4 +65,4 @@ Fixtures: [13-conformance-fixtures-matrix.md](./13-conformance-fixtures-matrix.m
 - Bundled catalog install from platform SPA
 - In-process hub import of user server code
 - Shell-origin dynamic import of user UI
-- Domain UI in `@studio/shell-web`
+- Domain UI in `@murrmure/shell-web`

@@ -7,16 +7,16 @@ acceptance is in [build-capability/acceptance.md](./build-capability/acceptance.
 Deferred rows (cloud CL0, cross-space XS1 federation) are **not** here — see
 [../plans/README.md](../plans/README.md).
 
-## Capability runtime (CR)
+## Flow runtime (CR)
 
 | Fixture | Proves | Test |
 |---------|--------|------|
-| `fixtures/capability-runtime/install-policy-violation.json` | Agent apply on human_only → `INSTALL_POLICY_VIOLATION` | `studio-hub-daemon/test/http/capability-runtime/install-policy-violation.test.ts` |
-| `fixtures/capability-runtime/promote-tool-refresh.json` | Live apply pushes `tools_changed`; catalog refresh | `…/capability-runtime/promote-tool-refresh.test.ts` |
-| `fixtures/capability-runtime/grant-scoped-tool-list.json` | Grant ACL filters MCP catalog | `…/capability-runtime/grant-scoped-tool-list.test.ts` |
-| `fixtures/capability-runtime/reconnect-outbox-replay.json` | Control-bus replay after reconnect | `…/capability-runtime/reconnect-outbox-replay.test.ts` |
-| `fixtures/capability-runtime/rollback-live-mount.json` | Rollback restores prior mount; pinned contracts | `…/capability-runtime/rollback-live-mount.test.ts` |
-| `fixtures/e2e/phase2-full-chain.json` | CDK bundle push → install → validate → test → apply → live worker | `…/capability-runtime/phase2-full-chain.test.ts` |
+| `fixtures/flow-runtime/install-policy-violation.json` | Agent apply on human_only → `INSTALL_POLICY_VIOLATION` | `hub-daemon/test/http/flow-runtime/install-policy-violation.test.ts` |
+| `fixtures/flow-runtime/promote-tool-refresh.json` | Live apply pushes `tools_changed`; catalog refresh | `…/flow-runtime/promote-tool-refresh.test.ts` |
+| `fixtures/flow-runtime/grant-scoped-tool-list.json` | Grant ACL filters MCP catalog | `…/flow-runtime/grant-scoped-tool-list.test.ts` |
+| `fixtures/flow-runtime/reconnect-outbox-replay.json` | Control-bus replay after reconnect | `…/flow-runtime/reconnect-outbox-replay.test.ts` |
+| `fixtures/flow-runtime/rollback-live-mount.json` | Rollback restores prior mount; pinned contracts | `…/flow-runtime/rollback-live-mount.test.ts` |
+| `fixtures/e2e/phase2-full-chain.json` | FDK bundle push → install → validate → test → apply → live worker | `…/flow-runtime/phase2-full-chain.test.ts` |
 
 ## Feature-spec reference capability (FS)
 
@@ -64,7 +64,7 @@ Deferred rows (cloud CL0, cross-space XS1 federation) are **not** here — see
 |---------|--------|------|
 | Mount collisions | `ROUTE_PREFIX_COLLISION`, `MCP_TOOL_COLLISION` | `…/security/mount-collision-worker-env.test.ts` |
 | Worker env sanitization | No hub secrets leak into worker env | `…/security/mount-collision-worker-env.test.ts` |
-| UI blob traversal | `..` path traversal blocked on UI route | `…/capability-runtime/phase2-full-chain.test.ts` |
+| UI blob traversal | `..` path traversal blocked on UI route | `…/flow-runtime/phase2-full-chain.test.ts` |
 
 ## CDK author flow
 

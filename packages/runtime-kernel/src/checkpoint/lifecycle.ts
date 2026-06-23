@@ -1,4 +1,4 @@
-import type { Checkpoint, CheckpointVote } from "@runtime/contracts";
+import type { Checkpoint, CheckpointVote } from "@murrmure/runtime-contracts";
 
 export function isQuorumSatisfied(checkpoint: Checkpoint): boolean {
   const approvals = checkpoint.votes.filter((v) => v.decision === "approved").length;

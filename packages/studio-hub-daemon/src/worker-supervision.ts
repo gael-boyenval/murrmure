@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { addSpaceId } from "@studio/hub-core";
+import { addSpaceId } from "@murrmure/hub-core";
 import type { DaemonContext } from "./context.js";
 import { bareSpaceId } from "./space-id.js";
 import { executeUnmount } from "./live-apply.js";

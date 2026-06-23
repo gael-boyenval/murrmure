@@ -177,8 +177,8 @@ Or same buttons in Configure evolution pipeline.
 
 | Package | Change |
 |---------|--------|
-| `@studio/shell-web` | Remove imports of reference capability UI; add `CapabilityCanvasHost` |
-| `@studio/hub-daemon` | Serve staged/pushed UI static; load user `mount_export` from bundle path |
+| `@murrmure/shell-web` | Remove imports of reference capability UI; add `CapabilityCanvasHost` |
+| `@murrmure/hub-daemon` | Serve staged/pushed UI static; load user `mount_export` from bundle path |
 | `@studio/capability-sdk` | Expand P5 scaffold → full builder SDK (see [02-sdk.md](./02-sdk.md)) |
 | `review-*`, `feature-spec-*` | **Move out** of platform repo → example user projects or separate `studio-examples` repo |
 

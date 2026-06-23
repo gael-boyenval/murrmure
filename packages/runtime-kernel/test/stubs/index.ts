@@ -13,8 +13,8 @@ import type {
   RulesPort,
   SchemaPort,
   WaitResolution,
-} from "@runtime/contracts";
-import { parseRuleArtifact } from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
+import { parseRuleArtifact } from "@murrmure/runtime-contracts";
 import Ajv from "ajv";
 
 let fixedSeq = 0;

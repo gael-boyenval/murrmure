@@ -1,6 +1,6 @@
-import type { FanoutDeps } from "@runtime/kernel";
-import { dispatchFanout } from "@runtime/kernel";
-import type { PersistencePort } from "@runtime/contracts";
+import type { FanoutDeps } from "@murrmure/runtime-kernel";
+import { dispatchFanout } from "@murrmure/runtime-kernel";
+import type { PersistencePort } from "@murrmure/runtime-contracts";
 
 export async function drainOutbox(
   persistence: PersistencePort,

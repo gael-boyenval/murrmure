@@ -4,7 +4,7 @@ Reference for the distributable Cursor skill used by flow-building agents.
 
 Guide: [Agent skill](../guide/agent-skill).
 
-Normative spec: [BC15 — Agent skill package](https://github.com/studio/agentStudio/blob/main/studio-specs/current/build-flow/15-agent-skill-package.md) (`studio-specs/current/build-flow/15-agent-skill-package.md`).
+Normative spec: [BC15 — Agent skill package](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/build-flow/15-agent-skill-package.md) (`studio-specs/current/build-flow/15-agent-skill-package.md`).
 
 ---
 

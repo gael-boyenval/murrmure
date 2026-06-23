@@ -17,10 +17,13 @@ See [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md) for c
 // @murrmure/flow-dev-kit
 export function createFlowMount(...): (root: HTMLElement, ctx: FlowHostContext) => () => void;
 export function createHubBridgeClient(...): HubBridgeClient;
-export function validateFlowRoot(dir: string, opts?: { postBuild?: boolean }): ValidateResult;
+export type { FlowHostContext } from "@murrmure/flow-dev-kit/host";
+export type { FlowServerContext } from "@murrmure/flow-dev-kit/server";
 ```
 
-CLI commands are bundled in `@murrmure/cli` (not imported by flow apps at runtime).
+Build, push, validate, and init commands live in `@murrmure/cli` (bundled at publish time — not imported by flow apps at runtime).
+
+There is **no** separate `@murrmure/flow-sdk` package; ex-capability-sdk library surface is fully absorbed by `@murrmure/flow-dev-kit` + CLI.
 
 ---
 
@@ -43,7 +46,7 @@ CLI commands are bundled in `@murrmure/cli` (not imported by flow apps at runtim
 
 **All commands:** `--json` for agent parity (PAR-04).
 
-**Auth resolution:** [08-auth-profiles-local-cloud-ci.md](./08-auth-profiles-local-cloud-ci.md).
+**Auth resolution:** [08-auth-profiles-local-cloud-ci.md](./08-auth-profiles-local-cloud-ci.md) — `MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_SPACE_ID`.
 
 **Push:** always `target_state: draft`. No `--target live` (CI route only).
 
@@ -51,14 +54,15 @@ CLI commands are bundled in `@murrmure/cli` (not imported by flow apps at runtim
 
 ## Strict React scaffold (init)
 
-`studio capability init` MUST scaffold React and MUST emit a root `package.json` with exact dependency versions.
+`mrmr flow init` MUST scaffold React and MUST emit a root `package.json` with exact dependency versions.
 
 Required outputs:
 
 - `package.json` with exact pins for:
-  - `@studio/capability-sdk`
-  - `@studio/capability-dev-kit`
+  - `@murrmure/flow-dev-kit`
+  - `@murrmure/cli` (devDependency)
   - `react`, `react-dom`, React type packages, TypeScript, Vitest
+- `flow.manifest.json`
 - `ui/src/App.tsx`
 - `ui/src/mount.tsx`
 - `ui/src/components/error/` with scaffolded visual error states
@@ -73,16 +77,17 @@ Required outputs:
 On successful `push`, write:
 
 ```
-~/.studio/capabilities/{package_id}/{version}/.push-state.json
+~/.murrmure/flows/{flow_id}/{version}/.flow-push-state.json
 ```
 
 ```json
 {
   "install_id": "ins_…",
   "space_id": "spc_ui_sandbox",
-  "package_id": "review-loop-lite",
+  "flow_id": "review-loop-lite",
   "version": "1.0.0",
   "bundle_digest": "sha256:…",
+  "source_digest": "sha256:…",
   "contract_ref_id": "cref_…",
   "pushed_at": "2026-06-20T12:00:00Z"
 }
@@ -120,7 +125,7 @@ Structured output with `--json`:
 | `MOUNT_EXPORT_MISSING` | Yes (post-build) |
 | `DEVKIT_VERSION_REQUIRED` | Yes |
 | `DEVKIT_VERSION_NOT_EXACT` | Yes |
-| `DEVKIT_SDK_VERSION_MISMATCH` | Yes |
+| `DEVKIT_CLI_VERSION_MISMATCH` | Yes (warning in 0.x) |
 | `GATE_ROLE_UNKNOWN` | Warning offline; blocking at hub |
 | `TESTS_MISSING` | Warning |
 
@@ -134,17 +139,18 @@ See [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md).
 1. ui/     → ui/shell.html + ui/entry.js + assets
 2. server/ → server/mount.mjs (worker-loadable ESM)
 3. copy contract/, manifest resolved
-4. bundle.tar.zst + hub-computed digest sidecar
-5. build.meta.json (ui_framework = "vite-react")
+4. source/ → author source snapshot (TS/TSX, tests)
+5. bundle.tar.zst + source.tar.zst + digest sidecars
+6. build.meta.json (ui_framework = "esbuild-react")
 ```
 
 ---
 
 ## Push protocol
 
-Full wire format: [06-install-push-apply-http-contract.md](./06-install-push-apply-http-contract.md).
+Full wire format: [06-install-push-apply-http-contract.md](./06-install-push-apply-http-contract.md) — `POST /v1/spaces/{space_id}/flows/install` v3 with runtime + source multipart.
 
-Same-machine dev uses `bundle.mode: local-path` with allowlisted roots.
+Same-machine dev uses `bundle.mode: local-path` with allowlisted roots under `~/.murrmure/flows/`.
 
 ---
 
@@ -153,12 +159,12 @@ Same-machine dev uses `bundle.mode: local-path` with allowlisted roots.
 User `ui/src/mount.tsx` — loaded inside iframe via `shell.html`:
 
 ```typescript
-import type { CapabilityHostContext } from "@studio/capability-sdk/host";
+import type { FlowHostContext } from "@murrmure/flow-dev-kit/host";
 
-export function mount(root: HTMLElement, ctx: CapabilityHostContext): () => void;
+export function mount(root: HTMLElement, ctx: FlowHostContext): () => void;
 ```
 
-Generated React templates MAY use `@studio/capability-dev-kit` wrappers, but MUST still compile to the same exported `mount` contract.
+Generated React templates MAY use `@murrmure/flow-dev-kit` wrappers, but MUST still compile to the same exported `mount` contract.
 
 Shell bridge via `postMessage` — see [09-security-execution-boundaries.md](./09-security-execution-boundaries.md).
 
@@ -166,20 +172,20 @@ Shell bridge via `postMessage` — see [09-security-execution-boundaries.md](./0
 
 ## Server mount contract
 
-User `server/index.ts` — loaded in **capability worker subprocess**, not hub main:
+User `server/index.ts` — loaded in **flow worker subprocess**, not hub main:
 
 ```typescript
 import type { Hono } from "hono";
-import type { CapabilityServerContext } from "@studio/capability-sdk/server";
+import type { FlowServerContext } from "@murrmure/flow-dev-kit/server";
 
-export function mountRoutes(app: Hono, ctx: CapabilityServerContext): void;
+export function mountRoutes(app: Hono, ctx: FlowServerContext): void;
 ```
 
 ---
 
 ## Simulated dev mode (BC5b)
 
-`studio capability dev --sim` MUST start a thin local runtime for workflow UI development without a running hub:
+`mrmr flow dev --sim` MUST start a thin local runtime for workflow UI development without a running hub:
 
 - Simulated shell host (iframe-equivalent canvas container)
 - Simulated `hub-fetch` bridge contract
@@ -194,14 +200,14 @@ Reference behavior: [11-dev-loop-reload-protocol.md](./11-dev-loop-reload-protoc
 
 ## Agent push recipe (UX-09)
 
-Grant (sandbox): `capability:install`, `capability:configure`.
+Grant (sandbox): `flow:install`, `flow:configure`.
 
 ```bash
-studio capability validate . --json
-studio capability build .
-studio capability push --space spc_ui_sandbox --json
-# parse install_id from .push-state.json or stdout
-studio capability validate --space spc_ui_sandbox --install ins_… --json
+mrmr flow validate . --json
+mrmr flow build .
+mrmr flow push --space spc_ui_sandbox --json
+# parse install_id from .flow-push-state.json or stdout
+mrmr flow validate --space spc_ui_sandbox --install ins_… --json
 ```
 
 Agent edits **git source only** — never blob store (PAR-02).
@@ -211,9 +217,9 @@ Agent edits **git source only** — never blob store (PAR-02).
 ## BC1–BC2 (+ BC5b) definition of done
 
 - [ ] `init` emits strict React scaffold with root `package.json`
-- [ ] Exact semver policy enforced for generated dependency set
-- [ ] Stage under `~/.studio/capabilities/` with deterministic digest
-- [ ] `push` + `.push-state.json` + `status`/`list`
-- [ ] `doctor` reports scope/policy gaps
-- [ ] `dev --sim` boots thin local shell + simulated Studio state machine
+- [ ] Exact semver policy enforced for generated dependency set (`@murrmure/cli` + `@murrmure/flow-dev-kit`)
+- [ ] Stage under `~/.murrmure/flows/` with `bundle.tar.zst`, `source.tar.zst`, and both digests
+- [ ] `push` + `.flow-push-state.json` + `status`/`list`
+- [ ] `doctor` reports scope/policy gaps and dev-kit version skew
+- [ ] `dev --sim` boots thin local shell + simulated state machine
 - [ ] Scaffolded Playwright suite passes against simulated runtime

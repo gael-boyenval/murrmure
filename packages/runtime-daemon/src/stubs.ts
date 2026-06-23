@@ -11,7 +11,7 @@ import type {
   RulesPort,
   SchemaPort,
   WaitResolution,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 
 export function allowAllPolicy(): PolicyPort {
   return { evaluate: async () => ({ allowed: true }) };

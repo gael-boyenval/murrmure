@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, test, expect, beforeEach } from "vitest";
 import { RuntimeKernel } from "../../src/command/handler.js";
 import { DeferredWaitRegistry } from "../../src/waiters/registry.js";
-import { InMemoryPersistence } from "@runtime/persistence";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
 import {
   allowAllPolicy,
   compositeNotify,
@@ -18,8 +18,8 @@ import {
   strictSchema,
   noOpConvergence,
 } from "../stubs/index.js";
-import { DENIAL_CODES, HTTP_SEMANTIC, ruleRefDigest } from "@runtime/contracts";
-import type { RuleArtifact } from "@runtime/contracts";
+import { DENIAL_CODES, HTTP_SEMANTIC, ruleRefDigest } from "@murrmure/runtime-contracts";
+import type { RuleArtifact } from "@murrmure/runtime-contracts";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__dir, "../../../../studio-specs/current/fixtures/kernel");

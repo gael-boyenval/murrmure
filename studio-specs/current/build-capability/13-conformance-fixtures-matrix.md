@@ -35,7 +35,7 @@
 | Existing | Relationship |
 |----------|--------------|
 | `fixtures/config/first-week-setup.json` | **Replace** step 3 with CDK push flow |
-| `fixtures/capability-runtime/promote-tool-refresh.json` | Add `bundle_digest` + user manifest tools |
+| `fixtures/flow-runtime/promote-tool-refresh.json` | Add `bundle_digest`, `source_digest` + user manifest tools |
 | `fixtures/config/deny-install-prod.json` | Unchanged policy semantics |
 
 ---

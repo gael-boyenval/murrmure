@@ -152,7 +152,7 @@ Reference capabilities live under `examples/capabilities/` and are copied via:
 studio capability init review-loop --from-example review-loop
 ```
 
-Example tarball hosted separately or shipped inside `@studio/capability-sdk/templates/` — **not** linked from `@studio/shell-web`.
+Example tarball hosted separately or shipped inside `@studio/capability-sdk/templates/` — **not** linked from `@murrmure/shell-web`.
 
 ---
 

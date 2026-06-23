@@ -1,6 +1,6 @@
-import type { RuleArtifact, RuleRef, RulesPort } from "@runtime/contracts";
-import { ruleRefDigest } from "@runtime/contracts";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
+import type { RuleArtifact, RuleRef, RulesPort } from "@murrmure/runtime-contracts";
+import { ruleRefDigest } from "@murrmure/runtime-contracts";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { contractV2ToRuleArtifact } from "../bridge/contract-v2.js";
 
 export function createStudioRulesPort(studio: StudioPersistencePort): RulesPort {

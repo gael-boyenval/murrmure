@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
-import { addSpaceId } from "@studio/hub-core";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { addSpaceId } from "@murrmure/hub-core";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { DaemonContext } from "./context.js";
 import { actorKind, denialResponse, hasScope } from "./routes/config/scopes.js";

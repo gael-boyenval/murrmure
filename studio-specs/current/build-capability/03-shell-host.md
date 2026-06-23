@@ -6,7 +6,7 @@ Platform shell renders **Configure**, **thin runtime chrome**, and a **sandboxed
 
 ---
 
-## What stays in `@studio/shell-web`
+## What stays in `@murrmure/shell-web`
 
 | Area | Routes / components | Data source |
 |------|---------------------|-------------|

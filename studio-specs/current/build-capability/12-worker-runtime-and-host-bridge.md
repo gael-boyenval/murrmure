@@ -205,7 +205,7 @@ Federation relay (XS1) remains out of scope — see
 - [x] Public UI blob route with CSP
 - [x] Route/MCP collision checks at apply; `capabilities/live` not shadowed
 - [x] Full chain push → install → validate → test → apply → live worker `/health`
-      (`packages/studio-hub-daemon/test/http/capability-runtime/phase2-full-chain.test.ts`)
+      (`packages/hub-daemon/test/http/flow-runtime/phase2-full-chain.test.ts`)
 
 ### Debundle (2026-06-22)
 
@@ -226,5 +226,5 @@ Federation relay (XS1) remains out of scope — see
 - [04-hub-ingest.md](./04-hub-ingest.md) — ingest → live apply pipeline
 - [09-security-execution-boundaries.md](./09-security-execution-boundaries.md) — threat model and isolation
 - [07-mcp-tool-model-and-catalog-rebuild.md](./07-mcp-tool-model-and-catalog-rebuild.md) — MCP catalog
-- [../capability-runtime/spec.md](../capability-runtime/spec.md) — runtime overview
+- [../flow-runtime/spec.md](../flow-runtime/spec.md) — runtime overview
 - [../cross-space/spec.md](../cross-space/spec.md) — XS0 ask/answer

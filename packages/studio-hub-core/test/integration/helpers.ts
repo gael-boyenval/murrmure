@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { IdPort, ClockPort } from "@runtime/contracts";
-import { ContractV2Schema } from "@studio/contracts";
-import { InMemoryPersistence } from "@runtime/persistence";
-import { MemoryStudioPersistence } from "@studio/hub-persistence";
+import type { IdPort, ClockPort } from "@murrmure/runtime-contracts";
+import { ContractV2Schema } from "@murrmure/contracts";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
+import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 import { createHubKernel, pinContract, HubHandler } from "../../src/index.js";
 
 const __dir = dirname(fileURLToPath(import.meta.url));

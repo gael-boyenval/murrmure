@@ -6,9 +6,9 @@ Normative spec for **Configuration UI** and **config HTTP routes**. Runtime shel
 
 ### In
 
-- Configuration route tree in `@studio/shell-web`
+- Configuration route tree in `@murrmure/shell-web`
 - Hub config HTTP routes (below)
-- `@studio/hub-client` config extensions
+- `@murrmure/hub-client` config extensions
 - First-run setup wizard (`/setup`)
 - CDK-backed capability install (no bundled catalog — see [archives/superseded/bundled-catalog-migration.md](../../archives/superseded/bundled-catalog-migration.md))
 - Grant mint wizard with scope templates
@@ -305,5 +305,5 @@ Fixtures: [../fixtures/config/promote-breaking-gate.json](../fixtures/config/pro
 ## Extensions
 
 - Trigger templates + event catalog → [triggers/spec.md](../triggers/spec.md)
-- Live apply route → [capability-runtime/spec.md](../capability-runtime/spec.md)
+- Live apply route → [flow-runtime/spec.md](../flow-runtime/spec.md)
 - Cloud BFF → [plans/cloud/spec.md](../../plans/cloud/spec.md) (deferred)

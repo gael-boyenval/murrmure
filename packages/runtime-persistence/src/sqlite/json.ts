@@ -1,4 +1,4 @@
-import { stableStringify } from "@runtime/contracts";
+import { stableStringify } from "@murrmure/runtime-contracts";
 
 export function toCanonicalJson(value: unknown): string {
   return stableStringify(value);

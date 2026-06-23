@@ -1,4 +1,4 @@
-import type { HubHandler } from "@studio/hub-core";
+import type { HubHandler } from "@murrmure/hub-core";
 import type { ControlBus, ControlPrincipal } from "./control-bus.js";
 import { bareSpaceId } from "./space-id.js";
 

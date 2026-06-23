@@ -36,41 +36,6 @@ importers:
         specifier: ^1.6.3
         version: 1.6.4(@algolia/client-search@5.55.0)(@types/node@25.9.3)(@types/react@18.3.31)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@5.9.3)
 
-  packages/capability-dev-kit:
-    dependencies:
-      '@studio/capability-sdk':
-        specifier: workspace:*
-        version: link:../capability-sdk
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.11
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.31)
-
-  packages/capability-sdk:
-    dependencies:
-      '@studio/skill':
-        specifier: workspace:*
-        version: link:../studio-skill
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.19.21
-
   packages/cli:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -126,17 +91,17 @@ importers:
 
   packages/runtime-adapter-http:
     dependencies:
-      '@runtime/contracts':
+      '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
-      '@runtime/kernel':
+      '@murrmure/runtime-kernel':
         specifier: workspace:*
         version: link:../runtime-kernel
       hono:
         specifier: ^4.7.4
         version: 4.12.26
     devDependencies:
-      '@runtime/persistence':
+      '@murrmure/runtime-persistence':
         specifier: workspace:*
         version: link:../runtime-persistence
 
@@ -157,16 +122,16 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.14(hono@4.12.26)
-      '@runtime/adapter-http':
+      '@murrmure/runtime-adapter-http':
         specifier: workspace:*
         version: link:../runtime-adapter-http
-      '@runtime/contracts':
+      '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
-      '@runtime/kernel':
+      '@murrmure/runtime-kernel':
         specifier: workspace:*
         version: link:../runtime-kernel
-      '@runtime/persistence':
+      '@murrmure/runtime-persistence':
         specifier: workspace:*
         version: link:../runtime-persistence
     devDependencies:
@@ -176,11 +141,11 @@ importers:
 
   packages/runtime-kernel:
     dependencies:
-      '@runtime/contracts':
+      '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
     devDependencies:
-      '@runtime/persistence':
+      '@murrmure/runtime-persistence':
         specifier: workspace:*
         version: link:../runtime-persistence
       ajv:
@@ -192,14 +157,14 @@ importers:
 
   packages/runtime-persistence:
     dependencies:
-      '@runtime/contracts':
+      '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
       better-sqlite3:
         specifier: ^11.8.1
         version: 11.10.0
     devDependencies:
-      '@runtime/kernel':
+      '@murrmure/runtime-kernel':
         specifier: workspace:*
         version: link:../runtime-kernel
       '@types/better-sqlite3':
@@ -211,7 +176,7 @@ importers:
 
   packages/shell-web:
     dependencies:
-      '@studio/hub-client':
+      '@murrmure/hub-client':
         specifier: workspace:*
         version: link:../studio-hub-client
       react:
@@ -246,39 +211,26 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
 
-  packages/studio-hub-cli:
-    dependencies:
-      '@studio/contracts':
-        specifier: workspace:*
-        version: link:../studio-contracts
-    devDependencies:
-      tsx:
-        specifier: ^4.19.3
-        version: 4.22.4
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
   packages/studio-hub-client:
     dependencies:
-      '@studio/contracts':
+      '@murrmure/contracts':
         specifier: workspace:*
         version: link:../studio-contracts
 
   packages/studio-hub-core:
     dependencies:
-      '@runtime/contracts':
-        specifier: workspace:*
-        version: link:../runtime-contracts
-      '@runtime/kernel':
-        specifier: workspace:*
-        version: link:../runtime-kernel
-      '@studio/contracts':
+      '@murrmure/contracts':
         specifier: workspace:*
         version: link:../studio-contracts
-      '@studio/hub-persistence':
+      '@murrmure/hub-persistence':
         specifier: workspace:*
         version: link:../studio-hub-persistence
+      '@murrmure/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
+      '@murrmure/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
@@ -286,7 +238,7 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@runtime/persistence':
+      '@murrmure/runtime-persistence':
         specifier: workspace:*
         version: link:../runtime-persistence
       tsx:
@@ -301,25 +253,25 @@ importers:
       '@murrmure/cli':
         specifier: workspace:*
         version: link:../cli
+      '@murrmure/contracts':
+        specifier: workspace:*
+        version: link:../studio-contracts
       '@murrmure/flow-dev-kit':
         specifier: workspace:*
         version: link:../flow-dev-kit
-      '@runtime/kernel':
-        specifier: workspace:*
-        version: link:../runtime-kernel
-      '@runtime/persistence':
-        specifier: workspace:*
-        version: link:../runtime-persistence
-      '@studio/contracts':
-        specifier: workspace:*
-        version: link:../studio-contracts
-      '@studio/hub-core':
+      '@murrmure/hub-core':
         specifier: workspace:*
         version: link:../studio-hub-core
-      '@studio/hub-persistence':
+      '@murrmure/hub-persistence':
         specifier: workspace:*
         version: link:../studio-hub-persistence
-      '@studio/triggers-templates':
+      '@murrmure/runtime-kernel':
+        specifier: workspace:*
+        version: link:../runtime-kernel
+      '@murrmure/runtime-persistence':
+        specifier: workspace:*
+        version: link:../runtime-persistence
+      '@murrmure/triggers-templates':
         specifier: workspace:*
         version: link:../triggers-templates
       better-sqlite3:
@@ -339,33 +291,14 @@ importers:
         specifier: ^4.19.3
         version: 4.22.4
 
-  packages/studio-hub-mcp:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.12.1
-        version: 1.29.0(zod@3.25.76)
-      '@studio/contracts':
-        specifier: workspace:*
-        version: link:../studio-contracts
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-    devDependencies:
-      tsx:
-        specifier: ^4.19.3
-        version: 4.22.4
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
   packages/studio-hub-persistence:
     dependencies:
-      '@runtime/contracts':
-        specifier: workspace:*
-        version: link:../runtime-contracts
-      '@studio/contracts':
+      '@murrmure/contracts':
         specifier: workspace:*
         version: link:../studio-contracts
+      '@murrmure/runtime-contracts':
+        specifier: workspace:*
+        version: link:../runtime-contracts
       better-sqlite3:
         specifier: ^11.8.1
         version: 11.10.0
@@ -377,24 +310,9 @@ importers:
         specifier: ^4.19.3
         version: 4.22.4
 
-  packages/studio-skill:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.19.21
-      tsx:
-        specifier: ^4.19.3
-        version: 4.22.4
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.6(@types/node@22.19.21)
-
   packages/triggers-templates:
     dependencies:
-      '@studio/contracts':
+      '@murrmure/contracts':
         specifier: workspace:*
         version: link:../studio-contracts
     devDependencies:

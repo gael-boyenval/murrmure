@@ -15,14 +15,14 @@
     {
       "action": "promote_and_apply",
       "note": "While client disconnected",
-      "package_bump": { "package_id": "feature-spec", "from": "1.0.0", "to": "1.1.0" }
+      "flow_bump": { "flow_id": "feature-spec", "from": "1.0.0", "to": "1.1.0" }
     },
     {
       "action": "mcp_connect_handshake",
       "params": { "client_id": "cursor-local-uuid-1", "last_ack_seq": 1 },
       "note": "New transport session id, same client_id",
       "expect": {
-        "drained_messages_include": ["studio/control.tools_changed"],
+        "drained_messages_include": ["murrmure/control.tools_changed"],
         "replay_from_seq": 2
       }
     }

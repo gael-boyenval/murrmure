@@ -32,6 +32,16 @@ End users still use `MURRMURE_HUB_URL` pointing at your proxy, not these.
 
 Optional claim on agent grants: `cursor-local`, `ci`, `cloud-worker`. Tokens minted for one harness should not be reused in another.
 
+## Deprecated aliases
+
+Prefer the canonical names above. Older integrations may still accept:
+
+| Deprecated | Use instead |
+|------------|-------------|
+| `STUDIO_API_URL` | `MURRMURE_HUB_URL` |
+| `STUDIO_API_TOKEN` | `MURRMURE_HUB_TOKEN` |
+| `MURRMURE_TOKEN` (FDK/CLI only) | `MURRMURE_HUB_TOKEN` or `MURRMURE_DEPLOY_TOKEN` |
+
 ## Security
 
 - Never commit `MURRMURE_HUB_TOKEN` to git

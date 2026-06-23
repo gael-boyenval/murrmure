@@ -1,20 +1,20 @@
 {
-  "description": "CR-min — grant ACL hides capability tools from worker token",
+  "description": "CR-min — grant ACL hides flow tools from worker token",
   "space_id": "spc_ui_sandbox",
   "installs": [
-    { "package_id": "review-loop", "version": "2.0.0", "state": "live" },
-    { "package_id": "feature-spec", "version": "1.1.0", "state": "live" }
+    { "flow_id": "review-loop", "version": "2.0.0", "state": "live" },
+    { "flow_id": "feature-spec", "version": "1.1.0", "state": "live" }
   ],
   "tokens": [
     {
       "label": "worker-no-feature-spec",
       "scopes": ["space:read", "state:transition", "event:emit"],
-      "capability_acl": ["review-loop"]
+      "flow_acl": ["review-loop"]
     },
     {
       "label": "builder-with-feature-spec",
-      "scopes": ["space:read", "state:transition", "capability:install"],
-      "capability_acl": ["review-loop", "feature-spec"]
+      "scopes": ["space:read", "state:transition", "flow:install"],
+      "flow_acl": ["review-loop", "feature-spec"]
     }
   ],
   "steps": [

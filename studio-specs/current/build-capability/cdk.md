@@ -92,7 +92,7 @@ Optional peer (not part of core kit, documented as recommended):
 
 | Package | Role |
 |---------|------|
-| `@studio/hub-client` | Typed HTTP from user UI/server — user may use raw `fetch` instead |
+| `@murrmure/hub-client` | Typed HTTP from user UI/server — user may use raw `fetch` instead |
 
 ### 2. CLI commands (kit surface)
 
@@ -178,8 +178,8 @@ Templates are **not** capabilities installed in the hub by default.
 
 | Excluded | Belongs to |
 |----------|------------|
-| `@studio/shell-web` Configure + runtime chrome | Platform |
-| `@studio/hub-daemon`, `@studio/hub-core` | Platform |
+| `@murrmure/shell-web` Configure + runtime chrome | Platform |
+| `@murrmure/hub-daemon`, `@murrmure/hub-core` | Platform |
 | Evolution FSM implementation | Platform |
 | Domain canvas components (preview, annotations, spec editor) | User project |
 | Capability marketplace / bundled install list | — (non-goal) |

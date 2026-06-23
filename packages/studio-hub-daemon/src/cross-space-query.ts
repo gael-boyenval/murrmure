@@ -1,9 +1,9 @@
 import { ulid } from "ulid";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
-import { addSpaceId } from "@studio/hub-core";
-import type { HubHandler } from "@studio/hub-core";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import type { Space } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
+import { addSpaceId } from "@murrmure/hub-core";
+import type { HubHandler } from "@murrmure/hub-core";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import type { Space } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import { invokeWorkerQuery } from "./worker-tool-dispatch.js";

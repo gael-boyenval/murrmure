@@ -3,9 +3,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { createHttpApp } from "../src/app.js";
-import { RuntimeKernel, DeferredWaitRegistry } from "@runtime/kernel";
-import { InMemoryPersistence } from "@runtime/persistence";
-import { ruleRefDigest, DENIAL_CODES, HTTP_SEMANTIC } from "@runtime/contracts";
+import { RuntimeKernel, DeferredWaitRegistry } from "@murrmure/runtime-kernel";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
+import { ruleRefDigest, DENIAL_CODES, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 import {
   allowAllPolicy,
   compositeNotify,

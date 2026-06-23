@@ -1,4 +1,4 @@
-import type { Aggregate, ConditionPort, RuleArtifact } from "@runtime/contracts";
+import type { Aggregate, ConditionPort, RuleArtifact } from "@murrmure/runtime-contracts";
 
 type RuleTransition = RuleArtifact["transitions"][number];
 

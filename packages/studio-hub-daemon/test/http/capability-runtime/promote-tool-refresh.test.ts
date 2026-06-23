@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
-import { addTokenId } from "@studio/hub-core";
+import { addTokenId } from "@murrmure/hub-core";
 import { installExampleCapability } from "../../helpers/example-install.js";
 
 describe("capability-runtime/promote-tool-refresh", () => {

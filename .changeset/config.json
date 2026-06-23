@@ -8,18 +8,18 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [
-    "@studio/capability-dev-kit",
-    "@studio/capability-sdk",
-    "@studio/contracts",
-    "@studio/docs",
-    "@studio/hub-cli",
-    "@studio/hub-client",
-    "@studio/hub-core",
-    "@studio/hub-daemon",
-    "@studio/hub-mcp",
-    "@studio/hub-persistence",
-    "@studio/shell-web",
-    "@studio/skill",
-    "@studio/triggers-templates"
+    "@murrmure/contracts",
+    "@murrmure/docs",
+    "@murrmure/hub-client",
+    "@murrmure/hub-core",
+    "@murrmure/hub-daemon",
+    "@murrmure/hub-persistence",
+    "@murrmure/runtime-adapter-http",
+    "@murrmure/runtime-contracts",
+    "@murrmure/runtime-daemon",
+    "@murrmure/runtime-kernel",
+    "@murrmure/runtime-persistence",
+    "@murrmure/shell-web",
+    "@murrmure/triggers-templates"
   ]
 }

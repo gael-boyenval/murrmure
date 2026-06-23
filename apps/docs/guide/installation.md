@@ -22,9 +22,9 @@ Install npm packages only if you run agents, scripts/CI, or build flows.
 
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
-| `@murrmure/cli` | Agent operators (Cursor/Claude) | `npm install -g @murrmure/cli` | `murrmure` MCP server so agents can call Murrmure tools |
-| `@murrmure/cli` | Optional CI/scripts/operators | `npm install -g @murrmure/cli` | `mrmr` commands for health, audit, transitions, automation |
-| `@murrmure/cli` | Flow builders only | `npm install -D @murrmure/cli` | FDK commands to init/validate/build/push flow bundles |
+| `@murrmure/cli` | Agent operators (Cursor/Claude) | `npm install -g @murrmure/cli` | `murrmure mcp` — agents call Murrmure tools |
+| `@murrmure/cli` | Optional CI/scripts/operators | `npm install -g @murrmure/cli` | `mrmr` — health, audit, transitions, automation |
+| `@murrmure/cli` + `@murrmure/flow-dev-kit` | Flow builders only | `npm install -D @murrmure/cli` + `npm install @murrmure/flow-dev-kit` | `mrmr flow` — init, validate, build, push, evolve |
 
 If you prefer no global installs:
 

@@ -1,13 +1,13 @@
-# Studio capability runtime
+# Murrmure flow runtime
 
-Dynamic capability push, grant-scoped MCP catalog, and control bus. Extends [product/spec.md](../product/spec.md) and [config/spec.md](../config/spec.md) without replacing hub evolution semantics.
+Dynamic flow push, grant-scoped MCP catalog, and control bus. Extends [product/spec.md](../product/spec.md) and [config/spec.md](../config/spec.md) without replacing hub evolution semantics.
 
 ## Problem
 
 | Shipped (phase 1) | Target |
 |-------------------|--------|
 | Bundled catalog + manual daemon mount | `evolution.live.apply` refreshes routes + MCP without restart |
-| MCP tools compiled at build time | Tool list = f(installed capabilities, grant, harness) |
+| MCP tools compiled at build time | Tool list = f(installed flows, grant, harness) |
 | `contract_versions` on reconnect only | Control bus pushes `contract_updated` + `tools_changed` |
 | Agent restart for new tools | Connected MCP receives tool delta within outbox TTL |
 | Agent apply on `human_only` prod gap | Live apply re-checks `install_policy` |
@@ -16,12 +16,12 @@ Dynamic capability push, grant-scoped MCP catalog, and control bus. Extends [pro
 
 ### In
 
-- Mount registry — versioned active capability mounts per space
+- Mount registry — versioned active flow mounts per space
 - Live apply hook — post-promote: policy check, register routes, refresh MCP, journal + control events
-- Grant-filtered catalog — MCP `tools/list` filtered by scopes + capability_acl + harness
+- Grant-filtered catalog — MCP `tools/list` filtered by scopes + `flow_acl` + harness
 - Control bus — durable outbox (24h TTL) keyed by stable principal
-- Handshake v2 — `studio/session.handshake`; mandatory pull reconciliation
-- Strict deserialize — per-capability Zod at MCP invoke
+- Handshake v2 — `murrmure/session.handshake`; mandatory pull reconciliation
+- Strict deserialize — per-flow Zod at MCP invoke
 - Rollback — unmount tools, push `tools_removed`
 - mcp_wake dispatch — wake_label routing, not catalog lookup
 
@@ -30,25 +30,25 @@ Dynamic capability push, grant-scoped MCP catalog, and control bus. Extends [pro
 - Marketplace / remote registry
 - Agent LLM loop in hub
 - Hot reload UI bundle without page refresh
-- Peer-mesh capability sync
+- Peer-mesh flow sync
 
 ## Mount registry
 
 | Field | Meaning |
 |-------|---------|
-| `install_id` | Capability install row |
+| `install_id` | Flow install row |
 | `space_id` | Owning space |
-| `package_id` | e.g. `review-loop`, `feature-spec` |
+| `flow_id` | e.g. `review-loop`, `feature-spec` |
 | `semver` | Live version |
 | `contract_ref_id` | Pinned contract digest |
 | `routes_prefix` | e.g. `/api/sessions`, `/api/specs` |
-| `mount_export` | ESM export resolving Hono sub-router |
+| `mount_module` | ESM export resolving Hono sub-router |
 | `mcp_tools` | Tool names in manifest |
 | `applied_at` | Last live apply timestamp |
 
 **Invariants:**
 
-- At most one live install per `(space_id, package_id)`
+- At most one live install per `(space_id, flow_id)`
 - Unique `(space_id, routes_prefix)` — no route shadowing
 - Unique `(space_id, tool_name)` across live manifests — no MCP collision
 
@@ -57,12 +57,12 @@ Dynamic capability push, grant-scoped MCP catalog, and control bus. Extends [pro
 ```
 evolution.live.apply(install_id)
   → POLICY: human_only space + non-human actor → 403 INSTALL_POLICY_VIOLATION
-  → POLICY: agent without capability:install → 403 SCOPE_ENFORCEMENT_FAILURE
+  → POLICY: agent without flow:install → 403 SCOPE_ENFORCEMENT_FAILURE
   → ATOMIC:
        MountRegistry.upsert(mount)
        app.route(routes_prefix, handler)
        McpToolRegistry.rebuild(space_id)
-       journal: capability.live_applied
+       journal: flow.live_applied
        control bus: contract_updated + tools_changed per principal
 ```
 
@@ -72,11 +72,13 @@ Failed mount rolls back registry row; install stays `promoted` not `live`.
 
 | Method | Path | Command |
 |--------|------|---------|
-| GET | `/v1/spaces/{id}/capabilities/live` | `capability.list` filter live |
-| POST | `/v1/spaces/{id}/capabilities/{install_id}/apply` | `evolution.live.apply` |
+| GET | `/v1/spaces/{id}/flows/live` | `flow.list` filter live |
+| POST | `/v1/spaces/{id}/flows/{install_id}/apply` | `evolution.live.apply` |
 | GET | `/v1/mcp/catalog` | `mcp.catalog.for_token` |
 
 Apply errors: `INSTALL_POLICY_VIOLATION`, `SCOPE_ENFORCEMENT_FAILURE`, `LIVE_APPLY_FAILED`.
+
+Static UI: `GET /flows/{flow_id}/{ver}/ui/*`.
 
 ## Error envelope (apply + invoke)
 
@@ -98,7 +100,7 @@ All denials return structured JSON — never raw status alone (c01-J03, c01-J16)
 |------|------|-------------|
 | `INSTALL_POLICY_VIOLATION` | non-human on `human_only` | `space_id`, `suggested_space_id?` |
 | `SCOPE_ENFORCEMENT_FAILURE` | missing scope | `missing_scope`, `space_id` |
-| `TOOL_NOT_AUTHORIZED` | invoke not in catalog | `required_scope?`, `required_package?` |
+| `TOOL_NOT_AUTHORIZED` | invoke not in catalog | `required_scope?`, `required_flow?` |
 | `LIVE_APPLY_FAILED` | mount error | `install_id`, `rollback: true` |
 
 Denied invokes append journal row for observability (c02-J17 quarterly review).
@@ -111,7 +113,7 @@ On `grant.revoke`, `grant.rotate`, or ACL patch: `McpToolRegistry.rebuild(space_
 
 ```
 visible = platform_tools(T.scopes)
-        ∪ capability_tools(installed_live(S), T.capability_acl)
+        ∪ flow_tools(installed_live(S), T.flow_acl)
         filtered_by harness_binding(T.harness, tool.harness_allow?)
 ```
 
@@ -122,11 +124,11 @@ visible = platform_tools(T.scopes)
 | `event:emit` | + `emit_event` |
 | `query:ask` | + `query_ask` (cross-space) |
 | `query:answer` | + `query_answer` |
-| `capability:install` | + `capability_validate` (config) |
+| `flow:install` | + `flow_validate` (config) |
 
-Domain tools: only if capability installed AND in manifest AND ACL allows package.
+Domain tools: only if flow installed AND in manifest AND ACL allows flow.
 
-Cross-surface enforcement: identical filter on `tools/list`, `tools/call`, `/v1/mcp/catalog`, capability HTTP routes.
+Cross-surface enforcement: identical filter on `tools/list`, `tools/call`, `/v1/mcp/catalog`, flow HTTP routes.
 
 ## Control bus
 
@@ -134,7 +136,7 @@ Cross-surface enforcement: identical filter on `tools/list`, `tools/call`, `/v1/
 
 | Type | Payload |
 |------|---------|
-| `control.contract_updated` | `{ seq, space_id, package_id, from_version, to_version, contract_ref_id }` |
+| `control.contract_updated` | `{ seq, space_id, flow_id, from_version, to_version, contract_ref_id }` |
 | `control.tools_changed` | `{ seq, space_id, added, removed, unchanged }` |
 | `control.handshake_ack` | `{ seq, server_contract_versions[], server_tools[] }` |
 | `control.wake_pending` | `{ seq, wake_label, payload }` |
@@ -143,7 +145,7 @@ Client on `tools_changed` refreshes cache. Handshake sends `last_ack_seq`; serve
 
 ## Handshake v2 (MCP connect)
 
-1. Client → `studio/session.handshake` `{ protocol_version: 1, contract_versions[], known_tools[], client_id, last_ack_seq? }`
+1. Client → `murrmure/session.handshake` `{ protocol_version: 1, contract_versions[], known_tools[], client_id, last_ack_seq? }`
 2. Server → mandatory `control.handshake_ack` with full `server_tools[]`
 3. Server drains outbox from `last_ack_seq + 1`
 4. If client behind live semver → immediate `contract_updated` + `tools_changed`
@@ -152,7 +154,7 @@ Client on `tools_changed` refreshes cache. Handshake sends `last_ack_seq`; serve
 
 **After CR1:** dynamic `McpToolRegistry.list(ctx: TokenContext)` — identical filter on `/v1/mcp/catalog`.
 
-Pre-invoke on `tools/call`: verify tool ∈ catalog; strict Zod per capability leaf.
+Pre-invoke on `tools/call`: verify tool ∈ catalog; strict Zod per flow leaf.
 
 ## mcp_wake semantics
 
@@ -175,9 +177,9 @@ IDE harness decides auto-run, notification, or invoke granted tools.
 
 | type | When |
 |------|------|
-| `capability.live_applied` | Mount success |
-| `capability.live_apply_failed` | Mount error |
-| `capability.unmounted` | Rollback/supersede |
+| `flow.live_applied` | Mount success |
+| `flow.live_apply_failed` | Mount error |
+| `flow.unmounted` | Rollback/supersede |
 | `mcp.tools_changed` | Audit mirror |
 | `mcp.wake_delivered` | Wake payload delivered |
 
@@ -190,8 +192,8 @@ IDE harness decides auto-run, notification, or invoke granted tools.
 
 ```typescript
 interface MountRegistry {
-  apply(mount: CapabilityMount): Promise<void>;
-  unmount(spaceId: string, packageId: string): Promise<void>;
+  apply(mount: FlowMount): Promise<void>;
+  unmount(spaceId: string, flowId: string): Promise<void>;
   getRoutes(spaceId: string): RouteEntry[];
 }
 interface McpToolRegistry {
@@ -206,7 +208,7 @@ interface ControlBus {
 
 ## Acceptance — CR-min
 
-Fixtures: [../fixtures/capability-runtime/](../fixtures/capability-runtime/)
+Fixtures: [../fixtures/flow-runtime/](../fixtures/flow-runtime/)
 
 1. Promote feature-spec 1.0.0 → 1.1.0; connected MCP receives `tools_changed`
 2. Worker grant without feature-spec in ACL → tools excluded
@@ -217,7 +219,7 @@ Fixtures: [../fixtures/capability-runtime/](../fixtures/capability-runtime/)
 ## Acceptance — CR-full
 
 6. Invoke after promote uses new Zod; old optional field accepted on minor bump
-7. Two spaces same package different versions — tools scoped per space
+7. Two spaces same flow different versions — tools scoped per space
 8. Harness binding enforced (`cloud-worker` vs `cursor-local`)
 9. `/v1/mcp/catalog` matches stdio `tools/list`
 10. mcp_wake with label `handle_spec_published` succeeds without catalog tool

@@ -1,8 +1,8 @@
-import type { CommandResult } from "@runtime/contracts";
-import { successResult, denialResult, HTTP_SEMANTIC } from "@runtime/contracts";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import type { CapabilityInstall, Member, StudioProvenance } from "@studio/contracts";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import type { CommandResult } from "@murrmure/runtime-contracts";
+import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import type { CapabilityInstall, Member, StudioProvenance } from "@murrmure/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 
 const PACKAGE_CATALOG: Record<string, { contract_ref_id: string; default_version: string }> = {

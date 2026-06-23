@@ -1,6 +1,6 @@
-import type { PolicyPort, PolicyResult } from "@runtime/contracts";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import type { PolicyPort, PolicyResult } from "@murrmure/runtime-contracts";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import { stripSpaceId, stripTokenId } from "../bridge/ids.js";
 
 export interface PolicyContext {

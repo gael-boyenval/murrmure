@@ -24,7 +24,7 @@
 
 1. Extract to `@studio/capability-sdk/templates/examples/`
 2. Or separate `studio-examples` repo
-3. **Not** linked from `@studio/shell-web`
+3. **Not** linked from `@murrmure/shell-web`
 
 First-week onboarding:
 

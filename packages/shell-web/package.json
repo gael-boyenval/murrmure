@@ -1,5 +1,5 @@
 {
-  "name": "@studio/shell-web",
+  "name": "@murrmure/shell-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test:e2e": "echo 'e2e scaffold — run against local hub-daemon'"
   },
   "dependencies": {
-    "@studio/hub-client": "workspace:*",
+    "@murrmure/hub-client": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2"

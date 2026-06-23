@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import type { CommandPort, KernelCommand, QueryPort } from "@runtime/contracts";
-import { DENIAL_CODES, denialResult, HTTP_SEMANTIC } from "@runtime/contracts";
+import type { CommandPort, KernelCommand, QueryPort } from "@murrmure/runtime-contracts";
+import { DENIAL_CODES, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 import { bearerCredential, commandIdFromRequest, resultToResponse } from "./errors.js";
 
 export interface HttpAdapterDeps {

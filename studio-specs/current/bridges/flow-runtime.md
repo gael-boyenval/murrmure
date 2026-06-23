@@ -1,13 +1,13 @@
-# Capability runtime — wire bridge
+# Flow runtime — wire bridge
 
-Maps [spec.md](../capability-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
+Maps [spec.md](../flow-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
 
 ## HTTP additions
 
 | Method | Path | Command | Notes |
 |--------|------|---------|-------|
-| GET | `/v1/spaces/{id}/capabilities/live` | `capability.list` filter live | Mount registry view |
-| POST | `/v1/spaces/{id}/capabilities/{install_id}/apply` | `evolution.live.apply` | Policy check then mount refresh |
+| GET | `/v1/spaces/{id}/flows/live` | `flow.list` filter live | Mount registry view |
+| POST | `/v1/spaces/{id}/flows/{install_id}/apply` | `evolution.live.apply` | Policy check then mount refresh |
 | GET | `/v1/mcp/catalog` | `mcp.catalog.for_token` | Same ACL/harness filter as stdio |
 
 Auth: Bearer on all; path `space_id` matches token.
@@ -17,7 +17,7 @@ Auth: Bearer on all; path `space_id` matches token.
 | Code | When |
 |------|------|
 | `INSTALL_POLICY_VIOLATION` | Non-human actor on `human_only` space |
-| `SCOPE_ENFORCEMENT_FAILURE` | Agent without `capability:install` |
+| `SCOPE_ENFORCEMENT_FAILURE` | Agent without `flow:install` |
 | `LIVE_APPLY_FAILED` | Mount/registry error — full compensate |
 
 ## MCP stdio — handshake v2
@@ -26,13 +26,13 @@ Client → server (first message after connect):
 
 ```json
 {
-  "method": "studio/session.handshake",
+  "method": "murrmure/session.handshake",
   "params": {
     "protocol_version": 1,
     "client_id": "cursor-local-uuid",
     "last_ack_seq": 42,
     "contract_versions": [
-      { "package_id": "review-loop", "version": "2.0.0", "contract_ref_id": "cref_…" }
+      { "flow_id": "review-loop", "version": "2.0.0", "contract_ref_id": "cref_…" }
     ],
     "known_tools": ["transition", "create_review_session"]
   }
@@ -42,8 +42,8 @@ Client → server (first message after connect):
 Server → notifications (monotonic `seq`):
 
 ```json
-{ "method": "studio/control.handshake_ack", "params": { "seq": 43, "server_tools": ["…"] } }
-{ "method": "studio/control.tools_changed", "params": { "seq": 44, "added": [], "removed": [], "unchanged": ["…"] } }
+{ "method": "murrmure/control.handshake_ack", "params": { "seq": 43, "server_tools": ["…"] } }
+{ "method": "murrmure/control.tools_changed", "params": { "seq": 44, "added": [], "removed": [], "unchanged": ["…"] } }
 ```
 
 ### tools/list (CR1+)
@@ -52,7 +52,7 @@ Dynamic `McpToolRegistry.list(ctx: TokenContext)` — identical filter on `/v1/m
 
 ### tools/call
 
-Pre-invoke: verify tool ∈ catalog; strict Zod per capability leaf.
+Pre-invoke: verify tool ∈ catalog; strict Zod per flow leaf.
 
 ## Daemon internals
 
@@ -64,8 +64,8 @@ interface ControlPrincipal {
 }
 
 interface MountRegistry {
-  apply(mount: CapabilityMount): Promise<void>;
-  unmount(spaceId: string, packageId: string): Promise<void>;
+  apply(mount: FlowMount): Promise<void>;
+  unmount(spaceId: string, flowId: string): Promise<void>;
   getRoutes(spaceId: string): RouteEntry[];
 }
 
@@ -90,27 +90,27 @@ interface McpWakeDispatcher {
 }
 ```
 
-Hook `evolution.live.apply` in `packages/studio-hub-daemon` after hub-core commit.
+Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 
 ## Journal events (new)
 
 | type | When |
 |------|------|
-| `capability.live_applied` | Mount success |
-| `capability.live_apply_failed` | Mount error |
-| `capability.unmounted` | Rollback/supersede |
+| `flow.live_applied` | Mount success |
+| `flow.live_apply_failed` | Mount error |
+| `flow.unmounted` | Rollback/supersede |
 | `mcp.tools_changed` | Audit mirror |
 | `mcp.wake_delivered` | Wake delivered to session |
 
 ## SSE (optional)
 
-`event: capability.live_applied` on space channel — configure UI refreshes installed list.
+`event: flow.live_applied` on space channel — configure UI refreshes installed list.
 
 ## Packages
 
 | Package | Role |
 |---------|------|
-| `packages/studio-hub-daemon/src/mount-registry.ts` | MountRegistry |
-| `packages/studio-hub-daemon/src/mcp-tool-registry.ts` | Catalog rebuild |
-| `packages/studio-hub-daemon/src/control-bus.ts` | Outbox + replay |
-| `packages/studio-hub-daemon/src/mcp-wake-dispatcher.ts` | wake_label routing |
+| `packages/hub-daemon/src/mount-registry.ts` | MountRegistry |
+| `packages/hub-daemon/src/mcp-tool-registry.ts` | Catalog rebuild |
+| `packages/hub-daemon/src/control-bus.ts` | Outbox + replay |
+| `packages/hub-daemon/src/mcp-wake-dispatcher.ts` | wake_label routing |

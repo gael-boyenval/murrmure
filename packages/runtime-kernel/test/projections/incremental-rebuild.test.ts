@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
-import { InMemoryPersistence } from "@runtime/persistence";
-import type { JournalEntry } from "@runtime/contracts";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
+import type { JournalEntry } from "@murrmure/runtime-contracts";
 import { auditTailHandler, dispatchProjection, rebuildProjection } from "../../src/projections/dispatcher.js";
 
 function entry(seq: number, type: string): JournalEntry {

@@ -1,5 +1,5 @@
 {
-  "name": "@runtime/kernel",
+  "name": "@murrmure/runtime-kernel",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,10 +13,10 @@
     "test:property": "vitest run test/property"
   },
   "dependencies": {
-    "@runtime/contracts": "workspace:*"
+    "@murrmure/runtime-contracts": "workspace:*"
   },
   "devDependencies": {
-    "@runtime/persistence": "workspace:*",
+    "@murrmure/runtime-persistence": "workspace:*",
     "ajv": "^8.17.1",
     "fast-check": "^3.23.2"
   }

@@ -1,4 +1,4 @@
-import type { HubHandler } from "@studio/hub-core";
+import type { HubHandler } from "@murrmure/hub-core";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { DaemonConfig } from "./context.js";

@@ -1,7 +1,7 @@
-import type { CommandResult, Provenance } from "@runtime/contracts";
-import { successResult, denialResult, HTTP_SEMANTIC } from "@runtime/contracts";
-import { matchesWaitCondition } from "@runtime/kernel";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
+import type { CommandResult, Provenance } from "@murrmure/runtime-contracts";
+import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
+import { matchesWaitCondition } from "@murrmure/runtime-kernel";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type {
   EventAppendCommand,
   GateResolveCommand,
@@ -21,8 +21,8 @@ import type {
   TriggerScheduleCommand,
   BlobWriteCommand,
   InstanceMetadataPatchCommand,
-} from "@studio/contracts";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+} from "@murrmure/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import type { HubKernel } from "../kernel.js";
 import { mapKernelResult, scopeEnforcementDenial } from "../bridge/errors.js";
 import { mapWaitCondition } from "../bridge/wait-condition.js";
@@ -524,7 +524,7 @@ export class HubHandler {
     const result = await this.kernel.execute({
       kind: "reaction.register",
       provenance: p,
-      spec: cmd.spec as import("@runtime/contracts").ReactionSpecInput,
+      spec: cmd.spec as import("@murrmure/runtime-contracts").ReactionSpecInput,
     });
     if (result.outcome === "success") {
       await this.studio.insertTrigger({

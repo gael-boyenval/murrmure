@@ -1,4 +1,4 @@
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import type { TokenContext } from "../../auth.js";
 
 const SCOPE_MESSAGES: Record<string, string> = {

@@ -43,7 +43,7 @@ Moved to [plans/cross-space-xs1/](../../plans/cross-space-xs1/): config `query_p
 | `query:ask` | Initiate cross-space ask from source space |
 | `query:answer` | Submit answer in target space |
 
-Added to dynamic MCP catalog when grant includes scopes — see [capability-runtime/spec.md](../capability-runtime/spec.md).
+Added to dynamic MCP catalog when grant includes scopes — see [flow-runtime/spec.md](../flow-runtime/spec.md).
 
 ## HTTP API
 

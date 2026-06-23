@@ -1,4 +1,4 @@
-import type { PersistencePort } from "@runtime/contracts";
+import type { PersistencePort } from "@murrmure/runtime-contracts";
 import { InMemoryPersistence } from "../memory/store.js";
 
 /**

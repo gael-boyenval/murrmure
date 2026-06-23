@@ -1,5 +1,5 @@
-import type { CommandResult } from "@runtime/contracts";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import type { CommandResult } from "@murrmure/runtime-contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 
 const KERNEL_TO_STUDIO: Record<string, string> = {
   policy_denied: STUDIO_DENIAL_CODES.TOKEN_DENIED,

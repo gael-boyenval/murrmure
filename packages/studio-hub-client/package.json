@@ -1,5 +1,5 @@
 {
-  "name": "@studio/hub-client",
+  "name": "@murrmure/hub-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,6 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@studio/contracts": "workspace:*"
+    "@murrmure/contracts": "workspace:*"
   }
 }

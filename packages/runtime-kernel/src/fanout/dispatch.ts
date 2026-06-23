@@ -9,7 +9,7 @@ import type {
   ReactionSpec,
   WaitRow,
   WaitResolution,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 import { matchesWaitCondition, type CompoundProgress } from "../waiters/match.js";
 import { dedupFingerprint, matchesReaction, partitionKey } from "../reactions/matcher.js";
 import type { ProjectionHandler } from "../projections/dispatcher.js";

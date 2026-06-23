@@ -8,11 +8,11 @@ import type {
   PersistencePort,
   SchemaPort,
   ConvergencePort,
-} from "@runtime/contracts";
-import { ruleRefDigest } from "@runtime/contracts";
-import { RuntimeKernel, DeferredWaitRegistry } from "@runtime/kernel";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import type { ContractV2 } from "@studio/contracts";
+} from "@murrmure/runtime-contracts";
+import { ruleRefDigest } from "@murrmure/runtime-contracts";
+import { RuntimeKernel, DeferredWaitRegistry } from "@murrmure/runtime-kernel";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import type { ContractV2 } from "@murrmure/contracts";
 import { createStudioPolicyPort } from "./ports/policy.js";
 import { createStudioRulesPort } from "./ports/rules.js";
 import { createCelConditionPort } from "./ports/condition.js";

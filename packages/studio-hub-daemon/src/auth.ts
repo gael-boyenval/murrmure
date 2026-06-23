@@ -1,6 +1,6 @@
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import { addTokenId, stripTokenId } from "@studio/hub-core";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import { addTokenId, stripTokenId } from "@murrmure/hub-core";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 
 export interface TokenContext {
   token_id: string;

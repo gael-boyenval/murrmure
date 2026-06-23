@@ -13,7 +13,7 @@ import type {
   Transaction,
   AllocatedSeq,
   WaitRow,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 
 export interface MemoryStoreState {
   journal: JournalEntry[];

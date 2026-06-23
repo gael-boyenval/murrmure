@@ -1,5 +1,5 @@
-import type { RuleArtifact } from "@runtime/contracts";
-import type { ContractV2 } from "@studio/contracts";
+import type { RuleArtifact } from "@murrmure/runtime-contracts";
+import type { ContractV2 } from "@murrmure/contracts";
 
 function isStandardGate(
   gate: unknown,

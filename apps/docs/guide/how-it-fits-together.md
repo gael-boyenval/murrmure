@@ -10,9 +10,9 @@ If you remember one thing: **humans use the browser, agents use MCP, and both me
 |-----------|-------------|-------------------|----------|
 | **Browser shell** (`app.murrmure.dev` or your self-hosted shell URL) | Humans and admins | No | UI for Runtime + Configure (spaces, flows, grants, reviews, specs, gates) |
 | **Hub** (cloud API or self-hosted daemon) | Shared backend | Hosted by Murrmure or your infra team | Stores spaces, journal events, flows, grants, and policy |
-| **`@murrmure/cli`** | Agent operators (Cursor/Claude/Desktop workers) | Yes | MCP server that exposes Murrmure tools to agents |
-| **`@murrmure/cli`** | Optional CI/scripts/operators | Optional | Terminal automation (`health`, `audit export`, scripted transitions) |
-| **`@murrmure/cli`** | Flow builders | Only for builders | Build/validate/push custom flows from your own repo |
+| **`@murrmure/cli`** (MCP) | Agent operators (Cursor/Claude/Desktop workers) | Yes | `murrmure mcp` — exposes Murrmure tools to agents |
+| **`@murrmure/cli`** (platform) | Optional CI/scripts/operators | Optional | `mrmr health`, audit export, scripted transitions |
+| **`@murrmure/cli` + `@murrmure/flow-dev-kit`** | Flow builders | Only for builders | `mrmr flow` — init, validate, build, push, evolve flows |
 
 ## Runtime data flow (no diagram tooling)
 
@@ -72,9 +72,9 @@ Recommended practice: one token per agent process, and separate tokens for local
 
 ## When to use each npm package
 
-- Use **`@murrmure/cli`** for day-to-day agent operation in Cursor/Claude.
-- Use **`@murrmure/cli`** only when you need scripts, CI jobs, or terminal automation.
-- Use **`@murrmure/cli`** only when building/evolving flows.
+- Use **`@murrmure/cli`** with **`murrmure mcp`** for day-to-day agent operation in Cursor/Claude.
+- Use **`@murrmure/cli`** with **`mrmr`** subcommands when you need scripts, CI jobs, or terminal automation.
+- Use **`@murrmure/cli`** + **`@murrmure/flow-dev-kit`** when building or evolving flows (`mrmr flow …`).
 - Human reviewers/admins do not need npm packages for normal usage.
 
 ## Glossary

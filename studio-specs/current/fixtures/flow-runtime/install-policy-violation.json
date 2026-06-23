@@ -5,11 +5,11 @@
   "steps": [
     {
       "actor": "agent",
-      "token_scopes": ["capability:install"],
+      "token_scopes": ["flow:install"],
       "action": "post_apply",
       "http": {
         "method": "POST",
-        "path": "/v1/spaces/spc_ui_production/capabilities/{install_id}/apply"
+        "path": "/v1/spaces/spc_ui_production/flows/{install_id}/apply"
       },
       "expect": {
         "status": 403,
@@ -21,7 +21,7 @@
       "action": "post_apply",
       "http": {
         "method": "POST",
-        "path": "/v1/spaces/spc_ui_production/capabilities/{install_id}/apply"
+        "path": "/v1/spaces/spc_ui_production/flows/{install_id}/apply"
       },
       "expect": { "status": 200, "evolution_state": "live" }
     }

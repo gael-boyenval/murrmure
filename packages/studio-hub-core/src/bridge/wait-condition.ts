@@ -1,5 +1,5 @@
-import type { WaitCondition as KernelWaitCondition } from "@runtime/contracts";
-import type { WaitCondition as StudioWaitCondition } from "@studio/contracts";
+import type { WaitCondition as KernelWaitCondition } from "@murrmure/runtime-contracts";
+import type { WaitCondition as StudioWaitCondition } from "@murrmure/contracts";
 import { stripGateId } from "./ids.js";
 
 export function mapWaitCondition(condition: StudioWaitCondition): KernelWaitCondition {

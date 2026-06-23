@@ -1,5 +1,5 @@
-import type { JournalEntry } from "@runtime/contracts";
-import type { HubEvent } from "@studio/contracts";
+import type { JournalEntry } from "@murrmure/runtime-contracts";
+import type { HubEvent } from "@murrmure/contracts";
 import { addEventId, addInstanceId, addSpaceId, addTokenId } from "./ids.js";
 
 export function journalEntryToHubEvent(

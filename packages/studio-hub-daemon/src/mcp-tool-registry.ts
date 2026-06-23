@@ -1,4 +1,4 @@
-import type { StudioPersistencePort } from "@studio/hub-persistence";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { TokenContext } from "./auth.js";
 import type { MountRegistry } from "./mount-registry.js";

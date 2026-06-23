@@ -45,10 +45,10 @@ const REPLACEMENTS = [
   ["@studio/hub-cli", "@murrmure/cli"],
   ["@studio/cli", "@murrmure/cli"],
   ["@studio/skill", "@murrmure/skill"],
-  ["@studio/hub-daemon", "@murrmure/hub-daemon"],
+  ["@murrmure/hub-daemon", "@murrmure/hub-daemon"],
   ["@studio/hub", "@murrmure/hub"],
-  ["@studio/shell-web", "@murrmure/shell-web"],
-  ["@studio/docs", "@murrmure/docs"],
+  ["@murrmure/shell-web", "@murrmure/shell-web"],
+  ["@murrmure/docs", "@murrmure/docs"],
 
   // MCP config blocks
   ['"command": "studio-hub-mcp"', '"command": "murrmure",\n      "args": ["mcp"]'],

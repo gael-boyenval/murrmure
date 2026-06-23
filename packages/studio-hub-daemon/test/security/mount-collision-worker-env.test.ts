@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import { detectMountCollision } from "../../src/live-apply.js";
 import { sanitizedWorkerEnv } from "../../src/capability-worker-pool.js";
 

@@ -1,5 +1,5 @@
 {
-  "name": "@studio/hub-persistence",
+  "name": "@murrmure/hub-persistence",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@studio/contracts": "workspace:*",
-    "@runtime/contracts": "workspace:*",
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/runtime-contracts": "workspace:*",
     "better-sqlite3": "^11.8.1"
   },
   "devDependencies": {

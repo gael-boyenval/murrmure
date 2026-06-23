@@ -139,7 +139,7 @@ describe("murrmure-cli", () => {
       contract_ref_id: "cref_review_loop",
       routes_prefix: "/api/sessions",
       mcp_tools: ["create_review_session"],
-      mount_export: "@studio/review-core/mount",
+      mount_export: "@murrmure/invalid/mount",
     });
     expect(legacy.id).toBe("review");
   });

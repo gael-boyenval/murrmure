@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import type { ControlPrincipal } from "../../control-bus.js";

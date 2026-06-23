@@ -1,5 +1,5 @@
 {
-  "name": "@runtime/adapter-http",
+  "name": "@murrmure/runtime-adapter-http",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@runtime/contracts": "workspace:*",
-    "@runtime/kernel": "workspace:*",
+    "@murrmure/runtime-contracts": "workspace:*",
+    "@murrmure/runtime-kernel": "workspace:*",
     "hono": "^4.7.4"
   },
   "devDependencies": {
-    "@runtime/persistence": "workspace:*"
+    "@murrmure/runtime-persistence": "workspace:*"
   }
 }

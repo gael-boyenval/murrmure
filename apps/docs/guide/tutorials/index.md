@@ -18,7 +18,7 @@ Recommended order: **1 → 2 → 3**. Tutorial 1 is the gentlest on-ramp (local 
 ## Before you start
 
 - Node.js 20+ and a running hub ([self-hosted](../self-hosted) or cloud)
-- [Install dependencies](../installation) — `@murrmure/cli` for building, `@murrmure/cli` for agents
+- [Install dependencies](../installation) — `@murrmure/cli` + `@murrmure/flow-dev-kit` for building flows; `@murrmure/cli` for agents
 - [How it fits together](../how-it-fits-together) — two-minute architecture read
 
 For the full FDK reference (every CLI flag and evolution step), see the [Flows tutorial](../flows-tutorial).

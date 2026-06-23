@@ -2,9 +2,9 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { serve } from "@hono/node-server";
-import { createHttpApp } from "@runtime/adapter-http";
-import { RuntimeKernel, DeferredWaitRegistry, auditTailHandler } from "@runtime/kernel";
-import { createSqlitePersistence } from "@runtime/persistence";
+import { createHttpApp } from "@murrmure/runtime-adapter-http";
+import { RuntimeKernel, DeferredWaitRegistry, auditTailHandler } from "@murrmure/runtime-kernel";
+import { createSqlitePersistence } from "@murrmure/runtime-persistence";
 import {
   allowAllPolicy,
   compositeNotify,
@@ -21,7 +21,7 @@ import { drainOutbox } from "./recovery.js";
 export interface DaemonOptions {
   databasePath?: string;
   port?: number;
-  rules?: Map<string, import("@runtime/contracts").RuleArtifact>;
+  rules?: Map<string, import("@murrmure/runtime-contracts").RuleArtifact>;
 }
 
 export async function startDaemon(opts: DaemonOptions = {}) {
@@ -61,7 +61,7 @@ export async function startDaemon(opts: DaemonOptions = {}) {
   });
 
   const server = serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`@runtime/daemon listening on http://localhost:${info.port}`);
+    console.log(`@murrmure/runtime-daemon listening on http://localhost:${info.port}`);
   });
 
   return { kernel, persistence, server, app };

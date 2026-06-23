@@ -1,4 +1,4 @@
-import type { JournalEntry } from "@runtime/contracts";
+import type { JournalEntry } from "@murrmure/runtime-contracts";
 
 export interface GateQueueState {
   pending: Array<{

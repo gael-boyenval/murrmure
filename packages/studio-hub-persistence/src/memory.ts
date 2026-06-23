@@ -1,4 +1,4 @@
-import type { Instance, Space, CapabilityInstall, Member } from "@studio/contracts";
+import type { Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {

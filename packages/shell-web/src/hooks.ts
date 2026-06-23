@@ -1,4 +1,4 @@
-import { createHubClient } from "@studio/hub-client";
+import { createHubClient } from "@murrmure/hub-client";
 import { useMemo } from "react";
 
 const LOCAL_HUB_URLS = new Set(["http://127.0.0.1:8787", "http://localhost:8787"]);

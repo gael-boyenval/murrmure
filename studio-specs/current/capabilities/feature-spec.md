@@ -180,7 +180,7 @@ examples/capabilities/feature-spec/   CDK reference (contract/, server/, ui/)
 
 Contract fixture: [../fixtures/feature-spec/contracts/feature-spec-v1.json](../fixtures/feature-spec/contracts/feature-spec-v1.json)
 
-Mount via [capability-runtime/spec.md](../capability-runtime/spec.md) live apply.
+Mount via [flow-runtime/spec.md](../flow-runtime/spec.md) live apply.
 
 ## Acceptance — FS-min
 

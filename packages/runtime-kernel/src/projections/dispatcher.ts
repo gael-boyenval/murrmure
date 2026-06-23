@@ -1,4 +1,4 @@
-import type { JournalEntry, PersistencePort } from "@runtime/contracts";
+import type { JournalEntry, PersistencePort } from "@murrmure/runtime-contracts";
 
 export type ProjectionHandler = (
   entry: JournalEntry,

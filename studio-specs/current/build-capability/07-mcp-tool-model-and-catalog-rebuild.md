@@ -1,7 +1,7 @@
 # MCP tool model and catalog rebuild
 
 **Status:** normative (2026-06-20)  
-**Aligns with:** [../capability-runtime/spec.md](../capability-runtime/spec.md) grant-filtered catalog
+**Aligns with:** [../flow-runtime/spec.md](../flow-runtime/spec.md) grant-filtered catalog
 
 ---
 
@@ -23,7 +23,7 @@ No platform `@studio/review-contracts` at runtime for user capabilities.
 ```
 visible(token, space) =
   platform_tools(token.scopes)
-  ∪ capability_tools(live_installs(space), token.capability_acl, live_semver)
+  ∪ flow_tools(live_installs(space), token.flow_acl, live_semver)
   filtered_by harness_binding(token.harness, tool.harness_allow?)
 ```
 

@@ -1,4 +1,4 @@
-import type { ContractV2, Instance, Space, CapabilityInstall, Member } from "@studio/contracts";
+import type { ContractV2, Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
 
 export interface TokenRow {
   token_id: string;

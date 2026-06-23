@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import type { HubHandler } from "@studio/hub-core";
-import { addTokenId } from "@studio/hub-core";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import type { HubHandler } from "@murrmure/hub-core";
+import { addTokenId } from "@murrmure/hub-core";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
 import { broadcastSse } from "./context.js";
 import { parseBearer, requireToken } from "./auth.js";

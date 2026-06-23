@@ -1,5 +1,5 @@
-import type { HubHandler } from "@studio/hub-core";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
+import type { HubHandler } from "@murrmure/hub-core";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { MountRegistry } from "./mount-registry.js";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { ControlBus } from "./control-bus.js";

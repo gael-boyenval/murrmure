@@ -1,4 +1,4 @@
-import type { ContractV2 } from "@studio/contracts";
+import type { ContractV2 } from "@murrmure/contracts";
 
 export interface McpWakeAction {
   type: "mcp_wake";

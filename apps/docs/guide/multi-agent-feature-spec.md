@@ -191,7 +191,7 @@ Journal emits **`spec.published`** with `body_ref` and `published_by`.
 
 ### 4.5 Dev: wake, fetch, write the file
 
-When the trigger is registered, the dev Cursor window receives **`studio/control.wake_pending`** with `wake_label: handle_spec_published` after you publish. Prompt:
+When the trigger is registered, the dev Cursor window receives a **`control.wake_pending`** MCP message with `wake_label: handle_spec_published` after you publish. Prompt:
 
 > You were woken for a published spec. Use **`query_ask`** with `target_space_id` set to the orchestrator space and `query_type: "spec_summary@1"`. If you need the full body, use **`get_spec`** with the `spec_key` from the wake payload. Write `specs/guest-checkout-v1.md` locally and commit.
 

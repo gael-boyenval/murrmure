@@ -1,4 +1,4 @@
-import type { JournalEntry, WaitCondition } from "@runtime/contracts";
+import type { JournalEntry, WaitCondition } from "@murrmure/runtime-contracts";
 
 export interface CompoundProgress {
   satisfied: Set<string>;

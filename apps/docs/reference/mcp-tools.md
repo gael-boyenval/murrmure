@@ -16,7 +16,7 @@ On a **self-hosted hub**, the daemon exposes the same tools over HTTP at `/v1/mc
 | `MURRMURE_HUB_TOKEN` | Grant token `tok_…` |
 | `MURRMURE_SPACE_ID` | Default space — **not** passed in most tool args |
 
-Legacy aliases: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, and FDK `MURRMURE_TOKEN` (for the token only).
+See [Environment variables](./environment) for CI, FDK, and deprecated alias names.
 
 ## Grant-filtered catalog
 

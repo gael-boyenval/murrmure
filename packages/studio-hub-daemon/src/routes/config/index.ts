@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import { normalizeTriggerBody } from "../triggers/index.js";
 import { ingestFlowBundle } from "../../bundle-ingest.js";
 

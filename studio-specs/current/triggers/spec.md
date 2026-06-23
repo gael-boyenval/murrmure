@@ -2,7 +2,7 @@
 
 Contract-aware trigger registration, templates, and **mcp_wake without human prompt**. Builds on [config/spec.md](../config/spec.md) trigger form and hub async dispatcher.
 
-**Prerequisites:** config CS2, feature-spec FS0, capability-runtime CR1.
+**Prerequisites:** config CS2, feature-spec FS0, flow-runtime CR1.
 
 ## Problem
 

@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { Instance, Space, CapabilityInstall, Member } from "@studio/contracts";
+import type { Instance, Space, CapabilityInstall, Member } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow } from "./port.js";
 

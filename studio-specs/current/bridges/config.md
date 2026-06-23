@@ -149,7 +149,7 @@ interface StudioDenial {
 
 Map hub-core `scope_enforcement_failure` journal denials to this shape in HTTP layer.
 
-## `@studio/hub-client` extensions
+## `@murrmure/hub-client` extensions
 
 Delta to product P2 interface — implement in same package:
 

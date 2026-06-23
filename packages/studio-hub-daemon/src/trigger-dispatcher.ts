@@ -1,14 +1,14 @@
 import { ulid } from "ulid";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
-import { addSpaceId } from "@studio/hub-core";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import { addSpaceId } from "@murrmure/hub-core";
 import type { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
-import type { HubHandler } from "@studio/hub-core";
+import type { HubHandler } from "@murrmure/hub-core";
 import {
   normalizeTriggerAction,
   normalizeTriggerDedup,
   type McpWakeAction,
   type TriggerDedup,
-} from "@studio/triggers-templates";
+} from "@murrmure/triggers-templates";
 import {
   applyJsonPathMap,
   computeBusinessKey,

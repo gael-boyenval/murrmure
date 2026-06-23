@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { validateFlowRoot } from "@murrmure/flow-dev-kit/validate";
-import { pinContract } from "@studio/hub-core";
-import { ContractV2Schema } from "@studio/contracts";
-import type { StudioPersistencePort } from "@studio/hub-persistence";
+import { pinContract } from "@murrmure/hub-core";
+import { ContractV2Schema } from "@murrmure/contracts";
+import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import {
   assignContractRefId,
   ingestLocalBundle,

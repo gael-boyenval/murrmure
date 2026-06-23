@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { makeHub } from "../integration/helpers.js";
 import { addTokenId } from "../../src/index.js";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 
 describe("S3 federation", () => {
   test("ingress denied without registered hub", async () => {

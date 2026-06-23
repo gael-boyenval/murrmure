@@ -11,4 +11,4 @@ export {
   foldJournalToSnapshot,
   parseRuleArtifact,
   ruleRefDigest,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";

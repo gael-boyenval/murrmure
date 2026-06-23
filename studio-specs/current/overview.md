@@ -1,13 +1,13 @@
-# Studio — platform overview
+# Murrmure — platform overview
 
-## What Studio is
+## What Murrmure is
 
-A **local-first hub runtime** where capabilities (review, spec publish, portals) mount on a domain-agnostic core. Agents connect via MCP; humans use a browser shell. Configuration (spaces, grants, triggers) is a separate shell mode from runtime (gates, events, capability canvases).
+A **local-first hub runtime** where flows (review, spec publish, portals) mount on a domain-agnostic core. Agents connect via MCP; humans use a browser shell. Configuration (spaces, grants, triggers) is a separate shell mode from runtime (gates, events, flow canvases).
 
 ## End-to-end — phase 1 (review loop)
 
 1. Alex runs setup wizard → creates `ui-sandbox` + `ui-production` spaces
-2. Installs **review-loop** capability, validates, mints Worker grant for Cursor
+2. Installs **review-loop** flow, validates, mints Worker grant for Cursor
 3. Dev agent: `create_review_session` → reviewer annotates in shell → `wait_for_review`
 4. Agent updates preview, replies, second round → `converged`
 5. Maya approves production gate; Sarah exports audit trail
@@ -26,18 +26,18 @@ A **local-first hub runtime** where capabilities (review, spec publish, portals)
 | Persona | Primary surfaces |
 |---------|------------------|
 | Dev, Priya, Maya | Runtime shell, MCP tools, review/spec canvases |
-| Alex | Configure: spaces, capabilities, hub settings |
+| Alex | Configure: spaces, flows, hub settings |
 | Sarah | Audit export, event tail, grant inventory (read) |
 | Théo | Federation (hub S3); cross-hub query policy (XS1+) |
 
 ## Architectural invariants
 
-- **Hexagonal hub** — `@studio/hub-core` pure domain, zero I/O
-- **Contracts-first** — `@studio/contracts` Zod leaf; all edges import it
+- **Hexagonal hub** — `@murrmure/hub-core` pure domain, zero I/O
+- **Contracts-first** — `@murrmure/contracts` Zod leaf; all edges import it
 - **Instance primitive** — core owns `instance_id`; product maps "session" / "spec_key"
 - **Journal canonical** — SQLite append-only + write-through snapshots
 - **Denials are events** — every 403/409 appends journal row
-- **One MCP server** — platform + capability tools; `STUDIO_SPACE_ID` env, no space_id in tool args
+- **One MCP server** — platform + flow tools; `MURRMURE_SPACE_ID` env, no space_id in tool args
 - **Skills ≠ law** — MCP resources for live contract, not prompt skills
 - **At-least-once + dedup** — no exactly-once global claim
 
@@ -45,7 +45,7 @@ A **local-first hub runtime** where capabilities (review, spec publish, portals)
 
 - Multi-tenant OAuth / OIDC (cloud has magic-link v0 only)
 - Agent LLM loop inside hub
-- Capability marketplace / third-party packages
+- Flow marketplace / third-party packages
 - Cron trigger UI
 - Per-customer isolated hubs in cloud v1
 - Relay as second runtime (relay = wire adapter only)
@@ -53,7 +53,7 @@ A **local-first hub runtime** where capabilities (review, spec publish, portals)
 ## Optional phase 2.1 (not spec'd)
 
 - `review-loop-lite` (J14)
-- Théo CS3 federation map + client portal capability
+- Théo CS3 federation map + client portal flow
 - Cron trigger UI
 
 ## Use cases & build spec
@@ -65,18 +65,18 @@ A **local-first hub runtime** where capabilities (review, spec publish, portals)
 ## Package graph (summary)
 
 ```
-@runtime/*                    kernel
-@studio/contracts             wire types (leaf)
-@studio/hub-core              hexagon
-@studio/hub-daemon            HTTP + SSE + mount
-@studio/hub-mcp / hub-cli     adapters
-@studio/hub-client            typed client
-@studio/shell-web             browser shell
-@studio/capability-sdk        validate + manifest
-examples/capabilities/        reference capabilities (feature-spec, review-loop)
+@runtime/*                    kernel (internal)
+@murrmure/contracts           wire types (leaf)
+@murrmure/hub-core            hexagon
+@murrmure/hub-daemon          HTTP + SSE + mount
+@murrmure/cli                  MCP + skill + flow build/push (published)
+@murrmure/flow-dev-kit         React mount, schema, host/server types (published)
+@murrmure/hub-client           typed client
+@murrmure/shell-web            browser shell
+examples/flows/                reference flows (feature-spec, review-loop)
 ```
 
-Reference capabilities are **CDK examples** under `examples/capabilities/`, installed
-as worker bundles — not monorepo packages.
+Reference flows are **FDK examples** under `examples/flows/`, installed
+as worker bundles — not monorepo npm packages.
 
 See per-domain specs for full route tables, wire formats, and acceptance criteria.

@@ -74,10 +74,10 @@ Studio product concepts (spaces, grants, MCP, federation, evolution pipelines) a
 ## 3. Package structure
 
 ```
-@runtime/contracts     ← wire types + port interfaces only (no I/O)
-@runtime/kernel        ← pure domain (executor, journal logic, waiters, reactions)
-@runtime/persistence   ← driven adapter: journal, snapshots, dedup, projection storage
-@runtime/daemon        ← optional: wiring, config, health (thin)
+@murrmure/runtime-contracts     ← wire types + port interfaces only (no I/O)
+@murrmure/runtime-kernel        ← pure domain (executor, journal logic, waiters, reactions)
+@murrmure/runtime-persistence   ← driven adapter: journal, snapshots, dedup, projection storage
+@murrmure/runtime-daemon        ← optional: wiring, config, health (thin)
 ```
 
 **Dependency rule:** `contracts` ← `kernel` ← `persistence` ← `daemon`. **`kernel` must not depend on persistence implementation.**
@@ -610,7 +610,7 @@ Tracing: command → policy → rules → persist → fanout → action.
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
-| **R0** | `@runtime/contracts` + fold definition + property suite | K1–K6, K10–K12 property tests |
+| **R0** | `@murrmure/runtime-contracts` + fold definition + property suite | K1–K6, K10–K12 property tests |
 | **R1** | In-memory `PersistencePort` + CAS + conformance suite stub | CAS + TX semantics locked |
 | **R2** | Executor + checkpoint + denial append path | 202/409/403 + K11, K13 |
 | **R3** | Waiters + bound-command + in-process delivery | K7, K14 |
@@ -649,14 +649,14 @@ Tracing: command → policy → rules → persist → fanout → action.
 | Relay | Wire adapter only |
 | Shell / UI | Outside kernel |
 
-`@studio/hub-core` = **this kernel + Studio policy/adapters/federation module**.
+`@murrmure/hub-core` = **this kernel + Studio policy/adapters/federation module**.
 
 ---
 
 ## 22. Stability contract
 
-- `@runtime/contracts` major bump on port or envelope break.
-- `@runtime/kernel` major bump on invariant or fold definition break.
+- `@murrmure/runtime-contracts` major bump on port or envelope break.
+- `@murrmure/runtime-kernel` major bump on invariant or fold definition break.
 - RuleArtifact: kernel supports **N and N-1** `schema_version`; CI enforces (K16).
 - Journal: forward-compatible optional fields only; never mutate/delete rows.
 - Additive port methods allowed minor bump; removals major.

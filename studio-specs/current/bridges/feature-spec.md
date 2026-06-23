@@ -1,6 +1,6 @@
 # Feature-spec — wire bridge
 
-Maps [feature-spec.md](../capabilities/feature-spec.md) to packages. Mount at `/api/specs` via capability-runtime live apply.
+Maps [feature-spec.md](../capabilities/feature-spec.md) to packages. Mount at `/api/specs` via flow-runtime live apply.
 
 ## HTTP → hub-core
 

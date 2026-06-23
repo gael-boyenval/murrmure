@@ -74,8 +74,8 @@ Apply in **one coordinated migration** (code + specs + docs + fixtures). No dual
 | `@studio/capability-sdk` | *(deleted — merge)* | no |
 | `@studio/capability-dev-kit` | `@murrmure/flow-dev-kit` | yes |
 | `@studio/skill` | `@murrmure/skill` (private, CLI bundle only) | no |
-| `@studio/hub-*`, `@studio/shell-web`, … | `@murrmure/hub-*`, `@murrmure/shell-web`, … | no (v1) |
-| `@studio/contracts` | `@murrmure/contracts` | no |
+| `@studio/hub-*`, `@murrmure/shell-web`, … | `@murrmure/hub-*`, `@murrmure/shell-web`, … | no (v1) |
+| `@murrmure/contracts` | `@murrmure/contracts` | no |
 | `@runtime/*` | `@murrmure/runtime/*` | no |
 
 **Monorepo directories (target):**

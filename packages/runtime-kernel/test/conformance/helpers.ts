@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { PersistencePort, RuleArtifact } from "@runtime/contracts";
-import { ruleRefDigest } from "@runtime/contracts";
+import type { PersistencePort, RuleArtifact } from "@murrmure/runtime-contracts";
+import { ruleRefDigest } from "@murrmure/runtime-contracts";
 import { RuntimeKernel } from "../../src/command/handler.js";
 import { DeferredWaitRegistry } from "../../src/waiters/registry.js";
 import {

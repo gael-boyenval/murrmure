@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { addGateId, addSpaceId, stripPrefix, contractV2ToRuleArtifact, mapWaitCondition } from "@studio/hub-core";
+import { addGateId, addSpaceId, stripPrefix, contractV2ToRuleArtifact, mapWaitCondition } from "@murrmure/hub-core";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ContractV2Schema } from "@studio/contracts";
-import { ruleRefDigest } from "@runtime/contracts";
+import { ContractV2Schema } from "@murrmure/contracts";
+import { ruleRefDigest } from "@murrmure/runtime-contracts";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(__dir, "../../../fixtures/hub");

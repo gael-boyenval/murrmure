@@ -1,5 +1,5 @@
 {
-  "name": "@studio/hub-daemon",
+  "name": "@murrmure/hub-daemon",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,14 +18,14 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@runtime/kernel": "workspace:*",
-    "@runtime/persistence": "workspace:*",
+    "@murrmure/runtime-kernel": "workspace:*",
+    "@murrmure/runtime-persistence": "workspace:*",
     "@murrmure/cli": "workspace:*",
     "@murrmure/flow-dev-kit": "workspace:*",
-    "@studio/contracts": "workspace:*",
-    "@studio/hub-core": "workspace:*",
-    "@studio/hub-persistence": "workspace:*",
-    "@studio/triggers-templates": "workspace:*",
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/hub-core": "workspace:*",
+    "@murrmure/hub-persistence": "workspace:*",
+    "@murrmure/triggers-templates": "workspace:*",
     "better-sqlite3": "^11.8.1",
     "hono": "^4.7.10",
     "ulid": "^2.3.0"

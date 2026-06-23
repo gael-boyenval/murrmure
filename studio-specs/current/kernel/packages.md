@@ -4,7 +4,7 @@ date: 2026-06-20
 status: architectural guide
 parent: runtime-kernel.md
 purpose: >
-  How to split packages, files, and responsibilities for @runtime/kernel implementation.
+  How to split packages, files, and responsibilities for @murrmure/runtime-kernel implementation.
   Build order and robustness rules for architects and implementers.
 ---
 
@@ -17,16 +17,16 @@ Implementation layout for the engine defined in [runtime-kernel.md](./runtime-ke
 ## 1. Package split (strict dependency graph)
 
 ```
-@runtime/contracts     ← types + port interfaces only (zero logic, zero I/O)
+@murrmure/runtime-contracts     ← types + port interfaces only (zero logic, zero I/O)
        ↑
-@runtime/kernel        ← pure domain (no I/O imports)
+@murrmure/runtime-kernel        ← pure domain (no I/O imports)
        ↑
-@runtime/persistence   ← driven adapters (in-memory, SQLite, …)
+@murrmure/runtime-persistence   ← driven adapters (in-memory, SQLite, …)
        ↑
-@runtime/daemon        ← optional thin wiring, config, health
+@murrmure/runtime-daemon        ← optional thin wiring, config, health
 
 Outside kernel repo until R6:
-  @runtime/adapter-http
+  @murrmure/runtime-adapter-http
   @runtime/adapter-inproc
   …
 ```
@@ -42,7 +42,7 @@ Outside kernel repo until R6:
 
 ---
 
-## 2. `@runtime/contracts` file layout
+## 2. `@murrmure/runtime-contracts` file layout
 
 ```
 packages/contracts/
@@ -98,7 +98,7 @@ packages/contracts/
 
 ---
 
-## 3. `@runtime/kernel` file layout
+## 3. `@murrmure/runtime-kernel` file layout
 
 ```
 packages/kernel/
@@ -166,7 +166,7 @@ waiters, reactions, projections  →  never import each other
 
 ---
 
-## 4. `@runtime/persistence` file layout
+## 4. `@murrmure/runtime-persistence` file layout
 
 ```
 packages/persistence/
@@ -196,7 +196,7 @@ packages/persistence/
 
 ---
 
-## 5. `@runtime/daemon` (optional, late)
+## 5. `@murrmure/runtime-daemon` (optional, late)
 
 ```
 packages/daemon/

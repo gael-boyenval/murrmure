@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
-import { stripTokenId } from "@studio/hub-core";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { stripTokenId } from "@murrmure/hub-core";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
 import type { WorkerAuth } from "./capability-worker-pool.js";
 import { prefixedSpaceId } from "./space-id.js";

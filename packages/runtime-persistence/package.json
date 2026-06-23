@@ -1,5 +1,5 @@
 {
-  "name": "@runtime/persistence",
+  "name": "@murrmure/runtime-persistence",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,12 +12,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@runtime/contracts": "workspace:*",
+    "@murrmure/runtime-contracts": "workspace:*",
     "better-sqlite3": "^11.8.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
-    "@runtime/kernel": "workspace:*",
+    "@murrmure/runtime-kernel": "workspace:*",
     "tsx": "^4.19.3"
   }
 }

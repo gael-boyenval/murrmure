@@ -1,4 +1,4 @@
-import type { InProcessWaitRegistry, WaitResolution } from "@runtime/contracts";
+import type { InProcessWaitRegistry, WaitResolution } from "@murrmure/runtime-contracts";
 
 export class DeferredWaitRegistry implements InProcessWaitRegistry {
   private readonly deferred = new Map<

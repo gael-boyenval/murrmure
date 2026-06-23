@@ -63,9 +63,7 @@ For self-hosted, set `MURRMURE_HUB_URL` to your hub URL.
 | `MURRMURE_HUB_TOKEN` | Yes | `tok_...` | Minted grant token |
 | `MURRMURE_SPACE_ID` | Yes | `spc_ui_sandbox` | Space detail page / URL context |
 
-**Monorepo dev:** point `command` at `packages/murrmure/bin/murrmure` (or `pnpm link` / global install from the workspace).
-
-Legacy aliases still accepted by the server: `STUDIO_API_URL`, `STUDIO_API_TOKEN`, `MURRMURE_TOKEN` (FDK).
+**Monorepo dev:** point `command` at `packages/cli/dist/cli.js` with `"args": ["mcp"]` (after `pnpm build`), or use `pnpm --filter @murrmure/cli exec murrmure mcp`.
 
 ## 4) Reload client and verify
 

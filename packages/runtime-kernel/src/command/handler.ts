@@ -17,14 +17,14 @@ import type {
   SchemaPort,
   WaitCondition,
   WaitRow,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 import {
   DENIAL_CODES,
   HTTP_SEMANTIC,
   denialResult,
   foldJournalToSnapshot,
   successResult,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 import {
   addVote,
   checkpointFromTransition,
@@ -97,7 +97,7 @@ export class RuntimeKernel implements QueryPort {
     }
 
     let blockWaitId: string | undefined;
-    let blockPromise: Promise<import("@runtime/contracts").WaitResolution> | undefined;
+    let blockPromise: Promise<import("@murrmure/runtime-contracts").WaitResolution> | undefined;
     const blockOn = "block_on" in command ? command.block_on : undefined;
     if (blockOn && p.command_id) {
       blockWaitId = await this.registerBlockWait(p, blockOn, p.command_id);
@@ -582,8 +582,8 @@ export class RuntimeKernel implements QueryPort {
 
   private async commitSuccess(
     p: Provenance,
-    draft: import("@runtime/contracts").JournalEntryDraft,
-    aggregate: import("@runtime/contracts").Aggregate,
+    draft: import("@murrmure/runtime-contracts").JournalEntryDraft,
+    aggregate: import("@murrmure/runtime-contracts").Aggregate,
     expectedRevision: number,
     code: string,
     body: Record<string, unknown>,
@@ -615,8 +615,8 @@ export class RuntimeKernel implements QueryPort {
 
   private async commitCheckpointPending(
     p: Provenance,
-    draft: import("@runtime/contracts").JournalEntryDraft,
-    checkpoint: import("@runtime/contracts").Checkpoint,
+    draft: import("@murrmure/runtime-contracts").JournalEntryDraft,
+    checkpoint: import("@murrmure/runtime-contracts").Checkpoint,
   ): Promise<CommandResult> {
     return this.deps.persistence.runInTransaction(async (tx) => {
       const allocated = await tx.appendJournal(draft);
@@ -639,9 +639,9 @@ export class RuntimeKernel implements QueryPort {
 
   private async commitCheckpointResolved(
     p: Provenance,
-    drafts: import("@runtime/contracts").JournalEntryDraft[],
-    checkpoint: import("@runtime/contracts").Checkpoint,
-    aggregate: import("@runtime/contracts").Aggregate,
+    drafts: import("@murrmure/runtime-contracts").JournalEntryDraft[],
+    checkpoint: import("@murrmure/runtime-contracts").Checkpoint,
+    aggregate: import("@murrmure/runtime-contracts").Aggregate,
     expectedRevision: number,
   ): Promise<CommandResult> {
     return this.deps.persistence.runInTransaction(async (tx) => {
@@ -683,8 +683,8 @@ export class RuntimeKernel implements QueryPort {
 
   private async commitCheckpointRejected(
     p: Provenance,
-    voteDraft: import("@runtime/contracts").JournalEntryDraft,
-    checkpoint: import("@runtime/contracts").Checkpoint,
+    voteDraft: import("@murrmure/runtime-contracts").JournalEntryDraft,
+    checkpoint: import("@murrmure/runtime-contracts").Checkpoint,
   ): Promise<CommandResult> {
     return this.deps.persistence.runInTransaction(async (tx) => {
       const vAlloc = await tx.appendJournal(voteDraft);
@@ -705,8 +705,8 @@ export class RuntimeKernel implements QueryPort {
 
   private async commitJournalOnly(
     p: Provenance,
-    draft: import("@runtime/contracts").JournalEntryDraft,
-    extra: (tx: import("@runtime/contracts").Transaction) => Promise<void>,
+    draft: import("@murrmure/runtime-contracts").JournalEntryDraft,
+    extra: (tx: import("@murrmure/runtime-contracts").Transaction) => Promise<void>,
     code: string,
     body: Record<string, unknown>,
   ): Promise<CommandResult> {

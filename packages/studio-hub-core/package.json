@@ -1,5 +1,5 @@
 {
-  "name": "@studio/hub-core",
+  "name": "@murrmure/hub-core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,15 +12,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@studio/contracts": "workspace:*",
-    "@studio/hub-persistence": "workspace:*",
-    "@runtime/contracts": "workspace:*",
-    "@runtime/kernel": "workspace:*",
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/hub-persistence": "workspace:*",
+    "@murrmure/runtime-contracts": "workspace:*",
+    "@murrmure/runtime-kernel": "workspace:*",
     "ajv": "^8.17.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@runtime/persistence": "workspace:*",
+    "@murrmure/runtime-persistence": "workspace:*",
     "tsx": "^4.19.3"
   }
 }

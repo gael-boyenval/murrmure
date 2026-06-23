@@ -27,13 +27,13 @@ End users read the deployed site; they do not clone this repo.
 Agents (Cursor, CI)     MCP + HTTP grants
         │
         ▼
-@studio/hub-daemon      /v1/* platform API, MCP, capability worker pool
+@murrmure/hub-daemon      /v1/* platform API, MCP, capability worker pool
         │               host-bridge for worker → kernel access
-        ├── @studio/hub-core      hexagonal domain (pure, no I/O)
-        ├── @runtime/kernel       journal, instances, state machines
+        ├── @murrmure/hub-core      hexagonal domain (pure, no I/O)
+        ├── @murrmure/runtime-kernel       journal, instances, state machines
         └── worker subprocesses   examples/capabilities/*/server/mount.mjs
 
-Humans                  @studio/shell-web (Runtime | Configure)
+Humans                  @murrmure/shell-web (Runtime | Configure)
         │               iframe canvases from capability UI bundles
         ▼
 ~/.studio/              SQLite DB, capability blobs, staging dirs
@@ -42,12 +42,12 @@ Humans                  @studio/shell-web (Runtime | Configure)
 | Package | Role |
 |---------|------|
 | `@runtime/*` | Event-sourced kernel + SQLite persistence |
-| `@studio/contracts` | Wire types and Zod schemas (leaf) |
-| `@studio/hub-core` | Hub domain handlers |
-| `@studio/hub-daemon` | HTTP/SSE server, live apply, worker pool |
+| `@murrmure/contracts` | Wire types and Zod schemas (leaf) |
+| `@murrmure/hub-core` | Hub domain handlers |
+| `@murrmure/hub-daemon` | HTTP/SSE server, live apply, worker pool |
 | `@studio/hub-mcp` / `@studio/hub-cli` | MCP and CLI adapters |
-| `@studio/hub-client` | Typed platform HTTP client |
-| `@studio/shell-web` | Browser shell (runtime + configure) |
+| `@murrmure/hub-client` | Typed platform HTTP client |
+| `@murrmure/shell-web` | Browser shell (runtime + configure) |
 | `@studio/capability-sdk` | CDK validate, build, push |
 | `examples/capabilities/` | Reference capabilities (not workspace packages) |
 
@@ -86,8 +86,8 @@ pnpm dev
 
 Starts:
 
-- **Hub daemon** — `http://127.0.0.1:8787` (`@studio/hub-daemon`)
-- **Shell UI** — `http://127.0.0.1:5174` (`@studio/shell-web`, proxies `/v1` and `/api` to the hub)
+- **Hub daemon** — `http://127.0.0.1:8787` (`@murrmure/hub-daemon`)
+- **Shell UI** — `http://127.0.0.1:5174` (`@murrmure/shell-web`, proxies `/v1` and `/api` to the hub)
 
 ### First-run smoke test
 

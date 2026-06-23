@@ -1,14 +1,14 @@
-# BC15 — Agent skill package (`@studio/skill`)
+# BC15 — Agent skill package (`@murrmure/skill`)
 
 **Status:** normative (2026-06-23)  
-**Package:** `packages/studio-skill`  
+**Package:** `packages/skill` (private — bundled into `@murrmure/cli`, not published to npm)  
 **Aligns with:** [02-sdk.md](./02-sdk.md) (CLI), [07-mcp-tool-model-and-catalog-rebuild.md](./07-mcp-tool-model-and-catalog-rebuild.md), hub ADR-24 (skills ≠ law)
 
 ---
 
 ## Purpose
 
-Ship a **versioned, installable Cursor skill** that teaches coding agents the Studio capability workflow: semver bumps, evolution pipeline, MCP grants, and CDK authoring rules.
+Ship a **versioned, installable Cursor skill** that teaches coding agents the Murrmure flow workflow: semver bumps, evolution pipeline, MCP grants, and FDK authoring rules.
 
 Skills are **guidance for agents**, not protocol. Live behavior remains defined by hub contracts, MCP catalog, and bundle manifests.
 
@@ -21,26 +21,25 @@ Skills are **guidance for agents**, not protocol. Live behavior remains defined 
 | `skill/SKILL.md` | Thin index: platform model, mandatory checklist, links |
 | `skill/reference/*.md` | Progressive disclosure (CLI, MCP, authoring, evolution) |
 | `VERSION` | Skill package semver (copied with install; used in CLI output) |
-| `src/install.ts` | `installStudioSkill(targetRoot)` |
+| `src/install.ts` | `installMurrmureSkill(targetRoot)` |
 | `src/cli.ts` | `runSkillCli(argv)` |
-| `bin/studio-skill` | Standalone entry |
 
-**npm name:** `@studio/skill`  
-**Skill id (Cursor):** `studio-capability` (directory name under `.cursor/skills/`)
+**npm name:** `@murrmure/skill` (private, CLI bundle only)  
+**Skill id (Cursor):** `murrmure-flow` (directory name under `.cursor/skills/`)
 
 ---
 
 ## Install layout
 
-On `studio skill install` (or `init --with-skill`):
+On `mrmr skill install` (or `mrmr flow init --with-skill`):
 
 ```
-{targetRoot}/.cursor/skills/studio-capability/
+{targetRoot}/.cursor/skills/murrmure-flow/
 ├── SKILL.md
 └── reference/
     ├── cli.md
     ├── mcp.md
-    ├── capability-authoring.md
+    ├── flow-authoring.md
     └── evolution-pipeline.md
 ```
 
@@ -49,19 +48,19 @@ On `studio skill install` (or `init --with-skill`):
 | Target default | `process.cwd()` |
 | Overwrite | `update` replaces entire tree (idempotent copy) |
 | Monorepo | Run from git / project root so all agents in repo see the skill |
-| Not in bundle | Skill is **not** part of capability push payload |
+| Not in bundle | Skill is **not** part of flow push payload |
 
 ---
 
 ## CLI commands
 
-Routed via `studio skill …` (same `studio` binary as capability SDK).
+Routed via `mrmr skill …` (same `murrmure` / `mrmr` binary as flow commands).
 
 | Command | Action | JSON output |
 |---------|--------|-------------|
-| `studio skill install [--dir path] [--json]` | Copy skill tree to `.cursor/skills/studio-capability/` | `{ ok, path, version, message }` |
-| `studio skill update [--dir path] [--json]` | Same as install (refresh) | same |
-| `studio skill version [--dir path] [--json]` | Read package `VERSION` + default install path | `{ ok, version, install_path }` |
+| `mrmr skill install [--dir path] [--json]` | Copy skill tree to `.cursor/skills/murrmure-flow/` | `{ ok, path, version, message }` |
+| `mrmr skill update [--dir path] [--json]` | Same as install (refresh) | same |
+| `mrmr skill version [--dir path] [--json]` | Read package `VERSION` + default install path | `{ ok, version, install_path }` |
 
 Errors: missing source → throw; unknown command → exit 1 with `UNKNOWN_COMMAND`.
 
@@ -69,7 +68,7 @@ Errors: missing source → throw; unknown command → exit 1 with `UNKNOWN_COMMA
 
 ## Init integration
 
-`studio capability init <id> [--with-skill]` MUST call `installStudioSkill(process.cwd())` after scaffold succeeds (both default scaffold and `--from-example`).
+`mrmr flow init <id> [--with-skill]` MUST call `installMurrmureSkill(process.cwd())` after scaffold succeeds (both default scaffold and `--from-example`).
 
 `--with-skill` is optional; default **false** for backward compatibility.
 
@@ -79,9 +78,9 @@ Errors: missing source → throw; unknown command → exit 1 with `UNKNOWN_COMMA
 
 The index MUST include:
 
-1. **Platform model** — hub, capability, shell, MCP bridge (≤1 screen)
+1. **Platform model** — hub, flow, shell, MCP bridge (≤1 screen)
 2. **Mandatory checklist** — version bump + validate/build/push + hub validate/test/promote/apply
-3. **Agent rules** — `ctx.contractRefId`, `studio_url` before wait, grant ACL, promote ≠ apply
+3. **Agent rules** — `ctx.contractRefId`, `murrmure_url` before wait, grant ACL, promote ≠ apply
 4. **Links** — one level deep to `reference/*.md` only
 
 Reference files MUST NOT duplicate the full hub spec; they summarize agent-actionable steps.
@@ -92,10 +91,10 @@ Reference files MUST NOT duplicate the full hub spec; they summarize agent-actio
 
 | Field | Meaning |
 |-------|---------|
-| `packages/studio-skill/VERSION` | Skill **package** release (install messaging) |
-| Capability `capability.manifest.json` version | Unrelated — user capability semver |
+| `packages/skill/VERSION` | Skill **package** release (install messaging) |
+| Flow `flow.manifest.json` version | Unrelated — user flow semver |
 
-Bumping `@studio/skill` does not change hub behavior. Users run `studio skill update` after upgrading the npm package.
+Bumping `@murrmure/skill` (via CLI release) does not change hub behavior. Users run `mrmr skill update` after upgrading `@murrmure/cli`.
 
 ---
 
@@ -115,9 +114,9 @@ Agents MUST NOT treat skill text as overriding denials, grant ACL, or install po
 
 | # | Scenario | Proves |
 |---|----------|--------|
-| 21 | `studio skill install --dir /tmp/x` | Tree copied; `SKILL.md` + 4 reference files |
-| 22 | `studio capability init foo --with-skill` | `.cursor/skills/studio-capability/` exists in cwd |
-| 23 | `studio skill update` after VERSION bump | Overwrites without duplicate nesting |
+| 21 | `mrmr skill install --dir /tmp/x` | Tree copied; `SKILL.md` + 4 reference files |
+| 22 | `mrmr flow init foo --with-skill` | `.cursor/skills/murrmure-flow/` exists in cwd |
+| 23 | `mrmr skill update` after VERSION bump | Overwrites without duplicate nesting |
 | 24 | Vitest `install.test.ts` | Package regression guard |
 
 ---
@@ -125,13 +124,13 @@ Agents MUST NOT treat skill text as overriding denials, grant ACL, or install po
 ## Non-goals (v1)
 
 - Publishing skill to Cursor marketplace/global registry
-- Per-capability generated skills (only the platform `studio-capability` skill)
+- Per-flow generated skills (only the platform `murrmure-flow` skill)
 - Embedding skill in hub MCP resources (future: contract snippets via MCP resources per ADR-24)
 
 ---
 
 ## Related
 
-- [02-sdk.md](./02-sdk.md) — capability CLI
+- [02-sdk.md](./02-sdk.md) — flow CLI + FDK
 - [acceptance.md](./acceptance.md) — BC15 rows
 - User guide: [`apps/docs/guide/agent-skill.md`](../../../apps/docs/guide/agent-skill.md)

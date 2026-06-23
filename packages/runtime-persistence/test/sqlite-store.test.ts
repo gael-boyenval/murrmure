@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { SqlitePersistence } from "../src/sqlite/store.js";
-import type { JournalEntryDraft } from "@runtime/contracts";
+import type { JournalEntryDraft } from "@murrmure/runtime-contracts";
 
 describe("SqlitePersistence", () => {
   test("append journal + outbox in transaction", async () => {

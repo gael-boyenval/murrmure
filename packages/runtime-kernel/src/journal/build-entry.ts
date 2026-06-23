@@ -3,8 +3,8 @@ import type {
   JournalEntryDraft,
   KernelCommand,
   Provenance,
-} from "@runtime/contracts";
-import { ENTRY_TYPES } from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
+import { ENTRY_TYPES } from "@murrmure/runtime-contracts";
 
 export function provenanceFields(p: Provenance) {
   return {

@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { InMemoryPersistence } from "@runtime/persistence";
+import { InMemoryPersistence } from "@murrmure/runtime-persistence";
 
 test("outbox row created on journal append", async () => {
   const store = new InMemoryPersistence();

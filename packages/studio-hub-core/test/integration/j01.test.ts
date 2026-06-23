@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { makeHub, mintActorToken } from "./helpers.js";
 import { addGateId, addInstanceId, addSpaceId, addTokenId } from "../../src/index.js";
-import { STUDIO_DENIAL_CODES } from "@studio/contracts";
+import { STUDIO_DENIAL_CODES } from "@murrmure/contracts";
 
 describe("j01/happy-path", () => {
   test("Dev submits, Maya approves gate, wait resolves", async () => {

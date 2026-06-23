@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 import type { DaemonContext } from "./context.js";
-import { addSpaceId } from "@studio/hub-core";
+import { addSpaceId } from "@murrmure/hub-core";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 
 export interface CapabilityMount {

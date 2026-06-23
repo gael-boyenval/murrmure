@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
-import { addTokenId } from "@studio/hub-core";
+import { addTokenId } from "@murrmure/hub-core";
 
 describe("studio/shared-config (BC6b project registry)", () => {
   let baseUrl: string;

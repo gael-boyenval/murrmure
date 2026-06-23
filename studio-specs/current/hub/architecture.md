@@ -17,8 +17,8 @@ Definitive architecture for the **domain-agnostic hub runtime**. Capabilities (r
 
 | ID | Decision | Rejected | Rationale |
 |----|----------|----------|-----------|
-| ADR-01 | **Hexagonal hub** — `@studio/hub-core` pure domain, zero I/O | Monolith daemon with domain routes (V1) | V3 boundary; review is capability |
-| ADR-02 | **Contracts-first** — `@studio/contracts` Zod leaf, all edges import it | Schemas duplicated in MCP/HTTP | OD pattern; Journey-11 strict deserializer lesson |
+| ADR-01 | **Hexagonal hub** — `@murrmure/hub-core` pure domain, zero I/O | Monolith daemon with domain routes (V1) | V3 boundary; review is capability |
+| ADR-02 | **Contracts-first** — `@murrmure/contracts` Zod leaf, all edges import it | Schemas duplicated in MCP/HTTP | OD pattern; Journey-11 strict deserializer lesson |
 | ADR-03 | **Instance primitive** — core owns `instance_id`; product says "session" | Session only in capability | J01/J04 multi-session per space |
 | ADR-04 | **Contract pin on create** — in-flight instances keep pinned semver | Auto-migrate on promote | J10 finish-current; LangGraph checkpoint immutability |
 | ADR-05 | **Journal canonical** — SQLite append-only + write-through snapshots | JSONL-only or snapshot-only | SOC2 export + indexed queries + Impeccable repair |
@@ -47,13 +47,13 @@ Definitive architecture for the **domain-agnostic hub runtime**. Capabilities (r
 ## Part 1 — Package graph
 
 ```
-@studio/contracts          ← Zod only (leaf)
+@murrmure/contracts          ← Zod only (leaf)
        ↑
-@studio/hub-core           ← hexagon: auth, tenancy, state, journal, coordination, federation, evolution
+@murrmure/hub-core           ← hexagon: auth, tenancy, state, journal, coordination, federation, evolution
        ↑
-@studio/hub-persistence    ← SQLite WAL, blob files, dedup store
+@murrmure/hub-persistence    ← SQLite WAL, blob files, dedup store
        ↑
-@studio/hub-daemon         ← Bun HTTP + SSE + bootstrap + wiring
+@murrmure/hub-daemon         ← Bun HTTP + SSE + bootstrap + wiring
 
 Adapters (thin):
   @studio/hub-mcp          ← stdio → HTTP
@@ -64,12 +64,12 @@ Authoring:
   @studio/capability-sdk   ← validate CLI, test harness, UI mount types
 
 Deployables (later):
-  @studio/shell-web · relay-wire binary
+  @murrmure/shell-web · relay-wire binary
 ```
 
-**Export pattern (OD mirror):** `@studio/contracts/commands/*`, `/queries/*`, `/sse/*`, `/mcp/tools`, `/discovery`, `/evolution`, `/errors`.
+**Export pattern (OD mirror):** `@murrmure/contracts/commands/*`, `/queries/*`, `/sse/*`, `/mcp/tools`, `/discovery`, `/evolution`, `/errors`.
 
-**Cline mapping:** discovery + daemon lifecycle → `@studio/hub-daemon`; agent session loop → **not in hub**.
+**Cline mapping:** discovery + daemon lifecycle → `@murrmure/hub-daemon`; agent session loop → **not in hub**.
 
 ---
 
@@ -84,7 +84,7 @@ Deployables (later):
 │  ~/.studio/hubs/shared.json · startup lock · health     │
 └──────────────────────────┬──────────────────────────────┘
                            ▼
-┌─ @studio/hub-core ──────────────────────────────────────┐
+┌─ @murrmure/hub-core ──────────────────────────────────────┐
 │  auth ──► tenancy (space + instance) ──► contracts        │
 │              │                                            │
 │              ▼                                            │
@@ -689,4 +689,4 @@ Review/board/foundation semantics in core · Agent LLM loop in hub · Exactly-on
 - [hub-core-validation-2026-06-20.md](./hub-core-validation-2026-06-20.md) — journey review
 - [../studio-v3-core-architecture-2026-06-20.md](../studio-v3-core-architecture-2026-06-20.md) — phase 1 analysis
 
-**Next:** `@studio/contracts` Zod schemas implementing Part 4–12 wire types.
+**Next:** `@murrmure/contracts` Zod schemas implementing Part 4–12 wire types.

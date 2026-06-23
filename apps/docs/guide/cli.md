@@ -32,10 +32,11 @@ export MURRMURE_SPACE_ID=spc_your_space_id
 
 ## Flow Dev Kit (FDK)
 
-For **authoring workflows** in your own repo, use `@murrmure/cli` (not `@murrmure/cli`):
+For **authoring workflows** in your own repo, install **`@murrmure/cli`** and **`@murrmure/flow-dev-kit`**:
 
 ```bash
 npm install -D @murrmure/cli
+npm install @murrmure/flow-dev-kit
 ```
 
 ```bash
@@ -44,7 +45,7 @@ mrmr flow validate .
 mrmr flow build .
 mrmr flow dev ./workflows/my-flow --sim --port 4310
 mrmr flow push --space spc_ui_sandbox
-mrmr flow apply --space spc_ui_sandbox --install cap_…
+mrmr flow apply --space spc_ui_sandbox --install ins_…
 ```
 
 **Agent skill** (optional — teaches Cursor agents the evolution checklist):
@@ -60,7 +61,7 @@ Environment (same as hub client):
 
 ```bash
 export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_TOKEN=tok_your_grant
+export MURRMURE_HUB_TOKEN=tok_your_grant
 export MURRMURE_SPACE_ID=spc_ui_sandbox
 ```
 

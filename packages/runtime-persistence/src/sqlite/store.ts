@@ -13,7 +13,7 @@ import type {
   ReactionSpec,
   Transaction,
   WaitRow,
-} from "@runtime/contracts";
+} from "@murrmure/runtime-contracts";
 import { fromJson, projectionKey, toCanonicalJson } from "./json.js";
 import { migrate } from "./migrate.js";
 

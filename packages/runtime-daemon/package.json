@@ -1,5 +1,5 @@
 {
-  "name": "@runtime/daemon",
+  "name": "@murrmure/runtime-daemon",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,10 +17,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@runtime/adapter-http": "workspace:*",
-    "@runtime/contracts": "workspace:*",
-    "@runtime/kernel": "workspace:*",
-    "@runtime/persistence": "workspace:*"
+    "@murrmure/runtime-adapter-http": "workspace:*",
+    "@murrmure/runtime-contracts": "workspace:*",
+    "@murrmure/runtime-kernel": "workspace:*",
+    "@murrmure/runtime-persistence": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3"

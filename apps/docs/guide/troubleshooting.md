@@ -16,8 +16,8 @@ Run `mrmr whoami` after `mrmr login` (CLI optional).
 ## MCP tools not showing in Cursor
 
 1. Reload Cursor after pasting MCP config
-2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH (monorepo: point `command` at `packages/murrmure/bin/murrmure`)
-3. Env vars must be **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`** — not `STUDIO_API_*` (legacy aliases work in recent builds)
+2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH (monorepo: `packages/cli/dist/cli.js` with `"args": ["mcp"]`, or `pnpm --filter @murrmure/cli exec murrmure mcp`)
+3. Env vars must be **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`**
 4. Check MCP logs in Cursor settings
 5. Flow not **live** → **Configure → Flows → [install] → Promote**
 6. Wrong `MURRMURE_SPACE_ID` in env

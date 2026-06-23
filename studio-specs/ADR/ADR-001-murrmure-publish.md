@@ -14,10 +14,10 @@ Studio capability authoring was split across `@studio/capability-sdk`, `@studio/
 3. HTTP install wire uses **`/v1/.../flows/...`**; scopes `flow:install`, `flow:configure`.
 4. Push ships **runtime bundle + source snapshot** (`bundle.tar.zst`, `source.tar.zst`).
 5. Env vars **`MURRMURE_*` only** — no `STUDIO_*` aliases in v1.
-6. Monorepo hub packages remain `@studio/*` internally until a follow-up rename.
+6. Monorepo packages use `@murrmure/*` scope (`@murrmure/runtime-*` for kernel stack); only `@murrmure/cli` and `@murrmure/flow-dev-kit` publish to npm.
 
 ## Consequences
 
-- Legacy packages (`capability-sdk`, `hub-mcp`, etc.) are deprecated; delete after downstream references are removed.
+- Legacy packages (`capability-sdk`, `hub-mcp`, etc.) deleted; skill assets bundled in `@murrmure/cli`.
 - `studio-specs/` folder name retained; content updated incrementally toward flow/Murrmure vocabulary.
 - Release via changesets; CI pack smoke validates global CLI install + `mrmr flow init`.
