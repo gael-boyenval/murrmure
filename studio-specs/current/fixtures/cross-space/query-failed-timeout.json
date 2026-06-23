@@ -1,0 +1,20 @@
+{
+  "description": "XS-min — ask timeout returns query_failed",
+  "source_space": "spc_comms",
+  "target_space": "spc_backend_api",
+  "setup": "target handler delayed 60s",
+  "steps": [
+    {
+      "action": "query_ask",
+      "body": { "timeout_ms": 500 },
+      "expect": {
+        "status": "failed",
+        "reason": "ANSWER_TIMEOUT"
+      }
+    },
+    {
+      "action": "journal_tail",
+      "expect": { "event_type": "query_failed" }
+    }
+  ]
+}

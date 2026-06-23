@@ -1,0 +1,41 @@
+{
+  "description": "CR-min — live apply pushes tools_changed when 1.1.0 adds MCP tools",
+  "space_id": "spc_ui_sandbox",
+  "installs_before": [
+    { "package_id": "review-loop", "version": "2.0.0", "state": "live" },
+    { "package_id": "feature-spec", "version": "1.0.0", "state": "live" }
+  ],
+  "manifest_tools": {
+    "feature-spec": {
+      "1.0.0": ["open_spec", "get_spec", "patch_spec_section", "publish_spec"],
+      "1.1.0": ["open_spec", "get_spec", "patch_spec_section", "publish_spec", "add_context_ref", "transition_spec"]
+    }
+  },
+  "steps": [
+    {
+      "action": "mcp_connect_handshake",
+      "expect": { "handshake_ack": true, "known_tools_includes": ["transition", "create_review_session"] }
+    },
+    {
+      "action": "promote_and_apply",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_sandbox/capabilities/{install_id}/apply"
+      },
+      "package_bump": { "package_id": "feature-spec", "from": "1.0.0", "to": "1.1.0" },
+      "expect": { "evolution_state": "live", "mount_applied": true }
+    },
+    {
+      "action": "mcp_receive_notification",
+      "within_ms": 2000,
+      "expect": {
+        "method": "studio/control.tools_changed",
+        "params.added_contains": ["add_context_ref", "transition_spec"]
+      }
+    },
+    {
+      "action": "mcp_tools_list",
+      "expect": { "tools_includes": ["add_context_ref", "transition_spec"] }
+    }
+  ]
+}

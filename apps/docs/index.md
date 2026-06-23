@@ -1,0 +1,35 @@
+---
+layout: home
+
+hero:
+  name: Studio
+  text: Where humans and AI agents do the work together
+  tagline: Your coding agents move fast. Studio gives your team a shared room to review, approve, and keep score — so nothing gets lost in chat.
+  actions:
+    - theme: brand
+      text: Create an account
+      link: https://app.studio.dev/signup
+    - theme: alt
+      text: See how it works
+      link: /guide/introduction
+    - theme: alt
+      text: Tutorials
+      link: /guide/tutorials/
+    - theme: alt
+      text: Quick start
+      link: /guide/quick-start
+
+features:
+  - title: One place, not ten chat threads
+    details: Agents and people meet on the same session — a live preview, comments, and clear handoffs. Stop pasting screenshots and "can you re-explain?" into chat.
+  - title: Review work like a human, not a log
+    details: Open a session in your browser, leave comments on the actual preview, and click Finish. The agent gets structured feedback and comes back with the next round.
+  - title: Approvals with a paper trail
+    details: Sign off behind gates before anything ships. Every comment, decision, and approval is recorded — so you always know who approved what, and when.
+  - title: Nothing to install for reviewers
+    details: Sign in and go. Reviewers, team leads, and admins work entirely in the browser. Only the agents need setup.
+  - title: Agents connect in one paste
+    details: Operators drop a single config from the dashboard into their coding agent. Each agent gets its own scoped access you can revoke anytime.
+  - title: Build your own workflows
+    details: Review rounds and feature specs come built in. Need something specific to your team? Author custom capabilities and roll them out without downtime.
+---

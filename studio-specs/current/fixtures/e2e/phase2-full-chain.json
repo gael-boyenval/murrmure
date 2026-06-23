@@ -1,0 +1,12 @@
+{
+  "description": "E2E — CR live apply → FS publish → TR wake → XS spec_summary → CL optional",
+  "journeys": ["c01-J20", "c01-J02", "c02-J14"],
+  "steps": [
+    { "action": "install_and_live_apply", "capability": "feature-spec", "phase": "CR0" },
+    { "action": "register_trigger", "template": "spec-published-wake-dev", "phase": "TR0" },
+    { "action": "publish_spec", "phase": "FS0", "expect": "spec.published" },
+    { "action": "mcp_wake_received", "wake_label": "handle_spec_published", "expect_no": "body_ref" },
+    { "action": "query_ask", "query_type": "spec_summary@1", "phase": "XS0", "expect_no": "body_ref" },
+    { "action": "promote_feature_spec", "to": "1.1.0", "phase": "CR2", "expect": "tools_changed" }
+  ]
+}

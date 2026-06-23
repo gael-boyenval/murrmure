@@ -1,0 +1,30 @@
+{
+  "description": "CL-min — cloud admin creates space via BFF without curl",
+  "mode": "cloud",
+  "steps": [
+    {
+      "action": "login_magic_link",
+      "email": "alex@loopcraft.com",
+      "expect": { "cookie": "studio_session", "redirect": "/configure" }
+    },
+    {
+      "action": "create_space_via_bff",
+      "http": {
+        "method": "POST",
+        "path": "/api/hub/v1/spaces",
+        "body": { "slug": "ui-sandbox-cloud", "name": "UI Sandbox Cloud", "install_policy": "human_only" }
+      },
+      "expect": { "space_id_prefix": "spc_" }
+    },
+    {
+      "action": "mint_grant_via_bff",
+      "expect": { "mcp_snippet_contains": "STUDIO_HUB_URL" }
+    },
+    {
+      "action": "viewer_login_blocked",
+      "role": "viewer",
+      "path": "/configure/spaces/new",
+      "expect": { "status": 403 }
+    }
+  ]
+}

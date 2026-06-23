@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "id": "approval-workflow",
+  "version": "1.0.0",
+  "initial_state": "draft",
+  "terminal_states": ["approved", "rejected"],
+  "metadata_schema": { "type": "object", "additionalProperties": true },
+  "states": [
+    { "id": "draft", "kind": "active" },
+    { "id": "awaiting_approval", "kind": "active" },
+    { "id": "approved", "kind": "terminal" },
+    { "id": "rejected", "kind": "terminal" }
+  ],
+  "transitions": [
+    {
+      "id": "t-submit",
+      "from": "draft",
+      "to": "awaiting_approval",
+      "event": "submit",
+      "actors": ["agent:*"],
+      "condition": null,
+      "checkpoint": {
+        "quorum": "any",
+        "count": 1,
+        "assignees": ["human:*"]
+      },
+      "emit": ["submitted"]
+    },
+    {
+      "id": "t-approve-commit",
+      "from": "awaiting_approval",
+      "to": "approved",
+      "event": "approve",
+      "actors": ["human:*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": ["approved"]
+    },
+    {
+      "id": "t-reject-commit",
+      "from": "awaiting_approval",
+      "to": "rejected",
+      "event": "reject",
+      "actors": ["human:*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": ["rejected"]
+    }
+  ],
+  "events": {
+    "declarations": [
+      { "type": "submitted", "schema": { "type": "object" } },
+      { "type": "approved", "schema": { "type": "object" } },
+      { "type": "rejected", "schema": { "type": "object" } }
+    ]
+  }
+}

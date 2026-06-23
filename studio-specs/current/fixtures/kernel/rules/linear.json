@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "id": "linear-workflow",
+  "version": "1.0.0",
+  "initial_state": "idle",
+  "terminal_states": ["done"],
+  "metadata_schema": {
+    "type": "object",
+    "properties": {
+      "label": { "type": "string" }
+    },
+    "additionalProperties": false
+  },
+  "states": [
+    { "id": "idle", "kind": "active" },
+    { "id": "running", "kind": "active" },
+    { "id": "done", "kind": "terminal" }
+  ],
+  "transitions": [
+    {
+      "id": "t-start",
+      "from": "idle",
+      "to": "running",
+      "event": "start",
+      "actors": ["*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": ["workflow.started"]
+    },
+    {
+      "id": "t-finish",
+      "from": "running",
+      "to": "done",
+      "event": "finish",
+      "actors": ["*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": ["workflow.finished"]
+    }
+  ],
+  "events": {
+    "declarations": [
+      { "type": "workflow.started", "schema": { "type": "object" } },
+      { "type": "workflow.finished", "schema": { "type": "object" } }
+    ]
+  }
+}

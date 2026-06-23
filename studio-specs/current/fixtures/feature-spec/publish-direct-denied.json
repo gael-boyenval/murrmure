@@ -1,0 +1,26 @@
+{
+  "description": "FS-min — publish_direct rejected when skip_review false (default config)",
+  "contract_fixture": "contracts/feature-spec-v1.json",
+  "space_id": "spc_product_specs",
+  "install_config": { "skip_review": false },
+  "steps": [
+    {
+      "actor": "agent",
+      "tool": "open_spec",
+      "input": { "title": "Blocked direct publish" },
+      "expect": { "state": "gathering_context" }
+    },
+    {
+      "actor": "agent",
+      "tool": "transition_spec",
+      "event": "context_ready",
+      "expect": { "state": "draft" }
+    },
+    {
+      "actor": "human",
+      "via": "shell",
+      "action": "publish_direct",
+      "expect": { "error_code": "TRANSITION_GUARD_FAILED", "guard": "skip_review" }
+    }
+  ]
+}

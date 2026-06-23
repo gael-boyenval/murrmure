@@ -1,0 +1,46 @@
+{
+  "description": "Product J01-full — Loopcraft canonical journey steps 1–7",
+  "extends": "j01-review-happy-path.json",
+  "contract_ref_id": "cref_review_loop",
+  "steps_after_min": [
+    {
+      "actor": "agent",
+      "http": "PATCH /api/sessions/{session_key}",
+      "body": { "target": { "url": "https://loopcraft-pr-312-fixed.vercel.app" } }
+    },
+    {
+      "actor": "agent",
+      "command": "state.transition",
+      "body": { "event": "agent_done", "expected_revision": 2 }
+    },
+    {
+      "actor": "agent",
+      "via": "mcp",
+      "action": "reply_to_each_comment"
+    },
+    {
+      "actor": "reviewer",
+      "via": "shell",
+      "action": "finish_review",
+      "expect": { "round_state": "converged" }
+    },
+    {
+      "actor": "agent",
+      "command": "state.transition",
+      "body": { "event": "request_production" },
+      "expect": { "http_semantic": 202, "checkpoint_pending": true }
+    },
+    {
+      "actor": "maya",
+      "via": "shell",
+      "action": "approve_gate",
+      "expect": { "round_state": "production_approved" }
+    },
+    {
+      "actor": "sarah",
+      "query": "audit.export",
+      "params": { "instance_id": "{session_key}" },
+      "expect": { "events_include": ["state.transition", "checkpoint.resolved", "instance.metadata_patched"] }
+    }
+  ]
+}

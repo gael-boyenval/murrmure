@@ -1,0 +1,40 @@
+{
+  "name": "agent-studio",
+  "version": "1.0.0",
+  "description": "Agent Review Studio — local-first human/agent review loop",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter @studio/hub-daemon --filter @studio/shell-web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:acceptance": "vitest run --project @studio/hub-daemon --project @studio/capability-sdk",
+    "check:boundaries": "depcruise packages/runtime-kernel/src packages/runtime-contracts/src packages/runtime-persistence/src packages/runtime-adapter-http/src packages/studio-contracts/src packages/studio-hub-core/src packages/studio-hub-persistence/src packages/studio-hub-daemon/src packages/studio-hub-client/src packages/shell-web/src --config dependency-cruiser.config.cjs",
+    "docs:dev": "pnpm --filter @studio/docs dev",
+    "docs:build": "pnpm --filter @studio/docs build",
+    "docs:preview": "pnpm --filter @studio/docs preview",
+    "studio": "studio",
+    "fixtures:sync": "node scripts/sync-fixture-agent.mjs",
+    "sources:fetch": "node scripts/fetch-sources.mjs",
+    "sources:list": "OPENSRC_HOME=.opensrc pnpm exec opensrc list",
+    "sources:path": "OPENSRC_HOME=.opensrc pnpm exec opensrc path"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gael-boyenval/murrmure.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gael-boyenval/murrmure/issues"
+  },
+  "homepage": "https://github.com/gael-boyenval/murrmure#readme",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "dependency-cruiser": "^16.10.0",
+    "opensrc": "^0.7.2",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
+}

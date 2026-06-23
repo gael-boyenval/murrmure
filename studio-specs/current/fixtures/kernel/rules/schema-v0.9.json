@@ -1,0 +1,35 @@
+{
+  "schema_version": "0.9",
+  "id": "legacy-workflow",
+  "version": "0.9.0",
+  "initial_state": "idle",
+  "terminal_states": ["done"],
+  "metadata_schema": { "type": "object" },
+  "states": [
+    { "id": "idle" },
+    { "id": "running" },
+    { "id": "done" }
+  ],
+  "transitions": [
+    {
+      "id": "t-start",
+      "from": "idle",
+      "to": "running",
+      "event": "start",
+      "actors": ["*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": []
+    },
+    {
+      "id": "t-finish",
+      "from": "running",
+      "to": "done",
+      "event": "finish",
+      "actors": ["*"],
+      "condition": null,
+      "checkpoint": null,
+      "emit": []
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "tools": {
+    "open_spec": {
+      "description": "Open a new spec document in gathering_context.",
+      "http": { "method": "POST", "path": "/specs" },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "target_repo": { "type": "string" }
+        }
+      }
+    },
+    "get_spec": {
+      "description": "Read a spec document by key.",
+      "http": { "method": "GET", "path": "/specs/:spec_key" },
+      "input_schema": {
+        "type": "object",
+        "properties": { "spec_key": { "type": "string" } }
+      }
+    },
+    "patch_spec_section": {
+      "description": "Create or replace a section of the spec body.",
+      "http": { "method": "PATCH", "path": "/specs/:spec_key/sections/:section_id" },
+      "input_schema": {
+        "type": "object",
+        "required": ["spec_key", "section_id", "title", "body", "order"],
+        "properties": {
+          "spec_key": { "type": "string" },
+          "section_id": { "type": "string" },
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "order": { "type": "integer" }
+        }
+      }
+    },
+    "publish_spec": {
+      "description": "Publish the spec, emitting spec.published with a body_ref blob.",
+      "http": { "method": "POST", "path": "/specs/:spec_key/publish" },
+      "input_schema": {
+        "type": "object",
+        "properties": { "spec_key": { "type": "string" }, "event": { "type": "string" } }
+      }
+    },
+    "add_context_ref": {
+      "description": "Attach a context reference (url or blob) to the spec.",
+      "http": { "method": "POST", "path": "/specs/:spec_key/context-refs" },
+      "input_schema": {
+        "type": "object",
+        "required": ["spec_key", "kind", "ref"],
+        "properties": {
+          "spec_key": { "type": "string" },
+          "kind": { "enum": ["url", "blob"] },
+          "ref": { "type": "string" },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "transition_spec": {
+      "description": "Apply a lifecycle transition to the spec FSM.",
+      "http": { "method": "POST", "path": "/specs/:spec_key/transition" },
+      "input_schema": {
+        "type": "object",
+        "required": ["spec_key", "event"],
+        "properties": {
+          "spec_key": { "type": "string" },
+          "event": { "type": "string" },
+          "expected_revision": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

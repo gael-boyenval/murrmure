@@ -1,0 +1,53 @@
+{
+  "description": "Config CS-full — breaking capability promote triggers human gate (J10)",
+  "journey": "company-01/journey-10",
+  "space_id": "spc_ui_sandbox",
+  "steps": [
+    {
+      "action": "install_draft_major",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_sandbox/capabilities/install",
+        "body": {
+          "package_id": "review-loop",
+          "version": "3.0.0",
+          "config": { "production_gate_enabled": true },
+          "target_state": "draft"
+        }
+      },
+      "expect": { "evolution_state": "draft" }
+    },
+    {
+      "action": "validate",
+      "http": { "method": "POST", "path": "/v1/spaces/spc_ui_sandbox/evolution/validate" },
+      "expect": { "lens_a_pass": true, "breaking": true }
+    },
+    {
+      "action": "test",
+      "http": { "method": "POST", "path": "/v1/spaces/spc_ui_sandbox/evolution/test" },
+      "expect": { "passed": true }
+    },
+    {
+      "action": "promote_request",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_sandbox/evolution/promote",
+        "body": { "target_space_id": "spc_ui_production" }
+      },
+      "expect": { "evolution_state": "promoted_pending", "gate_id_prefix": "chk_" }
+    },
+    {
+      "action": "contract_diff_available",
+      "http": {
+        "method": "GET",
+        "path": "/v1/spaces/spc_ui_sandbox/contracts/diff?from=2.0.0&to=3.0.0"
+      },
+      "expect": { "states_added_min": 1 }
+    },
+    {
+      "action": "runtime_gate_list",
+      "http": { "method": "GET", "path": "/v1/spaces/spc_ui_production/gates" },
+      "expect": { "pending_min": 1, "gate_kind": "capability_promote" }
+    }
+  ]
+}

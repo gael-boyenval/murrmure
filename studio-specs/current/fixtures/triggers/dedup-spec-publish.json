@@ -1,0 +1,17 @@
+{
+  "description": "TR-min — duplicate publish same spec_key+version deduped",
+  "extends": "spec-published-wake-dev.json",
+  "steps": [
+    {
+      "action": "publish_spec_retry_same_key_and_version",
+      "note": "Re-emit same spec_key and version within dedup window"
+    },
+    {
+      "action": "delivery_log",
+      "expect": {
+        "outcome_success_count": 1,
+        "last_dedup_reason": "duplicate_business_key"
+      }
+    }
+  ]
+}

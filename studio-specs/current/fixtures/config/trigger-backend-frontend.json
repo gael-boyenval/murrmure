@@ -1,0 +1,92 @@
+{
+  "description": "Config CS-full — backend work.ready wakes frontend agent (c01-J02)",
+  "journey": "company-01/journey-02",
+  "spaces": {
+    "backend": "spc_backend_api",
+    "frontend": "spc_ui_sandbox"
+  },
+  "steps": [
+    {
+      "action": "register_trigger",
+      "space": "spc_ui_sandbox",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_sandbox/triggers",
+        "body": {
+          "name": "backend-ready-wake-frontend",
+          "filter": {
+            "event_types": ["work.ready"],
+            "source_space_id": "spc_backend_api",
+            "payload_match": { "type": "api_change" }
+          },
+          "action": {
+            "type": "mcp_wake",
+            "target_space_id": "spc_ui_sandbox",
+            "wake_label": "handle_work_ready",
+            "payload_map": {
+              "type": "$.payload.type",
+              "summary": "$.payload.summary",
+              "openapi_diff_ref": "$.payload.openapi_diff_ref"
+            }
+          },
+          "dedup": {
+            "key_jsonpaths": ["$.payload.openapi_diff_ref"],
+            "window_seconds": 86400
+          }
+        }
+      },
+      "expect": { "trigger_id_prefix": "trg_", "enabled": true }
+    },
+    {
+      "action": "emit_work_ready",
+      "space": "spc_backend_api",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_backend_api/events",
+        "body": {
+          "type": "work.ready",
+          "payload": {
+            "type": "api_change",
+            "summary": "New /recommendations endpoint",
+            "openapi_diff_ref": "blob:openapi/rec-v1.diff"
+          }
+        }
+      },
+      "expect": { "seq_min": 1 }
+    },
+    {
+      "action": "delivery_log",
+      "space": "spc_ui_sandbox",
+      "http": {
+        "method": "GET",
+        "path": "/v1/spaces/spc_ui_sandbox/triggers/deliveries?limit=10"
+      },
+      "expect": { "deliveries_min": 1, "outcome": "success" }
+    },
+    {
+      "action": "duplicate_emit_deduped",
+      "note": "Same openapi_diff_ref — second delivery dropped",
+      "space": "spc_backend_api",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_backend_api/events",
+        "body": {
+          "type": "work.ready",
+          "payload": {
+            "type": "api_change",
+            "openapi_diff_ref": "blob:openapi/rec-v1.diff"
+          }
+        }
+      }
+    },
+    {
+      "action": "verify_dedup",
+      "space": "spc_ui_sandbox",
+      "http": {
+        "method": "GET",
+        "path": "/v1/spaces/spc_ui_sandbox/triggers/deliveries?limit=10"
+      },
+      "expect": { "last_delivery_dedup_reason": "duplicate_business_key" }
+    }
+  ]
+}

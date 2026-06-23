@@ -1,0 +1,13 @@
+{
+  "_comment": "Minimal v0.9-era journal entry — optional fields absent. Tests K16 fold compatibility: fold(journal) must still produce correct aggregate state when entries lack scope_seq, aggregate_seq, payload_ref, ext, causation, correlation.",
+  "seq": 1,
+  "entry_id": "01J0000000000000000000001",
+  "kind": "command",
+  "outcome": "success",
+  "scope_id": "scp_legacy",
+  "actor_id": "actor_legacy",
+  "credential_id": "cred_legacy",
+  "ts": "2025-01-01T00:00:00.000Z",
+  "type": "aggregate.created",
+  "payload": {}
+}

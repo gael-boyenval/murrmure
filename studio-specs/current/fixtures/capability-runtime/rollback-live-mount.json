@@ -1,0 +1,26 @@
+{
+  "description": "CR — promote v1.1 then rollback to v1.0; removed tools not invokable (c01-J11)",
+  "space": "spc_ui_sandbox",
+  "package_id": "feature-spec",
+  "steps": [
+    {
+      "action": "live_apply",
+      "install_version": "1.1.0",
+      "expect": { "journal": "capability.live_applied", "tools_added": ["add_context_ref", "transition_spec"] }
+    },
+    {
+      "action": "tools_changed",
+      "expect": { "within_ms": 2000 }
+    },
+    {
+      "action": "rollback_live",
+      "to_version": "1.0.0",
+      "expect": { "journal": "capability.unmounted", "tools_removed": ["add_context_ref", "transition_spec"] }
+    },
+    {
+      "action": "invoke_tool",
+      "tool": "add_context_ref",
+      "expect": { "code": "TOOL_NOT_AUTHORIZED" }
+    }
+  ]
+}

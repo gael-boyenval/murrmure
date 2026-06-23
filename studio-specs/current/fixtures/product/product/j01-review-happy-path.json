@@ -1,0 +1,40 @@
+{
+  "description": "Product J01-min — review round 1",
+  "contract_fixture": "../hub/contracts/review-loop-v2.json",
+  "contract_ref_id": "cref_review_loop",
+  "space_id": "spc_ui_sandbox",
+  "steps": [
+    {
+      "actor": "agent",
+      "tool": "create_review_session",
+      "input": {
+        "view": "app",
+        "url": "https://loopcraft-pr-312.vercel.app",
+        "title": "Onboarding flow redesign — PR #312",
+        "assigned_reviewer": "priya@loopcraft.com"
+      },
+      "expect": { "round_state": "awaiting_review", "session_key_prefix": "ins_" }
+    },
+    {
+      "actor": "reviewer",
+      "via": "shell",
+      "action": "add_comments",
+      "comments": [
+        { "body": "Button contrast fails WCAG AA.", "scope": "general" },
+        { "body": "Step 2 copy too generic.", "scope": "general" },
+        { "body": "Illustration off-center on mobile.", "scope": "general" }
+      ]
+    },
+    {
+      "actor": "reviewer",
+      "via": "shell",
+      "action": "finish_review",
+      "expect": { "round_state": "awaiting_agent", "comment_count": 3 }
+    },
+    {
+      "actor": "agent",
+      "tool": "wait_for_review",
+      "expect": { "round_state": "awaiting_agent", "comments_min": 3 }
+    }
+  ]
+}

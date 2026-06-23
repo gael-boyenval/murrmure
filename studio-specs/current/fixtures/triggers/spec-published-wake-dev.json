@@ -1,0 +1,38 @@
+{
+  "description": "TR-min — spec.published wakes dev agent (summary fields only; no body_ref)",
+  "spaces": {
+    "specs": "spc_product_specs",
+    "dev": "spc_dev_code"
+  },
+  "setup": {
+    "trigger_template": "spec-published-wake-dev",
+    "source_space": "spc_product_specs",
+    "target_space": "spc_dev_code",
+    "wake_label": "handle_spec_published"
+  },
+  "steps": [
+    {
+      "action": "register_from_template",
+      "expect": { "trigger_id_prefix": "trg_" }
+    },
+    {
+      "action": "publish_spec",
+      "via": "feature-spec fixture happy-path",
+      "expect": { "event_type": "spec.published" }
+    },
+    {
+      "action": "mcp_wake_received",
+      "target_space": "spc_dev_code",
+      "expect": {
+        "wake_label": "handle_spec_published",
+        "payload.spec_key_prefix": "ins_",
+        "payload.version_min": 1,
+        "payload.body_ref": null
+      }
+    },
+    {
+      "action": "delivery_log",
+      "expect": { "outcome": "success", "count": 1 }
+    }
+  ]
+}

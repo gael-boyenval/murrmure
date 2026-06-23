@@ -1,0 +1,28 @@
+{
+  "name": "@studio/capability-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "studio-capability": "./bin/studio-capability",
+    "studio": "./bin/studio-capability"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./host": "./src/host.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  },
+  "dependencies": {
+    "@studio/skill": "workspace:*",
+    "esbuild": "^0.25.0",
+    "zod": "^3.23.8"
+  }
+}

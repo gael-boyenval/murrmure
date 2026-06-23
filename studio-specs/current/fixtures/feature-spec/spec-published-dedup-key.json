@@ -1,0 +1,24 @@
+{
+  "description": "FS — spec.published dedup key is (spec_key, version); see FS-ADR-04 amendment B",
+  "contract_fixture": "contracts/feature-spec-v1.json",
+  "events": [
+    {
+      "type": "spec.published",
+      "payload": { "spec_key": "ins_abc", "version": 1, "title": "Smart Sprint PRD" }
+    },
+    {
+      "type": "spec.published",
+      "payload": { "spec_key": "ins_abc", "version": 1, "title": "Smart Sprint PRD" },
+      "expect_dedup_with_prior": true
+    },
+    {
+      "type": "spec.published",
+      "payload": { "spec_key": "ins_abc", "version": 2, "title": "Smart Sprint PRD v2" },
+      "expect_dedup_with_prior": false
+    }
+  ],
+  "dedup": {
+    "key_fields": ["$.payload.spec_key", "$.payload.version"],
+    "window_seconds": 86400
+  }
+}

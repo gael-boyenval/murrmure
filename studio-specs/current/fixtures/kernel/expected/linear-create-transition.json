@@ -1,0 +1,66 @@
+{
+  "_comment": "Machine-readable golden: linear happy path (create + one transition). Used by kernel/test/conformance/. Companion prose: linear-happy-path.md.",
+  "rule": "fixtures/rules/linear.json",
+  "commands": [
+    {
+      "step": 1,
+      "command_kind": "aggregate.create",
+      "provenance": {
+        "scope_id": "scp_test",
+        "actor_id": "actor_001",
+        "credential_id": "cred_001"
+      },
+      "input": {
+        "metadata": { "label": "test" }
+      }
+    },
+    {
+      "step": 2,
+      "command_kind": "state.transition",
+      "provenance": {
+        "scope_id": "scp_test",
+        "actor_id": "actor_001",
+        "credential_id": "cred_001"
+      },
+      "input": {
+        "event": "start",
+        "expected_revision": 0
+      }
+    }
+  ],
+  "expected_journal": [
+    {
+      "seq_offset": 0,
+      "type": "aggregate.created",
+      "outcome": "success",
+      "kind": "command"
+    },
+    {
+      "seq_offset": 1,
+      "type": "transition.applied",
+      "outcome": "success",
+      "kind": "command",
+      "payload_contains": {
+        "from": "idle",
+        "to": "running",
+        "event": "start"
+      }
+    }
+  ],
+  "expected_aggregate": {
+    "state": "running",
+    "revision": 1,
+    "status": "active"
+  },
+  "illegal_transition_test": {
+    "_comment": "From idle, event 'finish' must produce transition.denied (409)",
+    "command_kind": "state.transition",
+    "input": { "event": "finish", "expected_revision": 0 },
+    "expected_outcome": "denial",
+    "expected_http_semantic": 409,
+    "expected_code": "transition_denied",
+    "expected_journal_type": "transition.denied",
+    "expected_denial_context_includes": { "event": "start", "to": "running" },
+    "aggregate_unchanged": true
+  }
+}

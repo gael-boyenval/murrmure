@@ -1,0 +1,7 @@
+{
+  "hub_id": "hub_local",
+  "endpoint": "http://127.0.0.1:8787",
+  "pid": 12345,
+  "started_at": "2026-06-20T10:00:00Z",
+  "capabilities": ["platform"]
+}

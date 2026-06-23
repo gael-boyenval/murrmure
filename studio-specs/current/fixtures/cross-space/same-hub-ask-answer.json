@@ -1,0 +1,31 @@
+{
+  "description": "XS-min — spec space asks backend for OpenAPI diff ref",
+  "source_space": "spc_product_specs",
+  "target_space": "spc_backend_api",
+  "steps": [
+    {
+      "action": "query_ask",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_product_specs/queries/ask",
+        "body": {
+          "target_space_id": "spc_backend_api",
+          "query_type": "openapi_diff_ref@1",
+          "params": { "endpoint": "/recommendations" },
+          "response_schema": {
+            "type": "object",
+            "required": ["ref"],
+            "properties": { "ref": { "type": "string" } },
+            "additionalProperties": false
+          },
+          "timeout_ms": 5000
+        }
+      },
+      "expect": {
+        "status": "ok",
+        "data.ref_prefix": "blob:",
+        "_attribution.source_space_id": "spc_backend_api"
+      }
+    }
+  ]
+}

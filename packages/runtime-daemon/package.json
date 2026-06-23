@@ -1,0 +1,28 @@
+{
+  "name": "@runtime/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "runtime-daemon": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node --import tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "@runtime/adapter-http": "workspace:*",
+    "@runtime/contracts": "workspace:*",
+    "@runtime/kernel": "workspace:*",
+    "@runtime/persistence": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}

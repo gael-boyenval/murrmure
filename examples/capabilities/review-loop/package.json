@@ -1,0 +1,25 @@
+{
+  "name": "review-loop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate:capability": "studio capability validate .",
+    "build:capability": "studio capability build .",
+    "dev:capability": "studio capability dev . --sim",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@studio/capability-dev-kit": "0.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@studio/capability-sdk": "0.1.0",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.0",
+    "typescript": "5.6.3",
+    "vitest": "3.2.4"
+  }
+}

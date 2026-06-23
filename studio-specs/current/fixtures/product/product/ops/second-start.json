@@ -1,0 +1,5 @@
+{
+  "description": "Second daemon start denied",
+  "first_start": { "expect": "ok" },
+  "second_start": { "expect_status": 409, "code": "hub_already_running" }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "XS — query denied by inbound allowlist (c02-J14 negative path)",
+  "spaces": {
+    "source": "spc_client_c_code",
+    "target": "spc_client_c_knowledge"
+  },
+  "steps": [
+    {
+      "action": "query_ask",
+      "query_type": "context_fetch@1",
+      "params": { "topic": "billing rate", "max_sections": 1 },
+      "expect": {
+        "status": "failed",
+        "reason": "QUERY_POLICY_DENIED"
+      }
+    }
+  ]
+}

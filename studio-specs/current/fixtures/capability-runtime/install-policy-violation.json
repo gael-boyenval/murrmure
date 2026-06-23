@@ -1,0 +1,29 @@
+{
+  "description": "CR-min — agent apply on human_only prod space rejected (c01-J16)",
+  "space_id": "spc_ui_production",
+  "space_install_policy": "human_only",
+  "steps": [
+    {
+      "actor": "agent",
+      "token_scopes": ["capability:install"],
+      "action": "post_apply",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_production/capabilities/{install_id}/apply"
+      },
+      "expect": {
+        "status": 403,
+        "code": "INSTALL_POLICY_VIOLATION"
+      }
+    },
+    {
+      "actor": "human",
+      "action": "post_apply",
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_production/capabilities/{install_id}/apply"
+      },
+      "expect": { "status": 200, "evolution_state": "live" }
+    }
+  ]
+}

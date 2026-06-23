@@ -1,0 +1,8 @@
+node_modules/
+.opensrc/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Generated Cursor agent config for the demo fixture test workspace
+fixtures/demo/.cursor/

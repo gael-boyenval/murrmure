@@ -1,0 +1,216 @@
+#!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+  buildCapabilityRoot,
+  devCapabilityLoop,
+  doctor,
+  evolutionCommand,
+  initCapability,
+  listExamples,
+  pushCapability,
+  readPushState,
+  validateCapabilityRoot,
+} from "../src/index.js";
+import { hubFetch, resolveHubAuth } from "../src/auth.js";
+
+function parseArgs(argv: string[]) {
+  const args = [...argv];
+  const flags: Record<string, string | boolean> = { json: false };
+  const positional: string[] = [];
+  while (args.length) {
+    const a = args.shift()!;
+    if (a === "--json") flags.json = true;
+    else if (a.startsWith("--") && a.includes("=")) {
+      const [k, v] = a.slice(2).split("=", 2);
+      flags[k!] = v!;
+    } else if (a.startsWith("--")) {
+      const key = a.slice(2);
+      const next = args[0];
+      if (next && !next.startsWith("--")) flags[key] = args.shift()!;
+      else flags[key] = true;
+    } else {
+      positional.push(a);
+    }
+  }
+  return { flags, positional };
+}
+
+function out(data: unknown, json: boolean) {
+  const text = JSON.stringify(data, null, json ? 2 : 0);
+  console.log(text);
+  if (typeof data === "object" && data && "ok" in data && !(data as { ok: boolean }).ok) process.exit(1);
+}
+
+async function main() {
+  const [, , scope, command, ...rest] = process.argv;
+  if (scope === "skill") {
+    const { runSkillCli } = await import("@studio/skill/cli");
+    await runSkillCli([command, ...rest].filter((a): a is string => Boolean(a)));
+    return;
+  }
+  if (scope !== "capability") {
+    console.error("usage: studio capability <command> [path] [--flags]");
+    console.error("       studio skill <install|update|version> [--dir path]");
+    process.exit(1);
+  }
+
+  const { flags, positional } = parseArgs(rest);
+  const json = Boolean(flags.json);
+  const pathArg = positional[0] ? resolve(positional[0]) : resolve(".");
+
+  switch (command) {
+    case "init": {
+      const id = positional[0];
+      if (!id) {
+        out(
+          {
+            ok: false,
+            code: "MISSING_ARG",
+            message: "usage: studio capability init <id> [--dir path] [--from-example <name>]",
+            examples: listExamples(),
+          },
+          json,
+        );
+        break;
+      }
+      const dir = resolve(String(flags.dir ?? `./workflows/${id}`));
+      const fromExample =
+        typeof flags["from-example"] === "string" ? String(flags["from-example"]) : undefined;
+      const withSkill = Boolean(flags["with-skill"]);
+      try {
+        out(
+          initCapability(id, dir, {
+            install: Boolean(flags.install),
+            packageManager: "npm",
+            fromExample,
+            withSkill,
+          }),
+          json,
+        );
+      } catch (error) {
+        out(
+          {
+            ok: false,
+            code: "INIT_FAILED",
+            message: error instanceof Error ? error.message : String(error),
+            examples: listExamples(),
+          },
+          json,
+        );
+      }
+      break;
+    }
+    case "validate": {
+      if (flags.space && flags.install) {
+        out(await evolutionCommand("validate", { spaceId: String(flags.space), installId: String(flags.install) }), json);
+        break;
+      }
+      const result = validateCapabilityRoot(pathArg);
+      out({ ok: result.ok, errors: result.errors, warnings: result.warnings, manifest: result.manifest }, json);
+      break;
+    }
+    case "build": {
+      out(await buildCapabilityRoot(pathArg), json);
+      break;
+    }
+    case "push": {
+      if (!flags.space) {
+        out({ ok: false, code: "MISSING_FLAG", message: "--space required" }, json);
+        break;
+      }
+      out(await pushCapability({ spaceId: String(flags.space), path: pathArg }), json);
+      break;
+    }
+    case "status": {
+      const manifest = JSON.parse(readFileSync(resolve(pathArg, "capability.manifest.json"), "utf-8")) as {
+        id: string;
+        version: string;
+      };
+      const state = readPushState(manifest.id, manifest.version);
+      out({ ok: Boolean(state), push_state: state }, json);
+      break;
+    }
+    case "list": {
+      const auth = resolveHubAuth();
+      if ("error" in auth) {
+        out({ ok: false, code: "AUTH_MISSING", message: auth.error }, json);
+        break;
+      }
+      if (!flags.space) {
+        out({ ok: false, code: "MISSING_FLAG", message: "--space required" }, json);
+        break;
+      }
+      const res = await hubFetch(auth, `/v1/spaces/${flags.space}/capabilities`);
+      out({ ok: res.ok, ...(await res.json()) }, json);
+      break;
+    }
+    case "doctor": {
+      out(await doctor(), json);
+      break;
+    }
+    case "test":
+    case "promote":
+    case "apply":
+    case "rollback": {
+      if (!flags.space || !flags.install) {
+        out({ ok: false, code: "MISSING_FLAG", message: "--space and --install required" }, json);
+        break;
+      }
+      out(
+        await evolutionCommand(command, { spaceId: String(flags.space), installId: String(flags.install) }),
+        json,
+      );
+      break;
+    }
+    case "dev": {
+      const simMode = Boolean(flags.sim);
+      if (!simMode && !flags.space) {
+        out({ ok: false, code: "MISSING_FLAG", message: "--space required" }, json);
+        break;
+      }
+      const port =
+        typeof flags.port === "string" && Number.isFinite(Number(flags.port))
+          ? Number(flags.port)
+          : undefined;
+      const loop = await devCapabilityLoop({
+        spaceId: typeof flags.space === "string" ? String(flags.space) : undefined,
+        path: pathArg,
+        autoApply: Boolean(flags["auto-apply"]),
+        sim: simMode,
+        simPort: port,
+        simFixture: typeof flags.fixture === "string" ? flags.fixture : undefined,
+      });
+      process.on("SIGINT", () => {
+        loop.stop();
+        process.exit(0);
+      });
+      break;
+    }
+    default:
+      out(
+        {
+          error: "unknown command",
+          commands: [
+            "init",
+            "validate",
+            "build",
+            "push",
+            "status",
+            "list",
+            "doctor",
+            "test",
+            "promote",
+            "apply",
+            "rollback",
+            "dev",
+          ],
+          skill_commands: ["install", "update", "version"],
+        },
+        json,
+      );
+      process.exit(1);
+  }
+}
+
+void main();

@@ -1,0 +1,39 @@
+{
+  "description": "Config CS-full — agent install blocked on human_only production space (J16)",
+  "journey": "company-01/journey-16",
+  "space_id": "spc_ui_production",
+  "install_policy": "human_only",
+  "steps": [
+    {
+      "action": "agent_install_attempt",
+      "actor": "builder_agent",
+      "scopes": ["capability:install"],
+      "http": {
+        "method": "POST",
+        "path": "/v1/spaces/spc_ui_production/capabilities/install",
+        "body": {
+          "package_id": "brand-check",
+          "version": "1.0.0",
+          "target_state": "live"
+        }
+      },
+      "expect": {
+        "status": 403,
+        "body.code": "INSTALL_POLICY_VIOLATION",
+        "body.message_contains": "human_only",
+        "body.hint.install_policy": "human_only"
+      }
+    },
+    {
+      "action": "audit_denial_logged",
+      "http": {
+        "method": "GET",
+        "path": "/v1/spaces/spc_ui_production/events?limit=5"
+      },
+      "expect": {
+        "recent_type": "scope_enforcement_failure",
+        "actor_kind": "agent"
+      }
+    }
+  ]
+}

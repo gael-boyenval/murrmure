@@ -1,0 +1,20 @@
+{
+  "name": "create-aggregate",
+  "description": "POST /v1/scopes/:scope_id/aggregates creates a new aggregate on the linear rule.",
+  "request": {
+    "path": "/v1/scopes/scp_demo/aggregates",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer t",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "rule_ref": { "rule_ref_id": "linear", "digest": "sha256:placeholder", "version": "1.0.0" }
+    }
+  },
+  "expected": {
+    "status": 200,
+    "outcome": "success",
+    "code": "aggregate_created"
+  }
+}

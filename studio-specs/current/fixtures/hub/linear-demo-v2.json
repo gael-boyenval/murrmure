@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "linear-demo",
+  "version": "1.0.0",
+  "initial_state": "draft",
+  "terminal_states": ["done"],
+  "metadata_schema": { "type": "object", "properties": { "title": { "type": "string" } } },
+  "states": [
+    { "id": "draft", "kind": "active" },
+    { "id": "review", "kind": "active" },
+    { "id": "done", "kind": "terminal" }
+  ],
+  "transitions": [
+    {
+      "id": "submit",
+      "from": "draft",
+      "to": "review",
+      "event": "submit",
+      "actors": ["agent:*", "human:*"],
+      "gate": { "mode": "any", "assignees": ["human:*"] },
+      "emit": ["submitted"]
+    },
+    {
+      "id": "complete",
+      "from": "review",
+      "to": "done",
+      "event": "approve",
+      "actors": ["human:*"],
+      "gate": null,
+      "emit": ["completed"]
+    }
+  ],
+  "events": {
+    "declarations": [
+      { "type": "submitted", "schema": { "type": "object" } },
+      { "type": "completed", "schema": { "type": "object" } }
+    ]
+  }
+}

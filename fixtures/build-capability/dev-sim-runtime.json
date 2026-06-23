@@ -1,0 +1,12 @@
+{
+  "scenario": "dev-sim-runtime",
+  "steps": [
+    "studio capability init demo-sim --dir /tmp/demo-sim",
+    "studio capability dev /tmp/demo-sim --sim --port 4310"
+  ],
+  "manual_assertions": [
+    "Open http://127.0.0.1:4310 and confirm the capability iframe renders",
+    "Verify /sim/install and /sim/install/transition endpoints respond",
+    "Confirm reload event is emitted after editing ui/src/App.tsx"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "description": "Hub J01 via HTTP",
+  "base_url": "http://127.0.0.1:8787",
+  "bootstrap_token_env": "STUDIO_BOOTSTRAP_TOKEN",
+  "variable_bindings": {
+    "space_id": "$.steps[0].response.space_id",
+    "instance_id": "$.steps[1].response.instance_id",
+    "gate_id": "$.steps[3].response.gates[0].gate_id"
+  },
+  "steps": [
+    {
+      "method": "POST",
+      "path": "/v1/spaces",
+      "headers": { "Authorization": "Bearer ${bootstrap_token}", "Idempotency-Key": "hp-1" },
+      "body": { "slug": "review-alpha", "actor_id": "actor_dev" },
+      "expect_status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/spaces/{space_id}/instances",
+      "headers": { "Authorization": "Bearer ${token}", "Idempotency-Key": "hp-2" },
+      "body": { "contract_ref_id": "cref_linear_demo", "metadata": { "title": "Feature X" }, "actor_id": "actor_dev" },
+      "expect_status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/v1/spaces/{space_id}/instances/{instance_id}/transitions",
+      "body": { "event": "submit", "expected_revision": 0, "actor_id": "actor_dev" },
+      "expect_status": 202
+    },
+    {
+      "method": "GET",
+      "path": "/v1/spaces/{space_id}/gates",
+      "expect": { "pending_min": 1 }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/spaces/{space_id}/gates/{gate_id}/resolve",
+      "body": { "decision": "approved", "instance_id": "{instance_id}", "actor_id": "actor_maya" },
+      "expect_status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/v1/spaces/{space_id}/events?from_seq=0",
+      "expect": { "events_min": 1 }
+    }
+  ]
+}

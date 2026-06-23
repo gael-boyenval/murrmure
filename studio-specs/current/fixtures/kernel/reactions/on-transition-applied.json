@@ -1,0 +1,20 @@
+{
+  "reaction_id": "rec_on_transition",
+  "scope_id": "scp_test",
+  "registered_at_seq": 0,
+  "filter": {
+    "entry_types": ["transition.applied"]
+  },
+  "action": {
+    "type": "record",
+    "config": { "label": "wake-agent" }
+  },
+  "dedup": {
+    "required": true,
+    "key_extractor": "json_path",
+    "key_path": "$.payload.event",
+    "window_seconds": 86400
+  },
+  "partition": { "key": "scope" },
+  "enabled": true
+}

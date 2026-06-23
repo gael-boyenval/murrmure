@@ -1,0 +1,6 @@
+{
+  "description": "SSE fires after gate resolve",
+  "subscribe": "GET /v1/spaces/{space_id}/events/subscribe",
+  "trigger": "POST /v1/spaces/{space_id}/gates/{gate_id}/resolve",
+  "expect_events": ["gate.resolved", "journal.append"]
+}

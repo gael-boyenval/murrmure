@@ -1,0 +1,56 @@
+# Studio — technical specification index (current)
+
+Entry point: [../README.md](../README.md). This index lists the **normative**
+specs. Deferred scope is in [../plans/README.md](../plans/README.md); historical
+docs are in [../archives/README.md](../archives/README.md). On conflict,
+`current/` wins.
+
+## Doc precedence (within current/)
+
+`*/spec.md` (normative behavior) → `bridges/` (wire map) → `fixtures/` (golden examples).
+
+## Platform foundations
+
+| Domain | Spec | Bridge | Fixtures |
+|--------|------|--------|----------|
+| Kernel | [kernel/spec.md](./kernel/spec.md) | [kernel/packages.md](./kernel/packages.md) | [fixtures/kernel/](./fixtures/kernel/) |
+| Hub core | [hub/architecture.md](./hub/architecture.md) | [hub/contracts.md](./hub/contracts.md) | [fixtures/hub/](./fixtures/hub/) |
+| Product + review chrome | [product/spec.md](./product/spec.md) | [bridges/product.md](./bridges/product.md) | [fixtures/product/](./fixtures/product/) |
+| Config shell | [config/spec.md](./config/spec.md) | [bridges/config.md](./bridges/config.md) | [fixtures/config/](./fixtures/config/) |
+
+## Capability platform
+
+| Domain | Spec | Bridge | Fixtures |
+|--------|------|--------|----------|
+| Capability runtime | [capability-runtime/spec.md](./capability-runtime/spec.md) | [bridges/capability-runtime.md](./bridges/capability-runtime.md) | [fixtures/capability-runtime/](./fixtures/capability-runtime/) |
+| Triggers | [triggers/spec.md](./triggers/spec.md) | [bridges/triggers.md](./bridges/triggers.md) | [fixtures/triggers/](./fixtures/triggers/) |
+| Cross-space (XS0) | [cross-space/spec.md](./cross-space/spec.md) | [bridges/cross-space.md](./bridges/cross-space.md) | [fixtures/cross-space/](./fixtures/cross-space/) |
+| Feature-spec (reference capability) | [capabilities/feature-spec.md](./capabilities/feature-spec.md) | [bridges/feature-spec.md](./bridges/feature-spec.md) | [fixtures/feature-spec/](./fixtures/feature-spec/) |
+
+## Capability Developer Kit (CDK)
+
+How users author, build, push, and run their own capabilities — see
+[build-capability/README.md](./build-capability/README.md). Key normative docs:
+
+- [build-capability/cdk.md](./build-capability/cdk.md) — kit definition
+- [build-capability/02-sdk.md](./build-capability/02-sdk.md) — `@studio/capability-sdk` CLI
+- [build-capability/05-manifest-and-bundle-schema.md](./build-capability/05-manifest-and-bundle-schema.md) — manifest + bundle + digest
+- [build-capability/09-security-execution-boundaries.md](./build-capability/09-security-execution-boundaries.md) — isolation model
+- [build-capability/12-worker-runtime-and-host-bridge.md](./build-capability/12-worker-runtime-and-host-bridge.md) — worker runtime, router, host-bridge debundle contract
+- [build-capability/15-agent-skill-package.md](./build-capability/15-agent-skill-package.md) — `@studio/skill` Cursor agent skill
+- [build-capability/acceptance.md](./build-capability/acceptance.md) — CDK definition of done
+
+Runnable reference capabilities live in the repo at
+[`examples/capabilities/`](../../examples/capabilities/), not in `packages/`.
+
+## Doc types
+
+- `*/spec.md` — scope, invariants, state machines, HTTP↔hub command mapping, MCP shapes, denial codes, acceptance.
+- `bridges/*.md` — implementer wire map: HTTP→command tables, MCP JSON-RPC examples, daemon interfaces, package/file paths.
+- `fixtures/**/*.json` — golden HTTP/MCP sequences with expected journal/denial shapes, used as integration test inputs.
+
+## Acceptance
+
+Merged definition of done: [acceptance.md](./acceptance.md) and
+[build-capability/acceptance.md](./build-capability/acceptance.md). Every in-scope
+row must have a vitest covering it.

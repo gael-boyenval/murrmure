@@ -1,0 +1,18 @@
+# Reference repos from agent-review-studio/opensrc.md
+projects:
+  - name: crit
+    github_id: tomasz-tomczyk/crit
+  - name: open-design
+    github_id: nexu-io/open-design
+  - name: GStack
+    github_id: garrytan/gstack
+  - name: impeccable
+    github_id: pbakaus/impeccable
+  - name: superpowers
+    github_id: obra/superpowers
+  - name: agentpatterns-ai/website
+    github_id: agentpatterns-ai/website
+  - name: pi
+    github_id: earendil-works/pi
+  - name: modelcontextprotocol/typescript-sdk
+    github_id: modelcontextprotocol/typescript-sdk
