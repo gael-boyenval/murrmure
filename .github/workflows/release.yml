@@ -6,9 +6,11 @@ on:
       - "v*"
   workflow_dispatch:
 
-# Publish requires an npm automation token for the @murrmure scope.
-# Add it as a repository secret named NPM_TOKEN in GitHub:
-# Settings → Secrets and variables → Actions → New repository secret
+# Publishes via npm Trusted Publisher (OIDC) — no NPM_TOKEN secret.
+# Configure on npmjs.com for each package (@murrmure/cli, @murrmure/flow-dev-kit):
+#   Publisher: GitHub Actions
+#   Repository: gael-boyenval/murrmure
+#   Workflow filename: release.yml
 
 jobs:
   release:
@@ -29,10 +31,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
-          always-auth: true
           cache: pnpm
+
+      - name: Upgrade npm (OIDC trusted publishing requires npm ≥ 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -45,5 +49,3 @@ jobs:
 
       - name: Publish packages
         run: pnpm release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

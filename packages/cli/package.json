@@ -41,5 +41,9 @@
     "url": "https://github.com/gael-boyenval/murrmure/issues"
   },
   "homepage": "https://github.com/gael-boyenval/murrmure#readme",
-  "license": "ISC"
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }
