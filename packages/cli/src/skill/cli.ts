@@ -61,7 +61,7 @@ export async function runMurrmureSkillCli(argv: string[]): Promise<void> {
         {
           ok: false,
           code: "UNKNOWN_COMMAND",
-          message: "usage: mrmr skill <install|update|version> [--dir path] [--json]",
+          message: "Unknown command. Run `mrmr skill --help`.",
           version: readSkillVersion(),
         },
         json,

@@ -160,28 +160,4 @@ export function readPushState(flowId: string, version: string): PushState | null
   }
 }
 
-export async function doctor(): Promise<Record<string, unknown>> {
-  const auth = resolveHubAuth();
-  if ("error" in auth) {
-    return { ok: false, issues: [{ code: "AUTH_MISSING", message: auth.error }] };
-  }
-  const issues: Array<{ code: string; message: string }> = [];
-  try {
-    const health = await fetch(`${auth.hubUrl}/v1/health`);
-    if (!health.ok) issues.push({ code: "HUB_UNREACHABLE", message: `Hub health ${health.status}` });
-  } catch (e) {
-    issues.push({ code: "HUB_UNREACHABLE", message: String(e) });
-  }
-  try {
-    const whoami = await hubFetch(auth, "/v1/auth/whoami");
-    if (!whoami.ok) issues.push({ code: "TOKEN_DENIED", message: "Token rejected" });
-    else {
-      const body = (await whoami.json()) as { spaces?: Array<{ scopes?: string[] }> };
-      const hasInstall = body.spaces?.some((s) => s.scopes?.includes("flow:install"));
-      if (!hasInstall) issues.push({ code: "SCOPE_MISSING", message: "Missing flow:install scope" });
-    }
-  } catch (e) {
-    issues.push({ code: "AUTH_CHECK_FAILED", message: String(e) });
-  }
-  return { ok: issues.length === 0, issues };
-}
+export { runDoctor as doctor } from "./lib/doctor.js";

@@ -17,8 +17,11 @@ Binaries: `murrmure`, `mrmr` (same entry).
 
 | Source | Variables / fields |
 |--------|-------------------|
-| Environment | `MURRMURE_HUB_URL`, `MURRMURE_TOKEN` or `MURRMURE_DEPLOY_TOKEN`, optional `MURRMURE_SPACE_ID` |
-| File | `~/.murrmure/hubs/shared.json` → `url`, `token`, `defaultSpaceId` |
+| CLI flags | `--hub-url`, `--token`, `--space` |
+| Environment | `MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN` / `MURRMURE_TOKEN` / `MURRMURE_DEPLOY_TOKEN`, optional `MURRMURE_SPACE_ID` |
+| File | `~/.murrmure/credentials` (preferred) or `~/.murrmure/hubs/shared.json` |
+
+**Default output:** human-readable text on stdout. Add `--json` for machine-readable output (preserves legacy JSON shapes for CI and scripts).
 
 ## Commands
 
@@ -80,7 +83,7 @@ List flow installs in a space.
 
 ### `mrmr flow doctor [--json]`
 
-Hub health, token validity, `flow:install` scope check.
+**Deprecated** — prefer `mrmr doctor`. Prints a one-line stderr hint, then runs the same hub health / token / scope smoke checks.
 
 ### `mrmr flow test|promote|apply|rollback --space … --install … [--json]`
 

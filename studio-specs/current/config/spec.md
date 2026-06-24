@@ -2,6 +2,8 @@
 
 Normative spec for **Configuration UI** and **config HTTP routes**. Runtime shell (gates, events, audit) is in [product/spec.md](../product/spec.md).
 
+> **CLI parity:** Configure shell actions are also available via `mrmr space`, `mrmr hub`, and `mrmr flow` — see [cli/spec.md](../cli/spec.md).
+
 ## Scope
 
 ### In
@@ -68,10 +70,10 @@ Normative spec for **Configuration UI** and **config HTTP routes**. Runtime shel
 | `/configure` | Dashboard | `space:enter` |
 | `/configure/spaces/new` | Create space | bootstrap or `space:admin` |
 | `/configure/spaces/:spaceId` | Space settings | `space:admin` |
-| `/configure/spaces/:spaceId/capabilities` | Installed capabilities | `space:read` |
-| `/configure/spaces/:spaceId/capabilities/new` | New capability — CDK onboarding (BC2a) | `capability:install` |
-| `/configure/spaces/:spaceId/capabilities/install` | Push / link staged bundle (not catalog picker) | `capability:install` |
-| `/configure/spaces/:spaceId/capabilities/:installId` | Detail + evolution | `capability:install` / gate |
+| `/configure/spaces/:spaceId/flows` | Installed flows | `space:read` |
+| `/configure/spaces/:spaceId/flows/new` | New flow — CDK onboarding (BC2a) | `flow:install` |
+| `/configure/spaces/:spaceId/flows/install` | Push / link staged bundle (not catalog picker) | `flow:install` |
+| `/configure/spaces/:spaceId/flows/:installId` | Detail + evolution | `flow:install` / gate |
 | `/configure/spaces/:spaceId/triggers` | Trigger list | `space:read` |
 | `/configure/spaces/:spaceId/triggers/new` | Register trigger | `trigger:register` |
 | `/configure/spaces/:spaceId/members` | Human members | `space:admin` |
@@ -89,14 +91,14 @@ Auth: reuse product `requireToken`. Bootstrap for first `POST /v1/spaces`.
 | GET | `/v1/spaces` | `space.list` | `space:enter` |
 | PATCH | `/v1/spaces/{id}` | `space.update` | `space:admin` |
 | POST | `/v1/spaces/{id}/archive` | `space.archive` | `space:admin` |
-| GET | `/v1/spaces/{id}/capabilities` | `capability.list` | `space:read` |
-| POST | `/v1/spaces/{id}/capabilities/install` | `evolution.draft.upsert` | `capability:install` |
-| GET | `/v1/spaces/{id}/capabilities/{install_id}` | `capability.get` | `space:read` |
-| PATCH | `/v1/spaces/{id}/capabilities/{install_id}/config` | `capability.configure` | `capability:configure` |
-| POST | `/v1/spaces/{id}/evolution/validate` | `evolution.validate` | `capability:install` |
-| POST | `/v1/spaces/{id}/evolution/test` | `evolution.test.run` | `capability:install` |
-| POST | `/v1/spaces/{id}/evolution/promote` | `evolution.promote.request` | `capability:install` |
-| POST | `/v1/spaces/{id}/evolution/rollback` | `evolution.rollback` | `capability:install` / gate |
+| GET | `/v1/spaces/{id}/flows` | `flow.list` | `space:read` |
+| POST | `/v1/spaces/{id}/flows/install` | `evolution.draft.upsert` | `flow:install` |
+| GET | `/v1/spaces/{id}/flows/{install_id}` | `flow.get` | `space:read` |
+| PATCH | `/v1/spaces/{id}/flows/{install_id}/config` | `flow.configure` | `flow:configure` |
+| POST | `/v1/spaces/{id}/evolution/validate` | `evolution.validate` | `flow:install` |
+| POST | `/v1/spaces/{id}/evolution/test` | `evolution.test.run` | `flow:install` |
+| POST | `/v1/spaces/{id}/evolution/promote` | `evolution.promote.request` | `flow:install` |
+| POST | `/v1/spaces/{id}/evolution/rollback` | `evolution.rollback` | `flow:install` / gate |
 | GET | `/v1/spaces/{id}/contracts/diff` | `contract.diff.get` | `space:read` |
 | GET | `/v1/spaces/{id}/members` | `member.list` | `space:admin` |
 | POST | `/v1/spaces/{id}/members` | `member.invite` | `space:admin` |
@@ -111,7 +113,7 @@ Auth: reuse product `requireToken`. Bootstrap for first `POST /v1/spaces`.
 | POST | `/v1/spaces/{id}/triggers/{trigger_id}/disable` | `trigger.disable` | `trigger:register` |
 | GET | `/v1/spaces/{id}/triggers/deliveries` | `trigger.delivery.log` | `space:read` |
 | POST | `/v1/spaces/{id}/triggers/{trigger_id}/replay` | `trigger.replay` | `space:admin` |
-| GET | `/v1/ops/grants/export` | `grants.export` | hub operator |
+| GET | `/v1/ops/grants/export` | `grants.export` | `space:admin` |
 | GET | `/v1/ops/federation/status` | `federation.status` | `space:admin` |
 
 Product P0/P1 routes unchanged — see [product/spec.md](../product/spec.md).
@@ -130,7 +132,7 @@ Product P0/P1 routes unchanged — see [product/spec.md](../product/spec.md).
 }
 ```
 
-### POST `/v1/spaces/{id}/capabilities/install` (v2)
+### POST `/v1/spaces/{id}/flows/install` (v2)
 
 Normative wire: [build-capability/06-install-push-apply-http-contract.md](../build-capability/06-install-push-apply-http-contract.md).
 
@@ -161,7 +163,7 @@ Response includes hub-assigned `contract_ref_id` and `install_id`. v1 catalog-sh
   "label": "Dev Cursor — ui-sandbox worker",
   "harness": "cursor-local",
   "scopes": ["space:read", "event:read", "state:transition", "event:emit", "blob:read", "blob:write"],
-  "capability_acl": ["review-loop"],
+  "flow_acl": ["review-loop"],
   "expires_in_days": 90
 }
 ```
@@ -246,7 +248,7 @@ Harness: `cursor-local` · `claude-code-local` · `cloud-worker` · `ci`
 |----------|--------|
 | Observer | `space:read`, `event:read` |
 | Worker | + `state:transition`, `event:emit`, `blob:read`, `blob:write` |
-| Builder | + `capability:install`, `capability:configure` |
+| Builder | + `flow:install`, `flow:configure` |
 | Cross-space worker | + `query:ask` on source space; target answers via capability handler + `query:answer` grant |
 
 Grant templates are presets — admin may add `query:ask` / `query:answer` for XS0 (see [cross-space/spec.md](../cross-space/spec.md)).

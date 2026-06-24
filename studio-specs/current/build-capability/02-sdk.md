@@ -37,16 +37,16 @@ There is **no** separate `@murrmure/flow-sdk` package; ex-capability-sdk library
 | `mrmr flow push --space <id>` | BC2 | Install v3 draft; writes `.flow-push-state.json` |
 | `mrmr flow status [path] [--json]` | BC2 | Read push-state + hub install row |
 | `mrmr flow list --space <id> [--json]` | BC2 | List installs for space |
-| `mrmr flow doctor [--json]` | BC2 | Hub reachability, token scopes, dev-kit version skew |
+| `mrmr flow doctor [--json]` | BC2 | **Deprecated** alias → `mrmr doctor` (stderr hint) |
 | `mrmr flow dev [path] --space <id>` | BC5 | Watch + rebuild + push + reload |
 | `mrmr flow dev [path] --sim [--port <n>]` | BC5b | Thin local shell + simulated state machine |
 | `mrmr flow validate\|test\|promote\|apply --space <id> --install <id>` | BC2 | Evolution HTTP parity |
 | `mrmr skill install\|update\|version [--dir path]` | BC15 | Install `murrmure-flow` Cursor skill ([15](./15-agent-skill-package.md)) |
 | `murrmure mcp` | BC7 | MCP stdio server (alias bins: `murrmure-mcp`, `mrmr-mcp`) |
 
-**All commands:** `--json` for agent parity (PAR-04).
+**All commands:** `--json` for agent parity (PAR-04). Default stdout is human-readable; `--json` preserves existing response shapes.
 
-**Auth resolution:** [08-auth-profiles-local-cloud-ci.md](./08-auth-profiles-local-cloud-ci.md) — `MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_SPACE_ID`.
+**Auth resolution:** [08-auth-profiles-local-cloud-ci.md](./08-auth-profiles-local-cloud-ci.md) — flags → env → `~/.murrmure/credentials` → `~/.murrmure/hubs/shared.json`.
 
 **Push:** always `target_state: draft`. No `--target live` (CI route only).
 

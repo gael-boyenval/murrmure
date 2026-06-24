@@ -82,7 +82,7 @@ if (catalog.length === 0) {
 
 const server = new Server(
   { name: "murrmure-hub", version: "0.1.0" },
-  { flows: { tools: {} } },
+  { capabilities: { tools: {} } },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({

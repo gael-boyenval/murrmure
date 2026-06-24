@@ -1,12 +1,15 @@
 # Configuration
 
-The **Configuration** surface is where team admins set up Murrmure. Everything here is done in the **browser** — no curl, no API scripts.
+The **Configuration** surface is where team admins set up Murrmure. Use the **browser** (Configure shell) or the **`mrmr space`** CLI — same hub APIs, your choice.
 
 Toggle **Runtime | Configure** in the top bar. Requires a token with **`space:admin`** (or bootstrap on self-hosted).
 
 ## First-run setup wizard
 
-Route: **`/setup`**
+| Surface | Route / command |
+|---------|-----------------|
+| Browser | **`/setup`** |
+| CLI | **`mrmr space init`** |
 
 | Step | What happens |
 |------|----------------|
@@ -18,7 +21,22 @@ Route: **`/setup`**
 | Invite team | Sample invites |
 | Verify | Open runtime |
 
-Sets `murrmure_setup_complete` in the browser.
+Browser wizard sets `murrmure_setup_complete`. CLI steps are skippable; partial progress is kept (credentials and created spaces persist).
+
+### CLI equivalents
+
+| Configure UI | CLI |
+|--------------|-----|
+| `/setup` wizard | `mrmr space init` |
+| Create space | `mrmr space create --slug … --name …` |
+| Space list / detail | `mrmr space list` · `mrmr space show <spc_id>` |
+| Update space / query policy | `mrmr space update <spc_id> …` |
+| Archive space | `mrmr space archive <spc_id>` |
+| Agent grants | `mrmr space grant …` (rolling out) |
+| Members | `mrmr space member …` (rolling out) |
+| Triggers | `mrmr space trigger …` |
+
+See [CLI guide](./cli.md#mrmr-space).
 
 ## Spaces
 
@@ -76,27 +94,85 @@ Contributors and builders: [Flows tutorial](./flows-tutorial).
 
 ## Agent grants
 
-**Configure → [space] → Agent grants → Mint grant**
+**Configure → [space] → Agent grants → Mint grant** — or use the CLI:
+
+```bash
+# List grants
+mrmr space grant list --space spc_ui_sandbox
+
+# Mint a worker grant (flow_acl limits MCP tools)
+mrmr space grant mint --space spc_ui_sandbox \
+  --label "Dev Cursor — ui-sandbox worker" \
+  --harness cursor-local \
+  --flow-acl review-loop \
+  --expires-days 90
+
+# Revoke or rotate
+mrmr space grant revoke --space spc_ui_sandbox grt_…
+mrmr space grant rotate --space spc_ui_sandbox grt_…
+```
+
+Requires **`space:admin`** on the target space. Deploy tokens (`flow:install` only) cannot mint grants.
 
 | Field | Notes |
 |-------|-------|
 | Label | Who this token is for |
 | Harness | `cursor-local`, `ci`, … |
 | Template | **Worker** (agents) or **Admin** (setup) |
+| `flow_acl` | Package ids the grant may use (e.g. `review-loop`) — wire field is **`flow_acl`**, not `capability_acl` |
 
-Copy the **one-time token** into MCP config (`MURRMURE_HUB_TOKEN`). The setup wizard also prints a full MCP JSON snippet.
+Copy the **one-time token** into MCP config (`MURRMURE_HUB_TOKEN`). The CLI prints it once with a warning; the setup wizard also prints a full MCP JSON snippet.
 
 **Worker** scopes include `state:transition`, `event:emit`, `blob:write`, `space:read`. Domain tools (review, feature-spec) appear when the matching flow is **live** in that space.
 
-Revoke from the grants list if a token leaks.
+Revoke from the grants list or `mrmr space grant revoke` if a token leaks.
 
 ## Members
 
-**Configure → [space] → Members** — invite by email (admin / editor / viewer).
+**Configure → [space] → Members** — or use the CLI:
+
+```bash
+mrmr space member list --space spc_ui_sandbox
+mrmr space member invite --space spc_ui_sandbox --email dev@example.com --role editor
+mrmr space member role --space spc_ui_sandbox mem_… --role admin
+mrmr space member remove --space spc_ui_sandbox mem_…
+```
+
+Roles: **admin**, **editor**, **viewer**. Requires **`space:admin`**.
 
 ## Triggers
 
 **Configure → [space] → Triggers** — register event → wake rules; view delivery log.
+
+### CLI
+
+Requires **`space:read`** (list, deliveries, templates, event catalog), **`trigger:register`** (register, disable, test-fire), or **`space:admin`** (replay).
+
+```bash
+# List triggers and delivery log
+mrmr space trigger list --space spc_dev
+mrmr space trigger deliveries --space spc_dev --limit 20
+
+# Register from bundled template
+mrmr space trigger register --space spc_dev \
+  --template spec-published-wake-dev \
+  --source-space spc_orchestrator
+
+# Register custom filter/action (JSON or @file.json)
+mrmr space trigger register --space spc_dev \
+  --name backend-ready-wake-frontend \
+  --filter @filter.json \
+  --action @action.json
+
+# Debug and admin
+mrmr space trigger test-fire --space spc_dev trg_…
+mrmr space trigger disable --space spc_dev trg_…
+mrmr space trigger replay --space spc_dev trg_… --body '{"source_event_id":"evt_001"}'
+
+# Discover templates and event types
+mrmr space trigger templates --space spc_dev
+mrmr space trigger event-catalog --space spc_dev
+```
 
 ### From template (browser)
 
@@ -116,6 +192,14 @@ To allow another space to **`query_ask`** into this space, set `query_policy.inb
 ## Hub settings
 
 **Configure → Hub settings** — health, federation relay, hub-wide grant export.
+
+```bash
+mrmr hub federation
+mrmr hub grants-export --out grants-audit.json
+# or pipe: mrmr hub grants-export > grants-audit.json
+```
+
+Requires **`space:admin`** (bootstrap token on self-hosted).
 
 ## Self-hosted operators
 

@@ -8,6 +8,7 @@
 
 | Plan | Scope | Status |
 |------|-------|--------|
+| [cli-dx-v1 (archived)](../archives/plans/cli-dx-v1.md) | `@murrmure/cli`: citty, full help, hub config parity, scope preflight, auth commands | **Executed** (2026-06-24) — see [cli/spec.md](../current/cli/spec.md) |
 | [npm-publish-v1 (archived)](../archives/plans/npm-publish-v1.md) | Murrmure v1: `@murrmure/cli` + `@murrmure/flow-dev-kit`, `/flows/` wire, bundle+source push | **Executed** (2026-06-23) — see [ADR-001](../ADR/ADR-001-murrmure-publish.md) |
 | [cloud/](./cloud/) | Hosted shell: cloud BFF, session auth, cloud-admin first space | Deferred — local-first v1 ships first |
 | [cross-space-xs1/](./cross-space-xs1/) | Federation relay, `query_policy` editor, `context_fetch@1`, `openapi_diff_ref@1` | Deferred — after XS0 |

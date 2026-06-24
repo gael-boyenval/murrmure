@@ -19,9 +19,9 @@ Run from the flow package directory unless noted.
 | `rollback --space <spc> --install <ins>` | Roll back live mount |
 | `dev . --space <spc> [--auto-apply]` | Watch loop |
 | `dev . --sim [--port N]` | Offline simulator |
-| `doctor` | Hub URL + token smoke check |
+| `doctor` | Hub URL + token smoke check (**deprecated** — use `mrmr doctor`) |
 
-Add `--json` for machine-readable output.
+Add `--json` for machine-readable output. **Default stdout is human-readable** (breaking change in CLI DX v1); scripts should pass `--json`.
 
 ### Environment
 
@@ -56,7 +56,27 @@ Run from the **git root** (or flow monorepo root) so all agents in the project p
 
 ## Platform CLI (`@murrmure/cli`)
 
-Blocking helpers for scripts — `mrmr wait`, `mrmr transition`, etc. Agents in Cursor should prefer **MCP** over raw CLI.
+Auth, diagnostics, and operator helpers — prefer **MCP** for interactive agent loops.
+
+### Auth
+
+| Command | Purpose |
+|---------|---------|
+| `login [--open] [--hub-url <url>]` | Save hub URL + token to `~/.murrmure/credentials` |
+| `logout [--yes]` | Remove saved credentials |
+| `whoami [--json]` | Show actor, token, and per-space scopes |
+
+Resolution order: flags → env → credentials file → `~/.murrmure/hubs/shared.json`.
+
+### Doctor
+
+| Command | Purpose |
+|---------|---------|
+| `doctor [--json]` | Hub health, auth source, scope capability summary, dev-kit skew |
+
+`mrmr flow doctor` is a **deprecated alias** — prints stderr hint and delegates to `mrmr doctor`.
+
+### Runtime
 
 ## Hub daemon
 

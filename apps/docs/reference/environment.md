@@ -16,7 +16,31 @@ Set via MCP config JSON or shell `export`. Prefer **`mrmr login`** for local CLI
 
 ## CLI login cache
 
-After `mrmr login`, credentials are stored in the OS keychain (or `~/.murrmure/credentials` on Linux). Override with env vars for CI.
+After `mrmr login`, credentials are stored in `~/.murrmure/credentials` (file mode `0600`). Override with env vars for CI.
+
+### Credentials file schema
+
+Path: `~/.murrmure/credentials`
+
+```json
+{
+  "version": 1,
+  "hubUrl": "http://127.0.0.1:8787",
+  "token": "tok_…",
+  "defaultSpaceId": "spc_ui_sandbox",
+  "savedAt": "2026-06-24T12:00:00.000Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `version` | Schema version (currently `1`) |
+| `hubUrl` | Hub base URL (no trailing slash) |
+| `token` | Bearer grant token (`tok_…`) |
+| `defaultSpaceId` | Optional default space for `--space` resolution |
+| `savedAt` | ISO timestamp when credentials were saved |
+
+**Auth resolution order:** CLI flags (`--hub-url`, `--token`) → env vars → credentials file → `~/.murrmure/hubs/shared.json`
 
 ## Self-hosted hub (operators only)
 

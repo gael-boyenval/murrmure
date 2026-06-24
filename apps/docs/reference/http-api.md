@@ -4,6 +4,8 @@
 **Integrators and automation authors** — not reviewers, admins, or agent operators.
 
 Day-to-day Murrmure use is **browser (Configure + Runtime)** and **MCP**. You should not need curl for spaces, grants, flows, reviews, or feature specs.
+
+For terminal automation, prefer **`mrmr`** — see the normative [CLI spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/cli/spec.md) (`studio-specs/current/cli/spec.md`) and [CLI guide](../guide/cli.md).
 :::
 
 Murrmure Cloud exposes a REST API at **`https://api.murrmure.dev`**. Self-hosted teams use their hub URL.
@@ -72,9 +74,9 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (`spec-published-wake-dev`, …) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger:register` | Synthetic event → delivery (debug) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/disable` | `trigger:register` | Disable trigger |
-| `POST` | `/v1/spaces/{id}/triggers/{id}/replay` | `trigger:register` | Replay a past delivery |
+| `POST` | `/v1/spaces/{id}/triggers/{id}/replay` | `space:admin` | Replay a past delivery |
 | `GET` | `/v1/spaces/{id}/triggers/deliveries` | `space:read` | Delivery log |
-| `GET` | `/v1/ops/grants/export` | hub operator | Hub-wide grant export |
+| `GET` | `/v1/ops/grants/export` | `space:admin` | Hub-wide grant export |
 | `GET` | `/v1/ops/federation/status` | `space:admin` | Relay status |
 
 `PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Configure UI for query policy is not shipped yet — use the API or hub admin tools.

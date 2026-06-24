@@ -13,6 +13,7 @@ docs are in [../archives/README.md](../archives/README.md). On conflict,
 
 | Domain | Spec | Bridge | Fixtures |
 |--------|------|--------|----------|
+| CLI (`mrmr`) | [cli/spec.md](./cli/spec.md) | — | — |
 | Kernel | [kernel/spec.md](./kernel/spec.md) | [kernel/packages.md](./kernel/packages.md) | [fixtures/kernel/](./fixtures/kernel/) |
 | Hub core | [hub/architecture.md](./hub/architecture.md) | [hub/contracts.md](./hub/contracts.md) | [fixtures/hub/](./fixtures/hub/) |
 | Product + review chrome | [product/spec.md](./product/spec.md) | [bridges/product.md](./bridges/product.md) | [fixtures/product/](./fixtures/product/) |

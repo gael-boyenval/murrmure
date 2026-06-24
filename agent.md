@@ -7,41 +7,46 @@
 Ask questions, give your opinion, push back. Always shorts messages.
 Never uge block of text. The user may come with a specific implementation idea, but more important is first to understand the underlying goal, and through conversation, define the best course of action.
 
-### gate 1 : human validate the general Idea, and functional definition (no writen artifacts)
-
 ### phase 2 : write the required plan `studio-specs/plans`
 
 The plan should include the goals and functional definition in introduction.
 
-### gate 2 : human validate the plan
+**Slice by feature, not by architecture layer.** Each task is a vertical slice that leaves the product working — never “all persistence then all API”.
+
+Each task must include, in one pass: **code, tests, `apps/docs`, `studio-specs/current`** (and changeset when a publishable package changes). No deferred docs/specs phases.
+
+End every task with green: `pnpm typecheck && pnpm build && pnpm test` (and `pnpm test:acceptance` when in scope).
 
 ### phase 3 : execute the plan
 
-Act as an orchestrator that will loop until full completion of the plan.
+**Orchestrator, not implementer.** Delegate ~90% of code writing to subagents. You sequence tasks, unblock, adjust the plan — rarely touch code yourself.
 
-loop model : 
+Loop until full completion of the plan:
 
-- #1 - Run subagents for individual tasks/phases
-- #2 - Run subagents to review individual tasks/phases
-- #3 - Add your own review
-- #4 - back to loop #1 with next task
+- #1 - **Dev subagent** — implement the feature slice (code, boundary tests, docs, specs)
+- #2 - **3 review subagents** in parallel (each carries multiple lenses):
+  - **Scope & contract** — plan fidelity, scope creep, boundaries, breaking changes
+  - **Failure & trust** — error paths, footguns, data/auth/security, recovery
+  - **Experience & craft** — CLI/DX, terminology, tests at edges, surprises (good or bad)
+- #3 - **Dev subagent** — you synthesize the 3 reviews into a fix list; delegate application (you do not code the fixes)
+- #4 - back to #1 with next task (or re-run #2–#3 if the slice is not green)
 
-Always write (or instruct subagents) tests to test close to 100% coverage at the boundaries (never implementation details)
+Tests: close to 100% coverage at the boundaries (never implementation details).
 
+When the plan is fully executed: move it to `studio-specs/archives`, update `studio-specs/ADR` if needed.
 
-### phase 4 : update `apps/docs`
+### gate : human validate all artifacts
 
-### phase 5 : update `studio-specs` 
-maintain current up to date
-move executed plan and stale specs in `studio-specs/archives`
-maintain and `studio-specs/ADR` directory
+No human gate during dev — only here, before publish.
 
-### gate 5 : human validate all artifact
+### phase 4 : publish
 
-### phase 6 : publish
+npm packages: `@murrmure/flow-dev-kit`, `@murrmure/cli` only (see `.changeset/config.json`).
 
-commit, create a tag bump versions and publish to npm
+- per task: `pnpm changeset` when you touch a publishable package
+- `pnpm version-packages` → commit (only when user asks) → tag `v*` + push → CI publishes via `release.yml`
+- private packages only: commit, no changeset / version / tag
+- never `pnpm release` locally unless user asks
 
-- Keep `apps/docs` and the normative specs in `studio-specs/current` up to date with each new development change. `studio-specs/plans` holds deferred scope and `studio-specs/archives` is historical-only — never implement from those.
+- `studio-specs/plans` holds deferred scope; `studio-specs/archives` is historical-only — never implement from those.
 - Reach for `.opensrc` when researching a feature or when looking for inspiration from how other tools implement similar features.
-- Write tests to cover every development change.

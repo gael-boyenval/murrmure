@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import { readCredentials } from "./lib/auth-store.js";
 
 export interface HubAuth {
   hubUrl: string;
@@ -8,46 +9,97 @@ export interface HubAuth {
   defaultSpaceId?: string;
 }
 
-export function resolveHubAuth(): HubAuth | { error: string } {
-  const envUrl =
-    process.env.MURRMURE_HUB_URL ??
-    process.env.STUDIO_API_URL;
-  const envToken =
+export interface AuthOverrides {
+  hubUrl?: string;
+  token?: string;
+}
+
+export const DEFAULT_HUB_URL = "http://127.0.0.1:8787";
+
+function normalizeHubUrl(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+function envAuth(): Partial<HubAuth> | null {
+  const hubUrl = process.env.MURRMURE_HUB_URL ?? process.env.STUDIO_API_URL;
+  const token =
     process.env.MURRMURE_HUB_TOKEN ??
     process.env.MURRMURE_TOKEN ??
     process.env.MURRMURE_DEPLOY_TOKEN ??
     process.env.STUDIO_API_TOKEN;
-  if (envUrl && envToken) {
-    return {
-      hubUrl: envUrl.replace(/\/$/, ""),
-      token: envToken,
-      defaultSpaceId: process.env.MURRMURE_SPACE_ID,
-    };
-  }
 
+  if (!hubUrl || !token) return null;
+
+  return {
+    hubUrl: normalizeHubUrl(hubUrl),
+    token,
+    defaultSpaceId: process.env.MURRMURE_SPACE_ID,
+  };
+}
+
+function credentialsAuth(): Partial<HubAuth> | null {
+  const credentials = readCredentials();
+  if (!credentials) return null;
+
+  return {
+    hubUrl: normalizeHubUrl(credentials.hubUrl),
+    token: credentials.token,
+    defaultSpaceId: credentials.defaultSpaceId,
+  };
+}
+
+function sharedJsonAuth(): Partial<HubAuth> | null {
   const sharedPath = join(homedir(), ".murrmure", "hubs", "shared.json");
-  if (existsSync(sharedPath)) {
-    try {
-      const shared = JSON.parse(readFileSync(sharedPath, "utf-8")) as {
-        url?: string;
-        token?: string;
-        defaultSpaceId?: string;
-      };
-      if (shared.url && shared.token) {
-        return {
-          hubUrl: shared.url.replace(/\/$/, ""),
-          token: shared.token,
-          defaultSpaceId: shared.defaultSpaceId,
-        };
-      }
-    } catch {
-      /* fall through */
-    }
+  if (!existsSync(sharedPath)) return null;
+
+  try {
+    const shared = JSON.parse(readFileSync(sharedPath, "utf-8")) as {
+      url?: string;
+      token?: string;
+      defaultSpaceId?: string;
+    };
+    if (!shared.url || !shared.token) return null;
+
+    return {
+      hubUrl: normalizeHubUrl(shared.url),
+      token: shared.token,
+      defaultSpaceId: shared.defaultSpaceId,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function pickField<T>(sources: Array<T | null | undefined>, selector: (source: T) => string | undefined): string | undefined {
+  for (const source of sources) {
+    if (!source) continue;
+    const value = selector(source);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: string } {
+  const flagSource =
+    overrides?.hubUrl || overrides?.token
+      ? { hubUrl: overrides.hubUrl, token: overrides.token }
+      : null;
+  const sources = [flagSource, envAuth(), credentialsAuth(), sharedJsonAuth()];
+
+  const hubUrl = pickField(sources, (source) => source.hubUrl);
+  const token = pickField(sources, (source) => source.token);
+  const defaultSpaceId = pickField(
+    [envAuth(), credentialsAuth(), sharedJsonAuth()],
+    (source) => source?.defaultSpaceId,
+  );
+
+  if (hubUrl && token) {
+    return { hubUrl, token, defaultSpaceId };
   }
 
   return {
     error:
-      "Missing hub auth — set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN) or ~/.murrmure/hubs/shared.json",
+      "Missing hub auth — run mrmr login, or set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN), or ~/.murrmure/credentials",
   };
 }
 
