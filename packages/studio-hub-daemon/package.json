@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "bin": {
-    "murrmure-hub": "./bin/murrmure-hub",
     "murrmure-hub": "./bin/murrmure-hub"
   },
   "exports": {

@@ -1,6 +1,6 @@
 {
   "name": "@murrmure/flow-dev-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "exports": {
     ".": {
@@ -32,7 +32,9 @@
       "default": "./dist/react.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "pnpm run build",

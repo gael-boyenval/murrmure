@@ -1,6 +1,6 @@
 {
   "name": "@murrmure/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "bin": {
     "murrmure": "./dist/cli.js",
@@ -13,7 +13,12 @@
     "./mcp": "./dist/mcp.js",
     "./api": "./dist/api.js"
   },
-  "files": ["dist", "templates", "skill", "VERSION"],
+  "files": [
+    "dist",
+    "templates",
+    "skill",
+    "VERSION"
+  ],
   "scripts": {
     "build": "tsup",
     "prepack": "pnpm run build",
