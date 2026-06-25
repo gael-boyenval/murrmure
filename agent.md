@@ -9,9 +9,11 @@ Never uge block of text. The user may come with a specific implementation idea, 
 
 ### phase 2 : write the required plan `studio-specs/plans`
 
-The plan should include the goals and functional definition in introduction.
+The plan should include the goals and functional definition in introduction. The plan should include all conversation contexte, so that any agent in a new session, or subagent without knowledge of the main conversation can safely build the feature without functional guessses. 
 
 **Slice by feature, not by architecture layer.** Each task is a vertical slice that leaves the product working — never “all persistence then all API”.
+
+Each task should include a functional goal and user stories.
 
 Each task must include, in one pass: **code, tests, `apps/docs`, `studio-specs/current`** (and changeset when a publishable package changes). No deferred docs/specs phases.
 

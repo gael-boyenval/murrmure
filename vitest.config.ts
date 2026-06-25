@@ -1,12 +1,13 @@
 import { defineConfig } from "vitest/config";
 import { sharedTestConfig } from "./vitest.shared";
 
-const project = (name: string, root: string) => ({
-  extends: true,
+const project = (name: string, root: string, include = sharedTestConfig.include) => ({
+  extends: true as const,
   test: {
     ...sharedTestConfig,
     name,
     root,
+    include,
   },
 });
 
@@ -22,6 +23,8 @@ export default defineConfig({
       project("@murrmure/hub-persistence", "packages/studio-hub-persistence"),
       project("@murrmure/hub-daemon", "packages/studio-hub-daemon"),
       project("@murrmure/cli", "packages/cli"),
+      project("@murrmure/shell-web", "packages/shell-web", ["src/**/*.test.ts"]),
+      project("@murrmure/desktop", "apps/desktop", ["test/**/*.test.ts"]),
       project("@murrmure/flow-dev-kit", "packages/flow-dev-kit"),
     ],
   },

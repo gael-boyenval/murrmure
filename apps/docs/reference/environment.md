@@ -46,9 +46,14 @@ Path: `~/.murrmure/credentials`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_PATH` | `./data/murrmure.db` | SQLite path on hub machine |
+| `DATABASE_PATH` | `./data/studio.db` | SQLite path on hub machine |
 | `PORT` | `8787` | Hub listen port |
 | `MURRMURE_DATA_DIR` | `~/.murrmure` | Lock + discovery on hub host |
+| `MURRMURE_SHELL_STATIC_DIR` | unset | Absolute path to built shell `dist/`; hub serves SPA at `/` when set |
+| `MURRMURE_LISTEN_HOST` | `127.0.0.1` | HTTP bind hostname/interface used by hub daemon |
+| `MURRMURE_BUNDLE_ROOT` | unset | Seed-contract root used by hub startup (`<root>/hub/contracts`) for packaged deployments |
+| `MURRMURE_BOOTSTRAP_TOKEN` | `01JBOOTSTRAPTOKEN00000001` | Bootstrap token bare id seeded on hub startup (desktop dev only; external release needs per-install secret) |
+| `MURRMURE_EMBEDDED` | `0` | When `1`, signal handlers run graceful shutdown without calling `process.exit(0)` |
 
 End users still use `MURRMURE_HUB_URL` pointing at your proxy, not these.
 

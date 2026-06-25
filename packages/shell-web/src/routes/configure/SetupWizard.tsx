@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShellLayout } from "../../ShellLayout.js";
-import { useClient, setActiveSpaceId } from "../../hooks.js";
+import { getStoredHubUrl, isBundledShell, setActiveSpaceId, useClient } from "../../hooks.js";
 import { getStorageItem, setStorageItem } from "../../storage.js";
 import { ScopeDenialBanner } from "./ScopeDenialBanner.js";
 
@@ -18,8 +18,9 @@ const STEPS = [
 export function SetupWizard() {
   const client = useClient();
   const navigate = useNavigate();
+  const bundled = isBundledShell();
   const [step, setStep] = useState(0);
-  const [hubUrl, setHubUrl] = useState(getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787");
+  const [hubUrl, setHubUrl] = useState(getStoredHubUrl());
   const [token, setToken] = useState(getStorageItem("murrmure_token") ?? "");
   const [sandboxId, setSandboxId] = useState("");
   const [productionId, setProductionId] = useState("");
@@ -31,7 +32,7 @@ export function SetupWizard() {
     setError("");
     try {
       if (step === 0) {
-        setStorageItem("murrmure_hub_url", hubUrl);
+        setStorageItem("murrmure_hub_url", bundled ? window.location.origin : hubUrl);
         setStorageItem("murrmure_token", token);
         window.location.reload();
         return;
@@ -121,10 +122,12 @@ export function SetupWizard() {
 
       {step === 0 && (
         <div style={{ marginTop: 16 }}>
-          <label>
-            Hub URL
-            <input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} style={{ display: "block", width: 360, marginBottom: 8 }} />
-          </label>
+          {!bundled && (
+            <label>
+              Hub URL
+              <input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} style={{ display: "block", width: 360, marginBottom: 8 }} />
+            </label>
+          )}
           <label>
             Bootstrap token
             <input value={token} onChange={(e) => setToken(e.target.value)} style={{ display: "block", width: 360 }} />
@@ -145,7 +148,7 @@ export function SetupWizard() {
       {step === 4 && workerToken && (
         <div style={{ marginTop: 12, padding: 12, background: "#f5f5f5", borderRadius: 6 }}>
           <strong>MCP snippet</strong>
-          <pre style={{ fontSize: 12, overflow: "auto" }}>{`{\n  "mcpServers": {\n    "murrmure": {\n      "command": "murrmure",\n      "args": ["mcp"],\n      "env": {\n        "MURRMURE_HUB_URL": "${hubUrl}",\n        "MURRMURE_HUB_TOKEN": "${workerToken}",\n        "MURRMURE_SPACE_ID": "${sandboxId || "spc_ui_sandbox"}"\n      }\n    }\n  }\n}`}</pre>
+          <pre style={{ fontSize: 12, overflow: "auto" }}>{`{\n  "mcpServers": {\n    "murrmure": {\n      "command": "murrmure",\n      "args": ["mcp"],\n      "env": {\n        "MURRMURE_HUB_URL": "${bundled ? window.location.origin : hubUrl}",\n        "MURRMURE_HUB_TOKEN": "${workerToken}",\n        "MURRMURE_SPACE_ID": "${sandboxId || "spc_ui_sandbox"}"\n      }\n    }\n  }\n}`}</pre>
         </div>
       )}
 

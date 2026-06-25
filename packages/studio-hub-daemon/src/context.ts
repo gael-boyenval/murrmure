@@ -13,6 +13,10 @@ export interface DaemonConfig {
   dataDir: string;
   defaultSpaceId: string;
   bootstrapToken?: string;
+  shellStaticDir?: string;
+  embedded?: boolean;
+  listenHost?: string;
+  bundleRoot?: string;
 }
 
 export interface DaemonContext {

@@ -8,6 +8,7 @@ Normative spec for **shell, hub daemon edge, review reference capability, and MC
 
 - Hub daemon edge: HTTP, SSE, MCP, CLI, ops
 - `@murrmure/shell-web` — browser shell (runtime + capability canvases)
+- `@murrmure/desktop` — Electrobun desktop host (hub sidecar lifecycle + single URL shell)
 - `@murrmure/hub-client` — typed platform HTTP + SSE client
 - Review reference capability (`examples/capabilities/review-loop/`)
 - Capability SDK scaffold (validate + install manifest)

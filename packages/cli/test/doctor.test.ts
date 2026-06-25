@@ -1,4 +1,18 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+const testHomeRef = { value: "" };
+
+vi.mock("node:os", async () => {
+  const actual = await vi.importActual<typeof import("node:os")>("node:os");
+  return {
+    ...actual,
+    homedir: () => testHomeRef.value,
+  };
+});
+
 import { formatDoctorHuman, runDoctor } from "../src/lib/doctor.js";
 import { resolveAuthSource } from "../src/lib/auth-source.js";
 
@@ -23,6 +37,21 @@ describe("resolveAuthSource", () => {
 });
 
 describe("runDoctor", () => {
+  const env = { ...process.env };
+
+  beforeEach(() => {
+    testHomeRef.value = mkdtempSync(join(tmpdir(), "murrmure-doctor-"));
+    process.env = { ...env };
+  });
+
+  afterEach(() => {
+    process.env = { ...env };
+    if (testHomeRef.value) {
+      rmSync(testHomeRef.value, { recursive: true, force: true });
+      testHomeRef.value = "";
+    }
+  });
+
   test("reports AUTH_MISSING when no auth configured", async () => {
     const result = await runDoctor({ hubUrl: undefined, token: undefined });
     expect(result.ok).toBe(false);

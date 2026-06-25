@@ -54,6 +54,19 @@ Platform shell renders **Configure**, **thin runtime chrome**, and a **sandboxed
 
 ---
 
+## Bundled / desktop mode
+
+When the shell is built with `VITE_MURRMURE_BUNDLED=1` and served by the hub static mount (`/`):
+
+1. Shell hub URL resolution is same-origin (`window.location.origin`), and Connect/Setup do not show editable hub URL input.
+2. Canvas iframe source uses a relative route: `/flows/{packageId}/{version}/ui/shell.html?instance={id}`.
+3. `init` host context still carries `hubUrl`, but in bundled mode it is the same origin.
+4. `hub-fetch` forwarding in `FlowCanvasHost` is restricted to `/api/{packageId}/...`; other paths are rejected.
+
+This keeps flow behavior unchanged while removing desktop hub URL setup.
+
+---
+
 ## Configure: New capability (BC2a)
 
 Route: `/configure/spaces/:spaceId/capabilities/new`

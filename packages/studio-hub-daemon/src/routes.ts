@@ -8,6 +8,7 @@ import { broadcastSse } from "./context.js";
 import { parseBearer, requireToken } from "./auth.js";
 import { handleSseSubscribe, journalTypeToSseEvent } from "./sse.js";
 import { mountFlowStaticRoutes } from "./routes/flow-static.js";
+import { mountShellStaticRoutes } from "./routes/shell-static.js";
 import { mountCapabilities } from "./mount.js";
 import { mountConfigRoutes } from "./routes/config/index.js";
 import { mountFlowRuntimeRoutes } from "./routes/flows/index.js";
@@ -23,6 +24,22 @@ import { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
 import { FlowWorkerPool } from "./flow-worker-pool.js";
 import { mountHostBridgeRoutes } from "./host-bridge.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
+
+const STRIPPED_API_PROXY_HEADERS = new Set([
+  "x-murrmure-internal-space",
+  "x-murrmure-caller-token",
+  "x-murrmure-worker-token",
+]);
+
+export function filterApiProxyHeaders(headers: Headers): Headers {
+  const filtered = new Headers();
+  headers.forEach((value, key) => {
+    if (!STRIPPED_API_PROXY_HEADERS.has(key.toLowerCase())) {
+      filtered.set(key, value);
+    }
+  });
+  return filtered;
+}
 
 function isLocalDevOrigin(origin: string): boolean {
   try {
@@ -364,7 +381,7 @@ export function createHubApp(ctx: DaemonContext) {
     const target = `http://127.0.0.1:${worker.port}${path}${url.search}`;
     const res = await fetch(target, {
       method: c.req.method,
-      headers: c.req.raw.headers,
+      headers: filterApiProxyHeaders(c.req.raw.headers),
       body: c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await c.req.arrayBuffer(),
     });
     return new Response(res.body, { status: res.status, headers: res.headers });
@@ -381,13 +398,18 @@ export function createHubApp(ctx: DaemonContext) {
   mountMcpRoutes(app, ctx);
   mountCapabilities(app, ctx);
   mountFlowStaticRoutes(app, ctx);
+  mountShellStaticRoutes(app, ctx);
 
   return app;
 }
 
 export function startHttpServer(ctx: DaemonContext) {
   const app = createHubApp(ctx);
-  return serve({ fetch: app.fetch, port: ctx.config.port });
+  return serve({
+    fetch: app.fetch,
+    port: ctx.config.port,
+    hostname: ctx.config.listenHost ?? "127.0.0.1",
+  });
 }
 
 /** @deprecated use createHubApp with DaemonContext */

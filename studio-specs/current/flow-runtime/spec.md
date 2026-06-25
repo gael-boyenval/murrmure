@@ -80,6 +80,8 @@ Apply errors: `INSTALL_POLICY_VIOLATION`, `SCOPE_ENFORCEMENT_FAILURE`, `LIVE_APP
 
 Static UI: `GET /flows/{flow_id}/{ver}/ui/*`.
 
+Desktop single-URL mode is transport-only: shell (`/`), static flow UI (`/flows/.../ui/*`), and worker proxy routes (`/api/...`) share one origin, but flow install/apply/runtime semantics remain unchanged.
+
 ## Error envelope (apply + invoke)
 
 All denials return structured JSON — never raw status alone (c01-J03, c01-J16):

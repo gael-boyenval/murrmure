@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -85,6 +85,87 @@ describe("resolveHubAuth", () => {
       token: "tok_legacy",
       defaultSpaceId: undefined,
     });
+  });
+
+  test("reads hub endpoint from shared.json hubs[] shape", () => {
+    const hubsDir = join(testHomeRef.value, ".murrmure", "hubs");
+    const sharedPath = join(testHomeRef.value, ".murrmure", "hubs", "shared.json");
+    mkdirSync(hubsDir, { recursive: true });
+    writeFileSync(
+      sharedPath,
+      JSON.stringify({
+        hubs: [{ endpoint: "http://127.0.0.1:8787/" }],
+      }),
+    );
+
+    expect(resolveHubAuth({ token: "tok_flag" })).toEqual({
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_flag",
+      defaultSpaceId: undefined,
+    });
+  });
+
+  test("ignores non-loopback shared endpoint and uses credentials hub URL", () => {
+    writeCredentials({
+      version: 1,
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_cred",
+      defaultSpaceId: "spc_cred",
+      savedAt: new Date().toISOString(),
+    });
+    const hubsDir = join(testHomeRef.value, ".murrmure", "hubs");
+    const sharedPath = join(testHomeRef.value, ".murrmure", "hubs", "shared.json");
+    mkdirSync(hubsDir, { recursive: true });
+    writeFileSync(
+      sharedPath,
+      JSON.stringify({
+        hubs: [{ endpoint: "http://evil.com" }],
+      }),
+    );
+
+    expect(resolveHubAuth({ token: "tok_flag" })).toEqual({
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_flag",
+      defaultSpaceId: "spc_cred",
+    });
+  });
+
+  test("supports legacy shared.json { url, token } shape", () => {
+    const hubsDir = join(testHomeRef.value, ".murrmure", "hubs");
+    const sharedPath = join(testHomeRef.value, ".murrmure", "hubs", "shared.json");
+    mkdirSync(hubsDir, { recursive: true });
+    writeFileSync(
+      sharedPath,
+      JSON.stringify({
+        url: "http://localhost:8787/",
+        token: "tok_shared_legacy",
+        defaultSpaceId: "spc_shared_legacy",
+      }),
+    );
+
+    expect(resolveHubAuth()).toEqual({
+      hubUrl: "http://localhost:8787",
+      token: "tok_shared_legacy",
+      defaultSpaceId: "spc_shared_legacy",
+    });
+  });
+
+  test("returns missing auth when shared.json hubs array is empty", () => {
+    const hubsDir = join(testHomeRef.value, ".murrmure", "hubs");
+    const sharedPath = join(testHomeRef.value, ".murrmure", "hubs", "shared.json");
+    mkdirSync(hubsDir, { recursive: true });
+    writeFileSync(
+      sharedPath,
+      JSON.stringify({
+        hubs: [],
+      }),
+    );
+
+    const resolved = resolveHubAuth();
+    expect("error" in resolved).toBe(true);
+    if ("error" in resolved) {
+      expect(resolved.error).toContain("Missing hub auth");
+    }
   });
 });
 

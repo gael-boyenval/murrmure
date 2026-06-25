@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ShellLayout } from "../../ShellLayout.js";
-import { getStoredHubUrl, setActiveSpaceId, useClient } from "../../hooks.js";
+import { getStoredHubUrl, isBundledShell, setActiveSpaceId, useClient } from "../../hooks.js";
 import { ScopeDenialBanner } from "./ScopeDenialBanner.js";
 
 type FlowInstall = {
@@ -103,7 +103,9 @@ function CapabilityAclPicker({
 }
 
 function mcpSnippet(token: string, spaceId: string): string {
-  const hubUrl = getStoredHubUrl();
+  const hubUrl = isBundledShell() && typeof window !== "undefined"
+    ? window.location.origin
+    : getStoredHubUrl();
   return `{
   "mcpServers": {
     "murrmure": {

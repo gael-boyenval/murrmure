@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readFileSync, statSync } from "node:fs";
+import { once } from "node:events";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { serve } from "@hono/node-server";
@@ -11,7 +12,7 @@ import { addSpaceId, createHubKernel, HubHandler, pinContract } from "@murrmure/
 import { ContractV2Schema } from "@murrmure/contracts";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
-import { acquireLock, releaseLock, writeDiscovery } from "./ops.js";
+import { acquireLock, cleanupStaleStaging, releaseLock, resolveDataDir, updateLockOwnerEndpoint, writeDiscovery } from "./ops.js";
 import { MountRegistry } from "./mount-registry.js";
 import { McpToolRegistry } from "./mcp-tool-registry.js";
 import { ControlBus } from "./control-bus.js";
@@ -24,17 +25,108 @@ import { blobDir } from "./bundle-store.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__dir, "../../../fixtures/hub/contracts");
-const FEATURE_SPEC_CONTRACT = join(FIXTURES, "feature-spec-v1.json");
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 export { registerCapabilityMounter, mountCapabilities } from "./mount.js";
 
+function validateShellStaticDir(config: DaemonConfig): void {
+  if (!config.shellStaticDir) {
+    return;
+  }
+
+  const configuredDir = config.shellStaticDir;
+  const resolvedDir = resolve(configuredDir);
+  let shellStaticStats: ReturnType<typeof statSync>;
+  try {
+    shellStaticStats = statSync(resolvedDir);
+  } catch {
+    throw new Error(`Invalid MURRMURE_SHELL_STATIC_DIR: "${configuredDir}" does not exist.`);
+  }
+  if (!shellStaticStats.isDirectory()) {
+    throw new Error(`Invalid MURRMURE_SHELL_STATIC_DIR: "${configuredDir}" is not a directory.`);
+  }
+  try {
+    accessSync(resolvedDir, constants.R_OK);
+  } catch {
+    throw new Error(`Invalid MURRMURE_SHELL_STATIC_DIR: "${configuredDir}" is not readable.`);
+  }
+
+  const indexPath = join(resolvedDir, "index.html");
+  let indexStats: ReturnType<typeof statSync>;
+  try {
+    indexStats = statSync(indexPath);
+  } catch {
+    throw new Error(
+      `Invalid MURRMURE_SHELL_STATIC_DIR: missing readable index.html in "${configuredDir}".`,
+    );
+  }
+  if (!indexStats.isFile()) {
+    throw new Error(
+      `Invalid MURRMURE_SHELL_STATIC_DIR: "${join(configuredDir, "index.html")}" is not a file.`,
+    );
+  }
+  try {
+    accessSync(indexPath, constants.R_OK);
+  } catch {
+    throw new Error(
+      `Invalid MURRMURE_SHELL_STATIC_DIR: "${join(configuredDir, "index.html")}" is not readable.`,
+    );
+  }
+
+  config.shellStaticDir = resolvedDir;
+}
+
+function assertLoopbackListenHost(config: DaemonConfig): void {
+  if (!config.shellStaticDir) {
+    return;
+  }
+  const host = config.listenHost ?? "127.0.0.1";
+  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+    throw new Error(
+      `Bundled shell mode requires loopback bind; got MURRMURE_LISTEN_HOST=${host}`,
+    );
+  }
+}
+
+function resolveContractsDir(config: DaemonConfig): string {
+  return join(config.bundleRoot ?? join(__dir, "../../../fixtures"), "hub/contracts");
+}
+
+function closeServerGracefully(server: ReturnType<typeof serve>): Promise<void> {
+  return new Promise((resolveClose) => {
+    server.close(() => resolveClose());
+  });
+}
+
+async function resolveServerPort(server: ReturnType<typeof serve>, fallbackPort: number): Promise<number> {
+  const readPort = (): number | null => {
+    const addr = server.address();
+    if (typeof addr === "object" && addr) {
+      return addr.port;
+    }
+    return null;
+  };
+
+  let boundPort = readPort();
+  if ((boundPort === null || boundPort === 0) && fallbackPort === 0 && !server.listening) {
+    await once(server, "listening");
+    boundPort = readPort();
+  }
+
+  return boundPort && boundPort !== 0 ? boundPort : fallbackPort;
+}
+
 export async function startHubDaemon(config: DaemonConfig) {
-  const lockResult = acquireLock(config, config.port);
+  config.listenHost ??= "127.0.0.1";
+  validateShellStaticDir(config);
+  assertLoopbackListenHost(config);
+  const lockResult = await acquireLock(config, config.port);
   if (lockResult instanceof Response) {
     throw new Error(`Hub already running: ${await lockResult.text()}`);
   }
+  cleanupStaleStaging(resolveDataDir(config));
+
+  const contractsDir = resolveContractsDir(config);
 
   mkdirSync(dirname(config.databasePath), { recursive: true });
   const kernelPersistence = createSqlitePersistence(config.databasePath);
@@ -49,12 +141,13 @@ export async function startHubDaemon(config: DaemonConfig) {
     ["cref_linear_demo", "linear-demo-v2.json"],
     ["cref_review_loop", "review-loop-v2.json"],
   ] as const) {
-    const contractPath = join(FIXTURES, file);
+    const contractPath = join(contractsDir, file);
     const contract = ContractV2Schema.parse(JSON.parse(readFileSync(contractPath, "utf-8")));
     await pinContract(murrmurePersistence, refId, contract);
   }
 
-  const featureSpecContract = ContractV2Schema.parse(JSON.parse(readFileSync(FEATURE_SPEC_CONTRACT, "utf-8")));
+  const featureSpecContractPath = join(contractsDir, "feature-spec-v1.json");
+  const featureSpecContract = ContractV2Schema.parse(JSON.parse(readFileSync(featureSpecContractPath, "utf-8")));
   await pinContract(murrmurePersistence, "cref_feature_spec", featureSpecContract);
 
   const ids = { ulid: () => ulid() };
@@ -110,25 +203,50 @@ export async function startHubDaemon(config: DaemonConfig) {
   ctx.workerPool.setExitHandler((info) =>
     handleWorkerCrash(app, ctx, info.packageId, info.digest, info.exitCode, info.signal),
   );
-  const server = serve({ fetch: app.fetch, port: config.port });
-  const bound = server.address();
-  if (typeof bound === "object" && bound && config.port === 0) {
-    config.port = bound.port;
-  }
+  const server = serve({ fetch: app.fetch, port: config.port, hostname: config.listenHost });
+  const port = await resolveServerPort(server, config.port);
+  config.port = port;
+  updateLockOwnerEndpoint(config, port);
   await seedLiveMounts(app, ctx);
 
-  writeDiscovery(config, config.port);
+  writeDiscovery(config, port);
 
-  const shutdown = () => {
-    ctx.workerPool.killAll();
-    releaseLock(config);
-    process.exit(0);
+  let shuttingDown: Promise<void> | null = null;
+  const shutdown = async () => {
+    if (shuttingDown) {
+      return shuttingDown;
+    }
+    shuttingDown = (async () => {
+      process.off("SIGINT", handleSigint);
+      process.off("SIGTERM", handleSigterm);
+      ctx.workerPool.killAll();
+      releaseLock(config);
+      await closeServerGracefully(server);
+      await kernelPersistence.close();
+      db.close();
+    })();
+    return shuttingDown;
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 
-  console.log(`Murrmure hub listening on :${config.port}`);
-  return { handler, server, db, ctx };
+  const handleSigint = () => {
+    void shutdown().finally(() => {
+      if (!config.embedded) {
+        process.exit(0);
+      }
+    });
+  };
+  const handleSigterm = () => {
+    void shutdown().finally(() => {
+      if (!config.embedded) {
+        process.exit(0);
+      }
+    });
+  };
+  process.on("SIGINT", handleSigint);
+  process.on("SIGTERM", handleSigterm);
+
+  console.log(`Murrmure hub listening on ${config.listenHost}:${port}`);
+  return { handler, server, db, ctx, shutdown, port };
 }
 
 async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Promise<void> {
@@ -186,7 +304,22 @@ async function seedLiveMounts(app: import("hono").Hono, ctx: DaemonContext): Pro
 if (import.meta.url === `file://${process.argv[1]}`) {
   const databasePath = process.env.DATABASE_PATH ?? "./data/studio.db";
   const port = Number(process.env.PORT ?? "8787");
-  const dataDir = process.env.MURRMURE_DATA_DIR ?? process.env.MURRMURE_DATA_DIR ?? join(homedir(), ".murrmure");
+  const dataDir = process.env.MURRMURE_DATA_DIR ?? join(homedir(), ".murrmure");
   const defaultSpaceId = process.env.MURRMURE_SPACE_ID ?? "";
-  await startHubDaemon({ databasePath, port, dataDir, defaultSpaceId });
+  const shellStaticDir = process.env.MURRMURE_SHELL_STATIC_DIR;
+  const embedded = process.env.MURRMURE_EMBEDDED === "1";
+  const listenHost = process.env.MURRMURE_LISTEN_HOST ?? "127.0.0.1";
+  const bundleRoot = process.env.MURRMURE_BUNDLE_ROOT;
+  const bootstrapToken = process.env.MURRMURE_BOOTSTRAP_TOKEN;
+  await startHubDaemon({
+    databasePath,
+    port,
+    dataDir,
+    defaultSpaceId,
+    shellStaticDir,
+    embedded,
+    listenHost,
+    bundleRoot,
+    bootstrapToken,
+  });
 }

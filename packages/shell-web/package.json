@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:bundled": "VITE_MURRMURE_BUNDLED=1 vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "test:e2e": "echo 'e2e scaffold — run against local hub-daemon'"

@@ -117,6 +117,7 @@ export default defineConfig({
         {
           text: "Advanced",
           items: [
+            { text: "Desktop app (MVP)", link: "/guide/desktop" },
             { text: "Self-hosted hub", link: "/guide/self-hosted" },
             { text: "Troubleshooting", link: "/guide/troubleshooting" },
           ],

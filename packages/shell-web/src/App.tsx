@@ -1,7 +1,7 @@
 import { Link, Route, Routes, useParams, Navigate, useSearchParams, useLocation } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShellLayout } from "./ShellLayout.js";
-import { useClient } from "./hooks.js";
+import { getStoredHubUrl, isBundledShell, useClient } from "./hooks.js";
 import { getStorageItem, setStorageItem } from "./storage.js";
 import { FlowCanvasHost } from "./FlowCanvasHost.js";
 import {
@@ -20,16 +20,19 @@ import { TriggerList, TriggerRegisterForm, MemberList } from "./routes/configure
 import { HubSettings } from "./routes/configure/HubSettings.js";
 
 function ConnectPage() {
-  const [hubUrl, setHubUrl] = useState(getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787");
+  const bundled = isBundledShell();
+  const [hubUrl, setHubUrl] = useState(getStoredHubUrl());
   const [token, setToken] = useState(getStorageItem("murrmure_token") ?? "");
 
   return (
     <ShellLayout mode="runtime">
       <h1>Connect</h1>
-      <label>
-        Hub URL
-        <input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} style={{ display: "block", width: 320, marginBottom: 8 }} />
-      </label>
+      {!bundled && (
+        <label>
+          Hub URL
+          <input value={hubUrl} onChange={(e) => setHubUrl(e.target.value)} style={{ display: "block", width: 320, marginBottom: 8 }} />
+        </label>
+      )}
       <label>
         Token
         <input value={token} onChange={(e) => setToken(e.target.value)} style={{ display: "block", width: 320 }} />
@@ -39,7 +42,7 @@ function ConnectPage() {
       </p>
       <button
         onClick={() => {
-          setStorageItem("murrmure_hub_url", hubUrl);
+          setStorageItem("murrmure_hub_url", bundled ? window.location.origin : hubUrl);
           setStorageItem("murrmure_token", token);
           const setupDone = getStorageItem("murrmure_setup_complete");
           window.location.href = setupDone ? "/configure" : "/setup";
@@ -295,12 +298,34 @@ function LegacyFlowRedirect() {
   return <Navigate to={location.pathname.replace("/capabilities", "/flows") + location.search} replace />;
 }
 
+export function resolveDefaultRoute(
+  setupDone: boolean,
+  bundled: boolean,
+  hasToken: boolean,
+): string {
+  if (setupDone) {
+    return "/configure";
+  }
+  if (bundled && hasToken) {
+    return "/setup";
+  }
+  return "/connect";
+}
+
 export function App() {
   const setupDone = useMemo(() => getStorageItem("murrmure_setup_complete") === "1", []);
+  const bundled = isBundledShell();
+  const hasToken = Boolean(getStorageItem("murrmure_token"));
+  const defaultRoute = resolveDefaultRoute(setupDone, bundled, hasToken);
 
   return (
     <Routes>
-      <Route path="/connect" element={<ConnectPage />} />
+      <Route
+        path="/connect"
+        element={bundled && hasToken
+          ? <Navigate to={setupDone ? "/configure" : "/setup"} replace />
+          : <ConnectPage />}
+      />
       <Route path="/setup" element={<SetupWizard />} />
       <Route path="/configure" element={<ConfigureDashboard />} />
       <Route path="/configure/spaces/new" element={<SpaceForm />} />
@@ -323,7 +348,7 @@ export function App() {
       <Route path="/spaces/:spaceId/instances/:instanceId/canvas/:packageId" element={<CanvasPage />} />
       <Route path="/spaces/:spaceId/instances/:instanceId" element={<InstanceCanvasRedirect />} />
       <Route path="/spaces/:spaceId/sessions/:sessionKey" element={<InstanceCanvasRedirect sessionAlias />} />
-      <Route path="*" element={<Navigate to={setupDone ? "/configure" : "/connect"} replace />} />
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
 }

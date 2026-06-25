@@ -12,6 +12,7 @@
 | [npm-publish-v1 (archived)](../archives/plans/npm-publish-v1.md) | Murrmure v1: `@murrmure/cli` + `@murrmure/flow-dev-kit`, `/flows/` wire, bundle+source push | **Executed** (2026-06-23) — see [ADR-001](../ADR/ADR-001-murrmure-publish.md) |
 | [cloud/](./cloud/) | Hosted shell: cloud BFF, session auth, cloud-admin first space | Deferred — local-first v1 ships first |
 | [cross-space-xs1/](./cross-space-xs1/) | Federation relay, `query_policy` editor, `context_fetch@1`, `openapi_diff_ref@1` | Deferred — after XS0 |
+| [desktop/murrmure-desktop-v1 (archived)](../archives/plans/murrmure-desktop-v1.md) | Electrobun app: single URL, hub serves shell, daemon lifecycle, flows unchanged | **Executed** (2026-06-24) — see [desktop/spec.md](../current/desktop/spec.md), [ADR-002](../ADR/ADR-002-desktop-single-url.md) |
 
 ## Deferred product backlog
 

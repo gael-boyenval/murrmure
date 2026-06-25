@@ -53,12 +53,13 @@ Definitive architecture for the **domain-agnostic hub runtime**. Capabilities (r
        ↑
 @murrmure/hub-persistence    ← SQLite WAL, blob files, dedup store
        ↑
-@murrmure/hub-daemon         ← Bun HTTP + SSE + bootstrap + wiring
+@murrmure/hub-daemon         ← Node HTTP + SSE + bootstrap + wiring
 
 Adapters (thin):
   @studio/hub-mcp          ← stdio → HTTP
   @studio/hub-cli          ← blocking JSON stdout
   @studio/client           ← typed fetch + SSE for shell
+  @murrmure/desktop        ← Electrobun host; starts Node hub sidecar
 
 Authoring:
   @studio/capability-sdk   ← validate CLI, test harness, UI mount types
@@ -77,7 +78,7 @@ Deployables (later):
 
 ```
                     ┌─ Adapters ─────────────────────────┐
-                    │  HTTP · MCP stdio · CLI · Relay in │
+                    │ HTTP · MCP stdio · CLI · Relay · Desktop │
                     └──────────────────┬─────────────────┘
                                        ▼
 ┌─ Bootstrap ─────────────────────────────────────────────┐

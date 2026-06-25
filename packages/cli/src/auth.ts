@@ -20,6 +20,22 @@ function normalizeHubUrl(url: string): string {
   return url.replace(/\/$/, "");
 }
 
+function normalizeLoopbackHubUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+      return undefined;
+    }
+    return normalizeHubUrl(parsed.toString());
+  } catch {
+    return undefined;
+  }
+}
+
 function envAuth(): Partial<HubAuth> | null {
   const hubUrl = process.env.MURRMURE_HUB_URL ?? process.env.STUDIO_API_URL;
   const token =
@@ -57,11 +73,18 @@ function sharedJsonAuth(): Partial<HubAuth> | null {
       url?: string;
       token?: string;
       defaultSpaceId?: string;
+      hubs?: Array<{
+        endpoint?: string;
+      }>;
     };
-    if (!shared.url || !shared.token) return null;
+    const sharedHubUrl = shared.url ?? shared.hubs?.[0]?.endpoint;
+    const hubUrl = sharedHubUrl ? normalizeLoopbackHubUrl(sharedHubUrl) : undefined;
+    if (!hubUrl && !shared.token && !shared.defaultSpaceId) {
+      return null;
+    }
 
     return {
-      hubUrl: normalizeHubUrl(shared.url),
+      hubUrl,
       token: shared.token,
       defaultSpaceId: shared.defaultSpaceId,
     };

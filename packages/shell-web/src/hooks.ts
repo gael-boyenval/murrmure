@@ -2,13 +2,31 @@ import { createHubClient } from "@murrmure/hub-client";
 import { useMemo } from "react";
 import { getStorageItem, migrateLegacyStorage, setStorageItem } from "./storage.js";
 
+const DEFAULT_HUB_URL = "http://127.0.0.1:8787";
 const LOCAL_HUB_URLS = new Set(["http://127.0.0.1:8787", "http://localhost:8787"]);
 
 migrateLegacyStorage();
 
+export function isBundledShell(envValue = import.meta.env?.VITE_MURRMURE_BUNDLED): boolean {
+  return envValue === "1";
+}
+
+export function resolveHubUrl(
+  storedHubUrl: string | null | undefined,
+  bundled: boolean,
+  origin: string,
+): string {
+  if (bundled) {
+    return origin.replace(/\/$/, "");
+  }
+  const stored = storedHubUrl?.trim();
+  return stored ? stored.replace(/\/$/, "") : DEFAULT_HUB_URL;
+}
+
 /** Hub URL for MCP snippets and flow iframes (may be direct daemon port). */
 export function getStoredHubUrl(): string {
-  return getStorageItem("murrmure_hub_url") ?? "http://127.0.0.1:8787";
+  const origin = typeof window === "undefined" ? DEFAULT_HUB_URL : window.location.origin;
+  return resolveHubUrl(getStorageItem("murrmure_hub_url"), isBundledShell(), origin);
 }
 
 /** API base for browser fetch — routes local daemon through the Vite proxy. */

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { getStoredHubUrl, useClient } from "./hooks.js";
+import { getStoredHubUrl, isBundledShell, useClient } from "./hooks.js";
+import { filterHubFetchHeaders, isAllowedHubFetchPath } from "./hub-fetch-bridge.js";
 import { getStorageItem } from "./storage.js";
 import { ShellLayout } from "./ShellLayout.js";
 
@@ -14,20 +15,36 @@ export function FlowCanvasHost({ spaceId, instanceId, packageId, version }: Flow
   const client = useClient();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const bundled = isBundledShell();
   const hubUrl = getStoredHubUrl().replace(/\/$/, "");
+  const flowUiPath = `/flows/${packageId}/${version}/ui/shell.html`;
 
-  const iframeSrc = `${hubUrl}/flows/${packageId}/${version}/ui/shell.html?instance=${encodeURIComponent(instanceId)}`;
+  const iframeSrc = `${bundled ? flowUiPath : `${hubUrl}${flowUiPath}`}?instance=${encodeURIComponent(instanceId)}`;
 
   useEffect(() => {
     const onMessage = (ev: MessageEvent) => {
       if (ev.source !== iframeRef.current?.contentWindow) return;
       if (ev.data?.type !== "hub-fetch") return;
       const { id, path, init } = ev.data as { id: string; path: string; init?: RequestInit };
+      const allowed = isAllowedHubFetchPath(hubUrl, packageId, path);
+      if (!allowed.ok) {
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            type: "hub-fetch-result",
+            id,
+            ok: false,
+            status: allowed.error === "Invalid hub-fetch path" ? 400 : 403,
+            error: allowed.error,
+          },
+          "*",
+        );
+        return;
+      }
       const token = getStorageItem("murrmure_token") ?? "";
-      void fetch(`${hubUrl}${path}`, {
+      void fetch(allowed.target.toString(), {
         ...init,
         headers: {
-          ...(init?.headers as Record<string, string> | undefined),
+          ...filterHubFetchHeaders(init?.headers as Record<string, string> | undefined),
           Authorization: `Bearer ${token}`,
         },
       })
@@ -47,7 +64,7 @@ export function FlowCanvasHost({ spaceId, instanceId, packageId, version }: Flow
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [hubUrl]);
+  }, [hubUrl, packageId]);
 
   useEffect(() => {
     if (!client) return;
@@ -61,7 +78,7 @@ export function FlowCanvasHost({ spaceId, instanceId, packageId, version }: Flow
   useEffect(() => {
     if (!client) return;
     return client.events.subscribe(spaceId, (event, data) => {
-      if (event !== "flow.dev_reload" && event !== "flow.dev_reload") return;
+      if (event !== "flow.dev_reload") return;
       if ((data as { package_id?: string; flow_id?: string } | undefined)?.package_id !== packageId
         && (data as { flow_id?: string } | undefined)?.flow_id !== packageId) return;
       iframeRef.current?.contentWindow?.postMessage({ type: "reload" }, "*");

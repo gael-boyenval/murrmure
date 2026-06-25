@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { DaemonConfig } from "./context.js";
@@ -26,6 +26,22 @@ export interface SharedConfig {
 
 function sharedConfigPath(config: DaemonConfig): string {
   return join(resolveDataDir(config), "hubs", "shared.json");
+}
+
+function lockDirPath(config: DaemonConfig): string {
+  return join(resolveDataDir(config), "hub.lock");
+}
+
+function lockOwnerPath(config: DaemonConfig): string {
+  return join(lockDirPath(config), "owner.json");
+}
+
+function resolveDiscoveryHost(config: DaemonConfig): string {
+  const host = config.listenHost ?? "127.0.0.1";
+  if (host === "0.0.0.0" || host === "::") {
+    return "127.0.0.1";
+  }
+  return host;
 }
 
 export function readSharedConfig(config: DaemonConfig): SharedConfig {
@@ -58,11 +74,12 @@ export function writeDiscovery(config: DaemonConfig, port: number): void {
   const hubsDir = join(dataDir, "hubs");
   mkdirSync(hubsDir, { recursive: true });
   const existing = readSharedConfig(config);
+  const endpointHost = resolveDiscoveryHost(config);
   const discovery = {
     ...existing,
     hubs: [
       {
-        endpoint: `http://127.0.0.1:${port}`,
+        endpoint: `http://${endpointHost}:${port}`,
         database_path: config.databasePath,
         pid: process.pid,
         started_at: new Date().toISOString(),
@@ -72,25 +89,39 @@ export function writeDiscovery(config: DaemonConfig, port: number): void {
   writeFileSync(join(hubsDir, "shared.json"), JSON.stringify(discovery, null, 2));
 }
 
-export function acquireLock(config: DaemonConfig, port: number): LockOwner | Response {
-  const dataDir = resolveDataDir(config);
-  const lockDir = join(dataDir, "hub.lock");
-  const ownerPath = join(lockDir, "owner.json");
+export async function checkHubHealth(endpoint: string, timeoutMs = 1_500): Promise<boolean> {
+  try {
+    const signal = AbortSignal.timeout(timeoutMs);
+    const healthUrl = new URL("/v1/health", endpoint).toString();
+    const response = await fetch(healthUrl, { method: "GET", signal });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function acquireLock(config: DaemonConfig, port: number): Promise<LockOwner | Response> {
+  const lockDir = lockDirPath(config);
+  const ownerPath = lockOwnerPath(config);
 
   if (existsSync(ownerPath)) {
     try {
       const existing = JSON.parse(readFileSync(ownerPath, "utf-8")) as LockOwner;
-      const started = new Date(existing.started_at).getTime();
-      const stale = Date.now() - started > 30_000;
-      if (!stale) {
-        try {
-          process.kill(existing.pid, 0);
+      let pidAlive = false;
+      try {
+        process.kill(existing.pid, 0);
+        pidAlive = true;
+      } catch {
+        // pid dead — reclaim
+      }
+
+      if (pidAlive) {
+        const healthOk = await checkHubHealth(existing.endpoint);
+        if (healthOk) {
           return new Response(
             JSON.stringify({ code: "hub_already_running", owner: existing }),
             { status: 409, headers: { "content-type": "application/json" } },
           );
-        } catch {
-          // pid dead — reclaim
         }
       }
     } catch {
@@ -100,18 +131,58 @@ export function acquireLock(config: DaemonConfig, port: number): LockOwner | Res
   }
 
   mkdirSync(lockDir, { recursive: true });
+  const endpointHost = resolveDiscoveryHost(config);
   const owner: LockOwner = {
     pid: process.pid,
     started_at: new Date().toISOString(),
-    endpoint: `http://127.0.0.1:${port}`,
+    endpoint: `http://${endpointHost}:${port}`,
     database_path: config.databasePath,
   };
   writeFileSync(ownerPath, JSON.stringify(owner, null, 2));
   return owner;
 }
 
+export function updateLockOwnerEndpoint(config: DaemonConfig, port: number): void {
+  const ownerPath = lockOwnerPath(config);
+  if (!existsSync(ownerPath)) {
+    return;
+  }
+  try {
+    const owner = JSON.parse(readFileSync(ownerPath, "utf-8")) as LockOwner;
+    if (owner.pid !== process.pid) {
+      return;
+    }
+    owner.endpoint = `http://${resolveDiscoveryHost(config)}:${port}`;
+    writeFileSync(ownerPath, JSON.stringify(owner, null, 2));
+  } catch {
+    // best-effort lock metadata update
+  }
+}
+
+export function cleanupStaleStaging(dataDir: string, maxAgeDays = 7): void {
+  const stagingDir = join(dataDir, "staging");
+  if (!existsSync(stagingDir)) {
+    return;
+  }
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  for (const entry of readdirSync(stagingDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const entryPath = join(stagingDir, entry.name);
+    try {
+      const stats = statSync(entryPath);
+      if (stats.mtimeMs < cutoff) {
+        rmSync(entryPath, { recursive: true, force: true });
+      }
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
 export function releaseLock(config: DaemonConfig): void {
-  const lockDir = join(resolveDataDir(config), "hub.lock");
+  const lockDir = lockDirPath(config);
   if (existsSync(lockDir)) {
     rmSync(lockDir, { recursive: true, force: true });
   }
