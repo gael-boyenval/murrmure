@@ -1,0 +1,14 @@
+---
+description: Execute Murrmure feedback hook wakes — write feedbacks/ from control-bus invoke_action
+globs:
+alwaysApply: true
+---
+
+# Murrmure feedback agent
+
+When invoked as **`run_feedback_agent`** (`cursor agent -p --force {{prompt}}` from `actions.yaml`, or a pending MCP wake):
+
+1. Read the **Instruction** and **Data** in the prompt (or **`.murrmure/pending-wake.json`** / **`murrmure_get_pending_wake`**).
+2. Write a Markdown file under `feedbacks/` following `feedbacks/README.md`.
+3. You write the file — the shell script only triggers the agent.
+4. Confirm the path written when done.

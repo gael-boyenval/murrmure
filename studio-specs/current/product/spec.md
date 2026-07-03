@@ -1252,30 +1252,34 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | [flow-runtime/spec.md](../flow-runtime/spec.md) | v1 mount — migrate to index |
 | [cross-space/spec.md](../cross-space/spec.md) | XS0 queries; federation bridge |
 | [desktop/spec.md](../desktop/spec.md) | Shell host |
-| [plan/index.md](../../plans/product/plan/index.md) | Active backlog (B1–B6) |
+| [plan/index.md](../../plans/product/plan/index.md) | v2 implementation plan (phases 01–10, **complete** rev-5) |
 | [deferred.md](./deferred.md) | Intentionally deferred scope |
 | [archives/plans/product/](../../archives/plans/product/) | Full rev-1 draft text (historical) |
 
 ---
 
-## 21. Implementation backlog (not yet shipped)
+## 21. Implementation plan status (phases 01–10)
 
-Sourced from [feedbacks/](../../../feedbacks/) and [plan/index.md](../../plans/product/plan/index.md) rev-2 (2026-07-03).
+Sourced from [plan/index.md](../../plans/product/plan/index.md) rev-5 (2026-07-03). **All phases shipped** in `@murrmure/cli@1.0.0` release.
 
-**User-facing engine gaps** (symptoms): [known-gaps.md](../../../apps/docs/guide/known-gaps.md) B1–B6. **Backlog phases** below are execution-ordered deliverables (not the same IDs).
+**Known gaps B1–B10:** closed — see [known-gaps.md](../../../apps/docs/guide/known-gaps.md) and [acceptance.md](../acceptance.md).
 
 | Phase | Topic | Status | Plan |
-|-------|-------|--------|------|
-| 01 | Apply validation + cross-ref lint (closes known-gaps B5) | ⬜ | [01-apply-validation](../../plans/product/plan/01-apply-validation.md) |
-| 02 | Flow engine completion (closes known-gaps B1–B3) | ⬜ | [02-engine-completion](../../plans/product/plan/02-engine-completion.md) |
-| 03 | Space flow scaffold (closes known-gaps B6) | ⬜ | [03-space-flow-scaffold](../../plans/product/plan/03-space-flow-scaffold.md) |
-| 04 | Unified **`murrmure`** agent skill | ⬜ | [04-unified-murrmure-skill](../../plans/product/plan/04-unified-murrmure-skill.md) |
-| 05 | CLI setup wizards | ⬜ | [05-cli-setup-wizards](../../plans/product/plan/05-cli-setup-wizards.md) |
-| 06 | `gate.requires_view` *(optional; closes B4)* | ⬜ | [06-gate-requires-view](../../plans/product/plan/06-gate-requires-view.md) |
-| 07 | Legacy FDK / worker stack **deletion** | ⬜ | [07-legacy-fdk-deletion](../../plans/product/plan/07-legacy-fdk-deletion.md) |
-| 08 | Human docs rewrite + acceptance proof | ⬜ | [08-docs-and-proof](../../plans/product/plan/08-docs-and-proof.md) |
+|------:|-------|--------|------|
+| 01 | Apply validation + cross-ref lint | ✅ | [01-apply-validation](../../plans/product/plan/01-apply-validation.md) |
+| 02 | View SDK (`@murrmure/view-sdk/app`, `mrmr view dev`) | ✅ | [02-view-sdk](../../plans/product/plan/02-view-sdk.md) |
+| 03 | Engine completion (checkpoint dispatch, `on_resolve`, step outputs) | ✅ | [03-engine-completion](../../plans/product/plan/03-engine-completion.md) |
+| 04 | Space flow scaffold (`mrmr space flow init`) | ✅ | [04-space-flow-scaffold](../../plans/product/plan/04-space-flow-scaffold.md) |
+| 05 | ViewCanvasHost (full primary-region checkpoint UI) | ✅ | [05-view-canvas-checkpoints](../../plans/product/plan/05-view-canvas-checkpoints.md) |
+| 06 | Reference workflow (`preview-review-v2`, R1–R6) | ✅ | [06-reference-workflow-preview-review](../../plans/product/plan/06-reference-workflow-preview-review.md) |
+| 07 | Unified **`murrmure`** agent skill | ✅ | [07-unified-murrmure-skill](../../plans/product/plan/07-unified-murrmure-skill.md) |
+| 08 | CLI setup wizards (`mrmr setup`, `space onboard`) | ✅ | [08-cli-setup-wizards](../../plans/product/plan/08-cli-setup-wizards.md) |
+| 09 | FDK / worker stack deletion | ✅ | [09-fdk-deletion](../../plans/product/plan/09-fdk-deletion.md) |
+| 10 | Human docs rewrite + acceptance proof | ✅ | [10-docs-and-proof](../../plans/product/plan/10-docs-and-proof.md) |
 
-Review: [09-review-synthesis.md](../../plans/product/plan/09-review-synthesis.md).
+Living checklist: [00-doc-skill-mcp-tracker.md](../../plans/product/plan/00-doc-skill-mcp-tracker.md). Pre-09 inventory: [09-pre-fdk-test-disposition.md](../../plans/product/plan/09-pre-fdk-test-disposition.md). Synthesis: [09-review-synthesis.md](../../plans/product/plan/09-review-synthesis.md).
+
+**Manual release checklist (not CI-gated):** 10-T1/10-T1b Desktop walkthrough, 10-U2 TTFRun ≤10 min — see phase 10 DoD.
 
 ---
 

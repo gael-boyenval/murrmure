@@ -1,0 +1,20 @@
+---
+description: Murrmure product north star — agentic OS; custom views are the product; shell is admin
+alwaysApply: true
+---
+
+# Murrmure product north star
+
+**Normative:** [studio-specs/current/product/philosophy.md](../../studio-specs/current/product/philosophy.md) § North star
+
+Murrmure is an **agentic operating system** — not a generic admin dashboard with optional UI.
+
+## Non-negotiable
+
+1. **Custom views are the product.** Authors build full UI in `murrmure/views/`; humans work inside **ViewCanvasHost** (full primary-region canvas).
+2. **Hiding generic shell chrome in favor of custom views is success**, not an edge case.
+3. **Shell chrome** (space home, flowchart, notifications, gate inbox) = **admin/operator mode** — observe, debug, manage grants — not what workflow authors ship to end users.
+4. **Never** ship narrow drawers (`ViewDrawer` / side sheet) or built-in gate forms as the **primary** human path when a view is specified or expected.
+5. Protocol (sessions, runs, gates, invoke, hooks) = OS kernel. Views = human-facing OS shell.
+
+When designing features, docs, or plans: if it centers built-in shell UI over custom views, **stop and fix the design**.

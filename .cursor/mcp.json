@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "murrmure": {
+      "command": "murrmure",
+      "args": ["mcp"],
+      "env": {
+        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
+        "MURRMURE_HUB_TOKEN": "tok_01KWH3JAHMX02C0N69TSX0GSP6",
+        "MURRMURE_SPACE_ID": "spc_murrmure"
+      }
+    }
+  }
+}
