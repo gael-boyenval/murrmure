@@ -16,8 +16,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@murrmure/contracts": "^0.1.1",
-    "@murrmure/shell-client": "^0.1.1"
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/shell-client": "workspace:*"
   },
   "peerDependencies": {
     "react": "^18.3.1",
