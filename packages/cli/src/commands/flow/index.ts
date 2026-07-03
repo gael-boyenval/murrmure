@@ -1,33 +1,17 @@
 import { defineCommand } from "citty";
 import {
-  flowApplyCommand,
-  flowBuildCommand,
-  flowDevCommand,
   flowDoctorCommand,
-  flowInitCommand,
   flowListCommand,
-  flowPromoteCommand,
-  flowPushCommand,
-  flowRollbackCommand,
   flowStatusCommand,
-  flowTestCommand,
-  flowValidateCommand,
 } from "./commands.js";
+import { flowRunCommand } from "./run.js";
 
 export const flowCommand = defineCommand({
-  meta: { name: "flow", description: "Flow Dev Kit commands" },
+  meta: { name: "flow", description: "Flow commands — v2 index via space apply" },
   subCommands: {
-    init: flowInitCommand,
-    validate: flowValidateCommand,
-    build: flowBuildCommand,
-    push: flowPushCommand,
+    run: flowRunCommand,
     status: flowStatusCommand,
     list: flowListCommand,
     doctor: flowDoctorCommand,
-    test: flowTestCommand,
-    promote: flowPromoteCommand,
-    apply: flowApplyCommand,
-    rollback: flowRollbackCommand,
-    dev: flowDevCommand,
   },
 });

@@ -1,81 +1,79 @@
 ---
-name: murrmure-flow
+name: murrmure
 description: >-
-  Author, evolve, and operate Murrmure flows (FDK packages). Use when
-  scaffolding, editing, pushing, or promoting a flow; wiring MCP tools; minting
-  grants; or debugging why agents/humans cannot see review canvas or MCP tools.
-  Covers version bumps, validate/build/push, and the full evolution pipeline.
+  Operate and author Murrmure v2 — space directory, flows, views, hooks, grants,
+  MCP, and checkpoints. Use when editing murrmure/, running space apply, minting
+  grants, connecting agents, or debugging runs, gates, and custom views.
 ---
 
-# Murrmure — flow development
+# Murrmure — agent operating system (v2)
 
-Teach agents the **Murrmure platform model** and the **mandatory FDK workflow**. Humans use the browser shell; coding agents use **CLI + MCP**.
+**Normative agent source.** Human docs cover install and philosophy only — follow this skill for commands, manifests, and protocol behavior.
 
 ## Platform model (30 seconds)
 
 | Layer | Role |
 |-------|------|
-| **Hub daemon** | HTTP API, worker pool, MCP catalog, journal |
-| **Flow (FDK)** | Your workflow: contract, server worker, UI iframe, MCP tools |
-| **Shell** | Configure + Runtime chrome; loads flow UI in sandboxed iframe |
-| **MCP bridge** | `murrmure` with `args: ["mcp"]` proxies grant-filtered tools from `/v1/mcp/catalog` |
+| **Space directory** | `murrmure/actions.yaml`, `executors.yaml`, `hooks.yaml`, `flows/*/flow.manifest.yaml`, `views/*` |
+| **Hub index** | Compiled flow IR + digests after `mrmr space apply` |
+| **Session / Run** | Correlation + immutable execution; runs pin `flow_digest` |
+| **Checkpoint** | Human step — pending gate, resolve via `{ disposition, output }` |
+| **ViewCanvasHost** | Full primary canvas for custom views at checkpoints |
+| **MCP** | Grant-filtered tools for agents |
 
-Instances are hub rows (`ins_…`). `session_key` === `instance_id`. Canvas opens at Runtime → Instances or `/spaces/{spaceId}/sessions/{instanceId}`.
+Deep dive: [reference/platform-model.md](reference/platform-model.md).
 
-## Before you change a flow
+## Task router
 
-Copy this checklist and complete every step:
+| You need to… | Read |
+|--------------|------|
+| Scaffold or index a space | [reference/space-directory.md](reference/space-directory.md) |
+| Author flows, triggers, steps | [reference/flow-authoring.md](reference/flow-authoring.md) |
+| Actions + executors | [reference/actions-executors.md](reference/actions-executors.md) |
+| Hooks / scheduled / event triggers | [reference/hooks-triggers.md](reference/hooks-triggers.md) |
+| Custom views at checkpoints | [reference/views.md](reference/views.md) |
+| Resolve wire + `on_resolve` routing | [reference/gates.md](reference/gates.md) |
+| Mint grants / capabilities | [reference/grants.md](reference/grants.md) |
+| MCP tools + wait/resolve | [reference/mcp.md](reference/mcp.md) |
+| Ephemeral vs durable orchestration | [reference/orchestration-attach.md](reference/orchestration-attach.md) |
+| Cross-hub spaces | [reference/federation.md](reference/federation.md) |
+| CLI commands | [reference/cli.md](reference/cli.md) |
+| Human wizard equivalents | [reference/wizards.md](reference/wizards.md) |
+| What's not shipped yet | [reference/known-gaps.md](reference/known-gaps.md) |
+| Debug failures | [reference/troubleshooting.md](reference/troubleshooting.md) |
+
+## Non-negotiable rules
+
+1. **Index via apply** — flows in `murrmure/flows/` are not live until `mrmr space apply`.
+2. **`triggers:` only at top of manifest** — when a run may start; **no human UI on triggers**. Human UX lives on **checkpoint steps** only.
+3. **Checkpoint resolve wire** — `{ disposition: "continue" \| "cancel", output?: {...} }`. Request changes = `continue` + `output.outcome: changes_required`.
+4. **Custom views are primary** — ViewCanvasHost fills the main canvas; shell gate forms are admin/fallback only.
+5. **Grants** — `flow:run` to execute; `flow:read` for preview; reload MCP after mint or apply.
+6. **Orchestration A/B** — durable repo flows → `mrmr space apply`; ephemeral session graph → `murrmure_attach_orchestration`.
+7. **Known gaps** — read [reference/known-gaps.md](reference/known-gaps.md) before promising behavior.
+
+## Flow change checklist
 
 ```
-Flow change checklist:
-- [ ] Bump semver in flow.manifest.json AND contract/contract.json (same version)
-- [ ] Edit server / UI / mcp-tools.json as needed
-- [ ] mrmr flow validate . --json
-- [ ] mrmr flow build . --json
-- [ ] mrmr flow push --space <space> --json
-- [ ] mrmr flow validate --space <space> --install <install> --json
-- [ ] mrmr flow test --space <space> --install <install> --json
-- [ ] mrmr flow promote --space <space> --install <install> --json
-- [ ] mrmr flow apply --space <space> --install <install> --json
-- [ ] Mint grant includes flow id in flow_acl; reload MCP
+- [ ] Edit murrmure/flows/{name}/flow.manifest.yaml (triggers + steps)
+- [ ] Build view dist/ if checkpoint views changed
+- [ ] mrmr space apply --path . --space <space> --json
+- [ ] mrmr space status --space <space> --json
+- [ ] mrmr flow run flw_<name> --input '{}' --space <space> --json
+- [ ] Mint grant with flow:run (+ flow:read for preview-only actors)
+- [ ] Reload MCP session if agent needs new tools
 ```
-
-**Never push code changes without bumping version** — the hub keys installs by `(flow_id, semver)`. Skipping validate/test/promote/apply leaves the old worker live.
 
 ## Quick commands
 
 ```bash
-# Local package
-mrmr flow validate .
-mrmr flow build .
-mrmr flow push --space spc_ui_sandbox --json
-
-# Hub evolution (use install_id from push)
-mrmr flow validate --space spc_ui_sandbox --install ins_… --json
-mrmr flow test --space spc_ui_sandbox --install ins_… --json
-mrmr flow promote --space spc_ui_sandbox --install ins_… --json
-mrmr flow apply --space spc_ui_sandbox --install ins_… --json
-
-# Agent skill (this file) in the repo
+mrmr space init
+mrmr space link --path . --space spc_ui_sandbox
+mrmr space apply
+mrmr space status
+mrmr flow run flw_morning_brief --input '{"topic":"news"}' --space spc_ui_sandbox --json
+mrmr grant mint --space spc_ui_sandbox --capabilities space:read,flow:run,action:invoke
 mrmr skill install
-mrmr skill update
 ```
 
-Env: `MURRMURE_HUB_URL`, `MURRMURE_TOKEN` (or `MURRMURE_HUB_TOKEN`), `MURRMURE_SPACE_ID`.
-
-## Reference docs (read when needed)
-
-| Topic | File |
-|-------|------|
-| Evolution pipeline, version rules, common agent mistakes | [reference/evolution-pipeline.md](reference/evolution-pipeline.md) |
-| FDK layout, contract, server, UI, MCP tool map | [reference/capability-authoring.md](reference/capability-authoring.md) |
-| `mrmr flow` / `mrmr skill` CLI | [reference/cli.md](reference/cli.md) |
-| MCP config, grants, tool catalog | [reference/mcp.md](reference/mcp.md) |
-
-## Agent rules
-
-1. **Instance create** — use `ctx.contractRefId` from the worker context, not a hardcoded `cref_*` string.
-2. **Review sessions** — return `murrmure_url` / `canvas_path` to the human before blocking on wait tools.
-3. **Grants** — `flow_acl` must list your `flow_id`; platform scopes alone do not expose domain tools.
-4. **Promote ≠ live** — always **apply** after promote for FDK bundles.
-5. **Do not edit hub or shell** for domain behavior — change the flow package and re-run the pipeline.
+Env: `MURRMURE_HUB_URL`, `MURRMURE_TOKEN` / `MURRMURE_HUB_TOKEN`, `MURRMURE_SPACE_ID`.

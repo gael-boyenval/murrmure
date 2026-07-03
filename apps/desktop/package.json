@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/dev-main.ts",
+    "dev:hmr": "MURRMURE_DESKTOP_DEV_HMR=1 bun x electrobun dev",
     "dev:window": "bun run src/main.ts",
     "build": "tsc -p tsconfig.json",
     "build:bundle": "bun x electrobun build",

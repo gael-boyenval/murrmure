@@ -1,0 +1,12 @@
+{
+  "id": "checkpoint-resolve",
+  "prompt": "What JSON body resolves a checkpoint gate in v2?",
+  "expected_keywords": [
+    "disposition",
+    "continue",
+    "cancel",
+    "output",
+    "on_resolve"
+  ],
+  "advisory": true
+}

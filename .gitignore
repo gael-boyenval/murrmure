@@ -1,5 +1,6 @@
 # Project-specific
 .opensrc/
+.dev/
 .DS_Store
 fixtures/demo/.cursor/
 
@@ -35,6 +36,9 @@ web_modules/
 # Build output
 dist/
 build/Release
+apps/desktop/build/
+storybook-static/
+apps/storybook/snapshots-manifest.json
 .next
 out
 .nuxt

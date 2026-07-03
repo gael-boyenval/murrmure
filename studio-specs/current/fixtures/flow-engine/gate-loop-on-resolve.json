@@ -1,0 +1,62 @@
+{
+  "description": "Phase 03 — preview-review 2-round loop via on_resolve goto build",
+  "manifest": {
+    "apiVersion": "murrmure.flow/v1",
+    "name": "gate-loop-on-resolve",
+    "triggers": { "manual": true },
+    "start": { "manual": true },
+    "steps": [
+      {
+        "id": "intake",
+        "checkpoint": {
+          "view": "preview-review-intake",
+          "on_resolve": {
+            "default": { "goto": "build" },
+            "cancel": { "fail": true }
+          }
+        }
+      },
+      {
+        "id": "build",
+        "invoke": {
+          "space": "{{origin_space}}",
+          "action": "run_preview_agent",
+          "params": {
+            "preview_url": "{{input.preview_url}}",
+            "feedback": "{{steps.review.output.comments}}"
+          }
+        }
+      },
+      {
+        "id": "review",
+        "checkpoint": {
+          "view": "preview-review",
+          "on_resolve": {
+            "when": "output.outcome",
+            "values": {
+              "validated": { "goto": "done" },
+              "changes_required": { "goto": "build" }
+            },
+            "default": { "goto": "done" },
+            "cancel": { "fail": true }
+          }
+        }
+      },
+      { "id": "done", "invoke": { "space": "{{origin_space}}", "action": "finish" } }
+    ]
+  },
+  "rounds": [
+    {
+      "intake_output": { "preview_url": "http://localhost:3000", "reviewer": "alice" },
+      "review_output": { "outcome": "changes_required", "comments": ["Fix header"] },
+      "expect_build_params": {
+        "preview_url": "http://localhost:3000",
+        "feedback": "Fix header"
+      }
+    },
+    {
+      "review_output": { "outcome": "validated" },
+      "expect_next": "done"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import type {
-  ActionPort,
+  ReactionActionPort,
   ActionSpec,
   ConditionPort,
   ConvergencePort,
@@ -103,7 +103,7 @@ export function parseFixtureArtifact(raw: unknown): RuleArtifact {
   return parseRuleArtifact(raw);
 }
 
-export function recordingAction(): ActionPort & { invokes: Array<{ type: string; entry_id: string }> } {
+export function recordingAction(): ReactionActionPort & { invokes: Array<{ type: string; entry_id: string }> } {
   const invokes: Array<{ type: string; entry_id: string }> = [];
   return {
     invoke: async (action: ActionSpec, ctx: { entry: JournalEntry }) => {

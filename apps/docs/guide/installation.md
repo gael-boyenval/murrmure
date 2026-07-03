@@ -2,38 +2,32 @@
 
 This page answers one question quickly: **which package do I actually need?**
 
-## Step 0: most users install nothing
+## Step 0: install Murrmure Desktop first
 
-- **Reviewers and admins:** no npm install required
-- Use the browser shell only:
-  - Cloud: [app.murrmure.dev](https://app.murrmure.dev)
-  - Self-hosted: your org shell URL
+**Reviewers and admins** start with [Murrmure Desktop](./desktop) — the observer shell and local hub. No npm install required for day-to-day human work.
 
-Install npm packages only if you run agents, scripts/CI, or build flows.
+Install npm packages when you run agents, scripts/CI, or author indexed flows.
 
-## Step 1: prerequisites (for agent tooling)
+## Step 1: prerequisites (for CLI and agents)
 
 - **Node.js 20+**
-- Access to a Murrmure workspace/space
-- A minted grant token (`tok_...`) from **Configure → Agent grants**
+- Murrmure Desktop running (or hub reachable at `http://127.0.0.1:8787`)
+- A minted grant token (`tok_...`) from **`mrmr grant mint`**
 - Target space id (`spc_...`) for `MURRMURE_SPACE_ID`
 
 ## Step 2: choose your package(s)
 
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
-| `@murrmure/cli` | Agent operators (Cursor/Claude) | `npm install -g @murrmure/cli` | `murrmure mcp` — agents call Murrmure tools |
-| `@murrmure/cli` | Optional CI/scripts/operators | `npm install -g @murrmure/cli` | `mrmr` — health, audit, transitions, automation |
-| `@murrmure/cli` + `@murrmure/flow-dev-kit` | Flow builders only | `npm install -D @murrmure/cli` + `npm install @murrmure/flow-dev-kit` | `mrmr flow` — init, validate, build, push, evolve |
+| `@murrmure/cli` | Everyone (agents + operators + authors) | `npm install -g @murrmure/cli` | `mrmr` / `murrmure mcp` — setup, space apply, MCP, flow run |
 
 If you prefer no global installs:
 
 ```bash
-npx @murrmure/cli
 npx @murrmure/cli health
 ```
 
-## Step 3: standard agent setup (`@murrmure/cli`)
+## Step 3: standard agent setup
 
 1. Install:
 
@@ -41,70 +35,49 @@ npx @murrmure/cli health
 npm install -g @murrmure/cli
 ```
 
-2. Add MCP config in your agent client:
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
-        "MURRMURE_HUB_TOKEN": "tok_...",
-        "MURRMURE_SPACE_ID": "spc_..."
-      }
-    }
-  }
-}
-```
-
-3. Reload the client.
-4. Ask the agent to call `get_space_state` to confirm connectivity.
-
-For self-hosted, keep the same keys and set `MURRMURE_HUB_URL` to your hub URL.
-
-## Step 4: optional CLI setup (`@murrmure/cli`)
+2. First-run wizard (recommended):
 
 ```bash
-npm install -g @murrmure/cli
-mrmr login
-mrmr whoami
+mrmr setup
 ```
 
-Use CLI for scripts/CI and operator workflows. Interactive agent loops still go through MCP.
-
-## Step 5: builder-only setup (`@murrmure/cli` + `@murrmure/flow-dev-kit`)
-
-In your flow repository (not needed for normal review/spec usage):
+Or mint a grant manually:
 
 ```bash
-npm install -D @murrmure/cli
-npm install @murrmure/flow-dev-kit
-mrmr flow init my-flow --dir ./workflows/my-flow
-mrmr flow validate ./workflows/my-flow
-mrmr flow build ./workflows/my-flow
+mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:read
 ```
 
-Use this package only when authoring or evolving flows.
+3. Add MCP config in your agent client — see [Connect your agent](./agents-mcp).
+
+4. Ask the agent to call `murrmure_space_status` to confirm connectivity.
+
+## Step 4: flow author setup
+
+```bash
+mrmr space init
+mrmr space flow init my-flow --template hello-gate
+mrmr space apply --strict
+```
+
+See [Creating flows](./creating-flows) and [Flows tutorial](./flows-tutorial).
 
 ## CI / headless environment
 
 ```bash
-export MURRMURE_HUB_URL=https://api.murrmure.dev
+export MURRMURE_HUB_URL=http://127.0.0.1:8787
 export MURRMURE_HUB_TOKEN=tok_your_grant_token
 export MURRMURE_SPACE_ID=spc_your_space_id
+mrmr setup --yes --json
 ```
 
 ## You do not need for normal onboarding
 
-- `curl`-driven setup
 - cloning platform monorepos
-- running hub daemon commands (unless you self-host)
-- host-level vars like `DATABASE_PATH` (operator-only)
+- running hub daemon commands manually (Desktop starts the hub)
+- host-level vars like `DATABASE_PATH` (contributor-only)
 
 ## Next
 
-- [How it fits together](./how-it-fits-together)
-- [Connect your agent](./agents-mcp)
 - [Quick start](./quick-start)
+- [Murrmure Desktop](./desktop)
+- [Connect your agent](./agents-mcp)

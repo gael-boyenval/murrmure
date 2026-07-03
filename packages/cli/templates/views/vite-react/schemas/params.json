@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "reviewer": { "type": "string", "title": "Reviewer" },
+    "preview_url": { "type": "string", "title": "Preview URL" }
+  }
+}

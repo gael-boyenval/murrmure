@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-exec node --import tsx "$(dirname "$0")/../src/cli/index.ts" "$@"

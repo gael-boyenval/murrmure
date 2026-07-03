@@ -70,4 +70,4 @@ User bundle inside iframe receives **short-lived derived token** via `postMessag
 ## Related
 
 - [06-install-push-apply-http-contract.md](./06-install-push-apply-http-contract.md)
-- [plans/cloud/spec.md](../../plans/cloud/spec.md) (deferred)
+- [archives/plans/cloud/spec.md](../../archives/plans/cloud/spec.md) (**NOT SHIPPED**)

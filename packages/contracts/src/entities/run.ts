@@ -1,0 +1,50 @@
+import { z } from "zod";
+import {
+  FlowIdSchema,
+  RunIdSchema,
+  SessionIdSchema,
+  SpaceIdSchema,
+} from "../ids.js";
+
+export const RunLifecycleSchema = z.enum([
+  "working",
+  "input-required",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const ExecContextSchema = z
+  .object({
+    worktree_path: z.string().optional(),
+    branch: z.string().optional(),
+    preview_url: z.string().optional(),
+  })
+  .catchall(z.unknown());
+
+const RunCoreSchema = z.object({
+  run_id: RunIdSchema,
+  session_id: SessionIdSchema,
+  space_id: SpaceIdSchema.optional(),
+  flow_id: FlowIdSchema.nullish(),
+  flow_digest: z.string().optional(),
+  lifecycle: RunLifecycleSchema,
+  exec_context: ExecContextSchema.default({}),
+  reference_run_ids: z.array(RunIdSchema).default([]),
+  started_at: z.string(),
+  ended_at: z.string().optional(),
+});
+
+/** Accept v1 `instance_id` as alias for `run_id`. */
+export const RunSchema = z.preprocess((value) => {
+  if (typeof value !== "object" || value === null) return value;
+  const record = value as Record<string, unknown>;
+  if (record.run_id === undefined && record.instance_id !== undefined) {
+    return { ...record, run_id: record.instance_id };
+  }
+  return value;
+}, RunCoreSchema);
+
+export type RunLifecycle = z.infer<typeof RunLifecycleSchema>;
+export type ExecContext = z.infer<typeof ExecContextSchema>;
+export type Run = z.infer<typeof RunSchema>;

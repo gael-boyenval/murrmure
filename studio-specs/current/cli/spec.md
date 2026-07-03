@@ -8,7 +8,7 @@ Normative spec for `@murrmure/cli` (`mrmr` / `murrmure`). Implementation plan: [
 
 1. Best-in-class CLI DX — `--help` on every command with description, args, flags, examples, and `Requires:` line.
 2. Human-readable default output on stdout; `--json` for scripts.
-3. Hub config parity — CLI mirrors Configure shell routes.
+3. Hub config parity — CLI mirrors hub HTTP routes (no Configure UI).
 4. Scope-aware preflight — fail fast before HTTP when token lacks scope (config routes) or wrong space (product routes).
 5. Docs/spec/help alignment — no ghost commands.
 
@@ -60,27 +60,44 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `logout` | impl | none |
 | `whoami` | impl | any valid token |
 | `doctor` | impl | any valid token |
+| `setup` | impl | requireScope · space:admin |
 | `health` | impl | none |
-| `space init` | impl | requireScope · space:admin |
+| `space init` | impl | none (local scaffold) |
+| `space setup` | impl | requireScope · space:admin |
+| `space onboard` | impl | requireScope · space:write (--create: space:admin) |
+| `space link` | impl | requireScope · space:write |
+| `space apply` | impl | requireScope · space:write |
+| `action invoke` | impl | requireScope · action:invoke |
+| `space status` | impl | requireScope · space:read |
 | `space list` | impl | requireScope · space:enter |
 | `space show` | impl | requireTokenForSpace |
 | `space create` | impl | requireScope · space:admin |
 | `space update` | impl | requireScope · space:admin |
 | `space archive` | impl | requireScope · space:admin |
 | `space grant *` | impl | requireScope · space:admin |
+| `grant *` | impl | alias of `space grant` |
 | `space member *` | impl | requireScope · space:admin |
 | `space trigger *` | impl | requireScope · varies |
 | `hub federation` | impl | requireScope · space:admin |
 | `hub grants-export` | impl | requireScope · space:admin |
+| `federation status` | impl | alias → `hub federation` |
+| `federation peer add` | impl | requireScope · space:admin |
+| `me set-landing` | impl | requireScope · space:enter |
+| `worker poll` | impl | grant · executor:poll (hub enforces) |
+| `space view init` | impl | none (local scaffold) |
+| `space flow init` | impl | none (local scaffold; requires murrmure/) |
+| `view dev` | impl | none (local dev loop) |
+| `view init` | deprecated | stderr redirect → `space view init`; exit 1 |
+| `flow init` | deprecated in murrmure/ | stderr redirect → `space flow init`; exit 1 |
 | `runtime events` | impl | requireTokenForSpace |
 | `runtime gates` | impl | requireTokenForSpace |
-| `runtime transition` | impl | requireTokenForSpace |
+| `runtime transition` | **removed** | Calls 404 instance route — use MCP mount tools or session/run APIs |
 | `runtime wait` | impl | requireTokenForSpace |
 | `runtime audit export` | impl | requireTokenForSpace |
-| `flow init` | impl | none |
 | `flow validate` | impl | none (local); requireScope · flow:install with `--space --install` |
 | `flow build` | impl | none |
-| `flow push` | impl | requireScope · flow:install |
+| `flow push` | **404** | Hub returns 404 (phase 16) — use `space apply` |
+| `flow run` | impl | requireScope · flow:run |
 | `flow status` | impl | none |
 | `flow list` | impl | requireScope · space:read |
 | `flow doctor` | impl (deprecated alias) | any valid token → delegates to `mrmr doctor` |
@@ -97,14 +114,14 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 
 ## Auth resolution order
 
-CLI flags (`--hub-url`, `--token`) → env (`MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_TOKEN`, `MURRMURE_DEPLOY_TOKEN`, legacy `STUDIO_API_URL` / `STUDIO_API_TOKEN`) → `~/.murrmure/credentials` → `~/.murrmure/hubs/shared.json`
+CLI flags (`--hub-url`, `--token`) → env (`MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_TOKEN`, `MURRMURE_DEPLOY_TOKEN`) → `~/.murrmure/credentials` → `~/.murrmure/hubs/shared.json`
 
 ## Auth commands (§5.2)
 
 ### `mrmr login [--open] [--hub-url <url>]`
 
 1. Prompt hub URL (default `http://127.0.0.1:8787` or `--hub-url`)
-2. Optional `--open`: browser to `{hubUrl}/configure`
+2. Optional `--open`: open Desktop at `{hubUrl}/spaces/new` (not `/configure`)
 3. Clack password prompt for token (`tok_…`)
 4. Validate via `GET /v1/auth/whoami` before save
 5. Write `~/.murrmure/credentials` (mode `0600`)
@@ -151,7 +168,7 @@ Product P0 routes — hub uses `requireToken(space)` only (no `space:read` / `st
 |---------|------|---------------------------|
 | `runtime events [from_seq]` | GET `/v1/spaces/:id/events?from_seq=` | `event:read` |
 | `runtime gates` | GET `/v1/spaces/:id/gates` | `space:read` |
-| `runtime transition <ins> <event> <rev>` | POST `/v1/spaces/:id/instances/:ins/transitions` | `state:transition` |
+| `runtime transition <ins> <event> <rev>` | **404** — instances API removed | — |
 | `runtime wait <wait_id> [--timeout]` | GET `/v1/spaces/:id/waits/:wait_id` (poll) | `state:transition` |
 | `runtime audit export [since]` | GET `/v1/spaces/:id/audit/export?since=` | `space:read` |
 
@@ -173,7 +190,8 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 | `init <id>` | none | Scaffold; human summary with next steps |
 | `validate [path]` | none locally | Hub mode: `--space` + `--install` → evolution validate |
 | `build [path]` | none | Local bundle stage |
-| `push [path]` | flow:install | JSON preserves `install_id`, `next_steps`, … |
+| `push [path]` | **404 on hub** | Legacy evolution install removed — use `space apply` |
+| `run <flow_id>` | flow:run | `POST /v1/flows/{id}/run` |
 | `status [path]` | none | Reads `.flow-push-state.json` |
 | `list` | space:read | `GET /v1/spaces/{id}/flows` |
 | `doctor` | any valid token | **Deprecated** — stderr hint; delegates to `mrmr doctor` |
@@ -186,22 +204,45 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 
 | Command | HTTP | Preflight |
 |---------|------|-----------|
-| `init` | wizard | requireScope · space:admin (bootstrap OK on empty hub) |
-| `list` | GET `/v1/spaces` | requireScope · space:enter (no `--space` required) |
+| `init [--path]` | local scaffold | none |
+| `setup` | wizard | requireScope · space:admin |
+| `onboard [--path]` | wizard | requireScope · space:write |
+| `link [--path] [--space]` | POST `/v1/spaces/:id/link` | requireScope · space:write |
+| `apply [--path] [--strict]` | POST `/v1/spaces/:id/apply` | requireScope · space:write |
+| `status [--path]` | GET `/v1/spaces/:id/index/status` | requireScope · space:read |
+| `list` | GET `/v1/spaces` | requireScope · space:enter |
 | `show <space_id>` | GET `/v1/spaces/:id` | requireTokenForSpace only |
 | `create` | POST `/v1/spaces` | requireScope · space:admin |
 | `update <space_id>` | PATCH `/v1/spaces/:id` | requireScope · space:admin |
 | `archive <space_id>` | POST `/v1/spaces/:id/archive` | requireScope · space:admin |
 
-**`space create` flags:** `--slug`, `--name`, `--install-policy` (default `human_only`), `--preview-policy` (default `same_origin_only`), `--description`, `--parent`.
+**`space init`:** Scaffolds `murrmure/` (actions, executors, hooks, example flow). Does not require hub auth.
 
-**`space update`:** `--name`, `--install-policy`, `--preview-policy`, `--query-policy` (JSON or `@file.json`).
+**`space link`:** Registers `{ host, path, primary }` binding; writes `.murrmure/link.json` locally. Use `--create` to create hub space from `space.yaml` slug.
 
-**Human output:** `list` → table (`SPACE_ID`, `NAME`, `SLUG`, `STATUS`); `create` → assigned `space_id` on stdout.
+**`space apply`:** Validates local YAML with rev-1 schemas, lints flows against `ENGINE_DISPATCH_KINDS` and checkpoint view/`on_resolve` rules, POSTs bundle to hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings except `DEPRECATED_START_KEY` and `CHECKPOINT_LOOPBACK_HINT`. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [flow-engine bridge](../bridges/flow-engine.md) dispatch table and [plan/01-apply-validation.md](../../plans/product/plan/01-apply-validation.md).
 
-**`space init`:** Clack wizard mirroring browser `/setup` — connect (reuse login), create default spaces, print flow/evolution commands, optional worker grant mint, invite hint, verify links. Each step skippable; Ctrl+C safe.
+**Apply lint (phase 01):** unsupported step kinds (`gate`/`checkpoint` pre phase 03), missing actions/executors, checkpoint view missing or `dist/` not built, legacy `start.requires_view`, deprecated `start:` without `triggers:`, missing `on_resolve.default`/`cancel`, invalid `goto` targets.
 
-**Bootstrap / empty hub:** `whoami.spaces: []` with bootstrap token must pass preflight for `space create` (§6.3). Use `runGlobalScopePreflight` for `list` and `create` (no target space id).
+**`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `murrmure/` — manifest (`triggers` + checkpoint steps per decision 05), actions, executors, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `murrmure/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `murrmure/` repo redirects with exit 1.
+
+**`space setup`:** Interactive hub setup — connect, create spaces, **execute** init/link/apply (not print-only), optional grant mint with rev-1 capabilities + MCP snippet.
+
+**`space onboard`:** Short path for existing `murrmure/` — link → apply → status. Doctor suggests this when link is missing.
+
+## Setup wizards (§5.3)
+
+| Command | Human (Clack) | Agent (`--json`) |
+|---------|---------------|------------------|
+| `mrmr setup` | connect → spaces → init → link → apply → skill → grant + MCP | `--json` = step plan; `--json --yes` = non-interactive run |
+| `mrmr space onboard` | link → apply → status | same flags |
+| `mrmr space setup` | hub admin subset of setup | use `mrmr setup --json` instead |
+
+**Grant step:** mints rev-1 capabilities (`space:read`, `flow:run`, `flow:read`, `action:invoke`, `gate:resolve`, `journal:read`) — not v1 `WORKER_SCOPES`.
+
+**Handoff:** wizard outro points to Desktop → Run → **ViewCanvasHost** at checkpoint steps.
+
+**Doctor hints:** link missing → `mrmr space onboard`; `flows: 0` → `mrmr space flow init hello --template hello-gate`.
 
 ## Space grant commands (§5.5)
 
@@ -210,7 +251,8 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 | Command | HTTP | Notes |
 |---------|------|-------|
 | `space grant list` | GET `/v1/spaces/:id/grants` | JSON or pretty-printed hub body |
-| `space grant mint` | POST `/v1/spaces/:id/grants` | Body uses **`flow_acl`** (not `capability_acl`); `--label` required; optional `--harness`, `--template`, `--scopes`, `--flow-acl`, `--expires-days` |
+| `space grant mint` | POST `/v1/spaces/:id/grants` | Body uses **`flow_acl`**; `--label` required; `--capabilities` alias for `--scopes` |
+| `grant mint` | same | Top-level alias of `space grant mint` |
 | `space grant revoke <grant_id>` | POST `…/grants/:id/revoke` | |
 | `space grant rotate <grant_id>` | POST `…/grants/:id/rotate` | Returns new one-time token |
 
@@ -272,6 +314,61 @@ Roles: `admin`, `editor`, `viewer`.
 
 **Grants export:** pipe-friendly stdout (ignores `--json` when streaming to stdout); `--out` with `--json` returns `{ ok: true, path }`.
 
+## Action commands
+
+| Command | HTTP | Preflight |
+|---------|------|-----------|
+| `action invoke <name>` | POST `/v1/spaces/:id/actions/:name/invoke` | requireScope · action:invoke |
+
+Flags: `--params` JSON, optional `--run-id`, `--session-id`, `--step-id`, `--delivery`.
+
+## Me commands
+
+| Command | HTTP | Preflight |
+|---------|------|-----------|
+| `me set-landing --space` | PATCH `/v1/me` `{ landing_space_id }` | requireScope · space:enter |
+
+## View commands
+
+| Command | Preflight | Notes |
+|---------|-----------|-------|
+| `space view init <id>` | none | Scaffold Vite+React tree under `murrmure/views/{id}/` |
+| `view dev <id>` | none | Start author's `scripts.dev`; fixture tabs (Desktop dev route phase 05/06) |
+| `view init <id>` | none | **Deprecated** — stderr redirect to `space view init`; exit 1 |
+| `view build [id]` | none | Optional convenience — `npm run build` in view dir (planned) |
+
+### `space view init` output tree
+
+```text
+murrmure/views/{id}/
+  view.manifest.yaml
+  package.json             # scripts.dev + scripts.build
+  vite.config.ts
+  index.html
+  src/main.tsx             # createViewMount({ App })
+  src/App.tsx
+  schemas/params.json
+  dev/fixtures/
+    intake.json
+    gate-round-1.json
+    gate-round-2.json
+```
+
+After scaffold: `npm install` in view dir, then `mrmr view dev {id}` or `npm run build` + `mrmr space apply`.
+
+## Worker commands
+
+| Command | HTTP | Preflight |
+|---------|------|-----------|
+| `worker poll --executor` | GET `/v1/executor/tasks`, POST complete | hub enforces executor:poll + binding |
+
+## Federation commands
+
+| Command | HTTP | Preflight |
+|---------|------|-----------|
+| `federation status` | GET `/v1/ops/federation/status` | requireScope · space:admin |
+| `federation peer add --id --url` | POST `/v1/ops/federation/peers` | requireScope · space:admin |
+
 ## Skill commands (§5.11)
 
 | Command | Requires | Action |
@@ -282,6 +379,6 @@ Roles: `admin`, `editor`, `viewer`.
 
 ## References
 
-- Hub scope enforcement: `packages/studio-hub-daemon/src/routes/config/scopes.ts`
+- Hub scope enforcement: `packages/hub-daemon/src/routes/config/scopes.ts`
 - Plan: [cli-dx-v1.md](../../archives/plans/cli-dx-v1.md)
 - User guide: [apps/docs/guide/cli.md](../../../apps/docs/guide/cli.md)

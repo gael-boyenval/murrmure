@@ -1,5 +1,5 @@
 import type {
-  ActionPort,
+  ReactionActionPort,
   CommandResult,
   DeliveryLogEntry,
   JournalEntry,
@@ -18,7 +18,7 @@ import { dispatchProjection } from "../projections/dispatcher.js";
 export interface FanoutDeps {
   persistence: PersistencePort;
   notify: NotifyPort;
-  action: ActionPort;
+  action: ReactionActionPort;
   projectionHandlers: Map<string, ProjectionHandler>;
   compoundProgress: Map<string, CompoundProgress>;
   ids?: { ulid: () => string };

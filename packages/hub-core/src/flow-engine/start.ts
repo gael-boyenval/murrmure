@@ -1,0 +1,130 @@
+import type { Capability, FlowIndexEntry, FlowStartEvent } from "@murrmure/contracts";
+import { canStartFlow, hasCapability } from "../grants/migrate.js";
+import type { FlowStartError, FlowStepDispatch } from "./types.js";
+export type { FlowStartError } from "./types.js";
+import { buildStepDispatch } from "./advance.js";
+import { firstDispatchableStep } from "./plan.js";
+
+export function canReadFlow(capabilities: Capability[]): boolean {
+  return hasCapability(capabilities, ["flow:read", "flow:run"]);
+}
+
+export function canExecuteFlow(
+  capabilities: Capability[],
+  flow_acl: string[] | undefined,
+  flow_id: string,
+): boolean {
+  if (!canStartFlow(capabilities)) return false;
+  if (!flow_acl?.length) return true;
+  return flow_acl.includes(flow_id);
+}
+
+export function isManualStartAllowed(entry: FlowIndexEntry): boolean {
+  return entry.start.manual !== false;
+}
+
+export function isFlowCallStartAllowed(entry: FlowIndexEntry): boolean {
+  return entry.start.flow_call === true;
+}
+
+export function matchesFlowStartEvent(
+  entry: FlowIndexEntry,
+  event: { type: string; source?: string },
+): boolean {
+  const events = entry.start.events ?? [];
+  return events.some((spec: FlowStartEvent) => {
+    if (spec.type !== event.type) return false;
+    if (spec.source && event.source && spec.source !== event.source) return false;
+    return true;
+  });
+}
+
+export function buildRunKey(
+  entry: FlowIndexEntry,
+  input: Record<string, unknown>,
+  idempotencyHeader?: string,
+): string | undefined {
+  if (entry.start.idempotency !== "run_key") return undefined;
+  if (idempotencyHeader) return idempotencyHeader;
+  return `run_key:${entry.flow_id}:${JSON.stringify(input)}`;
+}
+
+export interface FlowPrepareResult {
+  flow_digest: string;
+  dispatch: FlowStepDispatch[];
+}
+
+export function prepareFlowStart(
+  entry: FlowIndexEntry,
+  input: {
+    exec_context: Record<string, unknown>;
+    origin_space_id: string;
+    capabilities: Capability[];
+    flow_acl?: string[];
+    mode: "manual" | "event" | "schedule" | "flow_call";
+  },
+): FlowPrepareResult | FlowStartError {
+  if (!entry.ir) {
+    return { code: "FLOW_IR_MISSING", message: "Flow has no compiled IR — re-run space apply" };
+  }
+
+  if (input.mode === "event") {
+    const eventType = String(input.exec_context._event_type ?? "");
+    const eventSource = input.exec_context._event_source
+      ? String(input.exec_context._event_source)
+      : undefined;
+    if (!matchesFlowStartEvent(entry, { type: eventType, source: eventSource })) {
+      return { code: "EVENT_MISMATCH", message: "Event does not match flow start conditions" };
+    }
+  }
+
+  if (input.mode === "manual" && !isManualStartAllowed(entry)) {
+    return { code: "MANUAL_START_DISABLED", message: "Flow does not allow manual start" };
+  }
+
+  if (input.mode === "flow_call" && !isFlowCallStartAllowed(entry)) {
+    return { code: "FLOW_CALL_DISABLED", message: "Flow does not allow flow_call invocation" };
+  }
+
+  if (!canExecuteFlow(input.capabilities, input.flow_acl, entry.flow_id)) {
+    return { code: "SCOPE_ENFORCEMENT_FAILURE", message: "Grant lacks flow:run for this flow" };
+  }
+
+  const dispatch: FlowStepDispatch[] = [];
+  const first = firstDispatchableStep(entry.ir);
+  if (first) {
+    const stepDispatch = buildStepDispatch(entry.ir, 0, input.exec_context, input.origin_space_id);
+    if (stepDispatch) dispatch.push(stepDispatch);
+  }
+
+  return {
+    flow_digest: entry.ir.digest,
+    dispatch,
+  };
+}
+
+export function sanitizeFlowPreview(entry: FlowIndexEntry) {
+  const ir = entry.ir;
+  return {
+    flow_id: entry.flow_id,
+    name: entry.name,
+    digest: entry.digest,
+    start: {
+      manual: entry.start.manual,
+      flow_call: entry.start.flow_call,
+      events: entry.start.events,
+      schedule: entry.start.schedule ?? null,
+      requires_view: entry.start.requires_view ?? null,
+    },
+    steps: (ir?.steps ?? []).map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      invoke: s.invoke
+        ? { space: s.invoke.space, action: s.invoke.action }
+        : undefined,
+      gate: s.gate ? { form: s.gate.form } : undefined,
+      start_flow: s.start_flow ? { flow_id: s.start_flow.flow_id } : undefined,
+    })),
+    view_ref: entry.view_ref,
+  };
+}

@@ -1,6 +1,29 @@
-# Studio triggers
+# Studio triggers & hooks
 
 Contract-aware trigger registration, templates, and **mcp_wake without human prompt**. Builds on [config/spec.md](../config/spec.md) trigger form and hub async dispatcher.
+
+**v2 hooks (normative path):** Space reactions live in `murrmure/hooks.yaml` (alias: `triggers.yaml`). Indexed on `mrmr space apply`. Implementation: `studio-hub-core/src/hooks/` — matcher + dispatch with mandatory Session + Run + `mrmr.hook.delivered`.
+
+```yaml
+# murrmure/hooks.yaml
+version: 1
+hooks:
+  on-spec-published:
+    on:
+      event:
+        type: mrmr.spec.published
+        source: "/spaces/spc_backend"
+    do:
+      - ensure_session: { title: "Backend → frontend chain" }
+      - invoke: { action: wake_review, params: { ref: "{{event.data.artifact_ref}}" } }
+      - start_flow: { flow_id: flw_cross_review, input: { diff_ref: "{{event.data.artifact_ref}}" } }
+```
+
+**Hook delivery invariant:** every delivery → Session + Run + journal `mrmr.hook.delivered`. Headless step id: `hook:{hook_id}`.
+
+**Dedup chain (§4.5):** `dedup_key = hash(source, event.id, hook_id)` propagates to run `exec_context.idempotency_key`. Redelivered events skip duplicate runs.
+
+Legacy DB triggers (`TriggerDispatcher`) remain for template-based mcp_wake; journal fanout invokes both paths post-commit.
 
 **Prerequisites:** config CS2, feature-spec FS0, flow-runtime CR1.
 
@@ -149,12 +172,15 @@ Rebuilt on `capability.live_applied`.
 
 ## mcp_wake dispatch
 
+> **v2 migration (phase 03):** Hub routes `POST /v1/mcp/wake` through action invoke (`wake_label` → action name). Silent `mcp.wake_pending` is no longer the default — unreachable executors return `EXECUTOR_UNAVAILABLE` unless the indexed action sets `delivery: queue_until_executor`. See [bridges/action-invoke.md](../bridges/action-invoke.md).
+
 ```typescript
 const payload = applyJsonPathMap(sourceEvent.payload, action.payload_map);
 await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" });
 ```
 
-**session_hint wake:** prefer connected MCP session on target space; else enqueue + `control.wake_pending`.
+**session_hint wake (v1):** prefer connected MCP session on target space; else enqueue + `control.wake_pending`.  
+**v2 default:** invoke preflight — fail fast when no MCP session unless queue mode opted in.
 
 ## Trigger builder UI
 

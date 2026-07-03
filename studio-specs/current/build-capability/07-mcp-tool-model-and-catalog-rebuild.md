@@ -91,6 +91,21 @@ Wake labels route by `wake_label` — **no** catalog registration required (CR-A
 
 ---
 
+## Platform v2 tools (Murrmure protocol)
+
+Grant-filtered hub tools (not from worker bundles):
+
+| Tool | Scope | Route |
+|------|-------|-------|
+| `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
+| `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
+
+Attach accepts `murrmure.flow.attach/v1` (same manifest as `flow.manifest.yaml`). Agent-origin attach creates gate `orchestration.validate`; shell shows read-only preview; approve binds digest and starts run.
+
+See rev-1 §6.3, §10.9 and [packages/cli/skill/reference/orchestration-attach.md](../../../packages/cli/skill/reference/orchestration-attach.md).
+
+---
+
 ## Related
 
 - [05-manifest-and-bundle-schema.md](./05-manifest-and-bundle-schema.md)

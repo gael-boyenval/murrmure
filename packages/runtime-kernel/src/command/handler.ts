@@ -1,5 +1,5 @@
 import type {
-  ActionPort,
+  ReactionActionPort,
   ClockPort,
   CommandResult,
   ConditionPort,
@@ -52,7 +52,7 @@ export interface KernelDeps {
   schema: SchemaPort;
   convergence: ConvergencePort;
   notify: NotifyPort;
-  action: ActionPort;
+  action: ReactionActionPort;
   clock: ClockPort;
   ids: IdPort;
   waitRegistry?: InProcessWaitRegistry;
@@ -167,6 +167,30 @@ export class RuntimeKernel implements QueryPort {
 
   async tailJournal(from_seq: number, limit?: number) {
     return this.deps.persistence.tailJournal(from_seq, limit);
+  }
+
+  /** Space-scoped journal append — no aggregate/instance required (rev-1 §8 invoke lifecycle). */
+  async appendSpaceJournal(input: {
+    scope_id: string;
+    type: string;
+    payload: Record<string, unknown>;
+    actor_id: string;
+    credential_id: string;
+  }): Promise<{ seq: number; entry_id: string }> {
+    const entry_id = this.deps.ids.ulid();
+    const ts = this.deps.clock.nowIso();
+    const p: Provenance = {
+      scope_id: input.scope_id,
+      actor_id: input.actor_id,
+      credential_id: input.credential_id,
+      actor_kind: "agent",
+    };
+    const draft = buildEntry(p, entry_id, ts, input.type, "success", input.payload, { kind: "event" });
+    return this.deps.persistence.runInTransaction(async (tx) => {
+      const alloc = await tx.appendJournal(draft);
+      await tx.insertOutbox(alloc.seq);
+      return { seq: alloc.seq, entry_id };
+    });
   }
 
   async listCheckpoints(aggregate_id: string) {

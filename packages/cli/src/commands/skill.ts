@@ -16,7 +16,7 @@ function requiresLine(scope: string): string {
 export const skillInstallCommand = defineCommand({
   meta: {
     name: "install",
-    description: `Install murrmure-flow Cursor skill ${requiresLine("none")}`,
+    description: `Install murrmure Cursor skill ${requiresLine("none")}`,
   },
   args: {
     ...globalArgs,
@@ -34,7 +34,7 @@ export const skillInstallCommand = defineCommand({
         {
           ...result,
           command: "install",
-          message: `Installed murrmure-flow skill to ${result.path}`,
+          message: `Installed murrmure skill to ${result.path}`,
         },
         formatSkillHuman,
       );
@@ -51,7 +51,7 @@ export const skillInstallCommand = defineCommand({
 export const skillUpdateCommand = defineCommand({
   meta: {
     name: "update",
-    description: `Update murrmure-flow Cursor skill ${requiresLine("none")}`,
+    description: `Update murrmure Cursor skill ${requiresLine("none")}`,
   },
   args: {
     ...globalArgs,
@@ -69,7 +69,7 @@ export const skillUpdateCommand = defineCommand({
         {
           ...result,
           command: "update",
-          message: `Updated murrmure-flow skill to v${result.version}`,
+          message: `Updated murrmure skill to v${result.version}`,
         },
         formatSkillHuman,
       );

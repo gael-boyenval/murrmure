@@ -1,0 +1,12 @@
+{
+  "id": "hooks-triggers",
+  "prompt": "Where do I define event triggers for a flow vs space-level hooks?",
+  "expected_keywords": [
+    "triggers:",
+    "hooks.yaml",
+    "manual",
+    "events",
+    "checkpoint"
+  ],
+  "advisory": true
+}

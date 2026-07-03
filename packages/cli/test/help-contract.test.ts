@@ -39,7 +39,6 @@ describe("help contract (full citty tree)", () => {
     expect(leaves.length).toBeGreaterThan(30);
     const paths = leaves.map((leaf) => leaf.path);
     expect(paths).toContain("mrmr doctor");
-    expect(paths).toContain("mrmr flow push");
     expect(paths).toContain("mrmr space grant mint");
   });
 

@@ -8,11 +8,16 @@ export function toBearerToken(rawToken: string): string {
   return trimmed.startsWith("tok_") ? trimmed : `tok_${trimmed}`;
 }
 
-export async function ensureBootstrapSessionToken(options: {
+export interface BootstrapSession {
+  token: string;
+  actor_id: string;
+}
+
+export async function ensureBootstrapSession(options: {
   hubUrl: string;
   bootstrapToken?: string;
   fetchImpl?: typeof fetch;
-}): Promise<string> {
+}): Promise<BootstrapSession> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const token = toBearerToken(options.bootstrapToken ?? DEFAULT_BOOTSTRAP_TOKEN_BARE);
   const response = await fetchImpl(`${options.hubUrl.replace(/\/$/, "")}/v1/auth/whoami`, {
@@ -28,7 +33,22 @@ export async function ensureBootstrapSessionToken(options: {
       `Bootstrap whoami failed with ${response.status}${body ? `: ${body}` : ""}`,
     );
   }
-  return token;
+
+  const whoami = (await response.json()) as { actor_id?: string };
+  if (!whoami.actor_id) {
+    throw new Error("Bootstrap whoami response missing actor_id.");
+  }
+
+  return { token, actor_id: whoami.actor_id };
+}
+
+export async function ensureBootstrapSessionToken(options: {
+  hubUrl: string;
+  bootstrapToken?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string> {
+  const session = await ensureBootstrapSession(options);
+  return session.token;
 }
 
 export function createSessionInjectionScript(token: string, hubUrl: string): string {
@@ -39,9 +59,8 @@ export function createSessionInjectionScript(token: string, hubUrl: string): str
   const hubUrl = ${serializedHubUrl};
   localStorage.setItem("murrmure_token", token);
   localStorage.setItem("murrmure_hub_url", hubUrl);
-  const setupDone = localStorage.getItem("murrmure_setup_complete") === "1";
   if (window.location.pathname === "/" || window.location.pathname === "/connect") {
-    window.location.replace(setupDone ? "/configure" : "/setup");
+    window.location.replace("/spaces/new");
   }
 })();`;
 }

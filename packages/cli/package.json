@@ -1,12 +1,10 @@
 {
   "name": "@murrmure/cli",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "type": "module",
   "bin": {
     "murrmure": "./dist/cli.js",
-    "mrmr": "./dist/cli.js",
-    "murrmure-mcp": "./dist/mcp.js",
-    "mrmr-mcp": "./dist/mcp.js"
+    "mrmr": "./dist/cli.js"
   },
   "exports": {
     ".": "./dist/cli.js",
@@ -28,10 +26,12 @@
   "dependencies": {
     "@clack/prompts": "^1.6.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@murrmure/flow-dev-kit": "workspace:*",
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/hub-core": "workspace:*",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "esbuild": "^0.25.0",
+    "yaml": "^2.7.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

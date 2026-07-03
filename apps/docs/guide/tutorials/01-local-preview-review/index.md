@@ -1,78 +1,57 @@
 # Tutorial 1 — Local preview review
 
-One coding agent and one human reviewer collaborate through a **custom** flow named `preview-review` (built from scratch with `@murrmure/cli`, not bundled `review-loop`).
+One coding agent and one human reviewer collaborate through an indexed **preview-review** flow in `murrmure/`. Checkpoint steps open your **custom views** in **ViewCanvasHost** (full primary-region canvas) — not shell admin chrome.
 
-The agent opens a review session for a localhost preview URL, waits for human feedback, applies updates, and loops until the workflow is complete.
+**Example tree:** [`examples/flows/preview-review-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2) (normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md)).
 
 ## Tutorial goal
 
-Build and run a minimal communication loop on a local self-hosted hub:
+Build and run a minimal review loop on a local hub:
 
-- Agent opens session with `preview_url`
-- Human approves or requests changes from canvas
-- Agent waits on Murrmure handoff state and reacts
-- Loop repeats until terminal resolution
+- Human completes intake in a custom view
+- Agent runs a build action between rounds
+- Human reviews preview in **ViewCanvasHost** until validated
+- Engine branches via `checkpoint.on_resolve` (`changes_required` → build, `validated` → done)
 
 ## How to use this tutorial
 
-Follow the parts in order and treat each as a checkpoint:
+Follow the parts in order:
 
-1. **Part 1** creates the flow contract, tools, strict React UI, and server routes
-2. **Part 2** publishes the flow and wires auth + MCP connectivity
-3. **Part 3** runs the live human-agent review loop and validates completion semantics
+1. **Part 1** — scaffold `murrmure/` with `mrmr space flow init` (or clone the example tree)
+2. **Part 2** — build views, `mrmr space apply --strict`, link space, mint agent grant
+3. **Part 3** — run the loop in Desktop; optional **§B** documents agent-owned orchestration with `murrmure_wait_for_gate`
 
 ## What you will build
 
 | Piece | Role |
 |-------|------|
-| **`preview-review` flow** | Contract + MCP tools + minimal review canvas |
-| **One sandbox space** | Holds the live install and runtime instances |
-| **One worker grant token** | Auth for the coding agent MCP connection |
-| **One localhost preview URL** | The page the human reviewer checks each round |
+| **`preview-review` flow** | `flow.manifest.yaml` — intake → build → review loop |
+| **Custom views** | `preview-review-intake` + `preview-review` in `murrmure/views/` |
+| **Indexed actions** | `run_preview_agent`, `mark_validated` in `murrmure/actions.yaml` |
+| **One linked space** | `mrmr space link` + `mrmr space apply` |
+| **Agent grant** | MCP token with `flow:run` for build steps |
 
-## Pending vs resolved model (read first)
+## Checkpoints vs runs (v2 vocabulary)
 
-Murrmure coordination has **two separate status layers** in this tutorial: contract state and wait response status.
-
-### Contract states (instance lifecycle)
-
-| Contract state | Meaning | Who acts next |
-|----------------|---------|---------------|
-| `pending_review` | Waiting for a human decision in canvas | Human |
-| `pending_agent` | Human asked for changes; waiting for code update signal | Agent |
-| `resolved` | Terminal review completion | Nobody |
-
-### Wait response (`wait_for_human_review`)
-
-| Wait response | When returned | Payload meaning |
-|---------------|---------------|-----------------|
-| `status: "pending"` | Human has not acted yet while instance is in `pending_review` | Keep waiting |
-| `status: "resolved", outcome: "changes_required"` | Human clicked **Request changes** | Wait call resolved, but workflow is **not done** (`pending_agent`) |
-| `status: "resolved", outcome: "validated"` | Human clicked **Approve** | Wait call resolved and workflow is done (`resolved`) |
-
-### What "done" means
-
-The workflow is done **only** when:
-
-1. contract state is `resolved`, and
-2. last human outcome is `validated`.
-
-If wait resolves with `changes_required`, that means a handoff occurred, not completion.
+| Term | Meaning |
+|------|---------|
+| **Session** (`ses_…`) | Human-visible correlation container (title, journal, Desktop route) |
+| **Run** (`run_…`) | One execution of the flow graph; pauses at **checkpoint** steps |
+| **Checkpoint** | Run status `input-required`; resolve with `{ disposition: "continue" \| "cancel", output }` |
+| **ViewCanvasHost** | Shell embeds `view_ref` in the primary region — your React UI, not built-in gate forms |
 
 ## Pages in this tutorial
 
 1. [Part 1 — Scaffold `preview-review`](./01-scaffold-flow)
-2. [Part 2 — Install and connect](./02-install-and-connect)
-3. [Part 3 — Run the feedback loop](./03-run-feedback-loop)
+2. [Part 2 — Apply and connect](./02-install-and-connect)
+3. [Part 3 — Run the feedback loop](./03-run-feedback-loop) (includes **§B** agent-owned loop)
 
 ## Prerequisites
 
 - Node.js 20+
-- [Self-hosted hub](../../self-hosted) and shell running locally
-- A sandbox space (for example `spc_ui_sandbox`)
-- `@murrmure/cli` for building (`init` also scaffolds `@murrmure/flow-dev-kit`)
-- `@murrmure/cli` for agent runtime
-- A local app preview URL (for example `http://127.0.0.1:5173`)
+- Murrmure Desktop running locally (see [Desktop guide](../../desktop))
+- `@murrmure/cli` — `npm install -g @murrmure/cli`
+- Completed [Quick start](../../quick-start) or empty folder with `mrmr setup`
 
 ## Next
 

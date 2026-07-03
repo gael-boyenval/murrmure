@@ -16,7 +16,7 @@ function mermaidPlainFence(md: MarkdownIt) {
 
 export default defineConfig({
   title: "Murrmure",
-  description: "Install, configure, and use Murrmure — human/agent coordination with clear handoffs and audit trails.",
+  description: "Murrmure Desktop and CLI — human/agent coordination with clear handoffs and audit trails.",
   lang: "en-US",
   markdown: {
     config: mermaidPlainFence,
@@ -28,27 +28,27 @@ export default defineConfig({
   },
   themeConfig: {
     nav: [
-      { text: "Guide", link: "/guide/introduction" },
+      { text: "Guide", link: "/guide/desktop" },
+      { text: "CLI", link: "/guide/cli" },
       { text: "Tutorials", link: "/guide/tutorials/" },
       { text: "Why Murrmure", link: "/guide/why-murrmure" },
       { text: "Reference", link: "/reference/environment" },
-      { text: "Sign in", link: "https://app.murrmure.dev" },
-      { text: "Sign up", link: "https://app.murrmure.dev/signup" },
     ],
     sidebar: {
       "/guide/": [
         {
           text: "Getting started",
           items: [
+            { text: "Murrmure Desktop", link: "/guide/desktop" },
+            { text: "Quick start (5 minutes)", link: "/guide/quick-start" },
+            { text: "CLI", link: "/guide/cli" },
+            { text: "Space index", link: "/guide/space-index" },
+            { text: "Connect your agent (MCP)", link: "/guide/agents-mcp" },
             { text: "Introduction", link: "/guide/introduction" },
             { text: "Why Murrmure", link: "/guide/why-murrmure" },
             { text: "How it fits together", link: "/guide/how-it-fits-together" },
-            { text: "Create an account", link: "/guide/account" },
             { text: "Install dependencies", link: "/guide/installation" },
-            { text: "Connect your agent (MCP)", link: "/guide/agents-mcp" },
-            { text: "Quick start (5 minutes)", link: "/guide/quick-start" },
-            { text: "Browser app", link: "/guide/browser" },
-            { text: "Flow evolution", link: "/guide/flow-evolution" },
+            { text: "Shell UI routes", link: "/guide/shell-routes" },
           ],
         },
         {
@@ -105,21 +105,15 @@ export default defineConfig({
             { text: "Tutorial (complete)", link: "/guide/flows-tutorial" },
             { text: "Overview", link: "/guide/creating-flows" },
             { text: "Agent skill", link: "/guide/agent-skill" },
+            { text: "Admin commands (CLI)", link: "/guide/configuration" },
           ],
         },
         {
-          text: "Tools",
+          text: "More",
           items: [
-            { text: "Configure (admins)", link: "/guide/configuration" },
-            { text: "CLI", link: "/guide/cli" },
-          ],
-        },
-        {
-          text: "Advanced",
-          items: [
-            { text: "Desktop app (MVP)", link: "/guide/desktop" },
-            { text: "Self-hosted hub", link: "/guide/self-hosted" },
+            { text: "Known gaps (backlog)", link: "/guide/known-gaps" },
             { text: "Troubleshooting", link: "/guide/troubleshooting" },
+            { text: "Planned: Cloud", link: "/guide/future/cloud" },
           ],
         },
       ],
@@ -130,7 +124,8 @@ export default defineConfig({
             { text: "Environment variables", link: "/reference/environment" },
             { text: "HTTP API overview", link: "/reference/http-api" },
             { text: "MCP tools", link: "/reference/mcp-tools" },
-            { text: "Flow Dev Kit CLI", link: "/reference/flow-dev-kit" },
+            { text: "Shell client", link: "/reference/shell-client" },
+            { text: "View SDK", link: "/reference/view-sdk" },
             { text: "Agent skill package", link: "/reference/agent-skill" },
           ],
         },

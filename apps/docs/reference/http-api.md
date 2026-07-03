@@ -3,12 +3,12 @@
 ::: tip Who is this for?
 **Integrators and automation authors** — not reviewers, admins, or agent operators.
 
-Day-to-day Murrmure use is **browser (Configure + Runtime)** and **MCP**. You should not need curl for spaces, grants, flows, reviews, or feature specs.
+Day-to-day Murrmure use is **Murrmure Desktop** and **MCP**. You should not need curl for spaces, grants, flows, reviews, or feature specs.
 
 For terminal automation, prefer **`mrmr`** — see the normative [CLI spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/cli/spec.md) (`studio-specs/current/cli/spec.md`) and [CLI guide](../guide/cli.md).
 :::
 
-Murrmure Cloud exposes a REST API at **`https://api.murrmure.dev`**. Self-hosted teams use their hub URL.
+Murrmure exposes a REST API at your **hub URL** (default `http://127.0.0.1:8787` with Desktop).
 
 ## Authentication
 
@@ -16,7 +16,14 @@ Murrmure Cloud exposes a REST API at **`https://api.murrmure.dev`**. Self-hosted
 Authorization: Bearer tok_<your_grant_token>
 ```
 
-Tokens come from **Configuration → Agent access**. Browser login is separate.
+Tokens come from **`mrmr grant mint`** (preferred) or the hub bootstrap token on first-run Desktop. There is no Configure UI for grant management.
+
+| Token source | When |
+|--------------|------|
+| Bootstrap token | Empty hub / Desktop first run — create spaces, mint first grants |
+| Minted grant (`tok_…`) | Agents, CI, operators — scoped capabilities + optional `flow_acl` |
+
+Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 
 ## Platform API (`/v1/*`)
 
@@ -25,16 +32,25 @@ Tokens come from **Configuration → Agent access**. Browser login is separate.
 | `GET` | `/v1/health` | Status (no auth) |
 | `POST` | `/v1/spaces` | Create space (admin token) |
 | `GET` | `/v1/spaces/{id}` | Get space |
-| `GET` | `/v1/spaces/{id}/instances` | List instances |
-| `POST` | `/v1/spaces/{id}/instances` | Create instance |
-| `GET` | `/v1/spaces/{id}/instances/{ins}` | Get instance |
-| `PATCH` | `/v1/spaces/{id}/instances/{ins}/metadata` | Metadata patch |
-| `POST` | `/v1/spaces/{id}/instances/{ins}/transitions` | Transition |
-| `GET` | `/v1/spaces/{id}/gates` | Pending gates |
-| `POST` | `/v1/spaces/{id}/gates/{gate}/resolve` | Resolve gate |
+| `GET` | `/v1/sessions` | List sessions |
+| `POST` | `/v1/sessions` | Create session |
+| `GET` | `/v1/sessions/{id}` | Get session |
+| `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
+| `GET` | `/v1/runs/{id}/graph` | Run flowchart graph (manifest overlay + step memo) |
+| `POST` | `/v1/runs/{id}/cancel` | Cancel run |
+| `POST` | `/v1/runs/{id}/retry` | Retry failed run from step |
+| `GET` | `/v1/runs/{id}/gates` | Gates for a run |
+| `GET` | `/v1/runs/wait?run_id=` | Long-poll until run terminal |
+| `GET` | `/v1/spaces/{id}/gates` | Pending gates (space-scoped, legacy) |
+| `POST` | `/v1/gates/{id}/resolve` | Resolve gate (v2 global) |
+| `GET` | `/v1/gates/wait?run_id=` | Long-poll pending gates |
 | `GET` | `/v1/spaces/{id}/events` | Event tail |
-| `GET` | `/v1/spaces/{id}/events/subscribe` | SSE |
+| `GET` | `/v1/spaces/{id}/events/subscribe` | SSE (legacy space events) |
 | `GET` | `/v1/spaces/{id}/audit/export` | Audit JSONL |
+
+::: warning Retired (v1 instances)
+`POST /v1/spaces/{id}/instances`, instance transitions, and related v1 instance routes return **404** (phase 16). Use sessions/runs above and v2 MCP tools (`murrmure_create_session`, `murrmure_get_run`, …).
+:::
 
 Mutating requests: optional `Idempotency-Key` header.
 
@@ -50,14 +66,16 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `GET` | `/v1/spaces` | `space:enter` | List granted spaces |
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
-| `GET` | `/v1/spaces/{id}/flows` | `space:read` | List installs |
-| `POST` | `/v1/spaces/{id}/flows/install` | `flow:install` | Install flow |
-| `GET` | `/v1/spaces/{id}/flows/{install}` | `space:read` | Install detail |
-| `PATCH` | `/v1/spaces/{id}/flows/{install}/config` | `flow:configure` | Update config |
-| `POST` | `/v1/spaces/{id}/evolution/validate` | `flow:install` | Lens A validate |
-| `POST` | `/v1/spaces/{id}/evolution/test` | `flow:install` | Contract tests |
-| `POST` | `/v1/spaces/{id}/evolution/promote` | `flow:install` | Promote (may gate) |
-| `POST` | `/v1/spaces/{id}/evolution/rollback` | `flow:install` | Rollback version |
+| `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `murrmure/` bundle |
+| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
+
+::: warning Retired routes
+These routes return **404** in current hub builds: `POST …/flows/install`, `PATCH …/flows/{install}/config`, and all `POST …/evolution/*`. Use **`POST /v1/spaces/{id}/apply`** for v2 indexed flows.
+:::
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
 | `GET` | `/v1/spaces/{id}/contracts/diff` | `space:read` | Contract diff summary |
 | `GET` | `/v1/spaces/{id}/members` | `space:admin` | List members |
 | `POST` | `/v1/spaces/{id}/members` | `space:admin` | Invite member |
@@ -79,7 +97,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `GET` | `/v1/ops/grants/export` | `space:admin` | Hub-wide grant export |
 | `GET` | `/v1/ops/federation/status` | `space:admin` | Relay status |
 
-`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Configure UI for query policy is not shipped yet — use the API or hub admin tools.
+`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Use **`mrmr space update --query-policy`** or the API — there is no Configure UI.
 
 ## Cross-space queries (`/v1/spaces/{id}/queries/*`)
 
@@ -117,7 +135,11 @@ Used by the hub daemon MCP integration (and `@murrmure/cli` when pointed at a se
 | `GET` | `/v1/mcp/catalog?space_id=` | token scopes + `flow_acl` | Grant-filtered tool list |
 | `POST` | `/v1/mcp/session/handshake` | valid token | Control-bus ack + replay from `last_ack_seq` |
 | `POST` | `/v1/mcp/tools/call?space_id=` | per-tool scope + ACL | Invoke a tool by name |
-| `POST` | `/v1/mcp/wake` | valid token | Push `mcp_wake` to a connected MCP client |
+
+::: warning Retired
+`POST /v1/mcp/wake` returns **404** (phase 16). Downstream work uses **`murrmure_invoke_action`** and indexed hooks/triggers instead.
+:::
+
 
 Grant **`flow_acl`** (e.g. `["review-loop", "feature-spec"]`) limits which installed flow tools appear in the catalog, even when scopes would otherwise allow them.
 
@@ -134,7 +156,7 @@ Requires **review-loop** flow installed and applied live in the space.
 | `POST` | `/api/sessions/{key}/finish` | Finish round |
 | `POST` | `/api/sessions/{key}/review-cycle` | Long-poll |
 
-Most integrators should use **MCP** instead of raw HTTP — see [MCP tools](./mcp-tools). Humans use the [browser app](../guide/browser).
+Most integrators should use **MCP** instead of raw HTTP — see [MCP tools](./mcp-tools). Humans use [Murrmure Desktop](../guide/desktop).
 
 ## Feature-spec API (`/api/specs/*`)
 
@@ -155,7 +177,132 @@ Install config keys: `skip_review` (bool), `required_approver_role`, `default_ta
 
 Published specs emit **`spec.published`** on the space event tail (`payload.type === "spec.published"`).
 
-Shell UI: `/spaces/{space_id}/specs/{spec_key}`.
+Shell UI: open checkpoint **views** in **ViewCanvasHost** at `/sessions/:sessionId` when a run pauses — not bare session metadata alone.
+
+## Platform v2 — Sessions & runs
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `POST` | `/v1/sessions` | `flow:run` or `action:invoke` | Create session `{ title, subject?, space_id? }` |
+| `GET` | `/v1/sessions` | `space:read` or `journal:read` | List sessions (`?status=`, `?space_id=`) |
+| `GET` | `/v1/sessions/{id}` | `space:read` | Session detail + derived status |
+| `GET` | `/v1/sessions/{id}/runs` | `space:read` | Runs in session |
+| `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` dispatches indexed flow |
+| `POST` | `/v1/sessions/{id}/cancel` | `gate:resolve` | Cancel all active runs in session |
+| `POST` | `/v1/sessions/{id}/orchestration/attach` | `flow:run` | Agent-push `murrmure.flow.attach/v1`; creates orchestration gate |
+
+MCP equivalents: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_get_session`, `murrmure_create_run`, `murrmure_get_run`, `murrmure_get_run_graph`, `murrmure_attach_orchestration`, `murrmure_cancel_run`.
+
+## Platform v2 — Gates
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/runs/{id}/gates` | `space:read` | List gates for run (actor-presented) |
+| `POST` | `/v1/runs/{id}/gates` | `flow:run` or `action:invoke` | Create pending gate on run |
+| `POST` | `/v1/gates/{id}/resolve` | `gate:resolve` | Approve/reject `{ decision, resume_data?, form_values? }` |
+| `GET` | `/v1/gates/wait` | `space:read` | Long-poll `?run_id=` or `?session_id=` (`timeout_ms` max 120s) |
+
+Legacy space-scoped resolve: `POST /v1/spaces/{id}/gates/{gate}/resolve` (prefer global v2 path).
+
+MCP: `murrmure_wait_for_gate`, `murrmure_resolve_gate`.
+
+## Platform v2 — Notifications & profile
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/notifications` | valid token | Inbox (`?status=pending\|dismissed\|resolved`) |
+| `POST` | `/v1/notifications/{id}/dismiss` | valid token | Dismiss notification |
+| `GET` | `/v1/me` | valid token | User profile (landing space, notify prefs) |
+| `PATCH` | `/v1/me` | valid token | `{ landing_space_id?, notify_email?, notify_desktop? }` |
+| `POST` | `/v1/notifications/test` | `hub:admin` | Send test out-of-shell notification |
+
+CLI: `mrmr me set-landing --space spc_…`. Desktop subscribes to SSE `out_of_shell.desktop` for native OS notifications — see [Murrmure Desktop](../guide/desktop).
+
+## Platform v2 — Journal & SSE
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/journal` | `journal:read` | Query entries (`subject`, `type`, `session`, `space_id`, `since`, `until`, `limit`) |
+| `POST` | `/v1/auth/sse-ticket` | `space:read` or `journal:read` | Mint 60s SSE ticket |
+| `GET` | `/v1/journal/subscribe?ticket=` | ticket or bearer | Journal SSE stream |
+
+MCP: `murrmure_journal_query`, `murrmure_wait_for_run`.
+
+SSE events include: `journal.append`, `gate.pending`, `gate.resolved`, `notification.changed`, `out_of_shell.desktop`, `mrmr.space.index.updated`. See [@murrmure/shell-client](./shell-client).
+
+## Space index {#space-index}
+
+Indexed from local `murrmure/` via apply. See [Space index guide](../guide/space-index).
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `POST` | `/v1/spaces/{id}/link` | `space:write` | Local binding `{ host, path, primary }` |
+| `POST` | `/v1/spaces/{id}/link/remote` | `space:write` | Remote hub binding `{ peer_hub_id, remote_space_id }` |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index apply bundle (flows, actions, executors, hooks) |
+| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Digests, counts, bindings |
+| `GET` | `/v1/spaces/{id}/index/flows` | `space:read` | Indexed flow entries |
+| `GET` | `/v1/flows/{flow_id}` | `space:read` | Single flow index entry |
+| `GET` | `/v1/spaces/{id}/actions` | `space:read` | Indexed actions |
+| `GET` | `/v1/spaces/{id}/executors` | `space:read` | Indexed executors |
+| `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed hooks |
+| `POST` | `/v1/spaces/{id}/actions/{name}/invoke` | `action:invoke` | Invoke action (supports `Idempotency-Key`) |
+
+MCP: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_invoke_action`.
+
+## Flow starts & space home
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `POST` | `/v1/flows/{flow_id}/run` | `flow:run` | Manual start `{ space_id, input?, session_id?, idempotency_key? }` |
+| `GET` | `/v1/spaces/{id}/home` | `space:read` | Space home (startable flows, recent sessions) |
+| `GET` | `/v1/spaces/{id}/flows/{flow_id}/preview` | `flow:read` | Sanitized flow preview for UI |
+
+CLI: `mrmr flow run <flow_id>`. Custom start UI: [View SDK](./view-sdk).
+
+## Artifacts
+
+Cross-space blob transfer (not MCP `blob_read`/`blob_write` — those were never shipped).
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `PUT` | `/v1/artifacts` | `blob:write` | Upload artifact `{ space_id, … }` |
+| `GET` | `/v1/artifacts/{transfer_id}?space_id=` | `blob:read` | Fetch artifact metadata/payload |
+| `POST` | `/v1/artifacts/{transfer_id}/materialize` | `blob:read` | Materialize into target space |
+
+## Executor queue poll {#executor-queue-poll}
+
+External workers poll for `queue_poll` executor tasks.
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/executor/tasks?executor_id=` | `executor:poll` | Long-poll task offers (`timeout_ms` default 30s) |
+| `GET` | `/v1/executor/poll-status` | `space:read` | Executor reachability snapshot |
+| `POST` | `/v1/executor/tasks/{id}/complete` | `executor:poll` | Complete task `{ result }` |
+| `POST` | `/v1/executor/tasks/{id}/fail` | `executor:poll` | Fail task `{ error_code, detail? }` |
+
+CLI: `mrmr worker poll --executor <id>`.
+
+## Federation
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/ops/federation/status` | `space:admin` | Relay status |
+| `GET` | `/v1/ops/federation/peers` | `space:admin` | List peers |
+| `POST` | `/v1/ops/federation/peers` | `space:admin` | Register peer `{ hub_id, url, auth_token? }` |
+| `POST` | `/v1/federation/ingress` | `space:admin` | Ingest federated journal event |
+| `POST` | `/v1/spaces/{id}/link/remote` | `space:write` | Virtual remote space binding |
+
+CLI: `mrmr federation peer add --id hub_b --url http://…`, `mrmr federation status`.
+
+## Views {#views}
+
+Static assets for custom flow start UI (`murrmure/views/`).
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/v1/spaces/{id}/views/{view_id}/*` | `space:read` | Serve view bundle file (requires linked space root) |
+
+See [View SDK](./view-sdk).
 
 ## Errors
 

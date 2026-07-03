@@ -1,62 +1,62 @@
-# Review workflow
+# Review workflow (v2 indexed)
 
-The **Review loop** flow is Murrmure's reference human/agent loop: preview, comments, Finish, structured handoff.
+Canonical human/agent preview review on **indexed flows** — example: [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2).
 
-Install it from **Configure → Flows** and promote to **`live`**. Mint a **Worker** grant for your agent.
+Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md).
 
-## States
+## Overview
 
-| State | Who acts |
-|-------|----------|
-| `awaiting_review` | Human reviews, comments, **Finish review** |
-| `awaiting_agent` | Agent applies feedback |
-| `changes_made` | Human reviews updated preview |
-| `converged` | Review complete |
-| `production_approved` | Production gate approved (terminal) |
-
-## Round 1
-
-1. **Agent (MCP)** — **`create_review_session`** with preview URL
-2. **Human (browser)** — **Runtime → Instances → Open review** (or session URL)
-3. Comment, **Finish review**
-4. **Agent (MCP)** — **`wait_for_review`** returns `comments[]`; state `awaiting_agent`
-
-## Round 2+
-
-1. **Agent** — fix code, update preview URL via MCP, **`transition`** with `agent_done`
-2. **Human** — review again, **Finish** → **`converged`** when satisfied
-
-## Production gate
-
-From **`converged`**, request production approval. A **gate** appears under **Runtime → Gates**; approver clicks **Approve** → `production_approved`.
-
-## Session link
-
-Copy from the browser address bar:
-
-```
-/spaces/spc_…/sessions/ins_…
+```text
+intake checkpoint → build → review checkpoint ⇄ build → done
 ```
 
-Cloud may prefix with `/w/<workspace>/`. `session_key` equals instance id (`ins_…`).
+Humans work in **ViewCanvasHost** (custom views at checkpoint steps). Shell chrome is **operator/admin mode**.
 
-## Comments
+## Setup
 
-Stored in session metadata. Agents read them from **`wait_for_review`** or **`get_session`** — not from chat exports.
+```bash
+cd examples/flows/preview-review-v2/murrmure/views/preview-review-intake && npm install && npm run build
+cd ../preview-review && npm install && npm run build
+cd ../../..
+mrmr space link --path . --space spc_ui_sandbox
+mrmr space apply --strict
+mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read
+```
 
-## Who does what
+## Pattern A — Flow-owned loop
 
-| Action | Browser | MCP |
-|--------|---------|-----|
-| Create session | — | **`create_review_session`** |
-| Comment / Finish | Review canvas | — |
-| Wait for human | — | **`wait_for_review`** |
-| Apply fixes | — | **`transition`**, patch session |
+1. Desktop **Run** on **preview-review**
+2. Intake view in **ViewCanvasHost** — reviewer + preview URL
+3. Build invoke runs `run_preview_agent`
+4. Review view — human validates or requests changes
+5. `on_resolve` branches: `changes_required` → build; `validated` → done
 
-No curl required.
+## Pattern B — Agent-owned loop
 
-## Next
+Same manifest; agent uses **`murrmure_wait_for_gate`** / **`murrmure_wait_for_run`** between rounds while human uses **ViewCanvasHost**.
 
-- [Browser app](./browser)
-- [Connect your agent](./agents-mcp)
-- [Quick start](./quick-start)
+## Session and run ids
+
+| Id | Role |
+|----|------|
+| `ses_…` | Session — journal, notifications, Desktop title |
+| `run_…` | Single flow execution; pauses at checkpoints |
+| Resolve wire | `{ disposition: "continue" \| "cancel", output: { … } }` |
+
+## Agent tools (platform MCP)
+
+| Step | Tool |
+|------|------|
+| Invoke build | `murrmure_invoke_action` |
+| Wait for human | `murrmure_wait_for_gate` or `murrmure_wait_for_run` |
+| Resolve (imperative gates) | `murrmure_resolve_gate` |
+
+## Tutorial
+
+Full walkthrough: [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/).
+
+## Related
+
+- [View SDK](../reference/view-sdk)
+- [Shell routes](./shell-routes) — ViewCanvasHost vs admin chrome
+- [Troubleshooting](./troubleshooting)

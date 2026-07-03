@@ -1,107 +1,25 @@
-# Part 3 — Connect all three Cursor windows
+# Part 3 — Connect agents
 
-Create one `.cursor/mcp.json` per folder. Each uses a different token and space id.
+Wire three MCP sessions — one per space.
 
-## 1. Orchestrator window
+## Orchestrator agent
 
-File: `~/work/orchestrator/.cursor/mcp.json`
+- Grant on `spc_orchestrator` with `flow:run`, `flow:read`, cross-space query scopes
+- Tools: `murrmure_invoke_action`, indexed patch actions, `murrmure_wait_for_gate` at publish checkpoint
 
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
-        "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR",
-        "MURRMURE_SPACE_ID": "spc_orchestrator"
-      }
-    }
-  }
-}
-```
+## Knowledge agent
 
-Expected tools after MCP reload:
+- Grant on `spc_knowledge`
+- Answers orchestrator `query_ask` requests (no custom flow required)
 
-- Platform: `transition`, `wait_for_state`, `emit_event`, `query_ask`
-- Flow: `open_brief`, `patch_section`, `get_brief`, `wait_for_publish`
+## Dev agent
 
-## 2. Knowledge window
+- Grant on `spc_dev`
+- Handles `handle_brief_published` wake from hooks
+- Uses `murrmure_wait_for_run` or journal to detect pending work
 
-File: `~/work/knowledge-base/.cursor/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
-        "MURRMURE_HUB_TOKEN": "tok_KNOWLEDGE",
-        "MURRMURE_SPACE_ID": "spc_knowledge"
-      }
-    }
-  }
-}
-```
-
-Expected tools:
-
-- Platform only (no custom flow required in knowledge space).
-
-## 3. Dev window
-
-File: `~/work/dev-project/.cursor/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
-        "MURRMURE_HUB_TOKEN": "tok_DEV",
-        "MURRMURE_SPACE_ID": "spc_dev"
-      }
-    }
-  }
-}
-```
-
-Expected tools:
-
-- Platform tools including `query_ask`
-- Wake messages from trigger as `mcp_wake`/`wake_pending`
-
-## 4. Reload and verify each window
-
-In each Cursor window:
-
-1. Reload MCP servers.
-2. Ask agent to call `get_space_state`.
-3. Confirm returned space id matches that folder.
-
-Quick checks:
-
-| Window | Verification |
-|--------|--------------|
-| Orchestrator | `open_brief` is visible (means `team-brief` is live and ACL is correct) |
-| Knowledge | No `team-brief` tools visible (expected) |
-| Dev | `query_ask` succeeds once query policy allowlist is set |
-
-Self-hosted users: replace `https://api.murrmure.dev` with your hub URL in all three files.
-
-## 5. Keep runtime tab open
-
-Bookmark:
-
-- `Runtime -> Orchestrator -> Instances`
-
-You will use this page for the human Publish action in Part 4.
+See [Connect your agent (MCP)](../../agents-mcp) for `.cursor/mcp.json` snippets.
 
 ## Next
 
-[Part 4 — Run the workflow →](./04-run-workflow)
+[Part 4 — Run workflow →](./04-run-workflow)

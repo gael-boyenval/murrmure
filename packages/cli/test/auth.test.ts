@@ -27,8 +27,6 @@ describe("resolveHubAuth", () => {
     delete process.env.MURRMURE_HUB_TOKEN;
     delete process.env.MURRMURE_TOKEN;
     delete process.env.MURRMURE_DEPLOY_TOKEN;
-    delete process.env.STUDIO_API_URL;
-    delete process.env.STUDIO_API_TOKEN;
   });
 
   afterEach(() => {
@@ -74,16 +72,6 @@ describe("resolveHubAuth", () => {
       hubUrl: "http://env.example",
       token: "tok_env",
       defaultSpaceId: "spc_cred",
-    });
-  });
-
-  test("accepts legacy STUDIO_API_* env aliases", () => {
-    process.env.STUDIO_API_URL = "http://legacy.example";
-    process.env.STUDIO_API_TOKEN = "tok_legacy";
-    expect(resolveHubAuth()).toEqual({
-      hubUrl: "http://legacy.example",
-      token: "tok_legacy",
-      defaultSpaceId: undefined,
     });
   });
 

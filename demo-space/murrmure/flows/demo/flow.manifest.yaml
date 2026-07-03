@@ -1,0 +1,16 @@
+# Role: CI demo space — single invoke step indexed by mrmr space apply --strict.
+apiVersion: murrmure.flow/v1
+name: demo
+description: Demo indexed flow for CI strict apply (phase 10)
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: hello
+    invoke:
+      space: "{{origin_space}}"
+      action: hello

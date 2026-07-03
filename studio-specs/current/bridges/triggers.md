@@ -50,14 +50,9 @@ On failure: `integration_failure` event + delivery log `outcome: failed`.
 
 If no connected session: enqueue + `control.wake_pending`.
 
-## Shell components
+## Shell / trigger registration (v2)
 
-```
-apps/shell-web/src/configure/triggers/
-  TriggerTemplatePicker.tsx
-  EventCatalogSelect.tsx
-  TriggerTestFireButton.tsx
-```
+Trigger registration is **CLI-first** (`mrmr space trigger *`) or via indexed hooks in `murrmure/hooks.yaml` + `mrmr space apply`. Configure trigger UI components were retired with Configure shell.
 
 ## Package
 

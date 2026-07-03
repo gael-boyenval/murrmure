@@ -37,12 +37,11 @@ function normalizeLoopbackHubUrl(url: string): string | undefined {
 }
 
 function envAuth(): Partial<HubAuth> | null {
-  const hubUrl = process.env.MURRMURE_HUB_URL ?? process.env.STUDIO_API_URL;
+  const hubUrl = process.env.MURRMURE_HUB_URL;
   const token =
     process.env.MURRMURE_HUB_TOKEN ??
     process.env.MURRMURE_TOKEN ??
-    process.env.MURRMURE_DEPLOY_TOKEN ??
-    process.env.STUDIO_API_TOKEN;
+    process.env.MURRMURE_DEPLOY_TOKEN;
 
   if (!hubUrl || !token) return null;
 

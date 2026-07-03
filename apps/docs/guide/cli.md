@@ -1,8 +1,8 @@
 # CLI
 
-**Optional** — for CI, scripts, and operators who prefer the terminal. Interactive agent work uses **[MCP](./agents-mcp)**; admin setup uses the **[browser](./browser)** or CLI.
+**Optional** — for CI, scripts, and operators who prefer the terminal. Interactive agent work uses **[MCP](./agents-mcp)**; admin setup uses **`mrmr`** and **[Murrmure Desktop](./desktop)**.
 
-The Murrmure CLI (`@murrmure/cli`, binaries `mrmr` / `murrmure`) talks to **Murrmure Cloud** or your org's hub:
+The Murrmure CLI (`@murrmure/cli`, binaries `mrmr` / `murrmure`) talks to your local hub (default `http://127.0.0.1:8787` when Desktop is running):
 
 ```bash
 npm install -g @murrmure/cli
@@ -40,13 +40,19 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `login`, `logout`, `whoami` | Save and inspect hub credentials |
 | `doctor` | Hub, auth, and scope diagnostics |
 | `health` | Unauthenticated hub health check |
-| `space` | Spaces, grants, members, triggers (Configure parity) |
-| `hub` | Federation and operator exports |
-| `runtime` | Events, gates, transitions, waits, audit |
-| `flow` | Flow Dev Kit — init, validate, build, push, dev, evolution |
-| `skill` | Install/update the murrmure-flow agent skill |
+| `space` | Spaces, grants, members, triggers, index apply |
+| `action` | Invoke indexed actions |
+| `me` | User preferences (landing space) |
+| `worker` | External queue_poll worker helpers |
+| `federation` | Federation peer management |
+| `hub` | Operator exports |
+| `runtime` | Events, gates, waits, audit |
+| `flow` | Indexed `flow run` + local validate helpers |
+| `view` | Scaffold custom view packages |
+| `setup` | First-run wizard (`mrmr setup`, `mrmr space onboard`) |
+| `skill` | Install/update the **murrmure** agent skill |
 
-**MCP** (separate binary): `murrmure-mcp` / `mrmr-mcp` — see [Connect your agent](./agents-mcp).
+**MCP:** `mrmr mcp` / `murrmure mcp` — see [Connect your agent](./agents-mcp).
 
 ## Doctor
 
@@ -63,7 +69,7 @@ Human output includes auth source, hub status, per-space scopes, and capability 
 
 ## Login
 
-Save hub URL and bearer token locally (interactive prompts; optional `--open` to open Configure in the browser):
+Save hub URL and bearer token locally (interactive prompts; optional `--open` to open Desktop at `/spaces/new`):
 
 ```bash
 mrmr login
@@ -87,47 +93,34 @@ mrmr logout --yes
 ## Environment (CI / scripts)
 
 ```bash
-export MURRMURE_HUB_URL=https://api.murrmure.dev
+export MURRMURE_HUB_URL=http://127.0.0.1:8787
 export MURRMURE_HUB_TOKEN=tok_your_grant_token
 export MURRMURE_SPACE_ID=spc_your_space_id
 ```
 
-## Flow Dev Kit (FDK)
+## Indexed flows (v2)
 
-For **authoring workflows** in your own repo, install **`@murrmure/cli`** and **`@murrmure/flow-dev-kit`**:
-
-```bash
-npm install -D @murrmure/cli
-npm install @murrmure/flow-dev-kit
-```
+Scaffold and index workflows in `murrmure/`:
 
 ```bash
-mrmr flow init my-flow --dir ./workflows/my-flow
-mrmr flow validate .
-mrmr flow build .
-mrmr flow dev ./workflows/my-flow --sim --port 4310
-mrmr flow push --space spc_ui_sandbox
-mrmr flow apply --space spc_ui_sandbox --install ins_…
+mrmr space init
+mrmr space flow init preview-review --template hello-gate
+mrmr space apply --strict
+mrmr flow run flw_flows_preview_review --input '{}' --space spc_ui_sandbox
 ```
 
-**Agent skill** (optional — teaches Cursor agents the evolution checklist):
+See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
+
+**Agent skill** (optional):
 
 ```bash
 mrmr skill install
-mrmr skill update    # after upgrading @murrmure/skill
+mrmr skill update
 ```
 
 See [Agent skill](./agent-skill).
 
-Environment (same as hub client):
-
-```bash
-export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_HUB_TOKEN=tok_your_grant
-export MURRMURE_SPACE_ID=spc_ui_sandbox
-```
-
-All `mrmr flow` and `mrmr skill` subcommands support `--json` for scripts. See **[Flows tutorial](./flows-tutorial)**, [Flow Dev Kit reference](../reference/flow-dev-kit), and [Agent skill](./agent-skill).
+All `mrmr space`, `mrmr flow run`, and `mrmr skill` subcommands support `--json` for scripts.
 
 ---
 
@@ -160,13 +153,11 @@ mrmr runtime gates --space spc_abc123
 
 List pending human gates. Typical grant scope: `space:read`.
 
-### `mrmr runtime transition`
+### `mrmr runtime transition` (removed)
 
-```bash
-mrmr runtime transition --space spc_abc123 ins_xyz finish_review 2
-```
-
-Apply a workflow transition. Typical grant scope: `state:transition`.
+::: warning Removed in v2
+The CLI subcommand still exists but calls **`POST /v1/spaces/{id}/instances/{id}/transitions`**, which returns **404** — the instances API was removed with the v1 instance model. Use mount-scoped MCP tools (e.g. **`transition_spec`**, **`transition_brief`**) or session/run APIs instead.
+:::
 
 ### `mrmr runtime wait`
 
@@ -186,7 +177,7 @@ mrmr runtime audit export --space spc_abc123 0 > audit.jsonl
 
 ### `mrmr space`
 
-Configure parity — create and manage spaces from the terminal. Requires **`space:admin`** for mutating commands (bootstrap token works on an empty hub).
+Space administration — create and manage spaces from the terminal. Requires **`space:admin`** for mutating commands (bootstrap token works on an empty hub).
 
 ```bash
 mrmr space init
@@ -199,7 +190,10 @@ mrmr space archive spc_ui_sandbox
 
 | Command | Requires | HTTP |
 |---------|----------|------|
-| `init` | `space:admin` | Interactive wizard (connect, create, instructions) |
+| `init` | none (local) | Scaffolds `murrmure/` (actions, executors, hooks, example flow) |
+| `link` | `space:write` | `POST /v1/spaces/:id/link` — use `--create` to mint space from `space.yaml` slug |
+| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `murrmure/` and index |
+| `status` | `space:read` | `GET /v1/spaces/:id/index/status` |
 | `list` | `space:enter` | `GET /v1/spaces` |
 | `show <space_id>` | valid token for space | `GET /v1/spaces/:id` |
 | `create` | `space:admin` | `POST /v1/spaces` |
@@ -210,7 +204,48 @@ mrmr space archive spc_ui_sandbox
 
 `space update` accepts `--query-policy '{"inbound_allowlist":["spc_…"]}'` or `@file.json` for cross-space query policy.
 
-Add `--json` for scripting. See [Configuration](./configuration.md) for the full setup wizard mapping.
+Add `--json` for scripting. See [Admin commands (CLI)](./configuration.md) and [Space index](./space-index.md).
+
+### `mrmr action invoke`
+
+```bash
+mrmr action invoke my_action --params '{"key":"value"}' --space spc_ui_sandbox
+```
+
+Invoke an indexed action from `murrmure/actions.yaml`. Requires **`action:invoke`**. HTTP: `POST /v1/spaces/{id}/actions/{name}/invoke`.
+
+### `mrmr me set-landing`
+
+```bash
+mrmr me set-landing --space spc_ui_sandbox
+```
+
+Set per-user landing space. Requires **`space:enter`**. HTTP: `PATCH /v1/me`.
+
+### `mrmr view init`
+
+```bash
+mrmr view init review-params
+```
+
+Scaffold `murrmure/views/{id}/` locally. See [View SDK](../reference/view-sdk).
+
+### `mrmr worker poll`
+
+```bash
+mrmr worker poll --executor my_worker --once
+```
+
+Long-poll `GET /v1/executor/tasks` for queue_poll executors. Requires grant with **`executor:poll`**.
+
+### `mrmr federation`
+
+```bash
+mrmr federation status
+mrmr federation peer add --id hub_b --url http://127.0.0.1:8788
+```
+
+Register federation peers and inspect relay status. Requires **`space:admin`**.
 
 ## Review workflows
 
@@ -218,5 +253,6 @@ Prefer **MCP** for interactive agent loops (`review-loop` flow). There is no `mr
 
 ## Next
 
+- [Space index](./space-index)
 - [Connect your agent](./agents-mcp)
 - [HTTP API](../reference/http-api)

@@ -1,0 +1,81 @@
+{
+  "description": "Phase 01 — checkpoint missing on_resolve.default and on_resolve.cancel",
+  "bundle": {
+    "actions": {
+      "digest": "sha256:actions1",
+      "file": {
+        "version": 1,
+        "actions": {
+          "build": { "executor": "shell" }
+        }
+      }
+    },
+    "executors": {
+      "digest": "sha256:exec1",
+      "file": {
+        "executors": {
+          "shell": { "binding": { "type": "shell_spawn", "executor_id": "shell" } }
+        }
+      }
+    },
+    "hooks": {
+      "digest": "sha256:hooks1",
+      "file": { "version": 1, "hooks": {} }
+    },
+    "flows": [
+      {
+        "flow_id": "flw_checkpoint_incomplete",
+        "rel_path": "flows/checkpoint/flow.manifest.yaml",
+        "digest": "sha256:flow1",
+        "manifest": {
+          "apiVersion": "murrmure.flow/v1",
+          "name": "checkpoint-incomplete",
+          "start": { "manual": true },
+          "steps": [
+            {
+              "id": "intake",
+              "checkpoint": {
+                "view": "intake-form",
+                "on_resolve": {}
+              }
+            },
+            {
+              "id": "build",
+              "invoke": { "space": "spc_demo", "action": "build" }
+            }
+          ]
+        },
+        "raw": {
+          "apiVersion": "murrmure.flow/v1",
+          "name": "checkpoint-incomplete",
+          "start": { "manual": true },
+          "steps": [
+            { "id": "intake", "checkpoint": { "view": "intake-form", "on_resolve": {} } },
+            { "id": "build", "invoke": { "space": "spc_demo", "action": "build" } }
+          ]
+        }
+      }
+    ],
+    "views": [
+      {
+        "view_id": "intake-form",
+        "rel_path": "views/intake-form/view.manifest.yaml",
+        "digest": "sha256:view1",
+        "manifest": {
+          "apiVersion": "murrmure.view/v1",
+          "id": "intake-form",
+          "entry": "dist/index.html"
+        },
+        "build": { "dist_present": false, "entry_present": false }
+      }
+    ]
+  },
+  "expect": {
+    "warnings_contain": [
+      { "code": "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING", "step_id": "intake" },
+      { "code": "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING", "step_id": "intake" },
+      { "code": "CHECKPOINT_VIEW_DIST_MISSING", "step_id": "intake" }
+    ],
+    "strict_fails": true
+  }
+}

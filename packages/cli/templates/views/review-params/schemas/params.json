@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["topic"],
+  "properties": {
+    "topic": { "type": "string" },
+    "depth": { "type": "string", "enum": ["quick", "standard", "deep"] }
+  }
+}

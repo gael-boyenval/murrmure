@@ -1,58 +1,71 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-
-vi.mock("@clack/prompts", () => ({
-  intro: vi.fn(),
-  outro: vi.fn(),
-  log: { info: vi.fn(), success: vi.fn(), warn: vi.fn() },
-  note: vi.fn(),
-  confirm: vi.fn(async () => false),
-  isCancel: () => false,
-}));
-
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { isMurrmureDirEmpty, scaffoldMurrmureDir } from "../src/lib/space-scaffold.js";
 import { spaceInitCommand } from "../src/commands/space/init.js";
-import { clearAuthContextCache } from "../src/lib/auth-context.js";
+import { defaultInstallPath } from "../src/skill/install.js";
 
-describe("space init wizard", () => {
-  const envSnapshot = { ...process.env };
+describe("space init scaffold", () => {
+  let targetDir: string;
 
   beforeEach(() => {
-    process.env = { ...envSnapshot };
-    process.env.MURRMURE_HUB_URL = "http://127.0.0.1:8787";
-    process.env.MURRMURE_HUB_TOKEN = "tok_bootstrap";
-    clearAuthContextCache();
+    targetDir = mkdtempSync(join(tmpdir(), "cli-space-init-"));
   });
 
   afterEach(() => {
-    process.env = envSnapshot;
-    vi.unstubAllGlobals();
-    clearAuthContextCache();
+    rmSync(targetDir, { recursive: true, force: true });
   });
 
-  test("init wizard smoke skips all steps without crashing", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string) => {
-        if (url.endsWith("/v1/auth/whoami")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              actor_id: "act_admin",
-              kind: "human",
-              token_id: "tok_bootstrap",
-              spaces: [],
-            }),
-          };
-        }
-        throw new Error(`unexpected fetch: ${url}`);
-      }),
-    );
+  test("creates murrmure/ template tree", async () => {
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: targetDir, json: true, "no-skill": true },
+      rawArgs: [],
+    });
+    expect(existsSync(join(targetDir, "murrmure", "actions.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, "murrmure", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+  });
 
-    await expect(
-      (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
-        args: {},
-        rawArgs: [],
-      }),
-    ).resolves.toBeUndefined();
+  test("scaffolds into an existing empty murrmure/ directory", async () => {
+    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
+    expect(isMurrmureDirEmpty(join(targetDir, "murrmure"))).toBe(true);
+
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: targetDir, json: true, "no-skill": true },
+      rawArgs: [],
+    });
+
+    expect(existsSync(join(targetDir, "murrmure", "space.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, "murrmure", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+  });
+
+  test("rejects murrmure/ that already has files", () => {
+    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
+    writeFileSync(join(targetDir, "murrmure", "actions.yaml"), "version: 1\nactions: {}\n");
+
+    expect(() => scaffoldMurrmureDir(targetDir)).toThrow(/already exists/);
+  });
+
+  test("installs skill when --with-skill is passed", async () => {
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: targetDir, json: true, "with-skill": true },
+      rawArgs: [],
+    });
+
+    expect(existsSync(join(defaultInstallPath(targetDir), "SKILL.md"))).toBe(true);
+  });
+
+  test("skips skill prompt when stdin is not a TTY", async () => {
+    const isTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: false });
+
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: targetDir },
+      rawArgs: [],
+    });
+
+    expect(existsSync(join(defaultInstallPath(targetDir), "SKILL.md"))).toBe(false);
+
+    Object.defineProperty(process.stdin, "isTTY", { configurable: true, value: isTTY });
   });
 });

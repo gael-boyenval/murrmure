@@ -1,81 +1,63 @@
-# Murrmure MCP
+# MCP tools (agent reference)
 
-Agents connect via **`@murrmure/cli`** (stdio bridge to hub HTTP).
+Grant-filtered tools from `/v1/mcp/catalog`. Reload MCP after grant mint or `mrmr space apply`.
 
-## Cursor config
+## v2 batch 1 — session & run
 
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_…",
-        "MURRMURE_SPACE_ID": "spc_ui_sandbox"
-      }
-    }
-  }
-}
-```
+| Tool | Capability | Notes |
+|------|------------|-------|
+| `murrmure_create_session` | `flow:run` **or** `action:invoke` | Returns `ses_*` |
+| `murrmure_list_sessions` | `space:read` **or** `journal:read` | Filter: `status`, `space_id` |
+| `murrmure_get_session` | `space:read` | Derived status from child runs |
+| `murrmure_create_run` | `flow:run` | Headless: `flow_id: null` |
+| `murrmure_get_run` | `space:read` | Includes step memo + journal replay |
+| `murrmure_cancel_run` | `gate:resolve` | Terminal runs reject restart |
 
-Monorepo dev: point `command` at `packages/cli/dist/mcp.js` or use `npx @murrmure/cli mcp`.
+## Invoke & space
 
-## How the catalog works
+| Tool | Capability |
+|------|------------|
+| `murrmure_invoke_action` | `action:invoke` |
+| `murrmure_apply_space` | `space:write` |
+| `murrmure_space_status` | `space:read` |
+| `murrmure_grant_mint` | `space:admin` |
 
-On startup, the MCP bridge calls:
+## v1 → v2 scope mapping
 
-```http
-GET /v1/mcp/catalog?space_id={MURRMURE_SPACE_ID}
-Authorization: Bearer {token}
-```
+| v1 scope | Use instead |
+|----------|-------------|
+| `state:transition` | `flow:run` + `action:invoke` |
+| `event:read` | `journal:read` |
+| `event:emit` | invoke / journal |
+| `instance_id` arg | `run_id` (`run_*`; `ins_*` shim) |
 
-Tools = platform tools (by grant scopes) **union** flow tools (live installs ∩ `flow_acl`).
+Full map: [grants-migration.md](grants-migration.md) in studio-specs bridges.
 
-Tool calls proxy to:
+## Typical agent flow
 
-```http
-POST /v1/mcp/tools/call?space_id=…
-{ "name": "open_session", "arguments": { … } }
-```
+1. `murrmure_create_session` — correlation context
+2. `murrmure_create_run` — headless or flow-backed
+3. `murrmure_invoke_action` — pass `session_id`, `run_id`, `step_id: action:{name}`
+4. `murrmure_get_run` — poll step memo until terminal
 
-**Reload MCP** after promote/apply or grant changes.
+## v2 batch 2 — gates & journal
 
-## Mint grants
+| Tool | Capability | Pattern |
+|------|------------|---------|
+| `murrmure_wait_for_gate` | `space:read` | Long-poll until pending gate on `run_id` / `session_id` |
+| `murrmure_resolve_gate` | `gate:resolve` | `POST /v1/gates/{id}/resolve` with `{ disposition, output }` (legacy `decision` shim) |
+| `murrmure_wait_for_run` | `space:read` | Long-poll until run lifecycle terminal |
+| `murrmure_journal_query` | `journal:read` | `GET /v1/journal?session=ses_*&type=mrmr.gate.*` |
 
-**Configure → [space] → Agent grants → Mint grant**
+Prefer `murrmure_wait_for_gate` / `murrmure_wait_for_run` over v1 `wait_for_state`.
 
-- **Template:** Worker (agents) or Admin (install/promote)
-- **Flow ACL:** check every package the agent should call, e.g. `["app-live-review"]`
+## v2 batch 3 — orchestration attach
 
-Without ACL entry, domain tools are hidden even when live.
+| Tool | Capability | Pattern |
+|------|------------|---------|
+| `murrmure_attach_orchestration` | `flow:run` | Push `murrmure.flow.attach/v1`; creates `orchestration.validate` gate |
+| `murrmure_get_run_graph` | `flow:read` | Preview graph before approve (`GET /v1/runs/{id}/graph`) |
 
-## Platform tools (always scope-gated)
+**File-push vs MCP attach:** durable flows → `murrmure_apply_space` / `mrmr space apply`; ephemeral session plan → attach. See [orchestration-attach.md](orchestration-attach.md).
 
-| Tool | Scope |
-|------|-------|
-| `get_space_state` | `space:read` |
-| `contract_versions` | `space:read` |
-| `transition` | `state:transition` |
-| `wait_for_state` | `state:transition` |
-| `emit_event` | `event:emit` |
-| `query_ask` | `space:read` |
-
-## Flow tools
-
-Declared in **your** `contract/mcp-tools.json` and listed in manifest `mcp_tools_by_version`. Names are global per space — avoid collisions across packages.
-
-Session-creating tools should return `instance_id` and `murrmure_url` / `canvas_path` (hub may enrich automatically).
-
-## Verify connection
-
-Ask the agent to call `contract_versions` or `get_space_state`. List tools in Cursor MCP panel after reload.
-
-## Humans vs agents
-
-| Action | Human | Agent |
-|--------|-------|-------|
-| Install/promote/apply | Configure + CLI | CLI (`flow:install` scope) |
-| Review canvas | Runtime → Instances | MCP creates instance + shares URL |
-| Mint grants | Configure | — |
+Landing space (human shell): `mrmr me set-landing --space spc_…` → `PATCH /v1/me`.

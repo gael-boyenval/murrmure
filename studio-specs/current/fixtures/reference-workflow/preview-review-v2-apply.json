@@ -1,0 +1,25 @@
+{
+  "description": "Phase 06 — preview-review-v2 reference example passes space apply --strict (R1)",
+  "example_root": "examples/flows/preview-review-v2",
+  "command": "mrmr space apply --strict",
+  "tree": [
+    "murrmure/actions.yaml",
+    "murrmure/executors.yaml",
+    "murrmure/hooks.yaml",
+    "murrmure/flows/preview-review/flow.manifest.yaml",
+    "murrmure/scripts/preview-review-build.mjs",
+    "murrmure/views/preview-review/view.manifest.yaml",
+    "murrmure/views/preview-review-intake/view.manifest.yaml"
+  ],
+  "linked_engine_fixtures": [
+    "fixtures/flow-engine/gate-loop-on-resolve.json",
+    "fixtures/flow-engine/declarative-gate-chain.json",
+    "fixtures/flow-engine/step-output-chaining.json"
+  ],
+  "expect": {
+    "strict_apply_after_view_build": true,
+    "flow_id": "flw_flows_preview_review",
+    "actions": ["run_preview_agent", "mark_validated"],
+    "views": ["preview-review", "preview-review-intake"]
+  }
+}

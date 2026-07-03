@@ -1,0 +1,5 @@
+executors:
+  shell:
+    binding:
+      type: shell_spawn
+      executor_id: shell

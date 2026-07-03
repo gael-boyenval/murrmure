@@ -39,8 +39,7 @@ Reference flows `feature-spec` and `review-loop` live under
 
 ## What is deferred
 
-See [plans/README.md](./plans/README.md): hosted cloud shell, cross-space XS1,
-and additional monorepo `@studio/*` → `@murrmure/*` renames.
+See [plans/README.md](./plans/README.md): hosted cloud shell, cross-space XS1 extensions, and the [post-v2 backlog](./plans/product/plan/index.md) (gate step execution, step outputs, etc.).
 
 ## Done when
 

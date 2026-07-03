@@ -30,10 +30,10 @@ Historical execution plans and reviews moved to [archives/execution/](../../arch
 
 ## One-line goal
 
-A builder scaffolds a capability in **their project**, artifacts live under **`~/.studio/`** (or hub blob store after push), and the Studio shell renders **only** Configure + thin runtime chrome — **all workflow UI comes from the user's bundle**.
+A builder scaffolds a flow in **their project**, indexes it via **`murrmure/` + `mrmr space apply`**, and Murrmure Desktop renders **observer chrome** — workflow UI comes from indexed flows, views, or FDK iframe bundles when live.
 
 ## Non-goals
 
 - Bundled / marketplace capability catalog in the platform repo
 - Shipping reference workflow UI as part of `@murrmure/shell-web` (use CDK bundles in iframe)
-- Visual contract graph editor in Configure v1
+- Visual contract graph editor (future; not v2)

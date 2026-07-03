@@ -143,7 +143,7 @@ const REPLACEMENTS = [
   ["studio.acme.com", "murrmure.acme.com"],
   ["studio.yourcompany.com", "murrmure.yourcompany.com"],
   ["/var/lib/studio/", "/var/lib/murrmure/"],
-  ["studio.db", "murrmure.db"],
+  ["murrmure.db", "murrmure.db"],
 
   // Capability → flow (product noun) — careful ordering
   ["custom capabilities from scratch", "custom flows from scratch"],

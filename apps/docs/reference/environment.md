@@ -1,16 +1,16 @@
 # Environment variables
 
-For **agent operators** and **CI**. Browser users do not set these.
+For **agent operators** and **CI**. Desktop users do not set these manually (bootstrap is automatic).
 
-## Cloud (default)
+## Local hub (Desktop default)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `MURRMURE_HUB_URL` | Yes | `https://api.murrmure.dev` (or your org API URL) |
-| `MURRMURE_HUB_TOKEN` | Yes | Grant token from dashboard (`tok_…`) |
+| `MURRMURE_HUB_URL` | Yes | `http://127.0.0.1:8787` when using Murrmure Desktop |
+| `MURRMURE_HUB_TOKEN` | Yes | Grant token from `mrmr grant mint` (`tok_…`) |
 | `MURRMURE_SPACE_ID` | Yes (MCP) | Default space — tools do not take `space_id` as an argument |
 
-Grant **`flow_acl`** (JSON array on mint, e.g. `["review-loop","feature-spec"]`) is stored on the token and filters which domain MCP tools appear. Set via Configuration → Agent grants or the `POST …/grants` API body.
+Grant **`flow_acl`** (JSON array on mint, e.g. `["review-loop","feature-spec"]`) is stored on the token and filters which domain MCP tools appear. Set via **`mrmr grant mint`** or the grants API.
 
 Set via MCP config JSON or shell `export`. Prefer **`mrmr login`** for local CLI use.
 
@@ -46,7 +46,7 @@ Path: `~/.murrmure/credentials`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_PATH` | `./data/studio.db` | SQLite path on hub machine |
+| `DATABASE_PATH` | `./data/murrmure.db` | SQLite path on hub machine |
 | `PORT` | `8787` | Hub listen port |
 | `MURRMURE_DATA_DIR` | `~/.murrmure` | Lock + discovery on hub host |
 | `MURRMURE_SHELL_STATIC_DIR` | unset | Absolute path to built shell `dist/`; hub serves SPA at `/` when set |
@@ -67,12 +67,26 @@ The CLI `auth.ts` resolver still accepts these legacy names (prefer the canonica
 
 | Deprecated | Canonical | Notes |
 |------------|-----------|-------|
-| `MURRMURE_HUB_URL` | `MURRMURE_HUB_URL` | Accepted in `auth.ts` |
-| `MURRMURE_HUB_TOKEN` | `MURRMURE_HUB_TOKEN` | Accepted in `auth.ts` |
-| `MURRMURE_TOKEN` | `MURRMURE_HUB_TOKEN` or `MURRMURE_DEPLOY_TOKEN` | FDK/CLI push & deploy; also accepted in `auth.ts` |
+| `MURRMURE_TOKEN` | `MURRMURE_HUB_TOKEN` | CLI/MCP auth — prefer `MURRMURE_HUB_TOKEN` |
+| `MURRMURE_DEPLOY_TOKEN` | `MURRMURE_HUB_TOKEN` | Legacy deploy scripts |
+
+## `shell_spawn` child process (actions)
+
+When an action uses executor `shell_spawn`, the hub injects these into the child environment:
+
+| Variable | Shipped | Description |
+|----------|---------|-------------|
+| `MURRMURE_ACTION` | ✅ | Action name |
+| `MURRMURE_SPACE_ID` | ✅ | Space id |
+| `MURRMURE_RUN_ID` | ✅ | Run id |
+| `MURRMURE_SESSION_ID` | ✅ | Session id |
+| `MURRMURE_STEP_ID` | ✅ | Step id |
+| `MURRMURE_INVOKE_PARAMS` | ✅ | JSON resolved invoke params |
+| `MURRMURE_PROMPT` | ✅ | Resolved prompt text |
+| `MURRMURE_INPUT` | ✅ | JSON `exec_context.input` from the flow run |
 
 ## Security
 
 - Never commit `MURRMURE_HUB_TOKEN` to git
-- Revoke leaked tokens immediately in Configuration
+- Revoke leaked tokens immediately with **`mrmr grant revoke`**
 - Browser session cookies are not valid API tokens

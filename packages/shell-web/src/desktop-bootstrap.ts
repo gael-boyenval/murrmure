@@ -1,5 +1,5 @@
 import { isBundledShell } from "./hooks.js";
-import { getStorageItem, setStorageItem } from "./storage.js";
+import { setStorageItem } from "./storage.js";
 
 /** Apply one-shot session bootstrap from `#murrmure-bootstrap=<token>` (desktop dev launcher). */
 export function applyDesktopBootstrapFromHash(options?: { bundled?: boolean }): void {
@@ -30,8 +30,6 @@ export function applyDesktopBootstrapFromHash(options?: { bundled?: boolean }): 
   setStorageItem("murrmure_token", token);
   setStorageItem("murrmure_hub_url", globalThis.location.origin);
 
-  const setupDone = getStorageItem("murrmure_setup_complete") === "1";
-  const target = setupDone ? "/configure" : "/setup";
-  globalThis.history.replaceState(null, "", target);
-  globalThis.location.replace(target);
+  globalThis.history.replaceState(null, "", "/spaces/new");
+  globalThis.location.replace("/spaces/new");
 }

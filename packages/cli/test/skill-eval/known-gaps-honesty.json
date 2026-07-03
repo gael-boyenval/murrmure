@@ -1,0 +1,11 @@
+{
+  "id": "known-gaps-honesty",
+  "prompt": "Can I use mrmr flow push to install a v2 space-directory flow?",
+  "expected_keywords": [
+    "space apply",
+    "not",
+    "murrmure/flows",
+    "index"
+  ],
+  "advisory": true
+}

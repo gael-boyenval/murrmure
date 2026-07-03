@@ -16,3 +16,14 @@ projects:
     github_id: earendil-works/pi
   - name: modelcontextprotocol/typescript-sdk
     github_id: modelcontextprotocol/typescript-sdk
+  # Murrmure protocol / coordination references (see studio-specs/current/product/philosophy.md)
+  - name: A2A
+    github_id: a2aproject/A2A
+  - name: windmill
+    github_id: windmill-labs/windmill
+  - name: inngest
+    github_id: inngest/inngest
+  - name: cloudevents
+    github_id: cloudevents/spec
+  - name: temporal
+    github_id: temporalio/temporal

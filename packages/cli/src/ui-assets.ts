@@ -1,6 +1,11 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { ValidateIssue } from "./validate.js";
+
+export interface ValidateIssue {
+  code: string;
+  message: string;
+  hint?: Record<string, unknown>;
+}
 
 const DEFAULT_SKIP_TOP_LEVEL = new Set(["src", "entry.js"]);
 

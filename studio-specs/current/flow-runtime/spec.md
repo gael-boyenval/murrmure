@@ -74,7 +74,13 @@ Failed mount rolls back registry row; install stays `promoted` not `live`.
 |--------|------|---------|
 | GET | `/v1/spaces/{id}/flows/live` | `flow.list` filter live |
 | POST | `/v1/spaces/{id}/flows/{install_id}/apply` | `evolution.live.apply` |
+| POST | `/v1/flows/{id}/run` | Manual flow start (v2 index) |
+| GET | `/v1/spaces/{id}/home` | Space home sections |
 | GET | `/v1/mcp/catalog` | `mcp.catalog.for_token` |
+
+### v2 flow index (space directory)
+
+Flows in `murrmure/flows/` are indexed via `POST /v1/spaces/{id}/apply` — not per-space FDK install. The hub compiles manifest → IR, stores digest, and pins `flow_digest` on each Run. See [bridges/flow-engine.md](../bridges/flow-engine.md).
 
 Apply errors: `INSTALL_POLICY_VIOLATION`, `SCOPE_ENFORCEMENT_FAILURE`, `LIVE_APPLY_FAILED`.
 

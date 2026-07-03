@@ -1,6 +1,8 @@
 # BC3 — Shell host (platform UI boundary)
 
-Platform shell renders **Configure**, **thin runtime chrome**, and a **sandboxed capability canvas**. Domain UI runs in hub-served iframe — not shell origin.
+> **v2 (2026):** Configure UI and `/configure/**` routes are **retired**. The observer shell (Desktop webview) replaces Configure + runtime toggle. Historical Configure layout: [archives/superseded/config-shell-v1.md](../../archives/superseded/config-shell-v1.md).
+
+Platform shell renders **observer chrome** and optional **sandboxed capability canvas**. Domain UI runs in hub-served iframe — not shell origin.
 
 > **Security:** [09-security-execution-boundaries.md](./09-security-execution-boundaries.md) · **Routing:** [10-routing-collision-and-canvas-resolution.md](./10-routing-collision-and-canvas-resolution.md)
 
@@ -10,11 +12,12 @@ Platform shell renders **Configure**, **thin runtime chrome**, and a **sandboxed
 
 | Area | Routes / components | Data source |
 |------|---------------------|-------------|
-| **Connect / login** | `/connect`, `/login` | hub health, token |
-| **Configure** | `/configure/**` | hub-client config APIs |
-| **Runtime chrome** | Top bar: space picker, hub status, Runtime \| Configure toggle | `auth.whoami` |
-| **Runtime sidebar** | Instances, gates, event tail, audit | platform queries |
+| **Connect / login** | `/connect`, `/spaces/new` | hub health, token |
+| **Observer shell** | `/sessions/*`, `/runs/*`, `/notifications` | `@murrmure/shell-client` |
+| **Runtime chrome** | Top bar: space picker, hub status | `auth.whoami` |
 | **Capability canvas host** | Manifest `ui.canvas_route` | iframe → hub `ui/shell.html` |
+
+~~Configure~~ and ~~Runtime \| Configure toggle~~ — **retired**; use CLI for admin.
 
 ## What leaves the platform repo
 

@@ -37,13 +37,21 @@ jobs:
       - name: Acceptance tests
         run: pnpm test:acceptance
 
+      - name: Docs proof (phase 10)
+        run: pnpm check:docs-proof
+
+      - name: Docs build
+        run: pnpm docs:build
+
+      - name: Doc tracker (strict)
+        run: pnpm check:doc-tracker:strict
+
       - name: Pack smoke
         run: |
           set -euo pipefail
           PACK_DIR="$(mktemp -d)"
-          FLOW_DIR="$(mktemp -d)"
+          WORK_DIR="$(mktemp -d)"
 
-          pnpm -C packages/flow-dev-kit pack --pack-destination "$PACK_DIR"
           pnpm -C packages/cli pack --pack-destination "$PACK_DIR"
 
           CLI_TGZ="$(find "$PACK_DIR" -name 'murrmure-cli-*.tgz' | head -n 1)"
@@ -54,7 +62,9 @@ jobs:
           fi
 
           npm install -g "$CLI_TGZ"
-          mrmr flow init test-flow --dir "$FLOW_DIR/test-flow"
+          cd "$WORK_DIR"
+          mkdir -p murrmure
+          mrmr space flow init hello --template hello-gate
 
-          test -f "$FLOW_DIR/test-flow/flow.manifest.json"
-          test -f "$FLOW_DIR/test-flow/package.json"
+          test -f murrmure/flows/hello/flow.manifest.yaml
+          test -f murrmure/actions.yaml

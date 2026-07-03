@@ -1,0 +1,10 @@
+apiVersion: murrmure.flow/v1
+name: example-flow
+description: Example flow — replace steps with invoke actions
+start:
+  manual: true
+steps:
+  - id: hello
+    invoke:
+      space: "{{origin_space}}"
+      action: example_action

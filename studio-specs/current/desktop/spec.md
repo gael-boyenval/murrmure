@@ -24,10 +24,13 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 
 ## Shell bundled behavior (Tasks 2 + 2b)
 
+**v2 shell packages (phase 06):** `@murrmure/shell-ui`, `@murrmure/shell-client`, `@murrmure/shell-web`. See [shell/spec.md](../shell/spec.md).
+
 - Bundled shell uses `VITE_MURRMURE_BUNDLED=1`.
 - In bundled mode, hub URL resolution is same-origin (`window.location.origin`).
-- `/connect` auto-redirects to `/setup` when bundled mode already has `murrmure_token` in localStorage.
-- Setup/grants MCP snippets use same-origin hub URL in bundled mode.
+- `/connect` auto-redirects to `/spaces/new` when bundled mode already has `murrmure_token` in localStorage.
+- Configure/setup wizards retired; legacy `/configure` and `/setup` redirect to `/spaces/new`.
+- Grants MCP snippets use `mrmr grant mint` + `/connect` page (no Configure grants UI).
 - Flow canvas iframe uses relative URL in bundled mode: `/flows/{packageId}/{version}/ui/shell.html?...`.
 - `hub-fetch` forwarding from canvas is restricted to `/api/{packageId}/...` for the mounted flow.
 - `hub-fetch` forwards only an allowlisted header set (`Content-Type`, `Accept`, `Idempotency-Key`); trust headers (`Authorization`, `X-Murrmure-*`) from iframe payloads are dropped.
@@ -40,7 +43,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 - Desktop host injects web storage values in webview:
   - `murrmure_token`
   - `murrmure_hub_url`
-- If first page lands on `/connect`, host-side script redirects to `/setup` (or `/configure` when setup is already complete).
+- If first page lands on `/connect`, host-side script redirects to `/spaces/new` when token is present.
 - v1 default bootstrap token remains `tok_01JBOOTSTRAPTOKEN00000001` for localhost desktop MVP.
 
 ## Electrobun host (Task 4)
@@ -97,5 +100,27 @@ Hub writes discovery only after effective port is known and preserves existing `
 
 ## Contributor workflow
 
-- Fast desktop smoke path: `pnpm desktop:dev` (opens system browser via `dev-main.ts`, no Electrobun import)
+- **Primary dev path:** `pnpm desktop:dev:hmr` — native Electrobun window, shell HMR via Vite (`:5174`), hub API-only watch (`tsx watch` on `:8787`). Vite proxies `/v1`, `/api`, `/flows` to the hub.
+- **Smoke / regression:** `pnpm desktop:dev:smoke` — system browser via `dev-main.ts`, hub serves bundled shell static (single-URL path).
 - Full packaged build remains optional/manual for MVP (`pnpm desktop:build`, Bun/Electrobun toolchain required).
+
+### Dev HMR environment
+
+| Variable | Required | Meaning |
+|----------|----------|---------|
+| `MURRMURE_DESKTOP_DEV_HMR` | Set by `desktop:dev:hmr` | Electrobun loads Vite shell URL instead of hub static; connects to external hub + Vite. |
+| `VITE_MURRMURE_BUNDLED` | Set by `shell-web dev:bundled` | Bundled shell client mode in Vite (same-origin API via proxy). |
+
+## Push notifications (phase 15)
+
+When the desktop app is backgrounded (minimized or hidden), the host subscribes to hub SSE `out_of_shell.desktop` and shows a native OS notification via Electrobun `Utils.showNotification`.
+
+| Concern | Behavior |
+|---------|----------|
+| Triggers | `mrmr.gate.pending` (assignees / `gate:resolve` fallback), `mrmr.run.failed` (session watchers + resolvers) |
+| Suppressed | Run started, action completed, hook delivered — shell SSE covers live use |
+| Focus debounce | No OS notification when the main window is visible and not minimized |
+| Deep link | `murrmure://runs/{run_id}?gate={gate_id}` → shell route `/runs/{id}?gate=…` via `open-url` handler |
+| User prefs | `PATCH /v1/me` fields `notify_email`, `notify_desktop` (default on; per-channel opt-out) |
+
+Register `murrmure` URL scheme in `electrobun.config.ts` (`app.urlSchemes`).

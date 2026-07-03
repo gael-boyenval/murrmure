@@ -1,0 +1,33 @@
+{
+  "scenario": "13.3-backend-frontend-hook-chain",
+  "description": "Backend emits mrmr.spec.published → frontend hook creates session + run + invoke",
+  "spaces": {
+    "backend": { "slug": "backend-api" },
+    "frontend": { "slug": "ui-sandbox" }
+  },
+  "hooks": {
+    "on-spec-published": {
+      "on": {
+        "event": {
+          "type": "mrmr.spec.published",
+          "source": "/spaces/spc_backend"
+        }
+      },
+      "do": [
+        { "ensure_session": { "title": "Backend → frontend chain" } },
+        {
+          "invoke": {
+            "action": "wake_review",
+            "params": { "ref": "{{event.data.artifact_ref}}" }
+          }
+        }
+      ]
+    }
+  },
+  "expectations": {
+    "session_created": true,
+    "run_created": true,
+    "journal_event": "mrmr.hook.delivered",
+    "dedup_key_propagates_to_run": true
+  }
+}

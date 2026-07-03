@@ -1,0 +1,24 @@
+{
+  "description": "Phase 03 — invoke → checkpoint pause → continue → next invoke",
+  "manifest": {
+    "apiVersion": "murrmure.flow/v1",
+    "name": "declarative-gate-chain",
+    "triggers": { "manual": true },
+    "start": { "manual": true },
+    "steps": [
+      { "id": "build", "invoke": { "space": "{{origin_space}}", "action": "build" } },
+      {
+        "id": "review",
+        "checkpoint": {
+          "view": "preview-review",
+          "on_resolve": {
+            "default": { "goto": "done" },
+            "cancel": { "fail": true }
+          }
+        }
+      },
+      { "id": "done", "invoke": { "space": "{{origin_space}}", "action": "finish" } }
+    ]
+  },
+  "expected_sequence": ["build.invoke", "review.checkpoint", "review.resolve.continue", "done.invoke"]
+}

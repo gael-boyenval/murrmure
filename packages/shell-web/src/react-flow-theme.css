@@ -1,0 +1,11 @@
+/* CC-01: align React Flow chrome with shell tokens when colorMode="dark" */
+.react-flow.dark {
+  --xy-background-color: transparent;
+  --xy-minimap-background-color: var(--color-card);
+  --xy-minimap-node-background-color: var(--color-muted);
+  --xy-controls-button-background-color: var(--color-muted);
+  --xy-controls-button-background-color-hover: var(--color-accent);
+  --xy-controls-button-border-color: var(--color-border);
+  --xy-controls-button-color: var(--color-foreground);
+  --xy-controls-button-color-hover: var(--color-foreground);
+}

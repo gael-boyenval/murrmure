@@ -305,7 +305,10 @@ export const triggerTestFireCommand = defineCommand({
 }) as CommandDef;
 
 export const triggerCommand = defineCommand({
-  meta: { name: "trigger", description: "Webhook trigger management" },
+  meta: {
+    name: "trigger",
+    description: "Webhook trigger management (deprecated — prefer murrmure/hooks.yaml + mrmr space apply)",
+  },
   subCommands: {
     list: triggerListCommand,
     register: triggerRegisterCommand,

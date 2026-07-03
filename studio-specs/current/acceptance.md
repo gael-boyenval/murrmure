@@ -7,6 +7,36 @@ acceptance is in [build-capability/acceptance.md](./build-capability/acceptance.
 Deferred rows (cloud CL0, cross-space XS1 federation) are **not** here — see
 [../plans/README.md](../plans/README.md).
 
+## Murrmure v2 backlog closed (B1–B8)
+
+Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all shipped in phases 01–08.
+
+| ID | Symptom | Phase | Fixture | Test |
+|----|---------|-------|---------|------|
+| B1 | Checkpoint steps dispatch | 03 | `fixtures/flow-engine/declarative-gate-chain.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| B2 | `{{steps.*}}` templates | 03 | `fixtures/flow-engine/step-output-chaining.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| B3 | `MURRMURE_INPUT` on shell_spawn | 03 | `fixtures/flow-engine/murrmure-input-env.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| B4 | ViewCanvasHost at checkpoints | 05 | `fixtures/flow-engine/gate-requires-view.json` | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
+| B5 | Apply lint capabilities | 01 | `fixtures/space-apply/unsupported-step-kind.json` | `packages/cli/test/space-apply.test.ts` |
+| B6 | `space flow init` scaffold | 04 | `fixtures/space-flow-init-hello-gate.json` | `packages/cli/test/space-flow-init.test.ts` |
+| B7 | Unified murrmure skill | 07 | skill tree in `packages/cli/skill/` | `packages/cli/test/skill-install.test.ts` |
+| B8 | Setup wizard | 08 | `fixtures/cli/wizard-onboard-smoke.json` | `packages/cli/test/wizard/setup.test.ts` |
+
+Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing.json`.
+
+## Phase 10 — Docs & proof
+
+| Artifact | Proves | Test |
+|----------|--------|------|
+| `demo-space/murrmure/` | CI strict apply on linked demo tree | `.github/workflows/ci.yml` demo-space step |
+| `examples/flows/preview-review-v2/` | Tutorial 1 + R1–R6 | `packages/cli/test/preview-review-v2-example.test.ts` |
+| `examples/flows/team-brief-v2/` | Tutorial 2 tree | `packages/cli/test/docs-proof.test.ts` |
+| `examples/flows/daily-brief-v2/` | Tutorial 3 tree | `packages/cli/test/docs-proof.test.ts` |
+| `examples/flows/hello-authoring/` | Flows tutorial tree | `packages/cli/test/docs-proof.test.ts` |
+| Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
+| Zero FDK in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
+| Tutorial pages (16) | 10-T4 | `packages/cli/test/docs-proof.test.ts` |
+
 ## Flow runtime (CR)
 
 | Fixture | Proves | Test |
@@ -72,6 +102,23 @@ See [build-capability/acceptance.md](./build-capability/acceptance.md). Conforma
 (validate + deterministic build digest) and `dev --sim` are covered by
 `capability-sdk/test/cdk-conformance.test.ts`, `validate.test.ts`, `dev-sim.test.ts`.
 
+## Reference workflow — preview-review-v2 (RW)
+
+Layered verification per [decision 10](../plans/product/plan/decisions/10-reference-workflow-verification-layered.md).
+Example tree: [`examples/flows/preview-review-v2/`](../../examples/flows/preview-review-v2/).
+
+| ID | Fixture / artifact | Proves | Layer | Test |
+|----|-------------------|--------|-------|------|
+| R1 | `examples/flows/preview-review-v2/` + `fixtures/reference-workflow/preview-review-v2-apply.json` | Normative tree passes `space apply --strict` | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
+| R3 | shell ViewCanvasHost | Checkpoint view in primary region (not drawer) | CI | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
+| R4 | `fixtures/flow-engine/gate-loop-on-resolve.json` | Request changes → build reruns (engine half) | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| R5 | `fixtures/flow-engine/declarative-gate-chain.json` | Validated → terminal completed | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| R4/R5 | `fixtures/flow-engine/step-output-chaining.json` | `{{steps.*}}` in invoke params | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| R6 | example + workflow grep | Zero legacy install commands in reference workflow | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
+| R2 | Tutorial 1 walkthrough | Non-contributor scaffold → Run Desktop | manual | release checklist **10-T1** |
+| R3/R4 | Tutorial 1 visual | ViewCanvasHost + round-trip UX | manual | release checklist **10-T1** |
+| R2–R4 | Playwright Desktop | Full human path automation | backlog | post-v2 |
+
 ## Gate
 
-Ship when all rows above are green via `pnpm test` and `pnpm test:acceptance`.
+Ship when all rows above are green via `pnpm test`, `pnpm test:acceptance`, and `pnpm check:docs-proof`.

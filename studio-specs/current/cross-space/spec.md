@@ -4,7 +4,7 @@ Exposes hub **Ask/Answer** protocol on HTTP and MCP so agents perform typed cros
 
 Hub event types (unchanged): `ask` · `answer` · `query_failed`
 
-**Scope:** XS0 = same hub (normative here). XS1 = cross-hub federation + config UI, deferred to [plans/cross-space-xs1/](../../plans/cross-space-xs1/).
+**Scope:** XS0 = same hub (normative here). XS1 federation relay promoted in phase 13 — see [../bridges/federation.md](../bridges/federation.md). Remaining XS1 items deferred to [plans/cross-space-xs1/](../../plans/cross-space-xs1/).
 
 ## Problem
 
@@ -26,13 +26,20 @@ Hub event types (unchanged): `ask` · `answer` · `query_failed`
 
 - Capability-owned query type `spec_summary@1` (feature-spec), answered by the live capability — see [../build-capability/12-worker-runtime-and-host-bridge.md](../build-capability/12-worker-runtime-and-host-bridge.md) §6
 
-### XS1 — deferred
+### XS1 — federation relay (promoted phase 13)
+
+Cross-hub federation relay is implemented — see [../bridges/federation.md](../bridges/federation.md).
+
+- Federation ask: relay via peer hub invoke shim; relay down → `TARGET_SPACE_UNREACHABLE`
+- Local-only spaces unaffected when peer unreachable (J13)
+
+### XS1 — still deferred
 
 Moved to [plans/cross-space-xs1/](../../plans/cross-space-xs1/): config `query_policy` editor, cross-hub federation relay, `context_fetch@1`, `openapi_diff_ref@1`.
 
 ### Out
 
-- Arbitrary cross-space blob passthrough
+- Arbitrary cross-space blob passthrough via `query_ask` (use artifact protocol instead — see [../bridges/artifacts.md](../bridges/artifacts.md))
 - Sync cross-hub wait (fails fast per J13)
 - Super-agent orchestrator capability
 
@@ -187,6 +194,17 @@ Params for `context_fetch@1`: `{ topic: string, max_sections?: number }`.
 ## Federation and XS-full
 
 Deferred — see [plans/cross-space-xs1/](../../plans/cross-space-xs1/).
+
+## Artifacts vs inline (v2)
+
+Cross-space **file handoff** uses the artifact protocol ([../bridges/artifacts.md](../bridges/artifacts.md)), not `query_ask`:
+
+| Mechanism | Payload limit | Use when |
+|-----------|---------------|----------|
+| Inline (`params`, journal `data`) | ≤ 64 KiB | Small structured data |
+| Artifact (`PUT /v1/artifacts`, `artifacts_in` on invoke) | TTL-bound, ACL-scoped | Diffs, logs, binaries |
+
+Typical flow: source space registers artifact → target space invoke with `artifacts_in` → executor reads `.mrmr.temp/inbox/{transfer_id}/`.
 
 ## Related
 

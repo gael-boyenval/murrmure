@@ -1,6 +1,4 @@
-import { createHubClient } from "@murrmure/hub-client";
-import { useMemo } from "react";
-import { getStorageItem, migrateLegacyStorage, setStorageItem } from "./storage.js";
+import { migrateLegacyStorage, getStorageItem, setStorageItem } from "./storage.js";
 
 const DEFAULT_HUB_URL = "http://127.0.0.1:8787";
 const LOCAL_HUB_URLS = new Set(["http://127.0.0.1:8787", "http://localhost:8787"]);
@@ -23,13 +21,11 @@ export function resolveHubUrl(
   return stored ? stored.replace(/\/$/, "") : DEFAULT_HUB_URL;
 }
 
-/** Hub URL for MCP snippets and flow iframes (may be direct daemon port). */
 export function getStoredHubUrl(): string {
   const origin = typeof window === "undefined" ? DEFAULT_HUB_URL : window.location.origin;
   return resolveHubUrl(getStorageItem("murrmure_hub_url"), isBundledShell(), origin);
 }
 
-/** API base for browser fetch — routes local daemon through the Vite proxy. */
 export function resolveApiBaseUrl(storedHubUrl = getStoredHubUrl()): string {
   const stored = storedHubUrl.replace(/\/$/, "");
   if (typeof window === "undefined") return stored;
@@ -39,12 +35,8 @@ export function resolveApiBaseUrl(storedHubUrl = getStoredHubUrl()): string {
   return stored;
 }
 
-export function useClient() {
-  const token = getStorageItem("murrmure_token") ?? "";
-  return useMemo(() => {
-    if (!token) return null;
-    return createHubClient({ baseUrl: resolveApiBaseUrl(), token });
-  }, [token]);
+export function getShellToken(): string {
+  return getStorageItem("murrmure_token") ?? "";
 }
 
 export function useActiveSpaceId(): string | undefined {
@@ -55,3 +47,9 @@ export function useActiveSpaceId(): string | undefined {
 export function setActiveSpaceId(spaceId: string) {
   setStorageItem("murrmure_active_space", spaceId);
 }
+
+export function getHubBaseUrl(): string {
+  return resolveApiBaseUrl();
+}
+
+export { getStorageItem, setStorageItem };

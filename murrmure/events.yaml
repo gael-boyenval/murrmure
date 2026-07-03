@@ -1,0 +1,54 @@
+version: 1
+events:
+  murrmure.feedback.failure:
+    description: Report integration, test, or CI failures to the Murrmure feedback inbox
+    payload:
+      required:
+        - failure_type
+        - summary
+      properties:
+        failure_type:
+          type: string
+          description: Category of failure (test_failure, integration_failure, etc.)
+        summary:
+          type: string
+          description: Short description of what failed
+        logs:
+          type: string
+          description: URL or excerpt of relevant logs
+        docs:
+          type: string
+          description: Relevant documentation excerpt or path
+        context:
+          type: object
+          description: Branch, step, environment, or other context
+        reported_at:
+          type: string
+          description: ISO timestamp when the failure was observed
+
+  murrmure.feedback.requestImprovement:
+    description: Request a Murrmure product or DX improvement (no hard failure required)
+    payload:
+      required:
+        - topic
+        - summary
+        - suggestion
+      properties:
+        topic:
+          type: string
+          description: Area of Murrmure (MCP, hooks, CLI, Desktop, etc.)
+        summary:
+          type: string
+          description: What felt wrong or missing
+        suggestion:
+          type: string
+          description: Concrete improvement proposal
+        docs:
+          type: string
+          description: Optional link or excerpt
+        context:
+          type: object
+          description: Workflow, repo, or tool where you hit this
+        reported_at:
+          type: string
+          description: ISO timestamp when the request was filed

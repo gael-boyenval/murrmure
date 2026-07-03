@@ -23,12 +23,12 @@ Teams are adopting AI coding agents fast. But the tools for *working with* those
 
 ## Who it's for
 
-- **Reviewers & designers** — review the real thing in the browser, comment, approve. Nothing to install.
+- **Reviewers & designers** — review the real thing in Murrmure Desktop, comment, approve. Install Desktop; nothing else for human UI.
 - **Team leads & PMs** — see what's in flight, gate what ships, and keep a record for compliance.
-- **Agent operators & engineers** — connect agents in one paste; build custom workflows in your own repo.
+- **Agent operators & engineers** — connect agents with `mrmr grant mint`; author indexed flows in `murrmure/` with `mrmr space flow init` and custom views.
 
 ## The one-line version
 
 > **Your agents do the work. Murrmure keeps your team in control of it.**
 
-Ready? [Create an account](https://app.murrmure.dev/signup) or follow the [Quick start](./quick-start).
+Ready? [Get Murrmure Desktop](./desktop) or follow the [Quick start](./quick-start).

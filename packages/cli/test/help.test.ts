@@ -35,23 +35,16 @@ describe("CLI help contract", () => {
     expect(usage).toMatch(/--token/);
   });
 
-  test("flow validate --json on missing path exits 1 with structured errors", () => {
+  test("unknown flow subcommand exits non-zero", () => {
     try {
-      execFileSync("node", [cliPath, "flow", "validate", "/nonexistent-flow-path", "--json"], {
+      execFileSync("node", [cliPath, "flow", "push", "--json"], {
         encoding: "utf-8",
         stdio: ["ignore", "pipe", "pipe"],
       });
-      expect.fail("expected exit code 1");
+      expect.fail("expected exit code non-zero");
     } catch (error) {
-      const err = error as NodeJS.ErrnoException & { status?: number; stdout?: string; stderr?: string };
-      expect(err.status).toBe(1);
-      const parsed = JSON.parse(err.stdout?.trim() ?? "{}") as {
-        ok: boolean;
-        errors?: unknown[];
-      };
-      expect(parsed.ok).toBe(false);
-      expect(Array.isArray(parsed.errors)).toBe(true);
-      expect(err.stderr?.trim()).toBe("");
+      const err = error as NodeJS.ErrnoException & { status?: number };
+      expect(err.status).not.toBe(0);
     }
   });
 });

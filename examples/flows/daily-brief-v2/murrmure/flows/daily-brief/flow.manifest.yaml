@@ -1,0 +1,34 @@
+# Role: Tutorial 3 — canvas trigger checkpoint + review checkpoint.
+apiVersion: murrmure.flow/v1
+name: daily-brief
+description: Daily brief trigger + review loop (indexed v2)
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: trigger
+    checkpoint:
+      view: daily-brief
+      on_resolve:
+        default: { goto: agent }
+        cancel: { fail: true }
+  - id: agent
+    invoke:
+      space: "{{origin_space}}"
+      action: mcp_wake
+      params:
+        wake_label: handle_brief_requested
+  - id: review
+    checkpoint:
+      view: daily-brief
+      on_resolve:
+        default: { goto: done }
+        cancel: { fail: true }
+  - id: done
+    invoke:
+      space: "{{origin_space}}"
+      action: submit_brief_output

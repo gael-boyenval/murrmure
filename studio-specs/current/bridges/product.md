@@ -9,6 +9,23 @@ reference: agentStudio/kernelspecs/hub/studio-kernel-bridge.md
 
 Maps product edges → hub-core. Read after hub [studio-kernel-bridge.md](https://github.com/n/a) (`agentStudio/kernelspecs/hub/studio-kernel-bridge.md`).
 
+## Space directory index (v2)
+
+| HTTP | Purpose |
+|------|---------|
+| `POST /v1/spaces/{id}/link` | Register `{ host, path, primary }` binding |
+| `POST /v1/spaces/{id}/apply` | Re-index `murrmure/` bundle from CLI |
+| `GET /v1/spaces/{id}/actions` | Indexed actions registry |
+| `GET /v1/spaces/{id}/executors` | Indexed executors |
+| `GET /v1/spaces/{id}/hooks` | Indexed hooks |
+| `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes denormalized `view_ref`) |
+| `GET /v1/spaces/{id}/index/status` | Counts + digests for MCP `murrmure_space_status` |
+| `GET /v1/flows/{flow_id}` | Single flow index row |
+
+CLI: `mrmr space init` → `link` → `apply` → `status`. See `packages/cli/skill/reference/space-directory.md`.
+
+MCP v2 stubs: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_grant_mint`.
+
 ## Auth middleware (all routes)
 
 ```typescript
@@ -74,7 +91,25 @@ Implement in `packages/studio-hub-daemon/src/sse.ts`. Reuse kernel fan-out notif
 
 ## Review HTTP → hub-core
 
-Env: `STUDIO_SPACE_ID` — default space for `/api/sessions` when path omits space (local dev).
+## Session & Run API (rev-1 §10.1)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| POST | `/v1/sessions` | Create session (`ses_*`) |
+| GET | `/v1/sessions` | List/filter by `status`, `space_id` |
+| GET | `/v1/sessions/{id}` | Derived status from child runs |
+| GET | `/v1/sessions/{id}/runs` | Runs in session |
+| POST | `/v1/sessions/{id}/runs` | Start headless or flow run |
+| POST | `/v1/sessions/{id}/cancel` | Cascade cancel (30s cap) |
+| GET | `/v1/runs/{id}` | Describe + step memo |
+| GET | `/v1/runs/{id}/graph` | Step memo as graph stub |
+| POST | `/v1/runs/{id}/cancel` | Cancel single run |
+| POST | `/v1/runs/{id}/retry` | New run with `reference_run_ids` |
+
+v1 shim: `POST /v1/spaces/{id}/instances` → Session + Run; `instance_id` aliases `run_id`.
+
+Grants v2: [grants-migration.md](./grants-migration.md).
+
 
 | HTTP | Hub operations | Notes |
 |------|----------------|-------|

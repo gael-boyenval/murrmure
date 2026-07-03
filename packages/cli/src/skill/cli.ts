@@ -45,8 +45,8 @@ export async function runMurrmureSkillCli(argv: string[]): Promise<void> {
           command,
           message:
             command === "update"
-              ? `Updated murrmure-flow skill to v${result.version}`
-              : `Installed murrmure-flow skill to ${result.path}`,
+              ? `Updated murrmure skill to v${result.version}`
+              : `Installed murrmure skill to ${result.path}`,
         },
         json,
       );

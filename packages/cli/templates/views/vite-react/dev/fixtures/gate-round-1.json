@@ -1,0 +1,23 @@
+{
+  "flow_id": "preview-review",
+  "space_id": "spc_local",
+  "hub_base_url": "http://127.0.0.1:8787",
+  "token": "dev-readonly",
+  "session_id": "ses_dev",
+  "run_id": "run_dev",
+  "gate": {
+    "gate_id": "gte_dev",
+    "step_id": "review",
+    "payload_ref": "art_preview_meta"
+  },
+  "input": {
+    "reviewer": "you@local",
+    "preview_url": "http://localhost:3000"
+  },
+  "steps": {
+    "build": {
+      "status": "completed",
+      "output": { "preview_url": "http://localhost:3000" }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "actions.yaml": "version: 1\nactions: {}\n",
+  "executors.yaml": "executors: {}\n",
+  "hooks.yaml": "version: 1\nhooks: {}\n",
+  "space.yaml": "# Optional — slug hint for mrmr space link\nslug: my-space\n"
+}

@@ -1,0 +1,22 @@
+{
+  "description": "Phase 08 — space onboard smoke (link → apply → status)",
+  "command": "mrmr space onboard --yes --json",
+  "prerequisites": [
+    "murrmure/ directory with at least one flow.manifest.yaml",
+    "MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN with space:write",
+    "--space or --create via murrmure/space.yaml slug"
+  ],
+  "steps": ["link", "apply", "status"],
+  "expect": {
+    "ok": true,
+    "flows_min": 1,
+    "link_present": true,
+    "step_ids": ["link", "apply", "status"]
+  },
+  "agent_equivalent": [
+    "mrmr space link --path . --space spc_…",
+    "mrmr space apply",
+    "mrmr space status --json"
+  ],
+  "human_equivalent": "mrmr space onboard"
+}

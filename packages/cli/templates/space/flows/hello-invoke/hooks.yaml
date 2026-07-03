@@ -1,0 +1,3 @@
+# Role: optional event hooks — edit and run `mrmr space apply` to index.
+version: 1
+hooks: {}

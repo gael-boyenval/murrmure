@@ -26,7 +26,7 @@ describe("applyDesktopBootstrapFromHash", () => {
     vi.unstubAllGlobals();
   });
 
-  test("stores token and redirects to setup when bundled", () => {
+  test("stores token and redirects to spaces/new when bundled", () => {
     (globalThis.location as { hash: string }).hash =
       "#murrmure-bootstrap=tok_01JBOOTSTRAPTOKEN00000001";
 
@@ -34,6 +34,6 @@ describe("applyDesktopBootstrapFromHash", () => {
 
     expect(storage.get("murrmure_token")).toBe("tok_01JBOOTSTRAPTOKEN00000001");
     expect(storage.get("murrmure_hub_url")).toBe("http://127.0.0.1:8787");
-    expect(globalThis.location.replace).toHaveBeenCalledWith("/setup");
+    expect(globalThis.location.replace).toHaveBeenCalledWith("/spaces/new");
   });
 });

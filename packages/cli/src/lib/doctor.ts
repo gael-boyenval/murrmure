@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { HubAuth } from "../auth.js";
 import { resolveHubAuth } from "../auth.js";
 import { buildAuthContext, fetchWhoami, type WhoamiResponse } from "./auth-context.js";
@@ -13,22 +10,24 @@ export interface DoctorIssue {
 }
 
 export interface SpaceCapabilities {
-  can_push_flows: boolean;
+  can_apply_space: boolean;
   can_mint_grants: boolean;
   can_register_triggers: boolean;
+}
+
+export interface DoctorExecutorReachability {
+  name: string;
+  type: string;
+  reachable: boolean | null;
+  detail?: string;
+  last_poll_at?: string | null;
 }
 
 export interface DoctorSpaceProfile {
   space_id: string;
   scopes: string[];
   capabilities: SpaceCapabilities;
-}
-
-export interface DoctorDevKitProfile {
-  cli_version: string;
-  dev_kit_version?: string;
-  match: boolean;
-  cwd?: string;
+  executors?: DoctorExecutorReachability[];
 }
 
 export interface DoctorProfile {
@@ -39,7 +38,6 @@ export interface DoctorProfile {
   bootstrap_token: boolean;
   whoami?: WhoamiResponse;
   spaces: DoctorSpaceProfile[];
-  dev_kit?: DoctorDevKitProfile;
 }
 
 export interface DoctorResult {
@@ -48,70 +46,82 @@ export interface DoctorResult {
   profile: DoctorProfile;
 }
 
-function readCliVersion(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, "..", "..", "VERSION"),
-    join(here, "..", "VERSION"),
-    join(here, "..", "..", "package.json"),
-  ];
-  for (const path of candidates) {
-    try {
-      if (path.endsWith(".json")) {
-        const pkg = JSON.parse(readFileSync(path, "utf-8")) as { version?: string };
-        if (pkg.version) return pkg.version;
-      } else {
-        return readFileSync(path, "utf-8").trim();
-      }
-    } catch {
-      /* try next */
-    }
-  }
-  return "0.0.0";
-}
-
-function readDependencyVersion(
-  pkg: { dependencies?: Record<string, unknown>; devDependencies?: Record<string, unknown> },
-  dependency: string,
-): string | undefined {
-  const value = pkg.dependencies?.[dependency] ?? pkg.devDependencies?.[dependency];
-  return typeof value === "string" ? value : undefined;
-}
-
 function summarizeCapabilities(scopes: string[]): SpaceCapabilities {
   return {
-    can_push_flows: hasScope(scopes, "flow:install"),
+    can_apply_space: hasScope(scopes, "space:write"),
     can_mint_grants: hasScope(scopes, "space:admin"),
     can_register_triggers: hasScope(scopes, "trigger:register"),
   };
 }
 
-function checkDevKitSkew(cwd: string, cliVersion: string): DoctorDevKitProfile | undefined {
-  const packageJsonPath = join(cwd, "package.json");
-  if (!existsSync(packageJsonPath)) return undefined;
-
+async function fetchExecutorPollStatus(
+  hubUrl: string,
+  token: string,
+): Promise<Map<string, { last_poll_at: string | null; reachable: boolean }>> {
   try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
-      dependencies?: Record<string, unknown>;
-      devDependencies?: Record<string, unknown>;
+    const res = await fetch(`${hubUrl}/v1/executor/poll-status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return new Map();
+    const body = (await res.json()) as {
+      executors?: Array<{ executor_id: string; last_poll_at: string | null; reachable: boolean }>;
     };
-    const devKitVersion = readDependencyVersion(packageJson, "@murrmure/flow-dev-kit");
-    if (!devKitVersion) return undefined;
-
-    return {
-      cli_version: cliVersion,
-      dev_kit_version: devKitVersion,
-      match: devKitVersion === cliVersion,
-      cwd,
-    };
+    return new Map(
+      (body.executors ?? []).map((row) => [
+        row.executor_id,
+        { last_poll_at: row.last_poll_at, reachable: row.reachable },
+      ]),
+    );
   } catch {
-    return undefined;
+    return new Map();
+  }
+}
+
+async function fetchExecutorReachability(
+  hubUrl: string,
+  token: string,
+  spaceId: string,
+): Promise<DoctorExecutorReachability[]> {
+  try {
+    const [executorsRes, pollStatus] = await Promise.all([
+      fetch(`${hubUrl}/v1/spaces/${spaceId}/executors`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetchExecutorPollStatus(hubUrl, token),
+    ]);
+    if (!executorsRes.ok) return [];
+    const body = (await executorsRes.json()) as { executors?: Array<Record<string, unknown>> };
+    return (body.executors ?? []).map((row) => {
+      const binding = (row.binding ?? row) as { type?: string; executor_id?: string };
+      const type = String(binding.type ?? "unknown");
+      const executorId = String(binding.executor_id ?? row.name ?? "");
+      let reachable: boolean | null = null;
+      let detail: string | undefined;
+      let last_poll_at: string | null | undefined;
+      if (type === "shell_spawn") {
+        detail = "requires linked space root path";
+      } else if (type === "mcp_session") {
+        detail = "requires connected MCP session (invoke preflight)";
+      } else if (type === "queue_poll") {
+        const poll = pollStatus.get(executorId);
+        last_poll_at = poll?.last_poll_at ?? null;
+        reachable = poll?.reachable ?? false;
+        detail = last_poll_at
+          ? `last poll ${last_poll_at}${reachable ? " (reachable)" : " (stale)"}`
+          : "no worker poll yet";
+      } else {
+        detail = "reachability varies by executor type";
+      }
+      return { name: String(row.name ?? ""), type, reachable, detail, last_poll_at };
+    });
+  } catch {
+    return [];
   }
 }
 
 function capabilityLine(capabilities: SpaceCapabilities): string {
   const parts = [
-    `push flows ${capabilities.can_push_flows ? "✓" : "✗"}`,
+    `apply space ${capabilities.can_apply_space ? "✓" : "✗"}`,
     `mint grants ${capabilities.can_mint_grants ? "✓" : "✗"}`,
     `register triggers ${capabilities.can_register_triggers ? "✓" : "✗"}`,
   ];
@@ -158,15 +168,12 @@ export function formatDoctorHuman(result: DoctorResult): string {
         `  ${entry.space_id.padEnd(spaceWidth)}  ${scopes}`.padEnd(spaceWidth + 2 + scopes.length) +
           `  ${capabilityLine(entry.capabilities)}`,
       );
+      if (entry.executors?.length) {
+        for (const ex of entry.executors) {
+          lines.push(`    executor ${ex.name} (${ex.type}) — ${ex.detail ?? "—"}`);
+        }
+      }
     }
-  }
-
-  if (profile.dev_kit) {
-    const { cli_version, dev_kit_version, match } = profile.dev_kit;
-    lines.push(
-      "",
-      `Dev kit: @murrmure/cli ${cli_version} · flow-dev-kit ${dev_kit_version ?? "—"} (${match ? "match" : "skew"})`,
-    );
   }
 
   if (issues.length > 0) {
@@ -235,10 +242,10 @@ export async function runDoctor(options?: {
 
       if (whoami.spaces.length === 0) {
         const scopes = ctx.tokenScopes;
-        if (!bootstrapToken && !hasScope(scopes, "flow:install")) {
+        if (!bootstrapToken && !hasScope(scopes, "space:write")) {
           issues.push({
             code: "SCOPE_MISSING",
-            message: "Missing flow:install scope (cannot push flows)",
+            message: "Missing space:write scope (cannot apply murrmure/)",
           });
         }
         spaces.push({
@@ -248,15 +255,20 @@ export async function runDoctor(options?: {
         });
       } else {
         for (const entry of whoami.spaces) {
+          const executors =
+            hasScope(entry.scopes, "space:read") || bootstrapToken
+              ? await fetchExecutorReachability(auth.hubUrl, auth.token, entry.space_id)
+              : undefined;
           spaces.push({
             space_id: entry.space_id,
             scopes: entry.scopes,
             capabilities: summarizeCapabilities(entry.scopes),
+            executors,
           });
-          if (!bootstrapToken && !hasScope(entry.scopes, "flow:install")) {
+          if (!bootstrapToken && !hasScope(entry.scopes, "space:write")) {
             issues.push({
               code: "SCOPE_MISSING",
-              message: `Missing flow:install on ${entry.space_id} (cannot push flows)`,
+              message: `Missing space:write on ${entry.space_id} (cannot apply murrmure/)`,
             });
           }
         }
@@ -264,15 +276,6 @@ export async function runDoctor(options?: {
     }
   } catch (error) {
     issues.push({ code: "AUTH_CHECK_FAILED", message: String(error) });
-  }
-
-  const cliVersion = readCliVersion();
-  const devKit = checkDevKitSkew(options?.cwd ?? process.cwd(), cliVersion);
-  if (devKit && !devKit.match) {
-    issues.push({
-      code: "DEVKIT_CLI_VERSION_MISMATCH",
-      message: `@murrmure/cli (${devKit.cli_version}) and @murrmure/flow-dev-kit (${devKit.dev_kit_version}) must use matching versions`,
-    });
   }
 
   const profile: DoctorProfile = {
@@ -283,7 +286,6 @@ export async function runDoctor(options?: {
     bootstrap_token: bootstrapToken,
     whoami,
     spaces,
-    ...(devKit ? { dev_kit: devKit } : {}),
   };
 
   return {

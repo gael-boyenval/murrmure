@@ -25,14 +25,16 @@ function normalizeHubUrl(url: string): string {
   return url.replace(/\/$/, "");
 }
 
-async function openConfigurePage(hubUrl: string): Promise<void> {
-  const url = `${normalizeHubUrl(hubUrl)}/configure`;
+async function openSpacesNewPage(hubUrl: string): Promise<void> {
+  const url = `${normalizeHubUrl(hubUrl)}/spaces/new`;
   const openCmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
   try {
     await execFileAsync(openCmd, [url]);
-    p.log.info(`Opened ${url} — copy a token from Agent grants`);
+    p.log.info(`Opened ${url} — use the bootstrap token or run mrmr grant mint`);
   } catch {
-    p.log.warn(`Could not open browser — visit ${url} and copy a token from Agent grants`);
+    p.log.warn(
+      `Could not open browser — visit ${url} and use the bootstrap token or run mrmr grant mint`,
+    );
   }
 }
 
@@ -79,7 +81,7 @@ export const loginCommand = defineCommand({
     ...globalArgs,
     open: {
       type: "boolean",
-      description: "Open browser to Configure → Agent grants",
+      description: "Open browser to /spaces/new (bootstrap or grant mint instructions)",
       default: false,
     },
   },
@@ -116,7 +118,7 @@ export const loginCommand = defineCommand({
       }
 
       if (args.open) {
-        await openConfigurePage(hubUrl);
+        await openSpacesNewPage(hubUrl);
       }
 
       const tokenAnswer = await p.password({

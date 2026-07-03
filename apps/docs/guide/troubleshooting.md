@@ -1,92 +1,59 @@
 # Troubleshooting
 
-Fix issues in the **browser** and **MCP** first — not with curl.
+Fix issues in **Murrmure Desktop** and **MCP** first — not with curl.
 
-## "Invalid token" or 403 from agent
+For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
-1. Token expired or revoked → **Configure → Agent grants → Revoke** old, mint new
-2. Wrong space → `MURRMURE_SPACE_ID` must match grant's space (`spc_…`)
-3. Missing scope → mint **Worker** or **Admin** template, not a custom stripped token
-4. **`TOOL_NOT_AUTHORIZED`** → flow not **live**; run **Validate → Test → Promote** in Configure
+## Denial code → fix
 
-Self-hosted: re-check **`/connect`** hub URL and token.
-
-Run `mrmr whoami` after `mrmr login` (CLI optional).
+| Code / symptom | Fix |
+|----------------|-----|
+| Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint`; check `MURRMURE_SPACE_ID` |
+| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / correct capabilities |
+| Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
+| Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
+| `wait_for_gate` times out | Human must resolve checkpoint in **ViewCanvasHost** |
+| Trigger did not wake agent | Confirm `hooks.yaml` + apply; check delivery log |
+| Cross-space `QUERY_POLICY_DENIED` | Fix inbound allowlist on target space |
 
 ## MCP tools not showing in Cursor
 
 1. Reload Cursor after pasting MCP config
-2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH (monorepo: `packages/cli/dist/cli.js` with `"args": ["mcp"]`, or `pnpm --filter @murrmure/cli exec murrmure mcp`)
-3. Env vars must be **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`**
+2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH
+3. Env: **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`**
 4. Check MCP logs in Cursor settings
-5. Flow not **live** → **Configure → Flows → [install] → Promote**
-6. Wrong `MURRMURE_SPACE_ID` in env
-7. Self-hosted: hub URL must match **`/connect`** value
+5. Run **`mrmr space doctor`** for drift hints
 
-## `wait_for_review` times out
+## Desktop: can't see a space
 
-- Human must click **Finish review** in the browser session
-- Session in `awaiting_review` or `changes_made`
-- Increase `timeout_ms` in the tool call
-
-## Browser: can't see a space
-
-- Correct workspace (cloud) or token scoped to space (self-hosted)
-- Ask admin for member invite — **Configure → Members**
-- Use **Configure** dashboard to list spaces you can enter
-
-## Spec canvas empty or 403
-
-- **Feature spec** flow must be **live** in that space
-- Open from **Runtime → Instances → Open spec**
-- Agent creates specs via **`open_spec`** — not manually in UI
-
-## Cross-space `query_ask` fails
-
-- Target space must list caller space on **`query_policy.inbound_allowlist`** (`PATCH /v1/spaces/{id}`)
-- Use `query_type: "spec_summary@1"` for published specs in a feature-spec space
-- **`QUERY_POLICY_DENIED`** — fix allowlist; **`get_spec`** needs a read grant on the source space for full bodies
-
-## Trigger did not wake agent
-
-- Register trigger on **target** space (where agent listens), with correct **source space id**
-- Dev agent must call **`POST /v1/mcp/session/handshake`** (Cursor reload after MCP config)
-- Check **Configure → Triggers → Delivery log** for `success` vs dedup/failure
+- Token scoped to space (bootstrap works for first-run admin)
+- **`mrmr space list`** / **`mrmr space member list`**
 
 ## CLI: `mrmr login` fails
 
-- Corporate proxy may block OAuth — paste grant token from **Configure**
-- Self-hosted: set `MURRMURE_HUB_URL` to hub URL before login
+- Bootstrap token on first login: `mrmr login --hub-url http://127.0.0.1:8787`
 
-## Self-hosted: hub won't start
+## Hub won't start (contributors)
 
-- **Port in use** — change `PORT`
-- **Lock held** — one `murrmure-hub serve` per `MURRMURE_DATA_DIR`
-- **Database permissions** — `DATABASE_PATH` must be writable
+- Port in use — change `PORT` or close other Desktop instance
+- Lock held — one hub per `~/.murrmure` data dir
 
-## Self-hosted: shell won't load data
+## Agent workflow help
 
-1. **`/connect`** — save hub URL + bootstrap/admin token
-2. Hub daemon running on that URL
-3. CORS / same-origin: shell and hub URLs must match your deployment layout
-
-## Agent skips version bump or evolution steps
-
-Install the [Agent skill](./agent-skill) at your repo root:
+Install the **murrmure** skill:
 
 ```bash
 mrmr skill install
 ```
 
-Reload Cursor so the agent loads `murrmure-flow` skill. It mandates semver bumps and validate → build → push → hub validate/test/promote/apply before claiming a flow is live.
+Reload Cursor. Skill reference covers `space apply`, checkpoints, hooks — not worker install.
 
 ## Still stuck?
 
-- **Runtime → Audit → Download JSONL** for the space
-- Contact support (cloud) or platform admin (self-hosted) with `space_id` and timestamp
+- **`mrmr doctor`** + **`mrmr space doctor`**
+- Export audit JSONL; include `space_id` and timestamp when asking for help
 
-## Wrong docs?
+## Related
 
-If someone pointed you at `git clone` and `pnpm install`, that is the **contributor** path. Users sign in or **`/connect`**, then [Quick start](./quick-start).
-
-Integrators who need raw HTTP: [HTTP API](../reference/http-api) — not for day-to-day users.
+- [Known gaps](./known-gaps)
+- [Connect your agent](./agents-mcp)

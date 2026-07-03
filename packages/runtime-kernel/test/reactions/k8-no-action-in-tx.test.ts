@@ -1,14 +1,14 @@
 import { describe, test, expect } from "vitest";
-import type { ActionPort, PersistencePort } from "@murrmure/runtime-contracts";
+import type { ReactionActionPort, PersistencePort } from "@murrmure/runtime-contracts";
 import { dispatchFanout } from "../../src/fanout/dispatch.js";
 import { InMemoryPersistence } from "@murrmure/runtime-persistence";
 
-describe("K8: no ActionPort inside journal TX", () => {
-  test("ActionPort.invoke not called during runInTransaction", async () => {
+describe("K8: no ReactionActionPort inside journal TX", () => {
+  test("ReactionActionPort.invoke not called during runInTransaction", async () => {
     const persistence = new InMemoryPersistence();
     let invokeDuringTx = false;
 
-    const action: ActionPort = {
+    const action: ReactionActionPort = {
       invoke: async () => {
         return { outcome: "success" };
       },
@@ -16,7 +16,7 @@ describe("K8: no ActionPort inside journal TX", () => {
 
     const origRun = persistence.runInTransaction.bind(persistence);
     persistence.runInTransaction = async function <T>(fn: (tx: import("@murrmure/runtime-contracts").Transaction) => Promise<T>) {
-      const wrappedAction: ActionPort = {
+      const wrappedAction: ReactionActionPort = {
         invoke: async (...args) => {
           invokeDuringTx = true;
           return action.invoke(...args);

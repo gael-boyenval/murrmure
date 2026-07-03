@@ -1,0 +1,39 @@
+# Role: declarative flow graph — intake checkpoint → build → review loop (preview-review shape).
+apiVersion: murrmure.flow/v1
+name: {{FLOW_ID}}
+description: Preview review loop — intake, build, review checkpoints with on_resolve goto
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: intake
+    checkpoint:
+      view: {{FLOW_ID}}-intake
+      on_resolve:
+        default: { goto: build }
+        cancel: { fail: true }
+  - id: build
+    invoke:
+      space: "{{origin_space}}"
+      action: {{FLOW_ID}}_run_preview_agent
+      params:
+        preview_url: "{{input.preview_url}}"
+        feedback: "{{steps.review.output.comments}}"
+  - id: review
+    checkpoint:
+      view: {{FLOW_ID}}
+      on_resolve:
+        when: output.outcome
+        values:
+          validated: { goto: done }
+          changes_required: { goto: build }
+        default: { goto: done }
+        cancel: { fail: true }
+  - id: done
+    invoke:
+      space: "{{origin_space}}"
+      action: {{FLOW_ID}}_mark_validated

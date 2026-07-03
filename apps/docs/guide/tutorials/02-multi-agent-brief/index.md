@@ -1,37 +1,28 @@
-# Tutorial 2 — Multi-agent brief (custom flow)
+# Tutorial 2 — Multi-agent brief (indexed v2)
 
 Three folders. Three spaces. Three agents.
 
-The orchestrator agent drafts a brief with a **new custom flow** (`team-brief`), knowledge and dev agents contribute answers through prompts, you publish in the browser, and a trigger sends **`mcp_wake`** to the dev space.
+The orchestrator runs an indexed **`team-brief`** flow, knowledge and dev agents contribute via grants and cross-space invoke, you publish in **Murrmure Desktop**, and **`murrmure/hooks.yaml`** wakes the dev agent on `brief.published`.
 
-This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
+**Example tree (orchestrator space):** [`examples/flows/team-brief-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2)
 
 ## Topology
 
 | Folder | Space | Agent | Responsibility |
 |--------|-------|-------|----------------|
-| `~/work/orchestrator/` | `spc_orchestrator` | Orchestrator | Runs `team-brief`: `open_brief`, `patch_section`, `wait_for_publish`, `transition` |
-| `~/work/knowledge-base/` | `spc_knowledge` | Knowledge | Answers questions from docs (one-line local work) |
-| `~/work/dev-project/` | `spc_dev` | Dev | Gets wake trigger, runs `query_ask`, writes local file |
+| `~/work/orchestrator/` | `spc_orchestrator` | Orchestrator | Indexed `team-brief` flow + section patches via MCP |
+| `~/work/knowledge-base/` | `spc_knowledge` | Knowledge | Answers questions (prompt + local docs) |
+| `~/work/dev-project/` | `spc_dev` | Dev | Receives hook wake, runs cross-space query, writes local file |
 
-## What stays minimal
+## v2 mechanism
 
-- Only one custom flow: `team-brief` in orchestrator space.
-- No second custom flow in knowledge/dev spaces.
-- Knowledge and dev contributions are prompt-based; orchestrator merges with MCP section patches.
-- Human publish stays explicit in Runtime UI (no auto-publish).
+| Old pattern | v2 replacement |
+|-------------|----------------|
+| Worker MCP mount tools | Indexed actions + `murrmure_invoke_action` |
+| Push + promote install | `mrmr space apply --strict` |
+| Trigger register CLI | `murrmure/hooks.yaml` + apply |
 
-## Pending vs resolved
-
-| Layer | Pending | Resolved |
-|------|---------|----------|
-| **Brief state** | `gathering`, `draft`, or `pending_publish` | `published` |
-| **Publish wait** (`wait_for_publish`) | `{ "status": "pending" }` while waiting for your Publish click | `{ "status": "resolved", ... }` after publish |
-| **Trigger delivery** | Delivery row is queued/in-progress (`pending`) | Delivery row ends as `resolved` (or `delivered`, depending on UI wording) |
-| **Trigger failure** | Delivery row `failed` means wake not completed | Fixed after retry/republish produces a resolved delivery |
-| **Cross-space fetch** (`query_ask`) | Request in flight | JSON summary returned from orchestrator space |
-
-## Pages in this tutorial
+## Pages
 
 1. [Build orchestrator flow](./01-build-orchestrator-flow)
 2. [Admin setup](./02-admin-setup)
@@ -41,9 +32,9 @@ This tutorial intentionally avoids bundled `feature-spec` and `review-loop`.
 
 ## Prerequisites
 
-- [Flows tutorial](/guide/flows-tutorial) completed once
-- Cloud workspace or self-hosted hub already reachable
-- Three local folders and three Cursor windows
+- [Tutorial 1](../01-local-preview-review/) or [Flows tutorial](../../flows-tutorial)
+- Murrmure Desktop or hub at `http://127.0.0.1:8787`
+- Three local folders and three agent windows
 
 ## Next
 

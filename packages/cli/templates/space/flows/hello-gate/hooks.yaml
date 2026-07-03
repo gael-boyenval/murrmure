@@ -1,0 +1,12 @@
+# Role: optional event hooks — edit and run `mrmr space apply` to index.
+version: 1
+hooks: {}
+# Example:
+# hooks:
+#   on_spec_published:
+#     on:
+#       event:
+#         type: mrmr.spec.published
+#     do:
+#       - invoke:
+#           action: run_preview_agent

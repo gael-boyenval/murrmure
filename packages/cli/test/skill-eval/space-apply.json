@@ -1,0 +1,11 @@
+{
+  "id": "space-apply",
+  "prompt": "I edited a flow manifest. How do I make it live in the hub?",
+  "expected_keywords": [
+    "mrmr space apply",
+    "murrmure/flows",
+    "digest",
+    "space status"
+  ],
+  "advisory": true
+}

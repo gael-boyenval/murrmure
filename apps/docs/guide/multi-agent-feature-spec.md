@@ -1,8 +1,10 @@
-# Multi-agent feature spec
+# Multi-agent feature spec (v2 indexed)
 
 Three folders on your machine. Three agents in three IDEs. One feature spec that crosses all of them — with **your approval** before dev writes anything.
 
-**Browser for humans. MCP for agents. No curl.**
+**Path:** indexed flows in `murrmure/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/). **Example:** [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2).
+
+**Desktop for humans (ViewCanvasHost at checkpoints). MCP for agents. CLI for admin.**
 
 ---
 
@@ -28,8 +30,8 @@ Flow:
 
 ## Prerequisites
 
-1. [Murrmure account](./account) or [self-hosted](./self-hosted) hub + shell
-2. **Workspace admin** — you run Configure, not curl
+1. [Murrmure Desktop](./desktop) running with local hub
+2. **CLI operator** — you run `mrmr space` / `mrmr grant mint`, not curl
 3. On each agent machine: `npm install -g @murrmure/cli`
 4. Three directories:
 
@@ -41,49 +43,56 @@ Flow:
 
 ---
 
-## Part 1 — Admin setup (browser)
+## Part 1 — Admin setup (CLI)
 
-Do this **once** as admin in **Configure**.
+Do this **once** as admin from a terminal while **Murrmure Desktop** is running. Use Desktop to observe spaces, sessions, gates, and trigger deliveries.
 
 ### 1.1 Create three spaces
 
-**Configure → Create space** (repeat three times):
+```bash
+mrmr login --hub-url http://127.0.0.1:8787
 
-| Display name | Slug | Install policy |
-|--------------|------|----------------|
-| Orchestrator | `orchestrator` | `authorized_agents` |
-| Knowledge | `knowledge` | `authorized_agents` |
-| Dev | `dev` | `authorized_agents` |
+mrmr space create --slug orchestrator --name "Orchestrator" --install-policy authorized_agents
+mrmr space create --slug knowledge --name "Knowledge" --install-policy authorized_agents
+mrmr space create --slug dev --name "Dev" --install-policy authorized_agents
+```
 
-Open each space settings page and copy **`spc_…`** ids.
+Record the space ids (`spc_orchestrator`, `spc_knowledge`, `spc_dev`) from command output or `mrmr space list`.
 
-Self-hosted: complete **`/connect`** + **`/setup`** first if you have not already.
+### 1.2 Index orchestrator flow
 
-### 1.2 Install Feature spec (orchestrator space)
+```bash
+cd ~/work/orchestrator
+mrmr space init
+mrmr space flow init feature-spec --template hello-gate
+# edit murrmure/flows/, views/, hooks.yaml
+mrmr space link --path . --space spc_orchestrator
+mrmr space apply --strict
+```
 
-**Configure → Orchestrator → Flows → Install flow**
-
-1. Choose **Feature spec documents**
-2. Open the install → **Validate** → **Test** → **Promote** → **`live`**
-
-For direct publish without a review gate, install config should allow **`skip_review`** (default in catalog may require review — use flow config when the configure UI exposes it; until then promote with wizard defaults and use **Publish** on the spec canvas after agent reaches `draft`).
+Mint grants with **`--capabilities flow:run,flow:read,query:ask`** so agents can invoke indexed actions and cross-space queries.
 
 ### 1.3 Mint agent grants
 
-**Configure → [space] → Agent grants → Mint grant** for each agent:
+```bash
+mrmr grant mint --space spc_orchestrator --label "Orchestrator Cursor" \
+  --template worker --flow-acl feature-spec
 
-| Agent | Space | Template | Label example |
-|-------|-------|----------|---------------|
-| Orchestrator | Orchestrator | Worker | `Orchestrator Cursor` |
-| Knowledge | Knowledge | Worker | `Knowledge Cursor` |
-| Dev | Dev | Worker | `Dev Cursor` |
+mrmr grant mint --space spc_knowledge --label "Knowledge Cursor" --template worker
+
+mrmr grant mint --space spc_dev --label "Dev Cursor" --template worker
+```
 
 Copy each **one-time token** immediately.
 
 **Cross-space reads (recommended):** allow the Dev space to query the Orchestrator space:
 
-1. On the **Orchestrator** space, set `query_policy.inbound_allowlist` to include the Dev space id (`PATCH /v1/spaces/{orchestrator_id}` — Configure UI for query policy is not shipped yet).
-2. Dev agent uses MCP **`query_ask`** with `query_type: "spec_summary@1"` after publish (summary only — no `body_ref`).
+```bash
+mrmr space update spc_orchestrator \
+  --query-policy '{"inbound_allowlist":["spc_dev"]}'
+```
+
+Dev agent uses MCP **`query_ask`** with `query_type: "spec_summary@1"` after publish (summary only — no `body_ref`).
 
 Optional: mint read grants on Knowledge/Dev spaces for the orchestrator machine if it needs full section bodies via **`get_spec`**.
 
@@ -93,13 +102,19 @@ Do **not** give the orchestrator write access to foreign spaces. Cross-space coo
 
 ### 1.4 Register trigger (Dev space)
 
-**Configure → Dev → Triggers → Register trigger**
+```bash
+mrmr space trigger register --space spc_dev \
+  --template spec-published-wake-dev \
+  --source-space spc_orchestrator
+```
 
-1. Template: **Spec published → wake dev agent**
-2. **Source space id** — Orchestrator (`spc_orchestrator`)
-3. Register on the **Dev** space (target where the dev agent listens)
+After you **Publish**, the trigger routes through **action invoke**: the hub calls indexed action **`handle_spec_published`** on the dev space and the connected MCP session receives **`murrmure/control.invoke_action`** with mapped payload fields (no `body_ref`). The dev space must have that action indexed with a `cursor-mcp` executor (see `mrmr space apply`). Check delivery outcomes:
 
-After you **Publish**, the hub delivers an **`mcp_wake`** with `handle_spec_published` and summary fields. Check **Delivery log** if the dev agent does not wake.
+```bash
+mrmr space trigger deliveries --space spc_dev --limit 20
+```
+
+Each row has terminal `outcome`: `success`, `failed`, or `deduped` (not `pending` / `resolved` / `delivered`).
 
 ---
 
@@ -116,7 +131,7 @@ Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
       "command": "murrmure",
       "args": ["mcp"],
       "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
+        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
         "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR_GRANT",
         "MURRMURE_SPACE_ID": "spc_orchestrator"
       }
@@ -125,7 +140,7 @@ Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
 }
 ```
 
-Use your hub URL on self-hosted. Add optional second MCP servers with read grants on Knowledge/Dev spaces if the orchestrator needs **`get_spec`** on those spaces.
+Default hub URL with Desktop is `http://127.0.0.1:8787`. Add optional second MCP servers with read grants on Knowledge/Dev spaces if the orchestrator needs **`get_spec`** on those spaces.
 
 Dev agent only needs its own `mrmr` server on the Dev space — wakes and cross-space reads use **`query_ask`** when query policy allows.
 
@@ -137,13 +152,12 @@ Reload MCP in every window.
 
 ---
 
-## Part 3 — Connect the browser (human)
+## Part 3 — Open Murrmure Desktop (human)
 
-1. Sign in (cloud) or **`/connect`** (self-hosted)
-2. **Runtime → Orchestrator → Gates** — bookmark for later approvals
-3. **Runtime → Orchestrator → Instances** — spec rows link to the spec canvas
-
-Keep a browser tab open during the run.
+1. Launch **Murrmure Desktop** — bootstrap auth is automatic
+2. Open the Orchestrator space and keep Desktop visible during the run
+3. **Gates** — bookmark for later approvals (`/runs/:runId` or Desktop space home at `/spaces/:spaceId`)
+4. **Sessions / runs** — open spec work from Desktop space home (`/spaces/:spaceId`), then follow session or run links (`/sessions/:sessionId`, `/runs/:runId`)
 
 ---
 
@@ -161,7 +175,7 @@ The orchestrator agent should:
 2. **`patch_spec_section`** — goals, API, open questions as sections
 3. **`transition_spec`** with `context_ready` → state **`draft`**
 
-You can verify: **Runtime → Orchestrator → Instances → Open spec**.
+You can verify in Desktop → Orchestrator space home → open the spec session.
 
 ### 4.2 Orchestrator → Knowledge
 
@@ -179,23 +193,23 @@ In `~/work/dev-project/`, prompt:
 
 Same pattern — orchestrator merges into the spec via MCP.
 
-### 4.4 You: publish in the browser
+### 4.4 You: publish in Desktop
 
-1. **Runtime → Orchestrator → Instances → Open spec**
+1. Desktop → Orchestrator space → open the spec session
 2. Read sections
 3. Click **Publish** (when state is `draft` and config allows)
 
-Or, if review is required: **Submit for review** → **Runtime → Gates → Approve** → publish path per install config.
+Or, if review is required: **Submit for review** → resolve the gate from **Gates** or `/runs/:runId` → publish path per install config.
 
 Journal emits **`spec.published`** with `body_ref` and `published_by`.
 
 ### 4.5 Dev: wake, fetch, write the file
 
-When the trigger is registered, the dev Cursor window receives a **`control.wake_pending`** MCP message with `wake_label: handle_spec_published` after you publish. Prompt:
+When the trigger is registered, the dev Cursor window receives **`murrmure/control.invoke_action`** with `action_name: handle_spec_published` after you publish (replay on MCP reconnect if the session was offline). Prompt:
 
 > You were woken for a published spec. Use **`query_ask`** with `target_space_id` set to the orchestrator space and `query_type: "spec_summary@1"`. If you need the full body, use **`get_spec`** with the `spec_key` from the wake payload. Write `specs/guest-checkout-v1.md` locally and commit.
 
-Without a trigger, prompt manually when you see **`spec.published`** in **Runtime → Audit**, or after the orchestrator notifies you.
+Without a trigger, prompt manually when you see **`spec.published`** in Desktop **`/logs`**, or after the orchestrator notifies you.
 
 Dev agent flow:
 
@@ -238,10 +252,10 @@ sequenceDiagram
 
 | What | Where |
 |------|--------|
-| Spec draft / publish | **Runtime → Instances → Open spec** |
-| Pending gate | **Runtime → Gates** |
-| Trigger deliveries | **Configure → Dev → Triggers → Delivery log** |
-| Event journal | **Runtime → Audit** (download JSONL) |
+| Spec draft / publish | Desktop → space home → spec session |
+| Pending gate | Desktop → **Gates** or `/runs/:runId` |
+| Trigger deliveries | `mrmr space trigger deliveries --space spc_dev` |
+| Event journal | Desktop **`/logs`** (or `mrmr runtime audit export`) |
 | Agent-side tail | MCP handshake wake messages — optional CLI |
 
 ---
@@ -251,11 +265,11 @@ sequenceDiagram
 | Mistake | Fix |
 |---------|-----|
 | One token in all three IDEs | Three grants, three `MURRMURE_SPACE_ID` values |
-| MCP tools missing | Flow **Promote** to **`live`**; reload MCP |
+| MCP tools missing | **`mrmr space apply --strict`**; **`mrmr grant mint`** with `flow:run` / `query:ask`; reload MCP |
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
 | Wrong space in MCP config | Match `MURRMURE_SPACE_ID` to grant's space |
-| Dev not woken after publish | Register **Spec published → wake dev** trigger; check **Delivery log** |
+| Dev not woken after publish | Register **Spec published → wake dev** trigger; check `mrmr space trigger deliveries` |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |
 
@@ -263,17 +277,17 @@ sequenceDiagram
 
 ## What is not in the shell yet
 
-- **`query_policy` editor** — set `inbound_allowlist` via `PATCH /v1/spaces/{id}` until Configure exposes it
+- **`query_policy` editor** — set `inbound_allowlist` via `mrmr space update --query-policy` until a UI ships
 - **Section editing in spec canvas** — agents edit via MCP; humans publish, approve, and revise
-- **Custom trigger builder** — use templates or raw API; no visual filter editor yet
+- **Custom trigger builder** — use templates, `mrmr space trigger register`, or raw API; no visual filter editor yet
 
-These do not require curl for normal agent work — MCP and Configure templates cover the multi-agent spec path.
+These do not require curl for normal agent work — MCP and CLI trigger templates cover the multi-agent spec path.
 
 ---
 
 ## Related
 
-- [Browser app](./browser)
+- [Murrmure Desktop](./desktop)
 - [Connect your agent](./agents-mcp)
 - [MCP tools reference](../reference/mcp-tools)
 - [Review workflow](./review-workflow)

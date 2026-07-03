@@ -1,0 +1,1258 @@
+# Space–Flow–Protocol v2 — Spec Revision 1
+
+**Status:** draft revision — not CI-gated; supersedes unresolved sections of [space-flow-protocol-v2.md](./space-flow-protocol-v2.md)  
+**Date:** 2026-06-29 (architecture resolutions 2026-06-30)  
+**Origin:** Three-agent architecture review (entity model, UX/flexibility, reference comparison) against [philosophy.md](../../current/product/philosophy.md), v2 draft, v1 implementation, and `.opensrc` references (A2A, Temporal, Inngest, Windmill, CloudEvents)  
+**Architecture path:** [space-flow-protocol-v2.architecture.md](./space-flow-protocol-v2.architecture.md)  
+**Normative philosophy:** [philosophy.md](../../current/product/philosophy.md) — on conflict between philosophy and this file, philosophy wins; on conflict between v2 draft and this file, **this revision wins for resolved items**
+
+> **Do not implement from this file until promoted.** When promoted, merge into `current/product/spec.md` and update philosophy cross-links.
+
+---
+
+## 0. What changed in rev-1
+
+This revision **preserves** the v2 boundary philosophy and product goal. It **fixes entity precision**, **resolves open questions**, **cuts over-engineering**, and **resequences migration** based on cross-reference review.
+
+| Area | v2 draft (2026-06-28) | rev-1 (2026-06-29) |
+|------|------------------------|---------------------|
+| Unit of work | **Session** does everything | **Session** (correlation) + **Run** (immutable execution unit) |
+| Parallel lanes | Lanes inside session projection | **Sibling Runs** under one Session |
+| Session identity | Open (#2 path vs opaque) | **Resolved:** opaque ids + CloudEvents `subject` path |
+| Action / invoke | Deferred executor model | **Action + Executor** first-class; invoke preflight required |
+| Triggers | `triggers.yaml` + flow `on:` overlap | **Hooks** (space reactors) vs **flow start conditions** |
+| View | Hub view registry (Slice F) | **View = architectural rule**; hub stores no view entity |
+| Flow visibility | `scope: local \| global` property | **Grants only**; file location is hint |
+| ACL | 4-level ladder + PLATFORM_SCOPES | **Single capability grant model** |
+| Headless invoke | "Attach to session when possible" | **Mandatory** session + run on every hub delivery |
+| Journal | Ad hoc `HubEvent` | **CloudEvents-shaped envelope** with `subject` |
+| Step durability | Reconstruct graph from events | **Run step memo table** + journal as source of truth |
+| Migration order | A→B→C→D→…→I | **A→B→D→C→H→E→G→F→I** |
+| Inferred progress | Deferred entirely | **Journal replay view** ships with Session (minimal) |
+| Architecture open items (2026-06-30) | §11 in architecture doc | **Resolved** — see [§16b](#16b-architecture-resolutions-2026-06-30) |
+
+**Spec principle (unchanged):**
+
+> Flows declare work; sessions track it; runs execute it; views project it; logs record it.
+
+---
+
+## 0a. Reader context
+
+Murrmure is a **communication protocol** for coordinated AI work across workspace directories (**spaces**). It is **not** an agent platform, not a bundled review-loop product, not LangChain.
+
+**One-sentence product goal:**
+
+> Teams run coordinated AI work across shared workspaces and machines: users define spaces and flows; the protocol delivers actions and artifacts; **sessions and runs** make cross-boundary work observable from start to finish.
+
+**Read first:** [philosophy.md](../../current/product/philosophy.md)
+
+**Supersedes for:** entity model, wire API sketch, ACL, open questions #1–#9 and §16b architecture resolutions, migration slices, shell UX navigation model.
+
+**Does not supersede for:** v1 shipped behavior, hub kernel semantics in [hub/architecture.md](../../current/hub/architecture.md).
+
+---
+
+## 0b. Decision summary (rev-1)
+
+| Topic | Decision |
+|-------|----------|
+| **Murrmure role** | Communication protocol — journal, grants, invoke, artifacts, gates, audit. Never prompts, skills, models, agent definitions. |
+| **Space** | User root directory + `murrmure/` config. Identity (`spc_*`) + binding (path/host). May be shared git repo. |
+| **Session** | **Correlation context** — user-facing tracker spanning spaces, flows, and time. Mutable grouping only. |
+| **Run** | **Immutable execution unit** — lifecycle, step state, gates, exec context (worktree, preview URL). Parallel lanes = sibling Runs. |
+| **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only. |
+| **Hook** | Space-owned reactor in `hooks.yaml` — *when this space reacts to an event*. Renamed from ambiguous "trigger." |
+| **Action** | Named side-effect boundary in `actions.yaml` — **first-class**, indexed by hub. |
+| **Executor** | Reachability binding for an action (MCP session, shell spawn, queue poll, remote hub). **Invoke preflight** required. |
+| **View** | Presentation reads protocol APIs. **Not a hub entity.** Shell built-ins + optional client packages. |
+| **Gate** | Run in `input-required`; single approver for v2; optional assignee list. **Gate form** schema for default UX. |
+| **Journal** | CloudEvents-compatible append-only log. `subject` carries session/run correlation path. |
+| **Headless delivery** | Every hub trigger/hook delivery **must** create Session (if needed) + Run. No silent executions. |
+| **Flow vs UI** | Fully separated. Author may bundle; runtime must not require custom view. |
+| **Orchestration editor** | Rejected — file/CLI-first; shell visualizes only. |
+| **CLI vs shell** | Shell observes; CLI/agents mutate. No create wizards. Live SSE reaction to CLI mutations. |
+| **Global flows** | Visibility via **grants** on `(actor, space, flow)` — no `scope` property, no catalog space type. |
+| **Landing space** | Per-user `landing_space_id`. Never hub-wide default. |
+| **Notifications** | Global `Needs you` + center + `/notifications`. Gates primary. Persist across refresh. |
+| **Agent** | `harness × task × context × space` — not stored. |
+| **A2A** | Do not adopt as core. Borrow context/task split → Session/Run. Optional `executor: a2a` later. |
+| **Flows in flows** | Deferred; reserve `on: flow_call` syntax (GHA `workflow_call`). |
+| **Inline payload cap** | **64 KiB** — larger payloads must use artifacts. |
+
+---
+
+## 1. Goals
+
+1. **Legible boundaries** — protocol / flow / view (rule) / space implementation.
+2. **Space-as-directory** — hub indexes; never owns agent content.
+3. **Session + Run observability** — every execution visible; cross-space correlation without identity overload.
+4. **Reliable invoke** — Action + Executor with preflight; no invoke into void.
+5. **Durable run projection** — step memoization; journal replayable; flowchart is projection not mutation.
+6. **CLI-first mutation; shell-first observation** — shell reacts in real time to CLI.
+7. **Artifact exchange** — `.mrmr.temp/` + global exchange store.
+8. **Harness-agnostic clients** — Cursor, Claude Desktop, CLI, cron, federation.
+9. **Preserve v1** — evolve with explicit migration aliases (`instance_id` → `run_id`).
+
+---
+
+## 2. Core entity model
+
+### 2.1 Noun inventory
+
+```text
+Murrmure hub (protocol)
+  Journal · Session · Run · Gate · Artifact · Grant
+
+Space (directory — hub indexes)
+  Space · Action · Executor · Flow · Hook
+
+Concepts (not stored)
+  Agent = harness × task × context × space
+  View  = client that reads protocol (architectural rule)
+```
+
+**Count:** 6 hub entities + 5 space-indexed concepts. Down from ~10 fuzzy nouns in v2 draft.
+
+### 2.2 Responsibility table — hub-owned
+
+| Noun | Owns | Must NOT |
+|------|------|----------|
+| **Journal** | Append-only CloudEvents-shaped log; global `seq`; dedup via `source`+`id` | Inline payloads > 64 KiB; interpret business meaning |
+| **Session** | Correlation grouping; user-facing label; optional `subject` path prefix; list/filter anchor | Own step state machines; store worktree as sole truth |
+| **Run** | Immutable execution unit; lifecycle; step memo; exec context; gate attachment; terminal immutability | Restart after terminal (refine = new Run); store prompts |
+| **Gate** | Run in `input-required`; approve/reject/reschedule; assignee routing | Define business validation rules |
+| **Artifact** | `transfer_id`, digest, size, TTL, authorized readers; materialize to `.mrmr.temp/` | Interpret file semantics |
+| **Grant** | Capability tokens on `(actor, space[, flow[, action]])` | Duplicate visibility ladder; store agent config |
+
+### 2.3 Responsibility table — space-owned (files)
+
+| Noun | Owns |
+|------|------|
+| **Space** | Directory content; `murrmure/` config; team artifacts |
+| **Action** | Named callable: executor ref, timeout, response schema ref |
+| **Executor** | How action is reachable: MCP session, shell command, queue worker, remote hub |
+| **Flow** | Declarative step graph; start conditions; references actions by name |
+| **Hook** | Event/schedule → react (invoke action, start flow, extend session) |
+
+### 2.4 Demoted / folded
+
+| Former noun | Becomes |
+|-------------|---------|
+| **View** (hub entity) | Rule: clients read `/v1/sessions`, `/v1/runs`, journal SSE |
+| **Trigger** (space) | **Hook** in `hooks.yaml` |
+| **Trigger** (flow) | **Start conditions** on flow manifest |
+| **Instance** (v1) | **Run** (`instance_id` alias during migration) |
+| **Capability / FlowInstall** | Flow index row (origin space, digest, grants) |
+| **`scope: local \| global`** | Grant `flow:run` / `flow:read` on indexed flow |
+| **Session lanes** | Sibling **Runs** with `reference_run_ids` |
+| **Gate quorum any/all/count** | Single approver v2; assignee list optional |
+
+### 2.5 Reference mapping
+
+| Murrmure rev-1 | A2A | Temporal | Inngest | Windmill |
+|----------------|-----|----------|---------|----------|
+| Session | `contextId` | — | — | Workspace (loose) |
+| Run | `Task` | Workflow Execution | Function run | Job run |
+| Action | — | Activity | `step.run` | Script |
+| Executor | Agent endpoint | Worker poll | HTTP handler | Worker |
+| Flow | — | Workflow (declarative) | Function def | OpenFlow DAG |
+| Hook | — | Schedule/signal | Event trigger | Trigger |
+| Gate | `input-required` | Signal wait | `waitForEvent` | Approval/suspend |
+| Journal | Task events | History | Event stream | Run history |
+
+---
+
+## 3. Session + Run model (detailed)
+
+### 3.1 Why split
+
+v2 draft overloaded **Session** with five jobs: correlation id, state machine, exec context, parallel container, journal tag. A2A separates **`contextId`** (grouping) from **`Task`** (immutable unit with lifecycle + artifacts). Murrmure adopts the same split.
+
+### 3.2 Session
+
+| Property | Semantics |
+|----------|-----------|
+| `session_id` | Opaque hub-issued ULID (`ses_*`) — **never** a filesystem path |
+| `subject` | Optional hierarchical display/filter path (CloudEvents-style), e.g. `feature-Y/lane-A` |
+| `title` | User-facing label; shell header may show this instead of raw id |
+| `status` | **Derived** from child runs: `active`, `completed`, `partial_failure`, `failed`, `cancelled` |
+| `created_by` | Actor or `{ type: "hook", hook_id }` / `{ type: "flow", flow_id }` |
+| `spaces_touched` | Denormalized list for ACL filter and space home |
+
+Session is **mutable** for metadata (title, subject, watchers). It does **not** own step progress directly — Runs do.
+
+### 3.3 Run
+
+| Property | Semantics |
+|----------|-----------|
+| `run_id` | Opaque ULID (`run_*`); v1 alias: `instance_id` |
+| `session_id` | Parent correlation context |
+| `flow_id` | Optional — null for headless hook/action-only runs |
+| `flow_digest` | Pinned manifest digest at start — **immutable for run lifetime** |
+| `lifecycle` | `working` → `input-required` → `completed` \| `failed` \| `cancelled` |
+| `exec_context` | Worktree path, branch, preview URL, opaque JSON bag |
+| `reference_run_ids` | Parallel siblings or refinement lineage (A2A `referenceTaskIds`) |
+| `started_at` / `ended_at` | Timestamps |
+
+**Terminal immutability:** A Run in `completed`, `failed`, or `cancelled` is **never restarted**. Follow-up work creates a **new Run** in the same Session with `reference_run_ids` pointing to prior run(s).
+
+**Parallel worktrees:** Two lanes = two Runs under one Session, e.g.:
+
+```text
+Session: feature-Y (ses_01J…)
+├── Run: research      (run_01J…, completed)
+├── Run: spec          (run_01J…, input-required — gate pending)
+├── Run: dev-lane-A    (run_01J…, working)
+└── Run: dev-lane-B    (run_01J…, working)
+```
+
+Flow declares graph once; each Run records execution of a segment or matrix branch.
+
+### 3.4 Session status derivation
+
+| Condition | Session status |
+|-----------|----------------|
+| Any run `working` or `input-required` | `active` |
+| All runs terminal, all `completed` | `completed` |
+| All runs terminal, mix of `completed` + `failed` | `partial_failure` |
+| All runs terminal, all `failed` or `cancelled` | `failed` or `cancelled` |
+| User cancelled session | `cancelled` (cascade policy — see §3.6) |
+
+### 3.5 Identity resolution (open #2 — closed)
+
+| Question | Resolution |
+|----------|------------|
+| Path-as-id? | **No.** Paths are never primary keys. |
+| Opaque + path? | **Yes.** `session_id` + `run_id` opaque; optional `subject` string on Session and journal events. |
+| Prefix filter? | `GET /v1/journal?subject=feature-Y/*` — filter on `subject`, not id structure. |
+| Nesting? | Sibling Runs + `reference_run_ids`; optional shared `subject` prefix — no FK tree required. |
+
+### 3.6 Headless runs, cancel cascade, retry (closed 2026-06-30)
+
+**Headless `step_id` namespace** (runs with `flow_id: null`):
+
+| Origin | `step_id` | Step memo |
+|--------|-----------|-----------|
+| Hook delivery | `hook:{hook_id}` | Single row; journal replay or one-node graph |
+| Direct action invoke | `action:{action_name}` | Same |
+| MCP orchestration attach (pre-bind) | `orchestration:proposed` | Until graph binds; then flow step ids apply |
+
+**Session cancel cascade:**
+
+1. Journal `mrmr.session.cancel_requested` immediately on user cancel.
+2. Hub calls `ExecutorPort.cancel` on in-flight dispatches (best-effort).
+3. Active runs → `cancelled` when executor acks **or** after hub timeout (default **30s**), whichever comes first.
+4. Session → `cancelled` when all child runs are terminal.
+
+Hub owns the deadline; executors may ack faster.
+
+**Retry-from-step** (failed run):
+
+- Terminal immutability stands — **never restart the same Run**.
+- Shell **Retry** creates a **new Run** in the same Session with `reference_run_ids: [failed_run_id]`, same pinned `flow_digest`, starting from the failed `step_id` (or user-selected step).
+- UX label: **Retry** (new attempt), not “Resume run”.
+
+---
+
+## 4. Action, Executor, and invoke
+
+### 4.1 Action (space-owned, hub-indexed)
+
+```yaml
+# murrmure/actions.yaml
+version: 1
+actions:
+  review_url:
+    executor: cursor-mcp
+    timeout_ms: 600_000
+    response_schema: murrmure.schemas/review_url.v1.json
+    idempotency: caller_key          # optional default
+
+  daily_checkin:
+    executor: shell
+    command: ./bin/checkin.sh
+    cwd: "{{space_root}}"
+    response_schema: murrmure.schemas/checkin.v1.json
+```
+
+**Protocol responsibilities:**
+
+- Index action names per space on `mrmr space apply`
+- Accept invoke with opaque params (JSON bytes)
+- Validate response against declared schema when `expect.response_schema` set
+- Enforce dedup, timeout, retry policy
+- Journal lifecycle on Run
+- **Never** interpret param semantics (prompt text, task meaning)
+
+### 4.2 Executor binding
+
+| Type | Semantics | Reachability |
+|------|-----------|--------------|
+| `mcp_session` | Long-lived MCP connected with grants | Last heartbeat / `ControlPrincipal` seen |
+| `shell_spawn` | One-shot command in space root | Process lifecycle + stdout capture |
+| `queue_poll` | **External worker** polls hub task-offer API (see §4.6) | Worker registration + poll timestamp |
+| `remote_hub` | Federation relay to peer hub | Remote ack + health; retry policy §16b F3 |
+| `a2a` | External A2A agent endpoint | Optional future |
+
+**Default registration pattern (documented, not schema-enforced):**
+
+| Type | Default | Typical harness |
+|------|---------|-----------------|
+| `mcp_session` | Long-lived connection | Cursor, Claude Desktop |
+| `shell_spawn` | One-shot process | Scripts, CI |
+| `queue_poll` | External worker process | Cloud / remote workers |
+| `remote_hub` | Peer hub adapter | Cross-hub invoke |
+
+Action declares `executor` ref; hub validates reachability per type via preflight.
+
+```yaml
+# murrmure/executors.yaml (illustrative — may merge into actions.yaml)
+executors:
+  cursor-mcp:
+    type: mcp_session
+    required_scopes: [space:enter, action:invoke]
+
+  shell:
+    type: shell_spawn
+```
+
+### 4.3 Invoke preflight (new — required)
+
+Before marking invoke `dispatched`:
+
+1. Resolve action registry entry in target space
+2. Check executor reachability for binding type
+3. If unreachable:
+   - **Default:** fail fast with `EXECUTOR_UNAVAILABLE` (Run step → `failed` with typed error)
+   - **Opt-in:** `delivery: queue_until_executor` on action or invoke — Run step shows `waiting_for_executor` (visible in shell)
+
+Replaces v1 ambiguous `mcp.wake_pending` as silent default.
+
+### 4.4 Invoke HTTP
+
+```http
+POST /v1/spaces/{space_id}/actions/{action_name}/invoke
+Authorization: Bearer tok_…
+Idempotency-Key: {optional}
+
+{
+  "session_id": "ses_…",
+  "run_id": "run_…",
+  "step_id": "review_url",           // stable within flow graph or hook delivery
+  "params": { … },                   // opaque
+  "expect": {
+    "response_schema": "murrmure.schemas/review_url.v1.json"
+  },
+  "artifacts_in": ["xfr_01J…"],
+  "delivery": "fail_fast"            // | queue_until_executor
+}
+```
+
+**Completion contract (async-safe):**
+
+| Mode | Complete when |
+|------|---------------|
+| Sync | HTTP response matches schema |
+| Async | Journal `mrmr.action.completed` from executor with `run_id`, `step_id`, result ref |
+| Timeout | Run step → `failed`; journal `mrmr.action.timed_out` |
+| Unreachable | `EXECUTOR_UNAVAILABLE` unless queue mode |
+
+### 4.5 Idempotency matrix
+
+| Operation | Key scope | Behavior on duplicate |
+|-----------|-----------|------------------------|
+| Run start | `Idempotency-Key` + `flow_id` | Return existing run |
+| Step invoke | `Idempotency-Key` + `run_id` + `step_id` | Return memoized outcome |
+| Gate resolve | `gate_id` + decision | Reject conflict |
+| Artifact put | `transfer_id` or content digest | Return existing |
+| Hook delivery | `hash(event.source, event.id, hook_id)` | Skip duplicate side effects |
+| Hook → Run create | **Same key** as hook `dedup_key` → run `idempotency_key` | Return existing run |
+| Step invoke (from hook) | `{run_id}:{step_id}:{dedup_key}` | Return memoized outcome |
+
+**Propagation rule:** one redelivered CloudEvent must not produce duplicate hook effects **and** a duplicate Run. The hook-layer dedup key flows to run creation unchanged.
+
+### 4.6 Executor poll API (`queue_poll` — external workers only)
+
+Murrmure **does not** embed a Temporal-like queue runtime in v2. Hub journals task offers; space-owned workers poll.
+
+```http
+GET  /v1/executor/tasks?executor_id=…          # long-poll; Bearer or worker grant
+POST /v1/executor/tasks/{task_id}/complete
+POST /v1/executor/tasks/{task_id}/fail
+```
+
+In-process poll adapter permitted for **dev/tests only**. Production `queue_poll` = external worker contract.
+
+---
+
+## 5. Flow and hooks
+
+### 5.1 Terminology disambiguation
+
+| Concept | Question | Where | v2 draft name |
+|---------|----------|-------|---------------|
+| **Flow start conditions** | *How may this flow be started?* | `flow.manifest.yaml` | Flow triggers |
+| **Hook** | *When does this space react?* | `murrmure/hooks.yaml` | Space triggers |
+
+Avoids two systems both called "trigger."
+
+### 5.2 Flow manifest
+
+```yaml
+# murrmure/flows/feature-delivery/flow.manifest.yaml
+apiVersion: murrmure.flow/v1
+name: feature-delivery
+description: Research → spec → parallel dev lanes → finish
+
+start:
+  manual: true
+  events:
+    - type: mrmr.spec.published
+      source: "/spaces/spc_spec"
+  schedule: null          # cron string when set
+  requires_view: null      # optional view_id for param collection
+  idempotency: run_key     # optional
+
+grants:
+  # authoring hint only — authoritative grants in hub DB / space grant files
+  suggested: [flow:run]
+
+steps:
+  - id: research
+    invoke:
+      space: spc_research
+      action: overnight_research
+      params: { topic: "{{input.topic}}" }
+
+  - id: spec
+    invoke:
+      space: spc_spec
+      action: build_plan
+      artifacts_in: ["{{steps.research.artifacts.out}}"]
+
+  - id: parallel_dev
+    parallel:
+      matrix: "{{input.worktrees}}"    # GHA matrix-style
+      lane:
+        - id: dev
+          invoke: { space: "{{item.space}}", action: implement, … }
+        - id: review
+          gate: { form: review.v1, assignees: ["{{input.reviewer}}"] }
+
+  - id: finish
+    invoke:
+      space: spc_orchestrator
+      action: merge_results
+```
+
+**No `scope: local|global`.** Visibility = grants. File living in catalog space + `flow:run` grant to team = "global" behavior.
+
+### 5.2.1 Matrix parallel expansion (closed 2026-06-30)
+
+When the flow engine **enters** a `parallel.matrix` step and the matrix value is **resolved** (typically from run `input` at start):
+
+1. Create all sibling Runs in **one transaction** (GHA-style eager expansion at step entry).
+2. Idempotency key per lane: `{parent_run_id}:{step_id}:{matrix_index}`.
+3. Flowchart shows fork/join immediately; sibling runs share Session, distinct `run_id`.
+
+**Deferred:** matrix values resolved from a *prior step’s output* mid-run — same rule applies when that step completes and matrix is known.
+
+Dynamic matrix from live step output is not required for slice E v1.
+
+### 5.3 Hooks
+
+```yaml
+# murrmure/hooks.yaml
+version: 1
+hooks:
+  on-spec-published:
+    on:
+      event:
+        type: mrmr.spec.published
+        source: "/spaces/spc_backend"
+    do:
+      - ensure_session: { title: "Backend → frontend chain" }
+      - invoke:
+          action: wake_review
+          params: { ref: "{{event.data.artifact_ref}}" }
+      - start_flow:
+          flow_id: flw_cross_review
+          input: { diff_ref: "{{event.data.artifact_ref}}" }
+```
+
+**Hook delivery invariant:** Every hub-delivered hook **must**:
+
+1. Create or attach to a **Session**
+2. Create a **Run** (even single-step — shows as one-node graph or journal replay)
+3. Journal `mrmr.hook.delivered` with hook id, event ref, session_id, run_id
+
+No "when possible" language — **mandatory**.
+
+### 5.4 Flow index (hub)
+
+Hub indexes from all linked spaces on `mrmr space apply` / `mrmr flow push`:
+
+```typescript
+interface FlowIndexEntry {
+  flow_id: string;           // flw_* stable or content-derived
+  origin_space_id: string;   // space that hosts manifest files
+  digest: string;            // manifest hash
+  name: string;
+  start: FlowStartConditions;
+  step_spaces: string[];     // for "Receiving from" space home section
+  grants_required: string[]; // hints for expand preview
+  view_ref?: {               // when start.requires_view set — NOT a hub view entity
+    view_id: string;
+    origin_space_id: string;
+    entry_url?: string;      // bundled static or dev server
+    shell_route?: string;    // built-in shell route if registered client-side
+  };
+}
+```
+
+**View resolution (closed 2026-06-30):** on `space apply`, parse `murrmure/views/{view_id}/view.manifest.yaml` from flow origin space and denormalize into `view_ref`. Shell reads flow index — **no hub view registry**. If view missing at run time → fallback to `GateFormSchema`-style param form on run create.
+
+No per-space "install" UX — index refresh only.
+
+### 5.5 Flows calling flows (shipped)
+
+Implemented: `start_flow` step, cycle detection, ACL inheritance, `flow_call` start condition. See [current/product/spec.md](../../current/product/spec.md) §5.5.
+
+---
+
+## 6. Gates
+
+### 6.1 Protocol model
+
+- Gate attaches to **Run** in lifecycle `input-required`
+- Maps A2A `input-required`, Temporal signal wait, Windmill approval step
+
+```typescript
+interface Gate {
+  gate_id: string;
+  run_id: string;
+  session_id: string;
+  step_id: string;
+  status: "pending" | "approved" | "rejected" | "expired";
+  assignees?: string[];       // actor ids; empty = any user with gate:resolve on run
+  resolve_mode: "any_one";    // v2 only; defer quorum
+  expires_at?: string;
+  form?: GateFormSchema;      // default UX
+  payload_ref?: string;       // artifact or inline summary for approver
+}
+```
+
+### 6.2 Gate form (default UX — not a View entity)
+
+```yaml
+# embedded in flow step or gate.create
+form:
+  id: review.v1
+  fields:
+    - name: decision
+      type: enum
+      values: [approve, reject]
+    - name: notes
+      type: string
+      required: false
+```
+
+Custom rich UI (review iframe) = optional client package reading same gate APIs — not required for 80% of gates.
+
+### 6.3 Agent orchestration push gate
+
+When agent MCP-pushes proposed graph:
+
+1. Create gate type `orchestration.validate`
+2. Shell **must** render read-only flowchart preview of proposed steps before approve
+3. Each step shows: target space, action name, param **shape** (not values), expected response schema
+4. On approve → bind graph to Session; spawn Runs per execution policy (§5.2.1)
+5. On reject → journal only; no bind
+
+**Attach payload (closed 2026-06-30)** — same schema as file-backed flow; no separate DSL:
+
+```json
+{
+  "kind": "murrmure.flow.attach/v1",
+  "manifest": {
+    "apiVersion": "murrmure.flow/v1",
+    "name": "agent-proposed",
+    "start": { "manual": true },
+    "steps": [ … ]
+  }
+}
+```
+
+Validated with the same Zod as `flow.manifest.yaml`. MCP push and CLI `flow push` share one validator.
+
+### 6.4 Hidden space + gate (open #3 — closed)
+
+| Scenario | Behavior |
+|----------|----------|
+| Gate from hidden space; user not assignee | **Suppress** notification |
+| Gate from hidden space; user **is** assignee | Show gate with **sanitized context**: action name visible, space shown as "Private space", no navigation link to space |
+| Session list | Show session title; redact steps in spaces user cannot `space:read` |
+| Approve/reject | Allowed if assignee or `gate:resolve` grant on run |
+
+Pattern: GitHub private repo issue assignment.
+
+---
+
+## 7. Artifacts
+
+### 7.1 Two-tier model (unchanged intent)
+
+| Tier | Limit | Where |
+|------|-------|-------|
+| **Inline** | ≤ **64 KiB** | Event `data`, invoke response body |
+| **Artifact** | Unlimited (TTL-bound) | Exchange protocol |
+
+### 7.2 Surfaces
+
+| Surface | Role |
+|---------|------|
+| `{space}/.mrmr.temp/inbox/` | Received files (gitignored) |
+| `{space}/.mrmr.temp/outbox/` | Pending send |
+| `~/.murrmure/exchanges/{transfer_id}/` | Global staging + recovery |
+
+### 7.3 Wire shape
+
+```json
+{
+  "artifact": {
+    "kind": "mrmr.artifact/v1",
+    "transfer_id": "xfr_01J…",
+    "digest": "sha256:…",
+    "name": "openapi.diff",
+    "size_bytes": 48291,
+    "local_path": ".mrmr.temp/inbox/xfr_01J…/openapi.diff",
+    "authorized_readers": ["spc_frontend", "actor:alice"]
+  }
+}
+```
+
+### 7.4 GC (closed 2026-06-30)
+
+- **Now:** 64 KiB inline cap; default artifact TTL 7 days (configurable per hub)
+- **Sweeper:** daemon scheduled tick (default daily) invokes hub-core `ArtifactGcCommand`; exchange store deletes eligible bytes; journal `mrmr.artifact.expired`
+- **Cross-hub (slice I):** each hub GCs its own materialized copy by local TTL; canonical `transfer_id` unchanged
+- **Legal hold:** `hold: true` on manifest skips GC — **in scope** [plan/04-artifacts-exchange.md](./plan/04-artifacts-exchange.md) per [plan-delta-rev1.md](./plan-delta-rev1.md)
+
+---
+
+## 8. Journal and CloudEvents envelope
+
+### 8.1 Required attributes
+
+Every journal entry MUST be CloudEvents-compatible:
+
+```typescript
+interface JournalEntry {
+  specversion: "1.0";
+  id: string;              // unique; dedup with source
+  source: string;          // "/spaces/spc_backend" | "/hubs/hub_local"
+  type: string;            // "mrmr.invoke.completed", "mrmr.gate.pending", …
+  subject?: string;        // "sessions/ses_abc/runs/run_xyz" — correlation path
+  time: string;            // ISO8601
+  datacontenttype?: "application/json";
+  data?: Record<string, unknown>;
+  dataref?: {              // artifact pointer when data too large
+    transfer_id: string;
+    digest: string;
+  };
+  // Murrmure extensions
+  seq: number;             // global hub sequence
+  space_id: string;
+  session_id?: string;
+  run_id?: string;
+  dedup_key?: string;
+  actor_id?: string;
+}
+```
+
+**Correlation (closed 2026-06-30):** When a journal entry relates to a session or run, **both** MUST be set:
+
+1. Murrmure extensions `session_id` and/or `run_id` (canonical for queries and MCP)
+2. CloudEvents `subject` path derived as `sessions/{session_id}/runs/{run_id}` (or `sessions/{session_id}` when run-agnostic)
+
+Hub journal builder derives `subject` from ids — authors must not supply conflicting paths.
+
+### 8.2 Event types (normative starter set)
+
+| type | When |
+|------|------|
+| `mrmr.session.created` | Session created |
+| `mrmr.run.started` | Run entered `working` |
+| `mrmr.run.completed` | Run terminal success |
+| `mrmr.run.failed` | Run terminal failure |
+| `mrmr.action.dispatched` | Invoke sent to executor |
+| `mrmr.action.completed` | Executor reported success |
+| `mrmr.action.timed_out` | Timeout |
+| `mrmr.action.executor_unavailable` | Preflight or delivery failure |
+| `mrmr.gate.pending` | Gate opened |
+| `mrmr.gate.resolved` | Gate closed |
+| `mrmr.artifact.transferred` | Bytes materialized |
+| `mrmr.hook.delivered` | Hook ran |
+| `mrmr.flow.attached` | Graph bound to session |
+
+### 8.3 Run step memo (projection table)
+
+Hub maintains **derived** table (rebuildable from journal):
+
+```typescript
+interface RunStepMemo {
+  run_id: string;
+  step_id: string;
+  status: "pending" | "working" | "completed" | "failed" | "skipped";
+  idempotency_key?: string;
+  result_hash?: string;    // Inngest-style — skip re-execution on replay
+  started_at?: string;
+  completed_at?: string;
+  error_code?: string;
+}
+```
+
+Flowchart = flow manifest graph **overlaid** with RunStepMemo — not reconstructed ad hoc from raw events on every read.
+
+---
+
+## 9. Grants and ACL (unified)
+
+### 9.1 Single capability model (replaces dual ladder)
+
+Capabilities are strings granted to `(actor_id, resource)`:
+
+| Capability | Resource | Allows |
+|------------|----------|--------|
+| `space:read` | space | See space in sidebar, space home, non-redacted session steps |
+| `space:write` | space | Push hooks, actions, flows via CLI apply |
+| `space:enter` | space | MCP control plane attach (executor) |
+| `flow:read` | flow | Expand preview — sanitized manifest |
+| `flow:run` | flow | Start manual / receive hook start_flow |
+| `action:invoke` | action | Direct invoke (rare — usually via flow/hook) |
+| `gate:resolve` | run or session | Approve/reject gates |
+| `journal:read` | space or session | Logs access |
+| `executor:poll` | executor | External worker poll API §4.6, §10.5 |
+| `hub:admin` | hub | Breakglass: federation keys, global config |
+
+**Visibility:** No `hidden` enum. Space absent from sidebar when actor lacks `space:read`. Session visibility uses redaction rules (§6.4).
+
+### 9.2 Global flow expand (open #4 — closed)
+
+| Action | Required capability |
+|--------|---------------------|
+| See flow in "Available to run" | `flow:run` |
+| Expand preview (graph, spaces touched) | `flow:read` (sanitized — no secret param defaults) |
+| Push/edit flow files | `space:write` on origin space |
+
+### 9.3 Admin (open #5 — closed)
+
+- **Default:** per-space admin via `space:write` + grant management on that space
+- **Breakglass:** `hub:admin` for federation, hub rotation, emergency revoke — minimal holders
+
+---
+
+## 10. Wire API (rev-1 sketch)
+
+### 10.1 Sessions and runs
+
+```http
+POST   /v1/sessions
+GET    /v1/sessions/{session_id}
+GET    /v1/sessions?status=active&space_id=spc_…
+GET    /v1/sessions/{session_id}/runs
+
+POST   /v1/sessions/{session_id}/runs          # start run from flow or headless
+GET    /v1/runs/{run_id}
+GET    /v1/runs/{run_id}/graph                 # manifest overlay + step memo
+POST   /v1/runs/{run_id}/cancel
+
+POST   /v1/sessions/{session_id}/orchestration/attach   # MCP; gate if agent-origin
+POST   /v1/sessions/{session_id}/cancel                 # cascade §3.6
+
+PATCH  /v1/me                                           # landing_space_id, prefs
+GET    /v1/me
+```
+
+**Session create body:**
+
+```json
+{
+  "title": "Feature Y delivery",
+  "subject": "feature-Y",
+  "idempotency_key": "optional"
+}
+```
+
+**Run create body:**
+
+```json
+{
+  "flow_id": "flw_feature_delivery",
+  "input": { "topic": "…", "worktrees": […] },
+  "reference_run_ids": [],
+  "idempotency_key": "optional"
+}
+```
+
+### 10.2 Gates
+
+```http
+GET    /v1/runs/{run_id}/gates
+POST   /v1/gates/{gate_id}/resolve
+```
+
+### 10.3 Journal
+
+```http
+GET    /v1/journal?subject=sessions/ses_…/*&type=mrmr.action.*
+GET    /v1/journal/subscribe                    # SSE — global or filtered
+```
+
+**SSE auth (closed 2026-06-30):**
+
+| Client | Mechanism |
+|--------|-----------|
+| Desktop bundled | Same-origin HttpOnly session cookie from bootstrap |
+| Web hosted | HttpOnly session cookie **or** short-lived SSE ticket `GET /v1/journal/subscribe?ticket=tkt_*` (≈60s, subscribe scope only) |
+| CLI / MCP | Bearer token (unchanged) |
+
+Do not rely on `Authorization` header on browser `EventSource` for hosted web.
+
+### 10.4 Space index
+
+```http
+POST   /v1/spaces/{space_id}/apply             # re-index murrmure/ files
+GET    /v1/spaces/{space_id}/actions
+GET    /v1/spaces/{space_id}/flows
+GET    /v1/flows/{flow_id}
+```
+
+### 10.5 Executor poll (see §4.6)
+
+```http
+GET  /v1/executor/tasks?executor_id=…
+POST /v1/executor/tasks/{task_id}/complete
+POST /v1/executor/tasks/{task_id}/fail
+```
+
+### 10.6 User preferences
+
+```http
+PATCH /v1/me
+{ "landing_space_id": "spc_…" }
+```
+
+First successful `space link` by a user → **suggest** “Use as landing?” (banner/toast); **never auto-set**. Per-user only — never hub-wide default.
+
+### 10.7 Describe document (Temporal-inspired)
+
+`GET /v1/runs/{run_id}` returns rich state:
+
+```json
+{
+  "run_id": "run_…",
+  "session_id": "ses_…",
+  "lifecycle": "input-required",
+  "flow_id": "flw_…",
+  "flow_digest": "sha256:…",
+  "exec_context": { "worktree": "…", "preview_url": "…" },
+  "steps": [ … RunStepMemo … ],
+  "pending_gates": [ … ],
+  "participating_spaces": ["spc_…"],
+  "artifacts": ["xfr_…"],
+  "started_by": { "type": "hook", "hook_id": "on-spec-published" }
+}
+```
+
+### 10.8 v1 migration aliases
+
+| v1 | rev-1 | Transition |
+|----|-------|------------|
+| `instance_id` | `run_id` | Both accepted on read paths for one release |
+| `POST …/instances` | `POST …/runs` | Adapter creates Run + Session |
+| `correlation_id` | `session_id` | Deprecated header |
+| `mcp_wake` + `wake_label` | `POST …/actions/{name}/invoke` | Shim route |
+| `checkpoint.*` journal types | `mrmr.gate.*` | Dual emit during migration |
+
+### 10.9 MCP platform tools (normative)
+
+Agents connect via `@murrmure/cli` stdio bridge. Tool catalog = platform tools (grant-filtered) **union** space-indexed action tools (future). Implementation phases: [plan/00-doc-skill-mcp-tracker.md](./plan/00-doc-skill-mcp-tracker.md).
+
+**Grant mint:** Humans and agents use **`mrmr grant mint`** (CLI). Configure UI grant mint is retired phase 06.
+
+| Tool | Required capability | HTTP / behavior |
+|------|---------------------|-----------------|
+| `murrmure_get_space_state` | `space:read` | Indexed actions, flows, hooks summary |
+| `murrmure_apply_space` | `space:write` | `POST /v1/spaces/{id}/apply` |
+| `murrmure_space_status` | `space:read` | Digests + index counts |
+| `murrmure_grant_mint` | `space:write` | `POST /v1/grants` |
+| `murrmure_create_session` | `flow:run` or `action:invoke` | `POST /v1/sessions` |
+| `murrmure_list_sessions` | `space:read` **or** `journal:read` (at least one; results filtered to granted resources) | `GET /v1/sessions` |
+| `murrmure_get_session` | `space:read` | `GET /v1/sessions/{id}` |
+| `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
+| `murrmure_get_run` | `space:read` | `GET /v1/runs/{id}` |
+| `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
+| `murrmure_cancel_run` | `gate:resolve` or run owner policy | `POST /v1/runs/{id}/cancel` |
+| `murrmure_invoke_action` | `action:invoke` | action invoke route |
+| `murrmure_wait_for_gate` | `space:read` | long-poll pending gates |
+| `murrmure_resolve_gate` | `gate:resolve` | `POST /v1/gates/{id}/resolve` |
+| `murrmure_wait_for_run` | `space:read` | long-poll until terminal lifecycle |
+| `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
+| `murrmure_attach_orchestration` | `flow:run` on session | `POST /v1/sessions/{id}/orchestration/attach` §6.3 |
+
+**v1 shim tools** (`transition`, `wait_for_state`, `emit_event`, `contract_versions`, `get_space_state` legacy shape) remain during migration with deprecation log; removed phase 16.
+
+**Catalog refresh:** MCP client reload after grant change, `space apply`, or flow index update.
+
+---
+
+## 11. Space directory scaffold
+
+```text
+my-space/
+  agent.md                      # USER — never read for config
+  skills/                       # USER
+  .cursor/ | mcp.json           # USER harness
+  src/ | docs/
+  murrmure/
+    space.yaml                  # optional: slug, tags
+    actions.yaml
+    executors.yaml              # optional if inline in actions
+    hooks.yaml                  # renamed from triggers.yaml
+    flows/
+      feature-delivery/
+        flow.manifest.yaml
+        schemas/                # optional response shapes
+    views/                      # optional client packages — not hub registry
+  .mrmr.temp/
+    inbox/
+    outbox/
+```
+
+**Migration note:** `triggers.yaml` accepted as alias for `hooks.yaml` during transition.
+
+---
+
+## 12. Shell UX (rev-1)
+
+### 12.1 Personas
+
+| Persona | Needs | Shell emphasis |
+|---------|-------|----------------|
+| **Orchestrator** | Build flows, debug runs, CLI-native | Flows as front door; sessions via runs |
+| **Approver** | Notification → context → one click | Gates only; never requires understanding flows |
+
+Session is **transparent at entry**: "Run" on flow creates session + run; URL `/sessions/:id` but header shows flow title.
+
+### 12.2 Navigation (revised from v2 draft)
+
+**Remove:** persistent Sessions subsection in sidebar (context confusion).
+
+```text
+Top: [🏠 Landing]  [Needs you (n) ▾]  [Logs]  [⌘K]  [Profile]
+
+Left sidebar — Spaces only:
+  ● landing-space
+  ○ frontend (2)          ← badge from gate queue filtered to space
+  ○ api-space
+  [ + ]  → CLI instructions
+
+Sessions reached via:
+  1. Notification click → /sessions/:id
+  2. /sessions global list
+  3. Space home → Active / Recent
+  4. Command palette
+```
+
+### 12.3 Space home (revised sections)
+
+```text
+Space: frontend
+├── Needs your attention     ← gates/failures for this space
+├── Active runs
+├── Your flows               ← flows authored in this space (origin)
+├── Available to run         ← flow:run grants
+├── Receiving from           ← flows whose steps invoke this space
+└── Recent completed
+```
+
+### 12.4 Session / run view (Windmill split-pane)
+
+```text
+Session: Feature Y delivery
+┌─ Flowchart (declared graph + live step state) ─────────────┐
+│  [research ✓] → [spec ●] → [lane A ◐] [lane B ◑] → [finish] │
+├──────────────────────────────────────────────────────────────┤
+│ Right panel tabs: [Gate*] [Step detail] [Session logs]       │
+├──────────────────────────────────────────────────────────────┤
+│ ▸ Link to /logs?session=ses_…                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Gate tab** auto-focus on arrival from notification
+- **Parallel lanes** = sibling runs as **fork/join nodes in one flowchart** (primary); lane click opens run detail in right panel — not separate top-level tabs per lane
+- **Flowchart library:** `@xyflow/react` (React Flow), **lazy-loaded** on session/run routes
+- **No declared graph:** journal replay waterfall (Inngest-style) — **not blank**
+
+```text
+Journal replay (fallback)
+  [✓] 10:01 hook delivered — on-spec-published
+  [✓] 10:01 action dispatched — wake_review @ spc_frontend
+  [●] 10:02 action working — wake_review
+```
+
+### 12.5 First-run
+
+No v1 seven-step wizard. Empty sidebar → instruction page:
+
+- Copy-to-clipboard CLI blocks
+- Live "Waiting for space…" SSE indicator
+- Sidebar populates when `mrmr space link` completes — no reload
+
+Optional: `mrmr dev` opens shell + shows test invoke button for first action.
+
+### 12.6 Notifications
+
+| Requirement | Detail |
+|-------------|--------|
+| Persistence | Survive refresh; stored in hub until dismissed/resolved |
+| Routing | Gate assignees; fallback to `gate:resolve` holders |
+| Expiry | Show countdown when `expires_at` set |
+| Out-of-shell | Defer email/desktop push — when built: **`mrmr.gate.pending`** (assignees) and **`mrmr.run.failed`** (watchers / `gate:resolve` holders) only |
+| Failure | Typed error + **Retry** (new Run, same Session — §3.6) when run failed |
+
+### 12.7 Routes
+
+| Route | Purpose |
+|-------|---------|
+| `/spaces/new` | CLI instructions |
+| `/spaces/:id` | Space home |
+| `/spaces/:id/flows/:flowId` | Flow preview |
+| `/sessions` | Global session list |
+| `/sessions/:id` | Session aggregate view |
+| `/runs/:id` | Run detail (deep link to gate/step) |
+| `/notifications` | Actionable inbox |
+| `/logs` | Journal explorer |
+
+**Remove v1 anti-pattern:** Runtime / Configure mode toggle.
+
+---
+
+## 13. Worked scenarios (rev-1)
+
+### 13.1 Morning brief
+
+```text
+1. User clicks Run on flow "morning-brief" → Session ses_… + Run run_…
+2. Flow steps invoke actions in general, task, email, research spaces
+3. Each invoke creates step memo on run_…
+4. Gate step aggregate → gate pending → Needs you (1)
+5. Approver opens gate tab → approve
+6. Final invokes draft email + calendar
+7. Run completed → Session completed
+```
+
+### 13.2 Cursor dev → review (headless start)
+
+```text
+1. Dev runs agent in space — no shell action
+2. Agent MCP creates Session + Run with exec_context.worktree
+3. Agent or flow step opens gate → notification
+4. Flowchart shows run at "user review" step
+5. Approve → journal → agent continues
+```
+
+### 13.3 Backend → frontend hook chain
+
+```text
+1. Backend emits mrmr.spec.published
+2. Hook on-spec-published fires → Session auto-created + Run run_…
+3. Invoke wake_review in frontend space (preflight executor)
+4. Artifact xfr_… materialized to .mrmr.temp/inbox/
+5. Journal replay visible even without flow graph bound
+6. Optional: start_flow attaches graph mid-session
+```
+
+### 13.4 Parallel worktrees with partial failure
+
+```text
+1. Flow parallel_dev matrix creates Run run_A, Run run_B under Session ses_…
+2. run_A completes; run_B fails at review gate rejected
+3. Session status → partial_failure
+4. Shell shows lane A green, lane B red
+5. User clicks **Retry** on run_B → new Run with `reference_run_ids: [run_B]` (§3.6)
+```
+
+### 13.5 Move flow to shared catalog
+
+```text
+1. Flow files live in project space murrmure/flows/feature-delivery/
+2. Team moves directory to team-catalog space (git mv)
+3. mrmr flow push && mrmr space apply
+4. Grants: flow:run to team actors on flw_feature_delivery
+5. Other spaces see under Available to run — no reinstall per space
+```
+
+---
+
+## 14. Architectural pitfalls (explicit guardrails)
+
+| Pitfall | Guardrail in rev-1 |
+|---------|-------------------|
+| Session overload | Session + Run split |
+| Invoke into void | Executor preflight + typed errors |
+| Dual ACL confusion | Single capability model |
+| Flowchart lies | Run step memo + pinned flow_digest |
+| Silent headless runs | Mandatory session + run on hook delivery |
+| Blank session view | Journal replay fallback |
+| Hidden space leak | Sanitized gate context (§6.4) |
+| Retry double-execution | Step idempotency keys + memo hash |
+| Orchestration drift | Terminal run immutability; new run for refinement |
+| Fat flow | PR checklist + schema rejects inline script steps |
+
+---
+
+## 15. Anti-patterns (extended)
+
+| Anti-pattern | Why |
+|--------------|-----|
+| Hub stores view registry | Views are clients, not protocol state |
+| `scope: global` on flow file | Duplicates grants |
+| Path-as-session-id | Breaks security, federation, rename |
+| Default `mcp.wake_pending` queue | Hides executor gaps |
+| "Attach session when possible" | Not implementable — mandatory |
+| Timeline as primary live UX | Use flowchart + journal replay |
+| Gate approve without graph preview (agent push) | Rubber stamp — meaningless oversight |
+| 4-level ACL + scopes | Two vocabularies — silent denials |
+| Hub runs LLM loop | Out of scope |
+| Flow implements business logic | Second agent platform |
+
+---
+
+## 16. Open questions — resolution table
+
+| # | Question | rev-1 resolution |
+|---|----------|------------------|
+| 1 | Space path binding | Stable `spc_*` + `bindings[]` `{ host, path, primary }`; path never id |
+| 2 | Session id encoding | **Closed** — opaque + `subject` (§3.5) |
+| 3 | Hidden space in shared session | **Closed** — sanitized gate (§6.4) |
+| 4 | Global flow expand auth | **Closed** — `flow:read` vs `flow:run` (§9.2) |
+| 5 | hub.admin | **Closed** — breakglass + per-space write (§9.3) |
+| 6 | Failure UX | Failed row + badge + typed error + retry-from-step |
+| 7 | Flows triggering flows | **Shipped** — `start_flow` step (§5.5) |
+| 8 | Inline threshold / GC | **64 KiB** now; TTL 7d; daemon sweeper → core GC command (§7.4) |
+| 9 | Remote space no local path | Virtual binding `type: remote_hub`; remote executor required; preflight + 3× retry with backoff (§16b F3) |
+
+### 16b. Architecture resolutions (2026-06-30)
+
+Resolved from [space-flow-protocol-v2.architecture.md](./space-flow-protocol-v2.architecture.md) §11. Normative detail in sections cited.
+
+| ID | Question | Resolution |
+|----|----------|------------|
+| P1 | Matrix expansion timing | **Eager at parallel step entry** — all sibling Runs in one TX when matrix resolved (§5.2.1) |
+| P2 | Headless `step_id` | **`hook:{hook_id}`** / **`action:{action_name}`** / **`orchestration:proposed`** (§3.6) |
+| P3 | Session cancel cascade | Graceful drain + **`ExecutorPort.cancel`** + hub **30s** cap (§3.6) |
+| P4 | `queue_poll` ownership | **External worker contract only** — poll API §4.6; no in-hub queue runtime |
+| P5 | Hook vs run idempotency | **Propagate** hook `dedup_key` → run `idempotency_key` (§4.5) |
+| P6 | Retry-from-step | **New Run**, same Session, `reference_run_ids` (§3.6) |
+| U1 | `requires_view` resolution | **`view_ref`** on flow index from space files; form fallback (§5.4) |
+| U2 | Agent orchestration push schema | **`murrmure.flow.attach/v1`** = same manifest as files (§6.3) |
+| U3 | Landing space API | **`PATCH /v1/me`**; suggest on first link, never auto-set (§10.6) |
+| U4 | Hosted web SSE auth | Cookie or short-lived **SSE ticket** — not Bearer on EventSource (§10.3) |
+| U5 | React Flow bundle | **Accept**, lazy-load on session/run routes (§12.4) |
+| U6 | Parallel lane layout | **Fork/join in one flowchart**; right-panel drill-down (§12.4) |
+| O1 | Artifact GC sweeper | **Daemon cron** → hub-core **`ArtifactGcCommand`** (§7.4) |
+| O2 | Executor registration | Per-type defaults in docs; action picks executor (§4.2) |
+| O3 | Out-of-shell notifications | **Shipped** — gate pending + run failed (§12.6) |
+| F1 | Session federation | **Hub-local** `session_id`; optional shared `subject` as soft link only (slice I) |
+| F2 | Cross-hub artifact GC | Each hub GCs local copy; legal hold via `hold: true` (§7.4) |
+| F3 | Remote space binding | Virtual binding; preflight remote health; **3 retries**, exponential backoff, then `EXECUTOR_UNAVAILABLE` (slice I) |
+
+---
+
+## 17. Migration slices (resequenced)
+
+| Slice | Scope | Depends on |
+|-------|-------|------------|
+| **A** — Docs & types | philosophy update, Zod: Session, Run, Gate, Action, Journal CE shape, artifact v1 | — |
+| **B** — Space directory index | `mrmr space init/link/apply`; index actions, executors, hooks, flows | A |
+| **D** — Action invoke + artifacts | invoke preflight, completion contract, `.mrmr.temp/`, exchange store | B |
+| **C** — Session + Run protocol | CRUD, journal linkage, step memo, journal replay view | D |
+| **H** — Notifications + logs | Needs you, `/notifications`, `/logs` filters, SSE | C |
+| **E** — Flow index + start conditions | flow push, manual/event/schedule, space home sections | C |
+| **G** — MCP orchestration attach + gate | Agent push → validate gate → bind | E |
+| **F** — Custom view packages | Optional; shell defaults sufficient first | H |
+| **I** — Federation + remote executors | XS1+, optional A2A executor | D, C |
+
+**Rationale:** Invoke is the execution spine. Sessions without invoke are metadata. Views are optimization. Federation last.
+
+### v1 compatibility shims (during migration)
+
+- `POST /v1/spaces/{id}/instances` → creates Session+Run; returns `instance_id` = `run_id`
+- `mcp_wake` → routes to action invoke shim
+- Review-loop capability → example flow + view client, not product center
+- Configure UI routes deprecated; redirect to CLI instruction pages
+
+---
+
+## 18. Success criteria (rev-1)
+
+- [ ] PR checklist: "protocol / flow / view rule / space implementation?"
+- [ ] `mrmr space link` + `mrmr flow push` — shell lists space and flow without wizard
+- [ ] Hook delivery always creates session + run visible in shell within 2s SSE
+- [ ] Invoke to space with no executor → `EXECUTOR_UNAVAILABLE` within timeout; visible on run graph
+- [ ] Session spans two spaces; two sibling runs; partial_failure renders correctly
+- [ ] Agent MCP attach blocked until gate approve with graph preview
+- [ ] Journal entries validate CloudEvents required attributes
+- [ ] Inline payload > 64 KiB rejected with artifact hint
+- [ ] Hidden space gate shows sanitized context to assignee
+- [ ] No API stores model name, skill content, or system prompt
+- [ ] v1 J01 fixtures green via shim layer or explicit migration PR
+
+---
+
+## 19. Reference repo borrow/reject (summary)
+
+| Repo | Borrow | Reject |
+|------|--------|--------|
+| **A2A** | contextId/Task → Session/Run; task immutability; parallel tasks | Agent Cards; SendMessage-primary |
+| **Temporal** | Workflow/Activity → Flow/Action; worker poll → Executor; event history; signals → gates | Workflow code in hub; deterministic replay of code |
+| **Inngest** | Step memoization; every run visible; journal replay waterfall | Full step runtime in hub |
+| **CloudEvents** | Envelope + `subject` for correlation; source+id dedup | — |
+| **Windmill** | Split-pane run view; Gantt lanes; restart-from-step; scripts vs flows | In-platform editor as product center |
+| **GHA** | Start conditions; matrix parallel; required reviewers; workflow_call reserved | — |
+
+---
+
+## 20. Related artifacts
+
+| Artifact | Relevance |
+|----------|-----------|
+| [philosophy.md](../../current/product/philosophy.md) | Normative intent — update Session/Run wording on promotion |
+| [space-flow-protocol-v2.md](./space-flow-protocol-v2.md) | Prior draft — superseded where this doc resolves |
+| [space-flow-protocol-v2.architecture.md](./space-flow-protocol-v2.architecture.md) | Package/layer build path |
+| [product/spec.md](../../current/product/spec.md) | Stale review-loop spec — replace on promotion |
+| [hub/architecture.md](../../current/hub/architecture.md) | Journal kernel |
+| [flow-runtime/spec.md](../../current/flow-runtime/spec.md) | v1 mount — migrate to index |
+| [cross-space/spec.md](../../current/cross-space/spec.md) | query_ask → action invoke evolution |
+| [desktop/spec.md](../../current/desktop/spec.md) | Shell host |
+| `projects.yaml` | `.opensrc` reference repos |
+| [plan/index.md](./plan/index.md) | **Active backlog** — post-v2 gaps |
+
+---
+
+## 21. Promotion checklist (when moving to `current/`)
+
+1. Merge entity changes into [philosophy.md](../../current/product/philosophy.md) (Session + Run, hooks rename, mandatory observability).
+2. Replace [product/spec.md](../../current/product/spec.md) review-loop center with rev-1 wire routes.
+3. Add Zod schemas: `Session`, `Run`, `RunStepMemo`, `Gate`, `Action`, `JournalEntry`, `mrmr.artifact/v1`.
+4. Deprecate `InstanceSchema` → alias `RunSchema`.
+5. Update [flow-runtime/spec.md](../../current/flow-runtime/spec.md) for index model.
+6. Mark [space-flow-protocol-v2.md](./space-flow-protocol-v2.md) as archived reference.
+7. CI: add spec-lint for CloudEvents required fields on journal fixtures.
+
+---
+
+*End of rev-1.*

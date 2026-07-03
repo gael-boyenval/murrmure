@@ -1,0 +1,16 @@
+# Role: minimal invoke-only flow — manual trigger and one shell_spawn step.
+apiVersion: murrmure.flow/v1
+name: {{FLOW_ID}}
+description: Hello invoke flow — single action step
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: hello
+    invoke:
+      space: "{{origin_space}}"
+      action: {{FLOW_ID}}_hello

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "@murrmure/shell-ui/theme.css";
+@import "@murrmure/shell-ui/base.css";
+@import "./react-flow-theme.css";
+
+@source "./**/*.{js,ts,jsx,tsx}";
+@source "../../shell-ui/src/**/*.{js,ts,jsx,tsx}";

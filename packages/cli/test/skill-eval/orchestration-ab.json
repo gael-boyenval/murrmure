@@ -1,0 +1,12 @@
+{
+  "id": "orchestration-ab",
+  "prompt": "When should I use murrmure_attach_orchestration vs mrmr space apply?",
+  "expected_keywords": [
+    "attach",
+    "space apply",
+    "durable",
+    "ephemeral",
+    "orchestration"
+  ],
+  "advisory": true
+}

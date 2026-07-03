@@ -1,6 +1,6 @@
-import type Database from "better-sqlite3";
+import type { SqliteHandle } from "./driver.js";
 
-export function migrate(db: Database.Database): void {
+export function migrate(db: SqliteHandle): void {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 

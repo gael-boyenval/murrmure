@@ -1,0 +1,30 @@
+{
+  "description": "Phase 03 — {{steps.build.output.*}} resolves in subsequent invoke params",
+  "manifest": {
+    "apiVersion": "murrmure.flow/v1",
+    "name": "step-output-chaining",
+    "start": { "manual": true },
+    "steps": [
+      { "id": "build", "invoke": { "space": "{{origin_space}}", "action": "build" } },
+      {
+        "id": "publish",
+        "invoke": {
+          "space": "{{origin_space}}",
+          "action": "publish",
+          "params": {
+            "preview_url": "{{steps.build.output.preview_url}}",
+            "artifact_ref": "{{steps.build.output.artifact_ref}}"
+          }
+        }
+      }
+    ]
+  },
+  "build_output": {
+    "preview_url": "http://localhost:3000",
+    "artifact_ref": "art_preview_bundle"
+  },
+  "expected_resolved_params": {
+    "preview_url": "http://localhost:3000",
+    "artifact_ref": "art_preview_bundle"
+  }
+}

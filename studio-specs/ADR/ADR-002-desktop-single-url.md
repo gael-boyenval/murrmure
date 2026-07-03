@@ -18,7 +18,7 @@ Electrobun runs on Bun; the hub uses `better-sqlite3` and spawns flow workers vi
 4. **Fixed loopback port `8787`** in desktop mode so `localStorage` session survives restarts (D13).
 5. **Bundled shell client** — `VITE_MURRMURE_BUNDLED=1`: same-origin hub URL, relative flow iframe paths, no manual hub URL in setup.
 6. **CLI/MCP unchanged** — external tools discover hub via `~/.murrmure/hubs/shared.json` (`hubs[0].endpoint`).
-7. **Contributor path preserved** — `pnpm dev` (Vite + hub) remains the daily dev workflow; `pnpm desktop:dev` is packaged-path smoke only.
+7. **Contributor path preserved** — `pnpm desktop:dev:hmr` is the primary dev workflow (native Electrobun + Vite HMR + hub watch). `pnpm desktop:dev:smoke` covers single-URL browser regression; `pnpm dev` remains shell HMR without Electrobun.
 
 ## Security (v1 internal builds)
 

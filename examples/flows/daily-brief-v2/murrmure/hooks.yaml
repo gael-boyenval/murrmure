@@ -1,0 +1,11 @@
+version: 1
+hooks:
+  brief_requested_wake:
+    on:
+      event:
+        type: brief.requested
+    do:
+      - invoke:
+          action: mcp_wake
+          params:
+            wake_label: handle_brief_requested

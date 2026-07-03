@@ -8,13 +8,27 @@ import {
 } from "./commands.js";
 import { grantCommand } from "./grant.js";
 import { spaceInitCommand } from "./init.js";
+import { spaceLinkCommand } from "./link.js";
+import { spaceApplyCommand } from "./apply.js";
+import { spaceStatusCommand } from "./status.js";
+import { spaceDoctorCommand } from "./doctor.js";
+import { spaceSetupCommand } from "./setup.js";
+import { spaceOnboardCommand } from "./onboard.js";
 import { memberCommand } from "./member.js";
 import { triggerCommand } from "./trigger.js";
+import { spaceViewCommand } from "./view.js";
+import { spaceFlowCommand } from "./flow.js";
 
 export const spaceCommand = defineCommand({
   meta: { name: "space", description: "Space CRUD and Configure parity" },
   subCommands: {
     init: spaceInitCommand,
+    setup: spaceSetupCommand,
+    onboard: spaceOnboardCommand,
+    link: spaceLinkCommand,
+    apply: spaceApplyCommand,
+    status: spaceStatusCommand,
+    doctor: spaceDoctorCommand,
     list: spaceListCommand,
     show: spaceShowCommand,
     create: spaceCreateCommand,
@@ -23,5 +37,7 @@ export const spaceCommand = defineCommand({
     grant: grantCommand,
     member: memberCommand,
     trigger: triggerCommand,
+    view: spaceViewCommand,
+    flow: spaceFlowCommand,
   },
 });

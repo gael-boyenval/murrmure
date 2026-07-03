@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
-import { detectExistingHub, stopHubChild, waitForHubHealth } from "../src/lifecycle.js";
+import { detectExistingHub, stopHubChild, waitForHubHealth, waitForShellDevReady } from "../src/lifecycle.js";
 import { resolveDesktopPaths } from "../src/paths.js";
 
 describe("desktop lifecycle", () => {
@@ -43,6 +43,36 @@ describe("desktop lifecycle", () => {
         },
       }),
     ).rejects.toThrow(/did not become ready/i);
+  });
+
+  test("waitForShellDevReady accepts Vite shell index.html markers", async () => {
+    const shellHtml = `<!doctype html><html><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>`;
+    const fetchImpl = vi.fn(async () => new Response(shellHtml, { status: 200 }));
+
+    const attempts = await waitForShellDevReady("http://127.0.0.1:5174", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      sleepImpl: async () => undefined,
+    });
+
+    expect(attempts).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledWith("http://127.0.0.1:5174/", expect.any(Object));
+  });
+
+  test("waitForShellDevReady rejects generic HTTP 200 responses", async () => {
+    let now = 0;
+    const fetchImpl = vi.fn(async () => new Response("<html><body>ok</body></html>", { status: 200 }));
+
+    await expect(
+      waitForShellDevReady("http://127.0.0.1:5174", {
+        timeoutMs: 250,
+        intervalMs: 100,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        now: () => now,
+        sleepImpl: async (ms) => {
+          now += ms;
+        },
+      }),
+    ).rejects.toThrow(/Shell dev server did not become ready/i);
   });
 
   test("detectExistingHub returns running when lock owner is healthy", async () => {
@@ -98,7 +128,7 @@ describe("desktop lifecycle", () => {
       },
     });
 
-    expect(paths.hubEntry).toBe("/tmp/work/packages/studio-hub-daemon/dist/main.js");
+    expect(paths.hubEntry).toBe("/tmp/work/packages/hub-daemon/dist/main.js");
     expect(paths.hubCommand).toBe("pnpm");
     expect(paths.hubArgs).toEqual(["--filter", "@murrmure/hub-daemon", "start"]);
     expect(paths.shellStaticDir).toBe("/tmp/work/packages/shell-web/dist");

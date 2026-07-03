@@ -1,37 +1,34 @@
 # Tutorials
 
-Hands-on walkthroughs that build **custom flows from scratch** with `@murrmure/cli`. Each tutorial explains how work moves between **pending** and **resolved** — contract states, agent waits, triggers, and human canvas actions.
+Hands-on walkthroughs for **v2 indexed flows** in `murrmure/`. Each tutorial uses `mrmr space apply`, custom views in **ViewCanvasHost**, and MCP platform tools — no worker install pipeline.
 
-Each tutorial is written as **incremental edits**: what file to change, which lines matter, and why the step exists.  
-You get focused snippets and checkpoints instead of full-file copy/paste dumps.
+Each tutorial links to an **`examples/flows/*-v2/`** tree validated in CI with `mrmr space apply --strict`.
 
 ## Choose a tutorial
 
-| | Tutorial | You learn |
-|---|----------|-----------|
-| **1** | [Local preview review](./01-local-preview-review/) | One agent + one human · localhost preview · approve or request changes until `resolved` |
-| **2** | [Multi-agent brief](./02-multi-agent-brief/) | Three agents · custom `team-brief` · publish + trigger wake + `query_ask` |
-| **3** | [Daily brief trigger](./03-daily-brief-trigger/) | Canvas button · `brief.requested` event · trigger wakes agent · formatted output back to Murrmure |
+| | Tutorial | Example tree | You learn |
+|---|----------|--------------|-----------|
+| **1** | [Local preview review](./01-local-preview-review/) | [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2) | Agent + human · preview loop · `on_resolve` branching |
+| **2** | [Multi-agent brief](./02-multi-agent-brief/) | [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2) | Three spaces · hooks wake · cross-space query |
+| **3** | [Daily brief trigger](./03-daily-brief-trigger/) | [`daily-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/daily-brief-v2) | Canvas action · event · agent wake · human review |
 
-Recommended order: **1 → 2 → 3**. Tutorial 1 is the gentlest on-ramp (local hub, one agent). Tutorial 2 adds cross-space orchestration. Tutorial 3 adds triggers and event-driven wakes.
+Recommended order: **1 → 2 → 3**.
 
 ## Before you start
 
-- Node.js 20+ and a running hub ([self-hosted](../self-hosted) or cloud)
-- [Install dependencies](../installation) — `@murrmure/cli` + `@murrmure/flow-dev-kit` for building flows; `@murrmure/cli` for agents
+- Node.js 20+ and Murrmure Desktop (or hub at `http://127.0.0.1:8787`)
+- `@murrmure/cli` — see [Quick start](../quick-start) (`mrmr setup`)
 - [How it fits together](../how-it-fits-together) — two-minute architecture read
 
-For the full FDK reference (every CLI flag and evolution step), see the [Flows tutorial](../flows-tutorial).
+For the full authoring reference (every manifest field and CLI flag), see the [Flows tutorial](../flows-tutorial).
 
-## Pending vs resolved (shared vocabulary)
-
-Every tutorial uses the same coordination vocabulary:
+## v2 vocabulary (shared)
 
 | Layer | Pending | Resolved |
 |-------|---------|----------|
-| **Contract state** | Active state waiting for the next actor | Terminal state or transition to the next active state |
-| **Agent wait** | MCP wait returns `status: "pending"` | Wait returns `status: "resolved"` with a payload |
-| **Trigger delivery** | Log row queued or in-flight | `delivered`, `failed`, or dedup drop |
-| **Human canvas** | Buttons enabled, review in progress | Action taken → instance transitions |
+| **Run checkpoint** | Run `input-required` at checkpoint step | Resolve with `{ disposition, output }` |
+| **Agent wait** | `murrmure_wait_for_gate` returns pending | Returns resolved payload after human acts |
+| **Trigger delivery** | Hook matched, delivery in flight | Terminal: `success`, `failed`, or `deduped` |
+| **Human view** | Buttons enabled in **ViewCanvasHost** | View `submit()` → checkpoint resolve |
 
-See each tutorial's overview page for the exact states and tool names used in that workflow.
+See each tutorial overview for workflow-specific states and tool names.

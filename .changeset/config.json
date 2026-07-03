@@ -7,19 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "@murrmure/contracts",
-    "@murrmure/docs",
-    "@murrmure/hub-client",
-    "@murrmure/hub-core",
-    "@murrmure/hub-daemon",
-    "@murrmure/hub-persistence",
-    "@murrmure/runtime-adapter-http",
-    "@murrmure/runtime-contracts",
-    "@murrmure/runtime-daemon",
-    "@murrmure/runtime-kernel",
-    "@murrmure/runtime-persistence",
-    "@murrmure/shell-web",
-    "@murrmure/triggers-templates"
-  ]
+  "ignore": []
 }

@@ -1,7 +1,9 @@
 import { createConsola } from "consola";
 import type { ScopeError } from "./scope.js";
 
-const consola = createConsola({ stdout: process.stderr });
+export const cliConsola = createConsola({ stdout: process.stderr });
+
+const consola = cliConsola;
 
 let jsonMode = false;
 
@@ -54,7 +56,7 @@ export function printScopeError(err: ScopeError): never {
   switch (err.code) {
     case "SCOPE_MISSING":
       printErr(err.code, `${err.message} (${err.requiredScope})`, {
-        tip: "Run mrmr whoami · mint a new grant in Configure → Agent grants",
+        tip: "Run mrmr whoami · mint a new grant with mrmr grant mint",
         required_scope: err.requiredScope,
         space_id: err.spaceId,
       });

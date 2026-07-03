@@ -1,0 +1,6 @@
+# Role: shell_spawn binding for script actions.
+executors:
+  shell:
+    binding:
+      type: shell_spawn
+      executor_id: shell

@@ -1,95 +1,114 @@
-# Desktop (Electrobun MVP)
+# Murrmure Desktop
 
-Murrmure Desktop is a single-process local app shell:
+Murrmure Desktop is the **primary human surface**. It bundles a local hub sidecar and the observer shell in one native app (Electrobun).
 
-- Electrobun main process starts/stops the hub sidecar
-- Hub serves both shell UI and API on `http://127.0.0.1:8787`
-- Desktop injects a bootstrap token into browser storage so first run skips `/connect`
+- Electrobun main process starts and stops the hub sidecar
+- Hub serves the API on `http://127.0.0.1:8787`
+- Shell UI loads in the desktop webview (packaged) or via Vite HMR in dev
+- Desktop injects a bootstrap token so first run lands on `/spaces/new` — no manual token paste
 
-## `desktop:dev` (monorepo)
+## Install and run
 
-Prerequisites:
+### Packaged app (recommended)
 
-- Node 20+
-- pnpm workspace install completed
-- Bun installed locally (`bun --version`)
-
-Run:
-
-```bash
-pnpm desktop:dev
-```
-
-What this does:
-
-1. Builds bundled shell (`@murrmure/shell-web`, `VITE_MURRMURE_BUNDLED=1`)
-2. Builds hub daemon TS output (`@murrmure/hub-daemon`)
-3. Starts the hub sidecar on `http://127.0.0.1:8787`
-4. Opens your **system browser** with a one-shot bootstrap link (no Electrobun import — avoids dev RPC noise)
-
-This is a **packaged-path smoke test** for the single-URL desktop layout. It rebuilds shell + hub on each run with no watch/HMR.
-
-For active shell/hub development, use `pnpm dev` (Vite HMR + hub tsx watch) instead.
-
-For a native window, build and launch the packaged app:
+Build and open the native artifact:
 
 ```bash
 pnpm desktop:build
-# then open the artifact from apps/desktop/artifacts (requires Electrobun toolchain)
+# open the artifact from apps/desktop/artifacts (requires Electrobun toolchain locally)
 ```
 
-Or run `pnpm --filter @murrmure/desktop dev:window` only inside a built Electrobun `.app` bundle.
+### Monorepo dev — native window + HMR (contributors)
 
-## First run and session bootstrap
+Prerequisites: Node 20+, pnpm workspace install, Bun (`bun --version`).
 
-Desktop v1 uses a local bootstrap token (`tok_01JBOOTSTRAPTOKEN00000001`) to prime shell auth before setup.
+```bash
+pnpm desktop:dev:hmr
+```
 
-- Dev launcher validates token with `GET /v1/auth/whoami`, then opens `#murrmure-bootstrap=<token>` in the browser
-- Shell stores `murrmure_token` / `murrmure_hub_url` and redirects to `/setup` (or `/configure` when setup already completed)
-- Packaged Electrobun builds inject the same values via webview `executeJavascript` on DOM-ready
+This starts three processes:
 
-## Flows (single-URL desktop path)
+1. **Hub** — `tsx watch` on `http://127.0.0.1:8787` (API only)
+2. **Shell** — Vite on `http://127.0.0.1:5174` with bundled proxy to hub (`/v1`, `/api`, `/flows`)
+3. **Electrobun** — native window loading the Vite URL with HMR
 
-Flow behavior is the same as self-hosted/dev; only the transport changes to one origin.
+Use this for day-to-day shell and hub development inside a real desktop window.
 
-- Canvas shell still loads from `GET /flows/{flow_id}/{version}/ui/shell.html`
-- Worker routes still run through hub proxy at `/api/{flow_id}/...`
-- Shell + flow iframe + API now share `http://127.0.0.1:8787`, so no separate shell URL/hub URL setup is needed
+### Smoke test (single URL, no HMR)
 
-CLI flow development is unchanged:
+```bash
+pnpm desktop:dev:smoke
+```
 
-- Keep desktop app open, then run `mrmr flow dev`/install/apply as usual
-- CLI discovery still reads `~/.murrmure/hubs/shared.json` to target the active desktop hub
-- `flow.dev_reload` signaling still updates the mounted flow runtime
+Rebuilds bundled shell + hub, serves both on `http://127.0.0.1:8787`, and opens your system browser. Useful for CI-style regression checks — not the primary dev loop.
 
-## Data and logs
+## First run and authentication
 
-- Hub data dir: `~/.murrmure`
-- Hub lock owner file: `~/.murrmure/hub.lock/owner.json`
-- Hub DB path: `~/.murrmure/studio.db`
+Desktop users **do not paste tokens**. On first launch:
+
+1. Desktop validates the local bootstrap token (`tok_01JBOOTSTRAPTOKEN00000001`) against `GET /v1/auth/whoami`
+2. The webview stores `murrmure_token` and `murrmure_hub_url` in local storage
+3. You land on **`/spaces/new`** — follow the on-screen hint or run `mrmr setup` in a terminal
+
+The **`/spaces/new`** page and `mrmr setup` share the same handoff: after link + apply, open Desktop → space home → **Run**. Checkpoint steps open your flow's **ViewCanvasHost** custom view — shell chrome is operator mode, not the primary human surface.
+
+| Actor | How to authenticate |
+|-------|----------------------|
+| **Desktop human** | Bootstrap token auto-injected — no `/connect` paste |
+| **Agent (MCP)** | `mrmr setup` grant step or `mrmr grant mint` → one-time `tok_…` in MCP config |
+| **CLI operator** | `mrmr login` (bootstrap first time, or a minted grant) → saved in `~/.murrmure/credentials` |
+
+The **`/connect`** route exists for contributor debugging only. End users on Desktop never need it.
 
 ## App menu
 
-Desktop MVP adds:
+- **Copy MCP config** — JSON snippet wired to `http://127.0.0.1:8787`
+- **Open data folder** — opens `~/.murrmure`
 
-- **Copy MCP config**: copies a JSON snippet wired to local hub URL
-- **Open data folder**: opens `~/.murrmure`
+## Out-of-shell notifications
 
-## Full desktop build (manual MVP path)
+When the desktop window is minimized or hidden, Murrmure can show **native OS notifications** for gate and run events. The desktop process subscribes to the hub journal via SSE (`/v1/auth/sse-ticket` → `/v1/journal/subscribe`) and surfaces:
 
-`desktop:build` is scaffolded and expects Bun/Electrobun tooling locally. The current artifact **does not yet bundle a Node runtime or hub native dependencies** (`better-sqlite3`); treat it as packaging scaffolding until `postBuild` lands.
+- Pending gates that need human approval
+- Failed runs that need attention
 
-```bash
-pnpm desktop:build
-```
+Clicking a notification navigates the webview using the `murrmure://` URL scheme (see below).
 
-If Electrobun packaging is unavailable in your environment, continue using `pnpm desktop:dev` for local testing.
-If native Electrobun APIs are unavailable in your runtime, desktop falls back to headless mode and logs the hub URL to open manually.
+## `murrmure://` deep links
+
+Desktop registers the `murrmure://` URL scheme. Deep links map to shell routes, for example:
+
+| Deep link | Shell route |
+|-----------|-------------|
+| `murrmure://runs/{runId}` | `/runs/{runId}` |
+| `murrmure://runs/{runId}?gate={gateId}` | `/runs/{runId}?gate={gateId}` |
+| `murrmure://notifications` | `/notifications` |
+
+Used by OS notifications and external integrations to focus the desktop window on the right session or gate.
+
+## Flows (single origin)
+
+Flow canvas loads from `GET /flows/{flow_id}/{version}/ui/shell.html`. Worker routes run through the hub proxy at `/api/{flow_id}/…`. Shell, flow iframe, and API share one origin — no separate shell URL setup.
+
+CLI flow development is unchanged: keep Desktop open, then run `mrmr flow dev`, `mrmr space apply`, etc. The CLI reads `~/.murrmure/hubs/shared.json` to target the active desktop hub.
+
+## Data and logs
+
+- Hub data dir: `~/.murrmure` (`MURRMURE_DATA_DIR` override)
+- Hub lock owner: `~/.murrmure/hub.lock/owner.json`
+- Hub DB: `~/.murrmure/murrmure.db` (`DATABASE_PATH` — set by the desktop sidecar at spawn)
 
 ## Troubleshooting
 
-- **Hub health timeout**: check another process using port `8787`
-- **Already running message**: another desktop/hub instance owns the lock; close it first
-- **Missing shell dist**: run `pnpm --filter @murrmure/shell-web build:bundled`
-- **Missing hub dist**: run `pnpm --filter @murrmure/hub-daemon build`
-- **Native API unavailable**: run inside an Electrobun-capable runtime (or use headless fallback URL printed by `desktop:dev`)
+- **Hub health timeout** — another process may be using port `8787`
+- **Already running** — close the other desktop/hub instance (lock file in `~/.murrmure`)
+- **Missing shell dist** — run `pnpm --filter @murrmure/shell-web build:bundled`
+- **Missing hub dist** — run `pnpm --filter @murrmure/hub-daemon build`
+- **Native API unavailable** — run `pnpm desktop:dev:hmr` via `electrobun dev`, not plain Node
+
+## Next
+
+- [Quick start](./quick-start) — Desktop → `mrmr setup` → Run
+- [CLI](./cli) — setup, grants, and automation
+- [Shell UI routes](./shell-routes) — observer screens inside Desktop
+- [Connect your agent](./agents-mcp)

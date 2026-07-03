@@ -1,0 +1,5 @@
+apiVersion: murrmure.view/v1
+id: review-params
+entry: ./dist/index.html
+shell_route: murrmure/review-params
+params_schema: schemas/params.json

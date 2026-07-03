@@ -1,0 +1,8 @@
+version: 1
+actions:
+  hello:
+    executor: shell
+    command: echo '{"status":"ok"}'
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000

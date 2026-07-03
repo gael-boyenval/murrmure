@@ -127,6 +127,8 @@ Deployables (later):
 | `evolution` | Lens A/B, test orchestration, promote FSM, notify live | Skip test/notify |
 | `projections` | Audit, gate queue, triggers, grants, health, drift, federation status | Second source of truth |
 | `notify` | SSE multiplex, long-poll resolve, MCP control outbox | Domain events only |
+| `invoke` *(v2, hub-core)* | Action resolve, preflight, idempotency, dispatch orchestration | Persistence I/O; executor adapters live in `studio-executors` |
+| `ExecutorPort` *(v2)* | `shell_spawn`, `mcp_session` adapters — **implemented** phase 03 | Silent wake_pending default |
 
 ---
 
@@ -442,6 +444,8 @@ journal append → match triggers → dedup check → enqueue(partition) → wor
 ---
 
 ## Part 10 — Federation subsystem
+
+**rev-1 wire (phase 13):** Virtual `remote_hub` space bindings, `remote_hub` executor relay with 3× backoff, ingress dedup on `(source_hub_id, event_id)`, cross-hub artifact materialize. Normative bridge: [../bridges/federation.md](../bridges/federation.md).
 
 ### Routing policy (default deny)
 

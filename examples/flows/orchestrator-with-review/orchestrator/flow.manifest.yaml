@@ -1,0 +1,18 @@
+apiVersion: murrmure.flow/v1
+name: orchestrator
+description: Builds preview then calls review-url via start_flow
+start:
+  manual: true
+steps:
+  - id: dev
+    invoke:
+      space: "{{origin_space}}"
+      action: overnight_research
+      params:
+        topic: "{{input.topic}}"
+  - id: review
+    start_flow:
+      flow_id: flw_orchestrator_with_review_review_url
+      input:
+        url: "{{steps.dev.output.preview_url}}"
+      wait: true

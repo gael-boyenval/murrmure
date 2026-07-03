@@ -1,0 +1,12 @@
+{
+  "description": "Phase 03 — shell_spawn receives MURRMURE_INPUT from exec_context.input",
+  "exec_context": {
+    "input": {
+      "preview_url": "http://localhost:3000",
+      "reviewer": "alice"
+    }
+  },
+  "expected_env": {
+    "MURRMURE_INPUT": "{\"preview_url\":\"http://localhost:3000\",\"reviewer\":\"alice\"}"
+  }
+}

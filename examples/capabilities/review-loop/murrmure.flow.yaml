@@ -1,2 +1,0 @@
-name: review-loop
-description: Human/agent review rounds over a preview target (awaiting_review → converged → production_approved).

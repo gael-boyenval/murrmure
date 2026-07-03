@@ -7,12 +7,11 @@ import { readCredentials } from "./auth-store.js";
 export type AuthSource = "flags" | "env" | "credentials" | "shared.json";
 
 function envAuthPresent(): boolean {
-  const hubUrl = process.env.MURRMURE_HUB_URL ?? process.env.STUDIO_API_URL;
+  const hubUrl = process.env.MURRMURE_HUB_URL;
   const token =
     process.env.MURRMURE_HUB_TOKEN ??
     process.env.MURRMURE_TOKEN ??
-    process.env.MURRMURE_DEPLOY_TOKEN ??
-    process.env.STUDIO_API_TOKEN;
+    process.env.MURRMURE_DEPLOY_TOKEN;
   return Boolean(hubUrl && token);
 }
 

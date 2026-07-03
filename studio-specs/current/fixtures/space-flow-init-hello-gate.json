@@ -1,0 +1,71 @@
+{
+  "description": "Phase 04 — hello-gate scaffold from mrmr space flow init preview-review",
+  "command": "mrmr space flow init preview-review --template hello-gate",
+  "tree": [
+    "murrmure/actions.yaml",
+    "murrmure/executors.yaml",
+    "murrmure/hooks.yaml",
+    "murrmure/flows/preview-review/flow.manifest.yaml",
+    "murrmure/scripts/preview-review-build.mjs",
+    "murrmure/views/preview-review/view.manifest.yaml",
+    "murrmure/views/preview-review-intake/view.manifest.yaml"
+  ],
+  "manifest": {
+    "apiVersion": "murrmure.flow/v1",
+    "name": "preview-review",
+    "description": "Preview review loop — intake, build, review checkpoints with on_resolve goto",
+    "triggers": { "manual": true },
+    "start": { "manual": true },
+    "steps": [
+      {
+        "id": "intake",
+        "checkpoint": {
+          "view": "preview-review-intake",
+          "on_resolve": {
+            "default": { "goto": "build" },
+            "cancel": { "fail": true }
+          }
+        }
+      },
+      {
+        "id": "build",
+        "invoke": {
+          "space": "{{origin_space}}",
+          "action": "run_preview_agent",
+          "params": {
+            "preview_url": "{{input.preview_url}}",
+            "feedback": "{{steps.review.output.comments}}"
+          }
+        }
+      },
+      {
+        "id": "review",
+        "checkpoint": {
+          "view": "preview-review",
+          "on_resolve": {
+            "when": "output.outcome",
+            "values": {
+              "validated": { "goto": "done" },
+              "changes_required": { "goto": "build" }
+            },
+            "default": { "goto": "done" },
+            "cancel": { "fail": true }
+          }
+        }
+      },
+      {
+        "id": "done",
+        "invoke": {
+          "space": "{{origin_space}}",
+          "action": "mark_validated"
+        }
+      }
+    ]
+  },
+  "actions": ["run_preview_agent", "mark_validated"],
+  "views": ["preview-review", "preview-review-intake"],
+  "expect": {
+    "strict_apply_after_view_build": true,
+    "flow_id": "flw_flows_preview_review"
+  }
+}

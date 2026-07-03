@@ -1,4 +1,3 @@
-import Database from "better-sqlite3";
 import type {
   Aggregate,
   AllocatedSeq,
@@ -16,6 +15,7 @@ import type {
 } from "@murrmure/runtime-contracts";
 import { fromJson, projectionKey, toCanonicalJson } from "./json.js";
 import { migrate } from "./migrate.js";
+import { openBetterSqliteDatabase, type SqliteHandle } from "./driver.js";
 
 class SqliteTransaction implements Transaction {
   private journalDrafts: JournalEntry[] = [];
@@ -45,7 +45,7 @@ class SqliteTransaction implements Transaction {
   private reactionQueueOps: ReactionQueueItem[] = [];
 
   constructor(
-    private readonly db: Database.Database,
+    private readonly db: SqliteHandle,
     private readonly readSnapshot: (id: string) => Aggregate | null,
     private readonly readCheckpoint: (id: string) => Checkpoint | null,
     private readonly readIdempotency: (command_id: string) => CommandResult | null,
@@ -370,14 +370,21 @@ class SqliteTransaction implements Transaction {
 }
 
 export class SqlitePersistence implements PersistencePort {
-  private readonly db: Database.Database;
+  private readonly db: SqliteHandle;
 
-  constructor(path: string = ":memory:") {
-    this.db = new Database(path);
-    migrate(this.db);
+  constructor(dbOrPath: SqliteHandle | string = ":memory:") {
+    this.db = typeof dbOrPath === "string" ? openBetterSqliteDatabase(dbOrPath) : dbOrPath;
+    if (typeof dbOrPath === "string") {
+      migrate(this.db);
+    }
   }
 
-  getDb(): Database.Database {
+  static fromHandle(db: SqliteHandle): SqlitePersistence {
+    migrate(db);
+    return new SqlitePersistence(db);
+  }
+
+  getDb(): SqliteHandle {
     return this.db;
   }
 

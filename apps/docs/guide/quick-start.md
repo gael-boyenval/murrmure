@@ -1,104 +1,80 @@
-# Quick start (5 minutes)
+# Quick start (3 steps)
 
-Goal: get one human and one agent through a complete review handoff using browser + MCP.
+Goal: open Desktop, run one CLI wizard, then **Run** — checkpoint steps open your flow's **custom view** in **ViewCanvasHost**, not shell admin chrome.
 
 If architecture is new, skim [How Murrmure fits together](./how-it-fits-together) first (2 minutes).
 
-## 1) Sign in
+## 1) Open Murrmure Desktop
 
-- **Cloud:** [app.murrmure.dev/signup](https://app.murrmure.dev/signup)
-- **Self-hosted:** open your shell URL, then complete `/connect` and `/setup`
+Install and launch Desktop — see [Murrmure Desktop](./desktop).
 
-## 2) Create (or pick) a space
+- **Packaged:** `pnpm desktop:build` and open the artifact
+- **Contributors:** `pnpm desktop:dev:hmr` — native window + shell HMR + hub on `http://127.0.0.1:8787`
 
-In **Configure**:
+Desktop injects the bootstrap token automatically. You land on **`/spaces/new`** — no signup, no `/connect` paste.
 
-1. Create a space (or use your sandbox space)
-2. For sandbox use, choose install policy `authorized_agents`
-3. Copy the space id (`spc_...`) — you need it for MCP config
+## 2) Run the setup wizard
 
-## 3) Install the Review loop flow
-
-In **Configure → [space] → Flows**:
-
-1. Click **Install flow**
-2. Choose **Human ↔ agent review** (`review-loop`)
-3. Open the install row and run: **Validate → Test → Promote → Apply live**
-4. Confirm state is **`live`**
-
-## 4) Mint an agent token
-
-In **Configure → [space] → Agent grants**:
-
-1. Click **Mint grant**
-2. Choose template **Worker**
-3. Pick harness (for example `cursor-local`)
-4. Copy the one-time token (`tok_...`)
-
-## 5) Connect your agent over MCP
-
-Install package:
+From your project directory (or an empty folder):
 
 ```bash
 npm install -g @murrmure/cli
+mrmr setup
 ```
 
-Paste MCP config into Cursor/Claude:
+The wizard walks through:
 
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "https://api.murrmure.dev",
-        "MURRMURE_HUB_TOKEN": "tok_...",
-        "MURRMURE_SPACE_ID": "spc_..."
-      }
-    }
-  }
-}
+1. **Connect** — hub URL + token (Desktop bootstrap works: `mrmr login --hub-url http://127.0.0.1:8787`)
+2. **Spaces** — create `ui-sandbox` / `ui-production` (optional)
+3. **Scaffold** — `murrmure/` init, link, apply (indexes the starter **example** flow)
+4. **Skill** — install `murrmure` Cursor skill in the repo
+5. **Grant** — mint agent token + paste-ready `.cursor/mcp.json` snippet
+
+**Already have `murrmure/`?** Use the shorter path:
+
+```bash
+mrmr space onboard
 ```
 
-Reload your IDE/client.
+**CI / agents** — no Clack prompts:
 
-## 6) Smoke test connection
+```bash
+mrmr setup --yes --json          # full first-run
+mrmr space onboard --yes --json  # existing murrmure/
+```
 
-Ask your agent:
+## 3) Run your flow
 
-> Call `get_space_state` and summarize what you see.
+In **Murrmure Desktop** → space home → **Run** on the indexed flow (e.g. **example**).
 
-If you get JSON back, MCP is connected.
+- Indexed flows come from `murrmure/flows/` via `mrmr space apply`
+- Checkpoint steps with `view_ref` open in **ViewCanvasHost** (full canvas custom view)
+- Shell chrome (flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a view is specified
 
-## 7) Start a review round from the agent
+CLI alternative:
 
-Ask your agent:
+```bash
+mrmr flow run flw_flows_example --input '{}' --space spc_ui_sandbox
+```
 
-> Create a review session for `https://your-preview.example.com` titled "Homepage pass 1".
+## Verify
 
-The tool returns an instance/session key (`ins_...`).
+```bash
+mrmr space status        # flows ≥ 1
+mrmr doctor              # hub + auth smoke
+mrmr space doctor        # murrmure/ drift + MCP hints
+```
 
-## 8) Complete the human handoff in the browser
+Ask your connected agent:
 
-In **Runtime → [space] → Instances**:
+> Call `murrmure_space_status` and summarize what you see.
 
-1. Open the new review session
-2. Add comments
-3. Click **Finish review**
+## Next steps
 
-The agent's `wait_for_review` call resolves with structured `comments[]`.
-
-## 9) Iterate
-
-Agent applies feedback, updates preview URL, and starts the next round until converged.
+- Scaffold a real workflow: `mrmr space flow init preview-review --template hello-gate`
+- [Creating flows](./creating-flows) · [Tutorials](./tutorials/)
+- [Murrmure Desktop](./desktop) · [Connect your agent](./agents-mcp)
 
 ## Done
 
-Want to build your own review loop from scratch? Continue with [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/).
-
-- [Tutorials overview](./tutorials/)
-- [How it fits together](./how-it-fits-together)
-- [Connect your agent](./agents-mcp)
-- [Browser app](./browser)
-- [Troubleshooting](./troubleshooting)
+You opened Desktop, ran `mrmr setup`, and started a run that lands in your flow's custom view canvas when checkpoints pause.

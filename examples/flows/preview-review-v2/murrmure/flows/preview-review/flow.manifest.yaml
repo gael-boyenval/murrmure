@@ -1,0 +1,40 @@
+# Role: normative preview-review reference flow — intake → build ↔ review → done.
+apiVersion: murrmure.flow/v1
+name: preview-review
+description: Localhost preview review until validated
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: intake
+    checkpoint:
+      view: preview-review-intake
+      on_resolve:
+        default: { goto: build }
+        cancel: { fail: true }
+  - id: build
+    invoke:
+      space: "{{origin_space}}"
+      action: run_preview_agent
+      params:
+        preview_url: "{{input.preview_url}}"
+        feedback: "{{steps.review.output.comments}}"
+  - id: review
+    checkpoint:
+      view: preview-review
+      assignees: ["{{input.reviewer}}"]
+      on_resolve:
+        when: output.outcome
+        values:
+          validated: { goto: done }
+          changes_required: { goto: build }
+        default: { goto: done }
+        cancel: { fail: true }
+  - id: done
+    invoke:
+      space: "{{origin_space}}"
+      action: mark_validated

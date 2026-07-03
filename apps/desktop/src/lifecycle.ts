@@ -38,6 +38,49 @@ function createAbortSignal(timeoutMs: number): AbortSignal | undefined {
   return undefined;
 }
 
+const SHELL_DEV_HTML_MARKERS = ['id="root"', 'type="module"', "/src/main.tsx"] as const;
+
+export async function waitForShellDevReady(
+  baseUrl: string,
+  options: WaitForHubHealthOptions = {},
+): Promise<number> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const sleepImpl = options.sleepImpl ?? sleep;
+  const now = options.now ?? Date.now;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_HEALTH_TIMEOUT_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_HEALTH_INTERVAL_MS;
+  const url = new URL("/", baseUrl).toString();
+  const startedAt = now();
+  let attempt = 0;
+  let lastError: unknown = null;
+
+  while (now() - startedAt <= timeoutMs) {
+    attempt += 1;
+    try {
+      const response = await fetchImpl(url, {
+        method: "GET",
+        signal: createAbortSignal(Math.max(1_000, intervalMs * 2)),
+      });
+      if (response.ok) {
+        const body = await response.text();
+        if (SHELL_DEV_HTML_MARKERS.every((marker) => body.includes(marker))) {
+          return attempt;
+        }
+        lastError = new Error("Shell dev server response missing expected Vite shell markers.");
+      } else {
+        lastError = new Error(`Shell dev server returned ${response.status}.`);
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleepImpl(intervalMs);
+  }
+
+  const reason = lastError instanceof Error ? lastError.message : String(lastError ?? "unknown error");
+  throw new Error(`Shell dev server did not become ready in ${timeoutMs}ms (${reason}).`);
+}
+
 export async function waitForHubHealth(url: string, options: WaitForHubHealthOptions = {}): Promise<number> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const sleepImpl = options.sleepImpl ?? sleep;

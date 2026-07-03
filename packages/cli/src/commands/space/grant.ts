@@ -88,6 +88,10 @@ export const grantMintCommand = defineCommand({
       type: "string",
       description: "Comma-separated scopes (overrides template)",
     },
+    capabilities: {
+      type: "string",
+      description: "Comma-separated rev-1 capabilities (alias for --scopes)",
+    },
     "flow-acl": {
       type: "string",
       description: "Comma-separated flow ACL package ids (e.g. review-loop)",
@@ -108,7 +112,13 @@ export const grantMintCommand = defineCommand({
     const flowAcl = parseCommaList(
       typeof args["flow-acl"] === "string" ? args["flow-acl"] : undefined,
     );
-    const scopes = parseCommaList(typeof args.scopes === "string" ? args.scopes : undefined);
+    const scopes = parseCommaList(
+      typeof args.scopes === "string"
+        ? args.scopes
+        : typeof args.capabilities === "string"
+          ? args.capabilities
+          : undefined,
+    );
 
     const body: Record<string, unknown> = {
       label: String(args.label),

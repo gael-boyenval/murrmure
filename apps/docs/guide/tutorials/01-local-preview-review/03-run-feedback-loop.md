@@ -1,156 +1,64 @@
 # Part 3 — Run the feedback loop
 
-This section focuses on Murrmure communication between MCP and canvas until the instance reaches terminal `resolved`.
-You will run one review round, interpret the result, and either finish or loop.
+Run the indexed flow in Desktop and complete the human/agent loop until validated.
 
-## 1) Agent opens a session for the current preview
+## Pattern A — Flow-owned loop (default)
 
-Agent MCP call:
+The engine advances via `checkpoint.on_resolve` — no agent wait loop required for the happy path.
 
-```json
-{
-  "tool": "create_preview_review_session",
-  "input": {
-    "title": "Homepage pass 1",
-    "preview_url": "http://127.0.0.1:5173"
-  }
-}
-```
+1. Desktop → space home → **Run** on **preview-review**
+2. **Intake** opens in **ViewCanvasHost** — enter reviewer email + localhost preview URL → submit
+3. **Build** step runs `run_preview_agent` (agent may also invoke this between rounds)
+4. **Review** opens in **ViewCanvasHost** — preview iframe + comments
+5. Human chooses **Validated** or **Request changes**
+   - **Request changes** → engine jumps to **build** → back to review
+   - **Validated** → **done** → run completes
 
-Expected response includes:
-
-- `instance_id`
-- `canvas_path` (or enough identifiers to open the runtime row)
-- initial state `pending_review`
-
-Why this step: this creates the contract instance that both actors (agent + human) will coordinate on.
-
-## 2) Agent starts waiting for human review
-
-Agent MCP call:
+Resolve wire (view submit → hub):
 
 ```json
-{
-  "tool": "wait_for_human_review",
-  "input": { "instance_id": "inst_..." }
-}
+{ "disposition": "continue", "output": { "outcome": "validated", "comments": [] } }
 ```
 
-While no human action has happened yet, wait returns:
+Request changes:
 
 ```json
-{ "status": "pending", "state": "pending_review" }
+{ "disposition": "continue", "output": { "outcome": "changes_required", "comments": ["Fix header"] } }
 ```
 
-This means the agent stays blocked on human input.
+## Pattern B — Agent-owned loop (§B)
 
-Why this step: `wait_for_human_review` is your synchronization point; do not guess human intent from state polling.
+Same views and manifest; the agent drives round-trips with MCP waits:
 
-## 3) Human reviews in canvas
+1. Human completes intake (checkpoint resolves → build runs)
+2. Agent invokes build action with feedback from prior round
+3. Agent calls **`murrmure_wait_for_gate`** (or `murrmure_wait_for_run`) while human reviews in **ViewCanvasHost**
+4. On `changes_required`, agent reads `output.comments` from resolve payload and repeats from step 2
+5. On `validated`, run reaches terminal **done**
 
-Human actions in **Runtime → Instances → [your instance]**:
+Use Pattern B when the agent owns iteration timing; Pattern A when the flow graph alone coordinates rounds.
 
-1. Open canvas
-2. Inspect preview
-3. Click **Approve** or **Request changes**
+## Verify completion
 
-Canvas action effects:
-
-| Human action | Contract transition | New state | Wait result |
-|-------------|---------------------|-----------|-------------|
-| Approve | `human_approve` | `resolved` | `status: "resolved", outcome: "validated"` |
-| Request changes + comments | `human_request_changes` | `pending_agent` | `status: "resolved", outcome: "changes_required", comments: [...]` |
-
-Why this step: the canvas is the only place where a human decision should trigger contract transitions.
-
-## 4) Agent reacts to wait resolution
-
-### Branch A: validated
-
-If `wait_for_human_review` returns:
-
-```json
-{ "status": "resolved", "outcome": "validated", "state": "resolved" }
-```
-
-The workflow is done.
-
-### Branch B: changes required
-
-If `wait_for_human_review` returns:
-
-```json
-{
-  "status": "resolved",
-  "outcome": "changes_required",
-  "state": "pending_agent",
-  "comments": [{ "text": "..." }]
-}
-```
-
-The agent should fix the code and update the preview, then call:
-
-```json
-{
-  "tool": "signal_changes_applied",
-  "input": {
-    "instance_id": "inst_...",
-    "preview_url": "http://127.0.0.1:5173"
-  }
-}
-```
-
-That transition returns the instance to `pending_review`, and the agent calls `wait_for_human_review` again.
-
-Why this step: `status: "resolved"` means "the wait call completed", not always "the workflow is complete".
-
-## 4.1) Recommended agent decision logic
-
-Use this mental model after each wait result:
-
-1. If `status` is `pending`: keep waiting
-2. If `status` is `resolved` and `outcome` is `validated`: stop
-3. If `status` is `resolved` and `outcome` is `changes_required`: apply edits, call `signal_changes_applied`, then wait again
-
-## 5) Repeat until terminal resolution
-
-Loop pattern:
-
-1. Agent waits (`wait_for_human_review`)
-2. Human acts in canvas
-3. Wait resolves with `validated` or `changes_required`
-4. On `changes_required`, agent signals `signal_changes_applied`
-5. Repeat
-
-Think in rounds: each round ends only when human action resolves the current wait.
-
-## Pending vs resolved interpretation
-
-| Signal | Means |
-|-------|-------|
-| Wait `status: "pending"` | Human has not completed this review turn |
-| Wait `status: "resolved"` + `changes_required` | Handoff to agent; not done yet |
-| Wait `status: "resolved"` + `validated` | Review accepted and workflow done |
-| Contract `state: "resolved"` | Terminal completion |
-
-`wait` being resolved does **not** always mean the workflow is done; only `outcome: "validated"` in terminal state means done.
+- Run status: **completed**
+- Session journal shows checkpoint resolves and invoke steps
+- No contributor-only commands required — only `mrmr space apply` indexed the flow
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---------|-------|
-| Flow tools missing in MCP | `preview-review` is live and grant ACL includes it |
-| Wait stays pending forever | Human has not clicked an action in canvas |
-| Wait resolved with changes but loop did not continue | Agent did not call `signal_changes_applied` |
-| Wrong page reviewed | Agent passed stale `preview_url`; send updated URL in `signal_changes_applied` |
+| Symptom | Fix |
+|---------|-----|
+| Checkpoint shows shell form instead of view | Rebuild view `dist/`; re-run `mrmr space apply --strict` |
+| Build step missing feedback | Confirm review-step comment output is wired in manifest invoke params |
+| Agent cannot invoke build | Grant missing `flow:run`; run `mrmr grant mint` again |
 
-## Done criteria
+See [Troubleshooting](../../troubleshooting) and [Review workflow](../../review-workflow).
 
-You are finished when all are true:
+## Done
 
-- latest wait result is `status: "resolved"` with `outcome: "validated"`
-- instance state is `resolved`
-- no further `signal_changes_applied` calls are needed
+You completed Tutorial 1 — localhost preview review on v2 indexed flows with **ViewCanvasHost** checkpoints.
 
-- [Tutorial index](./index)
-- [How Murrmure fits together](../../how-it-fits-together)
+## Next tutorials
+
+- [Tutorial 2 — Multi-agent brief](../02-multi-agent-brief/)
+- [Flows tutorial (full authoring reference)](../../flows-tutorial)
