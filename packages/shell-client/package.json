@@ -18,5 +18,11 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gael-boyenval/murrmure.git",
+    "directory": "packages/shell-client"
+  },
+  "license": "ISC"
 }
