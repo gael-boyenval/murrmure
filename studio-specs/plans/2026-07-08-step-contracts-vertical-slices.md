@@ -985,15 +985,15 @@ steps:
 
 | Slice | Dev branch | Review PASS | Manual PASS | Merged |
 |-------|------------|-------------|-------------|--------|
-| VS-0 | | | | |
-| VS-1 | | | | |
-| VS-2 | | | | |
-| VS-3 | | | | |
-| VS-4 | | | | |
-| VS-5 | | | | |
-| VS-6 | | | | |
-| VS-7 | | | | |
-| VS-8 | | | | |
+| VS-0 | Bootstrap murrmuretuto + acceptance harness | ✅ PASS |
+| VS-1 | Contracts + StepContractCatalog compile | ✅ PASS |
+| VS-2 | Unified resolve API + linear runner | ✅ PASS |
+| VS-3 | Shell human resolve + ViewCanvasHost | ✅ PASS |
+| VS-4 | Safety invariants | ✅ PASS |
+| VS-5 | Discovery injection | ✅ PASS |
+| VS-6 | Step artifacts + workdirs | ✅ PASS |
+| VS-7 | Nested steps + engine-routed goto | ✅ PASS |
+| VS-8 | Hard cutover cleanup | ✅ PASS |
 
 **Final release:** merge VS-8 to main; tag release notes referencing v2.2 step contracts.
 
