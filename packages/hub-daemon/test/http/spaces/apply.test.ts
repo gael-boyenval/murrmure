@@ -521,7 +521,7 @@ describe("http/spaces/apply", () => {
     expect(flow.step_contract_catalog?.digest).toMatch(/^sha256:/);
   });
 
-  test("apply returns LEGACY_STEP_KIND warnings for invoke/checkpoint manifest", async () => {
+  test("apply rejects invoke/checkpoint manifest at parse (VS-8)", async () => {
     const legacyManifest = {
       apiVersion: "murrmure.flow/v1",
       name: "legacy-flow",
@@ -555,14 +555,8 @@ describe("http/spaces/apply", () => {
         },
       }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
     const body = await res.json();
-    const legacyWarnings = (body.warnings as Array<{ code: string }>).filter(
-      (w) => w.code === "LEGACY_STEP_KIND",
-    );
-    expect(legacyWarnings.length).toBeGreaterThanOrEqual(2);
-    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_legacy_warn`, { headers: auth() });
-    const flow = await flowRes.json();
-    expect(flow.step_contract_catalog).toBeUndefined();
+    expect(body.code).toBe("LEGACY_STEP_KIND");
   });
 });

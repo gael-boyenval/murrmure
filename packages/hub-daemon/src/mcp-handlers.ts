@@ -160,32 +160,6 @@ export function registerPlatformMcpHandlers(
     return data;
   });
 
-  registry.registerHandler("murrmure_complete_action", async (args, authCtx) => {
-    const run_id = String(args.run_id ?? "");
-    const step_id = String(args.step_id ?? "");
-    if (!run_id || !step_id) {
-      throw new Error("run_id and step_id are required");
-    }
-
-    const res = await fetch(
-      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/complete`,
-      {
-        method: "POST",
-        headers: mcpHeaders(authCtx),
-        body: JSON.stringify({ result: args.result ?? {} }),
-      },
-    );
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      throw new Error(
-        typeof data.message === "string"
-          ? data.message
-          : `Complete action failed (${res.status})`,
-      );
-    }
-    return data;
-  });
-
   registry.registerHandler("murrmure_resolve_step", async (args, authCtx) => {
     const run_id = String(args.run_id ?? "");
     const step_id = String(args.step_id ?? "");
@@ -315,33 +289,6 @@ export function registerPlatformMcpHandlers(
       body: JSON.stringify({ space_id: args.space_id }),
     });
     return assertHttpOk(res, "Cancel run");
-  });
-
-  registry.registerHandler("murrmure_wait_for_gate", async (args, authCtx) => {
-    const params = new URLSearchParams();
-    if (args.run_id) params.set("run_id", String(args.run_id));
-    if (args.session_id) params.set("session_id", String(args.session_id));
-    if (args.timeout_ms) params.set("timeout_ms", String(args.timeout_ms));
-    const res = await fetch(`${hubUrl()}/v1/gates/wait?${params}`, { headers: mcpHeaders(authCtx) });
-    return assertHttpOk(res, "Wait for gate");
-  });
-
-  registry.registerHandler("murrmure_resolve_gate", async (args, authCtx) => {
-    const gate_id = String(args.gate_id ?? "");
-    const res = await fetch(`${hubUrl()}/v1/gates/${encodeURIComponent(gate_id)}/resolve`, {
-      method: "POST",
-      headers: mcpHeaders(authCtx),
-      body: JSON.stringify({
-        decision: args.decision ?? "approved",
-        form_values: args.form_values,
-        resume_data: args.resume_data,
-      }),
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      throw new Error(typeof data.message === "string" ? data.message : `Resolve gate failed (${res.status})`);
-    }
-    return data;
   });
 
   registry.registerHandler("murrmure_wait_for_run", async (args, authCtx) => {

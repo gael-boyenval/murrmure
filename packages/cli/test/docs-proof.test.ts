@@ -67,12 +67,52 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
-  test("10-T1 — preview-review-v2 example passes apply lint (legacy manifest; strict fails until VS-8)", () => {
-    const murrmureRoot = join(REPO_ROOT, "examples/flows/preview-review-v2");
-    const bundle = readSpaceApplyBundle(murrmureRoot);
-    const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+  test("10-T1 — preview-review-v2 example passes apply lint (v2.2 step contracts)", () => {
+    assertStrictApply(join(REPO_ROOT, "examples/flows/preview-review-v2"), [
+      "preview-review",
+      "preview-review-intake",
+    ]);
+  });
+
+  test("10-T1b — preview-review manifest uses nested build + resolve_step", () => {
+    const manifestPath = join(
+      REPO_ROOT,
+      "examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml",
+    );
+    const readme = readFileSync(
+      join(REPO_ROOT, "examples/flows/preview-review-v2/README.md"),
+      "utf-8",
+    );
+    expect(readme).toMatch(/resolve_step|build\.build-loop/i);
+    expect(readme).not.toMatch(/murrmure_complete_action|murrmure_wait_for_gate/i);
+    const manifest = parseYaml(readFileSync(manifestPath, "utf-8")) as {
+      steps: Array<{ id: string; steps?: Array<{ id: string }> }>;
+    };
+    const build = manifest.steps.find((s) => s.id === "build");
+    expect(build?.steps?.some((c) => c.id === "review")).toBe(true);
+    expect(manifest.steps.some((s) => s.id === "review")).toBe(false);
+  });
+
+  test("10-T2 — team-brief-v2 example fails parse on legacy invoke (strict)", () => {
+    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/team-brief-v2"))).toThrow(
+      /LEGACY_STEP_KIND/,
+    );
+  });
+
+  test("10-T3 — daily-brief-v2 example fails parse on legacy checkpoint (strict)", () => {
+    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/daily-brief-v2"))).toThrow(
+      /LEGACY_STEP_KIND/,
+    );
+  });
+
+  test("10-U5 — demo-space fails parse on legacy invoke (strict)", () => {
+    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "demo-space"))).toThrow(/LEGACY_STEP_KIND/);
+  });
+
+  test("flows-tutorial example hello-authoring fails parse on legacy invoke (strict)", () => {
+    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/hello-authoring"))).toThrow(
+      /LEGACY_STEP_KIND/,
+    );
   });
 
   test("VS-1 — step-contract bridge doc exists", () => {
@@ -140,46 +180,13 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(strictLintFailures(warnings)).toEqual([]);
   });
 
-  test("10-T1b — preview-review manifest documents agent-owned orchestration variant", () => {
-    const manifestPath = join(
-      REPO_ROOT,
-      "examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml",
-    );
-    const readme = readFileSync(
-      join(REPO_ROOT, "examples/flows/preview-review-v2/README.md"),
-      "utf-8",
-    );
-    expect(readme).toMatch(/wait_for_gate|murrmure_wait_for_gate/i);
-    const manifest = parseYaml(readFileSync(manifestPath, "utf-8")) as {
-      steps: Array<{ checkpoint?: { on_resolve?: unknown } }>;
-    };
-    expect(manifest.steps.some((s) => s.checkpoint?.on_resolve)).toBe(true);
-  });
-
-  test("10-T2 — team-brief-v2 example emits legacy lint (strict fails until VS-8)", () => {
-    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/team-brief-v2"));
-    const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
-  });
-
-  test("10-T3 — daily-brief-v2 example emits legacy lint (strict fails until VS-8)", () => {
-    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/daily-brief-v2"));
-    const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
-  });
-
-  test("10-U5 — demo-space emits legacy lint (strict fails until VS-8)", () => {
-    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "demo-space"));
-    const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
-  });
-
-  test("flows-tutorial example hello-authoring emits legacy lint (strict fails until VS-8)", () => {
-    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/hello-authoring"));
-    const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+  test("VS-8 — tutorial docs exclude removed MCP tools", () => {
+    for (const rel of TUTORIAL_PAGES) {
+      const content = readFileSync(join(REPO_ROOT, rel), "utf-8");
+      expect(content, rel).not.toMatch(/murrmure_complete_action|murrmure_wait_for_gate|murrmure_resolve_gate/);
+    }
+    const mcpDoc = readFileSync(join(REPO_ROOT, "apps/docs/reference/mcp-tools.md"), "utf-8");
+    expect(mcpDoc).not.toMatch(/murrmure_complete_action|murrmure_wait_for_gate|murrmure_resolve_gate/);
   });
 });
 

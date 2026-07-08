@@ -104,7 +104,7 @@ npm install
 
 ### Step 2 — Live review layout
 
-Iframe left, feedback right. Preview URL comes from **build step output** — whatever keys the agent put in `murrmure_complete_action` result:
+Iframe left, feedback right. Preview URL comes from **`build.build-loop`** step output — whatever keys the agent put in the **`murrmure_resolve_step`** payload:
 
 ```tsx
 import { useEffect, useMemo, useState } from "react";
@@ -203,7 +203,7 @@ export function App() {
 }
 ```
 
-Optional: poll fresh run state with `useViewHubClient().runs.get(ctx.run_id)` if the iframe should update after agent calls `complete_action` again.
+Optional: poll fresh run state with `useViewHubClient().runs.get(ctx.run_id)` if the iframe should update after the agent resolves **`build.build-loop`** again.
 
 ### Step 3 — Build
 

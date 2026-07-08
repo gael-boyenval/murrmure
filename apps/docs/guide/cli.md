@@ -109,6 +109,8 @@ mrmr space apply --strict
 mrmr flow run flw_flows_preview_review --input '{}' --space spc_ui_sandbox
 ```
 
+`--strict` fails on lint errors including **`LEGACY_STEP_KIND`** — manifests with `invoke:` / `checkpoint:` / `gate:` top-level steps are rejected. Migrate to unified step contracts ([bridge](../../studio-specs/current/bridges/step-contract.md)).
+
 See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
 
 **Agent skill** (optional):

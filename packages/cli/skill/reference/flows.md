@@ -73,8 +73,4 @@ mrmr space status         # shows step_contract_catalog_digest per flow
 mrmr grant mint --capabilities flow:run,flow:read,action:invoke,step:resolve,space:read,journal:read
 ```
 
-Flow step completion uses `murrmure_resolve_step` — not `complete_action` or `wait_for_gate`.
-
-## Legacy (until VS-8)
-
-`invoke:` and `checkpoint:` still parse for existing spaces but `mrmr space apply --strict` emits `LEGACY_STEP_KIND`. See [flow-authoring.md](flow-authoring.md) for the pre-v2.2 shape.
+Flow step completion uses `murrmure_resolve_step` — not legacy complete-action or gate-wait MCP tools.

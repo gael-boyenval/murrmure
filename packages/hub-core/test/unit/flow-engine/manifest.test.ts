@@ -10,16 +10,24 @@ describe("flow-engine/conformance/manifest", () => {
     steps: [
       {
         id: "research",
-        invoke: { space: "spc_research", action: "overnight_research", params: { topic: "{{input.topic}}" } },
+        executor: { action: "overnight_research", params: { topic: "{{input.topic}}" } },
+        branches: {
+          completed: { schema: { type: "object" }, next: "approve" },
+          failed: { schema: { type: "object" }, next: null, fail_run: true },
+        },
       },
       {
         id: "approve",
-        gate: { form: { id: "review.v1", fields: [] }, assignees: ["reviewer"] },
+        presentation: { view: "review.v1" },
+        branches: {
+          validated: { schema: { type: "object" }, next: null },
+          cancel: { schema: { type: "object" }, next: null, fail_run: true },
+        },
       },
     ],
   };
 
-  test("valid manifest parses and compiles IR with digest", () => {
+  test("valid step-contract manifest parses and compiles IR with digest", () => {
     const parsed = parseFlowManifest(validManifest);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
@@ -29,9 +37,21 @@ describe("flow-engine/conformance/manifest", () => {
     const ir = compileFlowIr(parsed.value, "flw_morning_brief");
     expect(ir.flow_id).toBe("flw_morning_brief");
     expect(ir.steps).toHaveLength(2);
-    expect(ir.steps[0]?.kind).toBe("invoke");
-    expect(ir.steps[1]?.kind).toBe("gate");
+    expect(ir.steps[0]?.kind).toBe("step_contract");
+    expect(ir.steps[1]?.kind).toBe("step_contract");
     expect(ir.digest).toMatch(/^sha256:/);
+  });
+
+  test("rejects legacy invoke/checkpoint at parse time", () => {
+    const parsed = parseFlowManifest({
+      apiVersion: "murrmure.flow/v1",
+      name: "legacy",
+      start: { manual: true },
+      steps: [{ id: "a", invoke: { space: "spc_x", action: "hello" } }],
+    });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.code).toBe("LEGACY_STEP_KIND");
   });
 
   test("rejects fat flow with inline script step", () => {

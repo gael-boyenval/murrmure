@@ -3,8 +3,8 @@ import {
   compileStepContractCatalog,
   lintStepContractManifest,
   manifestUsesStepContracts,
-  findLegacyStepKinds,
 } from "../../../src/flow-engine/step-contract-compile.js";
+import { parseFlowManifest } from "../../../src/flow-engine/parse.js";
 import type { FlowManifest } from "@murrmure/contracts";
 
 const LINEAR_MANIFEST: FlowManifest = {
@@ -169,9 +169,9 @@ describe("flow-engine/step-contract-compile", () => {
     expect(warnings.some((w) => w.code === "DEAD_STEP" && w.step_id === "orphan")).toBe(true);
   });
 
-  test("lint reports legacy invoke/checkpoint on non-contract manifests", () => {
-    const legacy: FlowManifest = {
-      apiVersion: "murrmure.flow/v1",
+  test("lint reports legacy invoke/checkpoint via raw scan", () => {
+    const raw = {
+      apiVersion: "murrmure.flow/v1" as const,
       name: "legacy",
       start: { manual: true },
       steps: [
@@ -179,10 +179,10 @@ describe("flow-engine/step-contract-compile", () => {
         { id: "b", checkpoint: { view: "v", on_resolve: { default: { goto: "a" }, cancel: { fail: true } } } },
       ],
     };
-    const hits = findLegacyStepKinds(legacy);
-    expect(hits).toHaveLength(2);
-    const warnings = lintStepContractManifest(legacy, "flw_legacy");
-    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    const parsed = parseFlowManifest(raw);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.code).toBe("LEGACY_STEP_KIND");
   });
 
   test("catalog digest is stable for same manifest", () => {

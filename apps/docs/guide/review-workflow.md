@@ -1,4 +1,4 @@
-# Review workflow (v2 indexed)
+# Review workflow (v2.2 step contracts)
 
 Canonical human/agent preview review on **indexed flows** — example: [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2).
 
@@ -7,10 +7,10 @@ Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrm
 ## Overview
 
 ```text
-intake checkpoint → build → review checkpoint ⇄ build → done
+intake → write_spec → build (build-loop ⇄ build.review) → archive → commit
 ```
 
-Humans work in **ViewCanvasHost** (custom views at checkpoint steps). Shell chrome is **operator/admin mode**.
+Humans work in **ViewCanvasHost** at human steps (`presentation.view`). Shell chrome is **operator/admin mode**.
 
 ## Setup
 
@@ -20,36 +20,33 @@ cd ../preview-review && npm install && npm run build
 cd ../../..
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
-mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read
+mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:resolve,action:invoke,space:read
 ```
 
-## Pattern A — Flow-owned loop
+## Engine-routed nested build
 
 1. Desktop **Run** on **preview-review**
-2. Intake view in **ViewCanvasHost** — reviewer + preview URL
-3. Build invoke runs `run_preview_agent`
-4. Review view — human validates or requests changes
-5. `on_resolve` branches: `changes_required` → build; `validated` → done
-
-## Pattern B — Agent-owned loop
-
-Same manifest; agent uses **`murrmure_wait_for_gate`** / **`murrmure_wait_for_run`** between rounds while human uses **ViewCanvasHost**.
+2. Intake view — attach spec file
+3. **`feature_build`** shell spawn (one session)
+4. Agent resolves **`build.build-loop`** with `preview_url`
+5. Engine opens **`build.review`** — human validates or sends feedback
+6. Feedback → engine reopens **`build.build-loop`** in same agent session
 
 ## Session and run ids
 
 | Id | Role |
 |----|------|
 | `ses_…` | Session — journal, notifications, Desktop title |
-| `run_…` | Single flow execution; pauses at checkpoints |
-| Resolve wire | `{ disposition: "continue" \| "cancel", output: { … } }` |
+| `run_…` | Single flow execution; pauses at human steps |
+| Resolve wire | `{ branch, payload, artifacts_out? }` via **`murrmure_resolve_step`** |
 
 ## Agent tools (platform MCP)
 
 | Step | Tool |
 |------|------|
-| Invoke build | `murrmure_invoke_action` |
-| Wait for human | `murrmure_wait_for_gate` or `murrmure_wait_for_run` |
-| Resolve (imperative gates) | `murrmure_resolve_gate` |
+| Complete agent step | `murrmure_resolve_step` |
+| Wait for human / run advance | `murrmure_wait_for_run` |
+| Read contract | `active-step-contract.json` or `murrmure_list_step_contracts` |
 
 ## Tutorial
 
@@ -58,5 +55,4 @@ Full walkthrough: [Tutorial 1 — Local preview review](./tutorials/01-local-pre
 ## Related
 
 - [View SDK](../reference/view-sdk)
-- [Shell routes](./shell-routes) — ViewCanvasHost vs admin chrome
-- [Troubleshooting](./troubleshooting)
+- [MCP tools](../reference/mcp-tools)

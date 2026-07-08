@@ -7,16 +7,16 @@ Symptom → likely cause → fix. Read [known-gaps.md](known-gaps.md) before ass
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Flow not in space status | Not applied | `mrmr space apply --strict` |
-| `UNSUPPORTED_STEP_KIND` | Step kind not in engine dispatch | Use `invoke`, `checkpoint`, `parallel.matrix`, `start_flow` |
+| `UNSUPPORTED_STEP_KIND` | Step kind not in engine dispatch | Use step contracts (`branches` + `executor` / `presentation`) |
+| `LEGACY_STEP_KIND` | `invoke:` / `checkpoint:` in manifest | Migrate to step contracts v2.2 |
 | `CHECKPOINT_VIEW_DIST_MISSING` | View not built | `npm run build` in view package, re-apply |
-| `CHECKPOINT_ON_RESOLVE_*` | Missing default/cancel | Add explicit `on_resolve.default` and `cancel` |
 | Apply succeeds but run fails | Stale digest | Re-apply; confirm digest in `mrmr space status` |
 
 ## Runs & checkpoints
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Run stuck `input-required` | Pending checkpoint | Human resolves in view or agent calls `murrmure_resolve_gate` |
+| Run stuck `input-required` | Pending human step | Human resolves in view or agent uses `murrmure_resolve_step` |
 | View blank / fallback panel | Missing dist or wrong view_ref | Build view; check apply warnings |
 | Wrong routing after resolve | `on_resolve` mismatch | Match `when`/`values` to view `submit()` shape |
 | Template unresolved | Referenced step not complete | Ensure step id exists and completed before consumer |

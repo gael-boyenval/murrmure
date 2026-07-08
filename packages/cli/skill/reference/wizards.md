@@ -26,7 +26,7 @@ mrmr space onboard --json  # prints step plan, exits
 
 Grant capabilities minted by setup (rev-1):
 
-`space:read,flow:run,flow:read,action:invoke,gate:resolve,journal:read`
+`space:read,flow:run,flow:read,action:invoke,step:resolve,journal:read`
 
 ## Space scaffold
 
@@ -47,10 +47,10 @@ Grant capabilities minted by setup (rev-1):
 | Human | Agent |
 |-------|-------|
 | Shell **Run** button | `mrmr flow run flw_<name> --input '{}' --json` |
-| ViewCanvasHost approve/reject | `murrmure_wait_for_gate` → human resolves in view (agent does not click UI) |
-| Gate inbox (operator) | `murrmure_resolve_gate` with `{ disposition, output }` |
+| ViewCanvasHost approve/reject | Human resolves via view `submit()` → `resolve_step` (agent uses `murrmure_wait_for_run`) |
+| Gate inbox (operator) | HTTP `POST /v1/gates/{id}/resolve` for orchestration attach |
 
-**North star:** onboarding ends at **Run** → **ViewCanvasHost** custom view at checkpoint steps.
+**North star:** onboarding ends at **Run** → **ViewCanvasHost** custom view at human steps.
 
 ## MCP connection
 

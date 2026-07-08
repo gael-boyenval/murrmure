@@ -204,7 +204,7 @@ MCP equivalents: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_
 
 Legacy space-scoped resolve: `POST /v1/spaces/{id}/gates/{gate}/resolve` (prefer global v2 path).
 
-MCP: `murrmure_wait_for_gate`, `murrmure_resolve_gate`.
+Orchestration gate resolve remains on HTTP for operator attach flows. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate MCP tools.
 
 ## Platform v2 — Notifications & profile
 

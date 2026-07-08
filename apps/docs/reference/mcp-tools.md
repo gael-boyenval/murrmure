@@ -2,7 +2,7 @@
 
 Murrmure exposes grant-filtered MCP tools via `murrmure mcp` → `POST /v1/mcp/tools/call`.
 
-Platform tools are filtered by grant **capabilities** (scopes). Indexed flow work uses **`murrmure_invoke_action`** and gate/run wait tools — not per-package mount tool names.
+Platform tools are filtered by grant **capabilities** (scopes). Flow step completion uses **`murrmure_resolve_step`** — not legacy complete-action or gate-wait tools.
 
 ## Cross-space query
 
@@ -43,14 +43,11 @@ Example arguments:
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | `murrmure_invoke_action` | `action:invoke` | `POST /v1/spaces/{id}/actions/{name}/invoke` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — branch + payload (+ optional `artifacts_out`) |
-| ~~`murrmure_complete_action`~~ | `action:invoke` | **Deprecated for flow steps** — use `murrmure_resolve_step`. Removed VS-8. |
 
 ## v2 wait & journal tools (batch 2)
 
 | Tool | Capability | HTTP |
 |------|------------|------|
-| `murrmure_wait_for_gate` | `space:read` | long-poll `GET /v1/gates/wait` |
-| `murrmure_resolve_gate` | `gate:resolve` | `POST /v1/gates/{id}/resolve` |
 | `murrmure_wait_for_run` | `space:read` | long-poll `GET /v1/runs/wait` |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
 
@@ -62,7 +59,13 @@ See [Connect your agent](../guide/agents-mcp) for grant setup.
 
 ## Removed v1 platform tools
 
-`get_space_state`, `transition`, `wait_for_state`, `emit_event`, `contract_versions` — **fully removed** (phase 16). Use v2 tools above; verify connectivity with **`murrmure_space_status`**.
+`get_space_state`, `transition`, `wait_for_state`, `emit_event`, `contract_versions` — **fully removed** (phase 16).
+
+## Removed VS-8 flow step tools
+
+Legacy complete-action and gate-wait MCP tools — **fully removed**. Use **`murrmure_resolve_step`** and **`murrmure_wait_for_run`**.
+
+Orchestration approval gates remain on the HTTP API (`POST /v1/gates/{id}/resolve`) for operator attach flows — not exposed as MCP tools.
 
 ## Identity
 

@@ -48,7 +48,7 @@ Reload the IDE after saving. See [Connect your agent (MCP)](../../agents-mcp).
 |----------------|-----------|
 | Open brief | `murrmure_invoke_action` → `team_brief_open` |
 | Edit sections | Patch actions (skill-defined or custom indexed actions) |
-| Wait for human publish | `murrmure_wait_for_gate` on **publish** step |
+| Wait for human publish | `murrmure_wait_for_run` while **publish** step is active |
 | Query knowledge | `murrmure_query_ask` targeting `spc_knowledge` |
 
 Start the flow manually in Desktop or via `mrmr flow run` on `team-brief`.

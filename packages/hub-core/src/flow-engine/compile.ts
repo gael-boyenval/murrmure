@@ -31,41 +31,6 @@ function stepToIr(step: FlowStep): FlowStepIr {
   if (isStepContractStep(step)) {
     return stepContractToIr(step, step.id, null);
   }
-  if (step.invoke) {
-    return {
-      id: step.id,
-      kind: "invoke",
-      invoke: {
-        space: step.invoke.space,
-        action: step.invoke.action,
-        params: step.invoke.params,
-        artifacts_in: step.invoke.artifacts_in,
-      },
-    };
-  }
-  if (step.gate) {
-    return {
-      id: step.id,
-      kind: "gate",
-      gate: {
-        form: step.gate.form?.id,
-        assignees: step.gate.assignees,
-      },
-    };
-  }
-  if (step.checkpoint) {
-    return {
-      id: step.id,
-      kind: "gate",
-      gate: {
-        assignees: step.checkpoint.assignees,
-        view_id: step.checkpoint.view,
-        on_resolve: step.checkpoint.on_resolve,
-        merge_input: step.checkpoint.merge_input,
-        payload_ref: step.checkpoint.payload_ref,
-      },
-    };
-  }
   if (step.parallel) {
     return {
       id: step.id,

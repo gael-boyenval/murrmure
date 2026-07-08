@@ -6,7 +6,7 @@ Murrmure agents connect through **MCP**. Humans use **Murrmure Desktop**; admins
 
 ## What MCP gives your agent
 
-- Platform tools: `murrmure_space_status`, `murrmure_invoke_action`, `murrmure_wait_for_gate`, …
+- Platform tools: `murrmure_space_status`, `murrmure_invoke_action`, `murrmure_resolve_step`, `murrmure_wait_for_run`, …
 - Grant-filtered catalog scoped to `MURRMURE_SPACE_ID`
 - v2 indexed flows after `mrmr space apply`
 

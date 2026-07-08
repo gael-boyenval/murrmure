@@ -25,8 +25,9 @@ Backlog symptoms B1–B10: **closed** — see [known-gaps](../../apps/docs/guide
 
 ## Active work
 
-| Track | Next step |
-|-------|-----------|
+| Track | Status |
+|-------|--------|
+| **Step contracts v2.2** | **Shipped** (VS-8) — [vertical slices plan](./2026-07-08-step-contracts-vertical-slices.md), [normative spec](./2026-07-07-step-contracts-unified-state-machine.md) |
 | Tutorial 1 unblock | Execute [Phase A plan](./2026-07-07-tutorial1-phase-a-desktop-auth-plan.md) — start with manual investigation (A.0) in agentStudioTestEnv |
 
 ## Other deferred scope

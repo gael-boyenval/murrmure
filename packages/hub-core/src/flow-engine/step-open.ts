@@ -5,7 +5,7 @@ import { buildHumanStepNotificationDrafts } from "../projections/notifications.j
 import { resolveStepParams, resolveStepSpace } from "./templates.js";
 import type { FlowStepDispatch } from "./types.js";
 import { resolveSpaceRoot } from "../invoke/resolve.js";
-import { flowStepContractCatalog } from "./step-catalog.js";
+import { flowStepContractCatalog, nestedCatalogChildren } from "./step-catalog.js";
 import { buildStepContractSlice, writeActiveStepContract } from "./step-contract-slice.js";
 import { ensureStepWorkdir } from "./step-artifacts.js";
 
@@ -38,6 +38,8 @@ export async function openStepContract(
     actor_id: string;
     token_id: string;
     journal?: StepOpenJournal;
+    /** When true, do not auto-open first nested child (internal reopen). */
+    skip_nested_bootstrap?: boolean;
   },
 ): Promise<void> {
   const ts = deps.clock.nowIso();
@@ -131,17 +133,42 @@ export async function openStepContract(
   if (run?.flow_id) {
     const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
     const catalog = flowStepContractCatalog(flowEntry);
-    const bindings = await deps.studio.getSpaceBindings(spaceBare);
-    const space_root = resolveSpaceRoot(bindings);
-    if (catalog && space_root) {
-      await ensureStepWorkdir(space_root, input.run_id, input.step_id);
-      const slice = buildStepContractSlice({
-        entry: input.entry,
-        exec_context: input.exec_context,
-        run_id: input.run_id,
-        space_root,
-      });
-      await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
+    if (catalog) {
+      let bootstrappedChild = false;
+      if (!input.skip_nested_bootstrap && !input.entry.parent_id) {
+        const children = nestedCatalogChildren(catalog, input.step_id);
+        const firstChild = children[0];
+        if (firstChild) {
+          bootstrappedChild = true;
+          await openStepContract(deps, {
+            run_id: input.run_id,
+            session_id: input.session_id,
+            space_id: input.space_id,
+            step_id: firstChild.step_id,
+            entry: firstChild,
+            exec_context: input.exec_context,
+            actor_id: input.actor_id,
+            token_id: input.token_id,
+            journal: input.journal,
+            skip_nested_bootstrap: true,
+          });
+        }
+      }
+
+      if (!bootstrappedChild) {
+        const bindings = await deps.studio.getSpaceBindings(spaceBare);
+        const space_root = resolveSpaceRoot(bindings);
+        if (space_root) {
+          await ensureStepWorkdir(space_root, input.run_id, input.step_id);
+          const slice = buildStepContractSlice({
+            entry: input.entry,
+            exec_context: input.exec_context,
+            run_id: input.run_id,
+            space_root,
+          });
+          await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
+        }
+      }
     }
   }
 }

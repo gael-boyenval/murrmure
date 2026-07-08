@@ -103,7 +103,7 @@ actions:
 
 1. Agent reads `{{murrmure.agentStepContract}}` in the initial prompt
 2. During the loop, re-read `.mrmr.temp/runs/{run_id}/active-step-contract.json`
-3. Complete steps with **`murrmure_resolve_step`** (not `murrmure_complete_action`)
+3. Complete steps with **`murrmure_resolve_step`**
 4. Optional discovery: **`murrmure_list_step_contracts`** returns the active slice + `graph_digest`
 
 ### What Murrmure does not do

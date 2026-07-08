@@ -19,6 +19,20 @@ export function topLevelCatalogSteps(catalog: StepContractCatalog): StepContract
   return catalog.entries.filter((e) => e.parent_id === null);
 }
 
+export function nestedCatalogChildren(
+  catalog: StepContractCatalog,
+  parent_id: string,
+): StepContractCatalogEntry[] {
+  const order = catalog.step_ids;
+  return catalog.entries
+    .filter((e) => e.parent_id === parent_id)
+    .sort((a, b) => order.indexOf(a.step_id) - order.indexOf(b.step_id));
+}
+
+export function parentHasNestedChildren(catalog: StepContractCatalog, parent_id: string): boolean {
+  return nestedCatalogChildren(catalog, parent_id).length > 0;
+}
+
 export function isTopLevelStepContractStep(
   catalog: StepContractCatalog | null | undefined,
   step_id: string,

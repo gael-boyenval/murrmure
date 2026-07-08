@@ -1,8 +1,8 @@
 import { FlowManifestSchema, type FlowManifest, type FlowStep } from "@murrmure/contracts";
 import type { ParseResult } from "./parse-actions.js";
-import { findLegacyStepKinds } from "../flow-engine/step-contract-compile.js";
+import { findLegacyStepKinds, rejectLegacyStepKinds } from "../flow-engine/step-contract-compile.js";
 
-export { findLegacyStepKinds as detectLegacyStepKinds };
+export { findLegacyStepKinds as detectLegacyStepKinds, rejectLegacyStepKinds };
 
 const INLINE_SCRIPT_KEYS = ["script", "run", "shell", "command"] as const;
 
@@ -52,6 +52,9 @@ export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
   const guard = rejectInlineScriptSteps(raw);
   if (!guard.ok) return guard;
 
+  const legacy = rejectLegacyStepKinds(raw);
+  if (!legacy.ok) return legacy;
+
   const parsed = FlowManifestSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -68,9 +71,8 @@ export function collectStepSpaces(manifest: FlowManifest, originSpaceId: string)
   const spaces = new Set<string>([originSpaceId]);
   const walk = (steps: FlowStep[]) => {
     for (const step of steps) {
-      if (step.invoke?.space) spaces.add(step.invoke.space);
       if (step.executor?.space) spaces.add(step.executor.space);
-      if (step.parallel?.lane) walk(step.parallel.lane);
+      if (step.parallel?.lane) walk(step.parallel.lane as FlowStep[]);
       if (step.steps) walk(step.steps as FlowStep[]);
     }
   };

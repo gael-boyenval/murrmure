@@ -51,7 +51,7 @@ In Cursor:
 
 > Call murrmure_space_status and list indexed flows.
 
-Confirm **`murrmure_complete_action`** appears in the MCP catalog (requires `action:invoke` grant).
+Confirm **`murrmure_resolve_step`** appears in the MCP catalog (requires `step:resolve` grant).
 
 ## What apply does not index
 

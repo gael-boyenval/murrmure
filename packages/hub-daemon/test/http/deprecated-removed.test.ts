@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-describe("http/deprecated-removed (phase 16 + 18)", () => {
+describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let spaceId: string;
@@ -43,7 +43,10 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
       method: "POST",
       headers: bootstrap(),
-      body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run", "action:invoke"] }),
+      body: JSON.stringify({
+        label: "agent",
+        scopes: ["space:read", "flow:run", "action:invoke", "step:resolve", "gate:resolve"],
+      }),
     });
     token = (await grantRes.json()).token;
   });
@@ -118,6 +121,15 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     expect(res.status).toBe(404);
   });
 
+  test("POST /v1/runs/{id}/steps/{step_id}/complete returns 404", async () => {
+    const res = await fetch(`${baseUrl}/v1/runs/run_demo/steps/build/complete`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ result: { preview_url: "http://127.0.0.1:5173" } }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   test("MCP catalog excludes v1 platform tools", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -130,6 +142,24 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     }
     expect(names).toContain("murrmure_invoke_action");
     expect(names).toContain("murrmure_emit_event");
+  });
+
+  test("MCP catalog excludes VS-8 removed flow step tools", async () => {
+    const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const { tools } = (await res.json()) as { tools: Array<{ name: string }> };
+    const names = tools.map((t) => t.name);
+    for (const removed of [
+      "murrmure_complete_action",
+      "murrmure_wait_for_gate",
+      "murrmure_resolve_gate",
+    ]) {
+      expect(names).not.toContain(removed);
+    }
+    expect(names).toContain("murrmure_resolve_step");
+    expect(names).toContain("murrmure_wait_for_run");
   });
 
   test("MCP catalog includes murrmure_emit_event when grant has event:emit", async () => {

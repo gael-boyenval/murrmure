@@ -1,6 +1,6 @@
 # Bridge — Step contracts (v2.2)
 
-**Status:** Normative (VS-1 — compile + catalog; resolve runtime ships VS-2+)  
+**Status:** Normative — **shipped** (VS-8)  
 **Spec:** [step contracts v2.2](../../plans/2026-07-07-step-contracts-unified-state-machine.md)
 
 Murrmure flow steps use **one authoring shape**: optional `executor`, optional `presentation`, required `branches`, optional nested `steps`. There is no parallel `invoke:` / `checkpoint:` runtime kind in the target model.

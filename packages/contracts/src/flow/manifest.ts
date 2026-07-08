@@ -94,10 +94,7 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
     presentation: StepPresentationSchema.optional(),
     branches: z.record(StepBranchDefinitionSchema).optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
-    invoke: FlowInvokeStepSchema.optional(),
     parallel: FlowParallelStepSchema.optional(),
-    gate: FlowGateStepSchema.optional(),
-    checkpoint: FlowCheckpointStepSchema.optional(),
     start_flow: FlowStartFlowStepSchema.optional(),
   }),
 );
@@ -110,10 +107,7 @@ export type FlowStep = {
   presentation?: z.infer<typeof StepPresentationSchema>;
   branches?: Record<string, z.infer<typeof StepBranchDefinitionSchema>>;
   steps?: StepContractManifestStep[];
-  invoke?: z.infer<typeof FlowInvokeStepSchema>;
   parallel?: z.infer<typeof FlowParallelStepSchema>;
-  gate?: z.infer<typeof FlowGateStepSchema>;
-  checkpoint?: z.infer<typeof FlowCheckpointStepSchema>;
   start_flow?: z.infer<typeof FlowStartFlowStepSchema>;
 };
 

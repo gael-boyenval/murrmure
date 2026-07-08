@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 import { ulid } from "ulid";
-import { JOURNAL_EVENT_TYPES, type Capability, type Session, ActionCompleteBodySchema } from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES, type Capability, type Session } from "@murrmure/contracts";
 import {
   cancelRun,
   cancelSession,
@@ -20,7 +20,6 @@ import {
   isOrchestrationGate,
   compileFlowIr,
   mergeActionResultIntoRun,
-  completeDispatchedAction,
   flowStepContractCatalog,
   requiresExplicitResolve,
   findActiveHumanStep,
@@ -402,12 +401,13 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
         exec_context: r.exec_context,
       }));
 
-    const { buildRunGraph } = await import("@murrmure/hub-core");
+    const { buildRunGraph, flowStepContractCatalog } = await import("@murrmure/hub-core");
     const graph = buildRunGraph({
       run_id: `run_${bare}`,
       flow_id: row.flow_id ?? pendingFlowId,
       flow_digest: row.flow_digest ?? ir?.digest,
       ir,
+      step_contract_catalog: flowStepContractCatalog(entry),
       step_memos: steps,
       siblings,
     });
@@ -451,82 +451,6 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     });
 
     return c.json(result.run);
-  });
-
-  app.post("/v1/runs/:run_id/steps/:step_id/complete", async (c) => {
-    const run_id = c.req.param("run_id");
-    const step_id = c.req.param("step_id");
-    const auth = await requireToken(murrmurePersistence, c.req.raw);
-    if (auth instanceof Response) return auth;
-    const effective = await caps(ctx, auth);
-    const scopeCheck = requireCapability(auth, "action:invoke", effective);
-    if (scopeCheck) return scopeCheck;
-
-    const body = ActionCompleteBodySchema.safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) {
-      return c.json({ code: "INVALID_BODY", message: "Complete body failed validation" }, 400);
-    }
-
-    const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-    const run = await murrmurePersistence.getRun(bare);
-    if (!run) {
-      return c.json({ code: "RUN_NOT_FOUND", message: "Run not found" }, 404);
-    }
-
-    const space_id = run.space_id ? prefixedSpaceId(run.space_id) : prefixedSpaceId(bareSpaceId(auth.space_id));
-
-    const journal = {
-      append: async (input: {
-        type: string;
-        space_id: string;
-        session_id?: string;
-        run_id?: string;
-        step_id?: string;
-        actor_id: string;
-        token_id: string;
-        data: Record<string, unknown>;
-      }) => {
-        await handler.appendSpaceJournal({
-          type: input.type,
-          space_id: input.space_id,
-          session_id: input.session_id,
-          run_id: input.run_id,
-          actor_id: input.actor_id,
-          token_id: input.token_id,
-          data: {
-            ...input.data,
-            step_id: input.step_id,
-          },
-        });
-
-        await projectStepMemoFromJournal(ctx, {
-          run_id: input.run_id,
-          step_id: input.step_id,
-          type: input.type,
-          ts: new Date().toISOString(),
-          result:
-            input.data.result && typeof input.data.result === "object"
-              ? (input.data.result as Record<string, unknown>)
-              : undefined,
-        });
-      },
-    };
-
-    const result = await completeDispatchedAction(murrmurePersistence, journal, {
-      run_id,
-      step_id,
-      actor_id: auth.actor_id,
-      token_id: auth.token_id,
-      space_id,
-      session_id: run.session_id ? `ses_${run.session_id}` : undefined,
-      result: body.data.result,
-    });
-
-    if (!result.ok) {
-      return c.json({ code: result.code, message: result.message }, result.http as 404 | 409);
-    }
-
-    return c.json({ ok: true, dispatch: result.outcome }, 200);
   });
 
   app.post("/v1/runs/:run_id/retry", async (c) => {

@@ -43,6 +43,49 @@ export interface StepContractCompileResult {
 
 const LEGACY_STEP_KEYS = ["invoke", "checkpoint", "gate"] as const;
 
+export function scanRawLegacyStepKinds(
+  raw: unknown,
+): Array<{ step_id: string; key: (typeof LEGACY_STEP_KEYS)[number] }> {
+  if (!raw || typeof raw !== "object") return [];
+  const steps = (raw as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return [];
+
+  const hits: Array<{ step_id: string; key: (typeof LEGACY_STEP_KEYS)[number] }> = [];
+  for (const step of steps) {
+    if (!step || typeof step !== "object") continue;
+    const record = step as Record<string, unknown>;
+    const stepId = typeof record.id === "string" ? record.id : "(unknown)";
+    for (const key of LEGACY_STEP_KEYS) {
+      if (key in record && record[key] !== undefined) {
+        hits.push({ step_id: stepId, key });
+      }
+    }
+    const parallel = record.parallel as { lane?: unknown[] } | undefined;
+    if (Array.isArray(parallel?.lane)) {
+      for (const lane of parallel.lane) {
+        if (!lane || typeof lane !== "object") continue;
+        const laneRecord = lane as Record<string, unknown>;
+        const laneId = typeof laneRecord.id === "string" ? laneRecord.id : "(unknown)";
+        if (laneRecord.invoke !== undefined) hits.push({ step_id: laneId, key: "invoke" });
+        if (laneRecord.gate !== undefined) hits.push({ step_id: laneId, key: "gate" });
+      }
+    }
+  }
+  return hits;
+}
+
+export function rejectLegacyStepKinds(raw: unknown): ParseResult<unknown> {
+  const hits = scanRawLegacyStepKinds(raw);
+  if (hits.length === 0) return { ok: true, value: raw };
+  const first = hits[0]!;
+  return {
+    ok: false,
+    code: "LEGACY_STEP_KIND",
+    message: `Step '${first.step_id}' uses deprecated '${first.key}:' — migrate to unified step contracts (${STEP_CONTRACT_MIGRATION_DOC})`,
+    details: hits,
+  };
+}
+
 export function isStepContractStep(step: FlowStep | StepContractManifestStep): boolean {
   return Boolean(step.branches && Object.keys(step.branches).length > 0);
 }

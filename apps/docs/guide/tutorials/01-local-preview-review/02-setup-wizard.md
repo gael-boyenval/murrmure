@@ -41,16 +41,16 @@ Paste into `.cursor/mcp.json`:
 
 Reload Cursor. Test: *“Call murrmure_space_status.”*
 
-Grant must include **`action:invoke`** (for `murrmure_complete_action`) and **`space:read`** (for `murrmure_wait_for_gate`).
+Grant must include **`action:invoke`**, **`step:resolve`**, and **`space:read`**.
 
 ### Platform skill — purpose
 
 Teaches Cursor **protocol** behavior:
 
 - How to read run / session ids
-- `murrmure_wait_for_gate` while humans review
-- `murrmure_complete_action` for long-running build steps
-- Resolve wire shape
+- **`murrmure_resolve_step`** for flow step completion
+- **`murrmure_wait_for_run`** while humans review
+- **`active-step-contract.json`** contract file loop
 
 It does **not** define your feature build loop — that comes in Part 3 (`agent.md` + **feature-build** space skill).
 

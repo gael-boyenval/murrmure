@@ -31,8 +31,6 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_space_status", required_scope: "space:read", description: "Indexed digests and counts for a space" },
   { name: "murrmure_grant_mint", required_scope: "space:admin", description: "Mint an agent grant (CLI preferred in v2)" },
   { name: "murrmure_invoke_action", required_scope: "action:invoke", description: "Invoke a space-indexed action" },
-  // Deprecated for flow step completion (VS-8 removes) — use murrmure_resolve_step for step_contract flows.
-  { name: "murrmure_complete_action", required_scope: "action:invoke", description: "[deprecated] Report completion for a dispatched invoke step — prefer murrmure_resolve_step" },
   { name: "murrmure_resolve_step", required_scope: "step:resolve", description: "Resolve an active flow step (branch + payload + optional artifacts_out)" },
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
   { name: "murrmure_emit_event", required_scope: "event:emit", description: "Emit a platform event from the caller space (source inferred)" },
@@ -45,8 +43,6 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_get_run_graph", required_scope: "flow:read", description: "Get run flowchart graph (manifest overlay + step memo)" },
   { name: "murrmure_attach_orchestration", required_scope: "flow:run", description: "Agent-push murrmure.flow.attach/v1; creates orchestration.validate gate" },
   { name: "murrmure_cancel_run", required_scope: "gate:resolve", description: "Cancel an in-flight run" },
-  { name: "murrmure_wait_for_gate", required_scope: "space:read", description: "Long-poll pending gates on run/session" },
-  { name: "murrmure_resolve_gate", required_scope: "gate:resolve", description: "Resolve a pending gate" },
   { name: "murrmure_wait_for_run", required_scope: "space:read", description: "Long-poll until run reaches terminal lifecycle" },
   { name: "murrmure_journal_query", required_scope: "journal:read", description: "Query journal entries with filters" },
 ];

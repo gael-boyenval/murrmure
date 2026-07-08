@@ -1,8 +1,8 @@
-# Role: mixed orchestration — write_spec (shell) → build (shell + agent loop) → review → archive → commit.
-# Interim linear v2.2 manifest — top-level review until VS-7 nested build.
+# Role: mixed orchestration — write_spec (shell) → build (shell + nested review loop) → archive → commit.
+# v2.2 nested manifest — review lives under build; engine-routed goto opens build.review.
 apiVersion: murrmure.flow/v1
 name: preview-review
-description: Spec intake → write → build (agent loop) → review → archive → commit
+description: Spec intake → write → build (agent loop + review) → archive → commit
 
 triggers:
   manual: true
@@ -47,40 +47,50 @@ steps:
         fail_run: true
 
   - id: build
-    description: Build site; resolve when preview URL is ready.
+    description: Build site and human review loop until validated.
+    orchestration: engine-routed
     executor:
       action: feature_build
       params:
         spec_filename: "{{input.spec_filename}}"
+    steps:
+      - id: build-loop
+        description: Implement site; resolve when preview URL ready.
+        branches:
+          completed:
+            schema:
+              type: object
+              required: [preview_url]
+              properties:
+                preview_url: { type: string }
+            goto: review
+          failed:
+            schema: { type: object }
+            fail: true
+      - id: review
+        description: Human validates preview — wait; do not resolve yourself.
+        presentation:
+          view: preview-review
+          assignees: ["{{input.reviewer}}"]
+        branches:
+          validated:
+            schema: { type: object }
+            complete: parent
+          changes_required:
+            schema:
+              type: object
+              properties:
+                comments: { type: array }
+            continue: parent
+            goto: build-loop
+          cancel:
+            schema: { type: object }
+            fail: true
     branches:
       completed:
-        schema:
-          type: object
-          required: [preview_url]
-          properties:
-            preview_url: { type: string }
-        next: review
-      failed:
-        schema: { type: object }
-        next: null
-        fail_run: true
-
-  - id: review
-    description: Human validates preview.
-    presentation:
-      view: preview-review
-      assignees: ["{{input.reviewer}}"]
-    branches:
-      validated:
         schema: { type: object }
         next: archive
-      changes_required:
-        schema:
-          type: object
-          properties:
-            comments: { type: array }
-        next: build
-      cancel:
+      failed:
         schema: { type: object }
         next: null
         fail_run: true

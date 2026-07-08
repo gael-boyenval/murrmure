@@ -12,10 +12,10 @@ const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const EXAMPLE_ROOT = join(REPO_ROOT, "examples/flows/preview-review-v2");
 const MURRMURE_ROOT = join(EXAMPLE_ROOT, "murrmure");
 
-const LINEAR_STEP_IDS = ["intake", "write_spec", "build", "review", "archive", "commit"];
+const NESTED_STEP_IDS = ["intake", "write_spec", "build", "archive", "commit"];
 
 describe("preview-review-v2 reference example", () => {
-  test("murrmure tree matches v2.2 linear step contract manifest", () => {
+  test("murrmure tree matches v2.2 nested step contract manifest", () => {
     const manifestPath = join(MURRMURE_ROOT, "flows/preview-review/flow.manifest.yaml");
     expect(existsSync(manifestPath)).toBe(true);
 
@@ -25,7 +25,8 @@ describe("preview-review-v2 reference example", () => {
     };
 
     expect(manifest.triggers).toEqual({ manual: true });
-    expect(manifest.steps.map((s) => s.id)).toEqual(LINEAR_STEP_IDS);
+    expect(manifest.steps.map((s) => s.id)).toEqual(NESTED_STEP_IDS);
+    expect(manifest.steps.some((s) => s.id === "review")).toBe(false);
 
     const intake = manifest.steps[0] as {
       presentation?: { view: string };
@@ -34,16 +35,24 @@ describe("preview-review-v2 reference example", () => {
     expect(intake.presentation?.view).toBe("preview-review-intake");
     expect(intake.branches?.continue).toBeDefined();
 
-    const build = manifest.steps[2] as { executor?: { action: string } };
-    expect(build.executor?.action).toBe("feature_build");
-
-    const review = manifest.steps[3] as {
-      presentation?: { view: string };
-      branches?: Record<string, { next?: string }>;
+    const build = manifest.steps[2] as {
+      orchestration?: string;
+      executor?: { action: string };
+      steps?: Array<{ id: string; branches?: Record<string, unknown> }>;
     };
-    expect(review.presentation?.view).toBe("preview-review");
-    expect(review.branches?.validated?.next).toBe("archive");
-    expect(review.branches?.changes_required?.next).toBe("build");
+    expect(build.orchestration).toBe("engine-routed");
+    expect(build.executor?.action).toBe("feature_build");
+    expect(build.steps?.map((s) => s.id)).toEqual(["build-loop", "review"]);
+
+    const buildLoop = build.steps?.[0];
+    expect(buildLoop?.branches?.completed).toMatchObject({ goto: "review" });
+
+    const nestedReview = build.steps?.[1];
+    expect(nestedReview?.branches?.validated).toMatchObject({ complete: "parent" });
+    expect(nestedReview?.branches?.changes_required).toMatchObject({
+      continue: "parent",
+      goto: "build-loop",
+    });
   });
 
   test("views use createViewMount from @murrmure/view-sdk/app", () => {

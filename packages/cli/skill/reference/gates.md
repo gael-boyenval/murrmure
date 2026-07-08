@@ -1,67 +1,66 @@
-# Gates & checkpoints
+# Gates & human steps (v2.2)
 
-Murrmure v2 uses **checkpoint steps** — not a separate gate authoring model. A checkpoint creates a pending gate and pauses the run until resolved.
+Flow human checkpoints use **step contracts** — not legacy `checkpoint:` blocks or gate MCP tools.
 
-## Manifest
+## Manifest (human step)
 
 ```yaml
 steps:
-  - id: review
-    checkpoint:
-      view: preview-review
-      assignees: ["{{input.reviewer}}"]
-      payload_ref: "{{steps.build.output.artifact_ref}}"
-      on_resolve:
-        when: output.outcome
-        values:
-          validated: { goto: done }
-          changes_required: { goto: build }
-        default: { goto: done }
-        cancel: { fail: true }
+  - id: build
+    orchestration: engine-routed
+    executor: { action: feature_build, params: { … } }
+    steps:
+      - id: build-loop
+        branches:
+          completed: { schema: { … }, goto: review }
+      - id: review
+        presentation:
+          view: preview-review
+          assignees: ["{{input.reviewer}}"]
+        branches:
+          validated: { schema: { type: object }, complete: parent }
+          changes_required:
+            schema: { type: object, properties: { comments: { type: array } } }
+            continue: parent
+            goto: build-loop
+          cancel: { schema: { type: object }, fail: true }
 ```
 
-Apply lint requires explicit `default` and `cancel` on every checkpoint `on_resolve`.
+## Resolve wire (v2.2)
 
-## Resolve wire (v2)
+Agents and views complete steps via **`murrmure_resolve_step`**:
 
 ```json
 {
-  "disposition": "continue",
-  "output": { "outcome": "validated", "comments": "LGTM" }
+  "branch": "validated",
+  "payload": {}
 }
 ```
 
-| disposition | Meaning |
-|-------------|---------|
-| `continue` | Advance per `on_resolve` routing |
-| `cancel` | Fail run (or route via `cancel: { fail: true }`) |
-
-**Request changes** = `disposition: "continue"` with `output.outcome: changes_required` — not cancel.
-
-Legacy HTTP accepts `decision` + `form_values`; hub maps to v2 wire at the boundary.
-
-First checkpoint (step index 0) shallow-merges `output` into `exec_context.input` unless `merge_input: false`.
+Human views call `submit(params, artifacts?)` → same resolve handler.
 
 ## Human path
 
-1. Engine pauses at checkpoint → run status `input-required`
+1. Engine opens step → run status `input-required` when `presentation.view` is set
 2. Shell mounts **ViewCanvasHost** with view bundle (full primary canvas)
-3. View calls `submit(params)` → shell maps to `{ disposition, output }` → resolve API
-4. `on_resolve` evaluates `when` / `values` / `default` / `cancel` → next step
+3. View calls `submit(params)` → `POST /v1/runs/{id}/steps/{step_id}/resolve`
+4. Manifest `branches` routes advance the run
 
-Built-in `GateResolvePanel` is fallback when view bundle is missing — admin/debug only.
+Built-in gate forms are fallback when view bundle is missing — admin/debug only.
 
 ## Agent path
 
 ```
-murrmure_wait_for_gate   # long-poll pending gate on run_id
-murrmure_resolve_gate    # POST /v1/gates/{id}/resolve
+murrmure_resolve_step   # complete owned agent/human-resolvable steps
+murrmure_wait_for_run   # long-poll until run advances or terminal
 ```
 
-Requires `gate:resolve` capability for resolve; `space:read` for wait.
+Requires `step:resolve` for resolve; `space:read` for wait.
 
-## MCP orchestration validate gate
+Re-read **`active-step-contract.json`** after transitions in long shell sessions.
 
-`murrmure_attach_orchestration` creates gate type `orchestration.validate` — human approves ephemeral graph before bind. See [orchestration-attach.md](orchestration-attach.md).
+## Orchestration validate gate (operator)
 
-See [views.md](views.md), [flow-authoring.md](flow-authoring.md), [mcp.md](mcp.md).
+`murrmure_attach_orchestration` creates gate type `orchestration.validate` — human approves ephemeral graph before bind via HTTP gate resolve (operator shell). See [orchestration-attach.md](orchestration-attach.md).
+
+See [views.md](views.md), [flows.md](flows.md), [mcp.md](mcp.md).

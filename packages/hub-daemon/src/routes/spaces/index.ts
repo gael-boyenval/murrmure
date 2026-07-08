@@ -144,7 +144,8 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
     }
 
     for (const flow of parsed.data.flows ?? []) {
-      const check = parseFlowManifest(flow.manifest);
+      const raw = flow.raw ?? flow.manifest;
+      const check = parseFlowManifest(raw);
       if (!check.ok) {
         return c.json({ code: check.code, message: check.message }, 400);
       }
