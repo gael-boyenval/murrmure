@@ -35,20 +35,20 @@ export function sanitizeParamShape(params: Record<string, unknown> | undefined):
 
 function walkSteps(steps: FlowStep[], out: OrchestrationStepPreview[]): void {
   for (const step of steps) {
-    if (step.invoke) {
+    if (step.executor?.action) {
       out.push({
         step_id: step.id,
-        space: step.invoke.space,
-        action: step.invoke.action,
-        param_shape: sanitizeParamShape(step.invoke.params),
-        expect: step.invoke.artifacts_in?.[0],
+        space: step.executor.space,
+        action: step.executor.action,
+        param_shape: sanitizeParamShape(step.executor.params),
+        expect: step.executor.artifacts_in?.[0],
       });
     }
     if (step.parallel?.lane) walkSteps(step.parallel.lane, out);
-    if (step.gate) {
+    if (step.presentation?.view) {
       out.push({
         step_id: step.id,
-        action: "gate",
+        action: "presentation",
       });
     }
   }

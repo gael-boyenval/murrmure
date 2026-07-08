@@ -167,12 +167,18 @@ async function reopenNestedStep(
     string,
     { output?: Record<string, unknown> }
   >;
-  const prior = steps[input.goto_step_id]?.output;
-  const iteration = (Number(prior?.iteration) || 1) + 1;
-  const execContext = mergeStepOutputIntoExecContext(input.exec_context, input.goto_step_id, {
-    status: "working",
-    output: { ...prior, iteration },
-  });
+  const prior = steps[input.goto_step_id];
+  const iteration = (Number(prior?.output?.iteration) || 1) + 1;
+  const execContext = {
+    ...input.exec_context,
+    steps: {
+      ...steps,
+      [input.goto_step_id]: {
+        ...prior,
+        output: { ...prior?.output, iteration },
+      },
+    },
+  };
   await persistRunExecContext(deps.studio, input.run_id, execContext);
 
   await deps.studio.upsertRunStepMemo({

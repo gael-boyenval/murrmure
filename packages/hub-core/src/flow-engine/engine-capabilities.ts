@@ -175,120 +175,6 @@ function lintManifestStart(
   }
 }
 
-function lintCheckpointStep(
-  step: FlowStep,
-  stepIndex: number,
-  manifest: FlowManifest,
-  index: FlowApplyLintIndex,
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
-): void {
-  const checkpoint = step.checkpoint;
-  if (!checkpoint) return;
-
-  const viewId = checkpoint.view;
-  const view = findView(viewId, index.views);
-  if (!view) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_VIEW_NOT_FOUND",
-      `Checkpoint view '${viewId}' not found under murrmure/views/`,
-    );
-  } else if (!viewBuildVerified(view)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_VIEW_DIST_MISSING",
-      `View '${viewId}' is missing built dist/ or manifest entry file — run npm run build in murrmure/views/${viewId}/ before apply`,
-    );
-  }
-
-  const onResolve = checkpoint.on_resolve;
-  if (!isExplicitOnResolveRoute(onResolve?.default)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING",
-      `Checkpoint '${step.id}' must declare on_resolve.default with goto or fail: true (decision 06)`,
-    );
-  }
-  if (!isExplicitOnResolveRoute(onResolve?.cancel)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING",
-      `Checkpoint '${step.id}' must declare on_resolve.cancel with goto or fail: true (decision 06)`,
-    );
-  }
-  if (onResolve?.when && (!onResolve.values || Object.keys(onResolve.values).length === 0)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "ON_RESOLVE_WHEN_VALUES_EMPTY",
-      `Checkpoint '${step.id}' has on_resolve.when but empty values`,
-    );
-  }
-
-  const ids = stepIds(manifest);
-  const collectGoto = (route: { goto?: string } | undefined) => route?.goto;
-  const gotos = [
-    collectGoto(onResolve?.default),
-    collectGoto(onResolve?.cancel),
-    ...Object.values(onResolve?.values ?? {}).map(collectGoto),
-  ].filter((g): g is string => Boolean(g));
-
-  for (const goto of gotos) {
-    if (!ids.has(goto)) {
-      pushWarning(
-        out,
-        ctx,
-        step.id,
-        "GOTO_TARGET_NOT_FOUND",
-        `on_resolve goto target '${goto}' is not a step id in this flow`,
-      );
-    }
-  }
-
-  const priorInvokeIds = manifest.steps
-    .slice(0, stepIndex)
-    .filter((s) => s.invoke)
-    .map((s) => s.id);
-  if (priorInvokeIds.length === 0) return;
-
-  const loopbackTargets = new Set(
-    [
-      onResolve?.default?.goto,
-      onResolve?.cancel?.goto,
-      ...Object.values(onResolve?.values ?? {}).map((r) => r.goto),
-    ].filter((g): g is string => Boolean(g)),
-  );
-  const hasLoopback = [...loopbackTargets].some((target) => priorInvokeIds.includes(target));
-  if (!hasLoopback) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_LOOPBACK_HINT",
-      `Checkpoint '${step.id}' follows an invoke step but on_resolve has no loop-back goto to an earlier invoke — likely review loop missing`,
-    );
-  }
-}
-
-function lintManifestCheckpoints(
-  manifest: FlowManifest,
-  index: FlowApplyLintIndex,
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
-): void {
-  manifest.steps.forEach((step, i) => lintCheckpointStep(step, i, manifest, index, ctx, out));
-}
-
 export function lintFlowEngineCapabilities(
   ir: FlowIr,
   index: FlowApplyLintIndex,
@@ -298,7 +184,6 @@ export function lintFlowEngineCapabilities(
   lintUnsupportedStepKinds(ir, ctx, out);
   lintInvokeCrossRefs(ir, index, ctx, out);
   lintManifestStart(ctx, out);
-  lintManifestCheckpoints(ctx.manifest, index, ctx, out);
   const contractWarnings = lintStepContractManifest(ctx.manifest, ctx.flow_id);
   for (const w of contractWarnings) {
     out.push(w);

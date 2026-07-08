@@ -72,7 +72,7 @@ function loadFlowEngineFixture(name: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(FLOW_ENGINE_FIXTURES, name), "utf-8")) as Record<string, unknown>;
 }
 
-describe("flow-engine/checkpoint", () => {
+describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cutover)", () => {
   test("buildCheckpointDispatch resolves assignees and payload_ref templates", () => {
     const ir = irFrom([
       { id: "build", invoke: { space: "spc_x", action: "build" } },

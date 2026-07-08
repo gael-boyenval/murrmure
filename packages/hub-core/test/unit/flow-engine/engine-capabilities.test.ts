@@ -55,15 +55,13 @@ describe("flow-engine/engine-capabilities", () => {
     expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
   });
 
-  test("checkpoint-on-resolve-missing fixture", () => {
+  test("checkpoint-on-resolve-missing fixture emits LEGACY_STEP_KIND (VS-8)", () => {
     const warnings = lintSpaceApplyBundle(loadFixture("checkpoint-on-resolve-missing.json"));
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
     expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
   });
 
-  test("empty on_resolve.default/cancel objects fail strict lint", () => {
+  test("empty on_resolve.default/cancel objects fail strict lint with LEGACY_STEP_KIND (VS-8)", () => {
     const manifest: FlowManifest = {
       apiVersion: "murrmure.flow/v1",
       name: "empty-routes",
@@ -90,17 +88,11 @@ describe("flow-engine/engine-capabilities", () => {
         },
       ]),
     );
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(
-      true,
-    );
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(
-      true,
-    );
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictLintFailures(warnings).some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
   });
 
-  test("view without build metadata emits CHECKPOINT_VIEW_DIST_MISSING", () => {
+  test("view without build metadata on legacy checkpoint emits LEGACY_STEP_KIND (VS-8)", () => {
     const manifest: FlowManifest = {
       apiVersion: "murrmure.flow/v1",
       name: "no-build-meta",
@@ -126,8 +118,8 @@ describe("flow-engine/engine-capabilities", () => {
         },
       ]),
     );
-    expect(warnings.some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictLintFailures(warnings).some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
   });
 
   test("loopback hint satisfied by on_resolve.default.goto", () => {

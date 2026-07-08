@@ -10,6 +10,7 @@ import type {
   StepRole,
 } from "@murrmure/contracts";
 import { computeContentDigest } from "../index/digest.js";
+import type { ParseResult } from "../index/parse-actions.js";
 
 export const STEP_CONTRACT_MIGRATION_DOC =
   "studio-specs/current/bridges/step-contract.md";
@@ -82,7 +83,6 @@ export function rejectLegacyStepKinds(raw: unknown): ParseResult<unknown> {
     ok: false,
     code: "LEGACY_STEP_KIND",
     message: `Step '${first.step_id}' uses deprecated '${first.key}:' — migrate to unified step contracts (${STEP_CONTRACT_MIGRATION_DOC})`,
-    details: hits,
   };
 }
 

@@ -45,6 +45,10 @@ export function mountStepWorkUploadRoutes(app: Hono, ctx: DaemonContext): void {
       );
     }
 
+    if (!run.space_id) {
+      return c.json({ code: "SPACE_MISSING", message: "Run has no space_id" }, 422);
+    }
+
     const bindings = await murrmurePersistence.getSpaceBindings(run.space_id);
     const space_root = resolveSpaceRoot(bindings);
     if (!space_root) {

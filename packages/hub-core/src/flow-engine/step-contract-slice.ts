@@ -251,7 +251,7 @@ export async function listStepContractsForRun(
   const activeEntry = activeMemo ? catalogEntryForStep(catalog, activeMemo.step_id) : undefined;
 
   let resolvedSpaceRoot = space_root;
-  if (!resolvedSpaceRoot) {
+  if (!resolvedSpaceRoot && run.space_id) {
     const bindings = await studio.getSpaceBindings(run.space_id);
     const { resolveSpaceRoot } = await import("../invoke/resolve.js");
     resolvedSpaceRoot = resolveSpaceRoot(bindings);

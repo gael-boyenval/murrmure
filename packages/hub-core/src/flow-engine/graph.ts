@@ -62,7 +62,10 @@ export function buildRunGraph(input: {
   siblings?: RunGraphSibling[];
 }): RunGraphResponse {
   if (input.step_contract_catalog?.entries.length) {
-    return buildStepContractRunGraph(input);
+    return buildStepContractRunGraph({
+      ...input,
+      step_contract_catalog: input.step_contract_catalog,
+    });
   }
 
   const nodes: RunGraphNode[] = [];
