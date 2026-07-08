@@ -276,6 +276,15 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Get run graph");
   });
 
+  registry.registerHandler("murrmure_list_step_contracts", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? args.instance_id ?? "");
+    if (!run_id) throw new Error("run_id is required");
+    const res = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/step-contracts`, {
+      headers: mcpHeaders(authCtx),
+    });
+    return assertHttpOk(res, "List step contracts");
+  });
+
   registry.registerHandler("murrmure_attach_orchestration", async (args, authCtx) => {
     const session_id = String(args.session_id ?? "");
     if (!session_id) throw new Error("session_id is required");

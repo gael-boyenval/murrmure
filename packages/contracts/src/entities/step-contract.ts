@@ -128,16 +128,35 @@ export const StepContractCatalogSchema = z.object({
 
 export type StepContractCatalog = z.infer<typeof StepContractCatalogSchema>;
 
-/** Runtime scoped slice (compile-time shape; populated at run in VS-5). */
+/** Runtime branch slice with human-readable route hint. */
+export const StepContractSliceBranchSchema = z.object({
+  schema_ref: z.string().optional(),
+  schema: z.record(z.unknown()).optional(),
+  then: z.string(),
+});
+
+export type StepContractSliceBranch = z.infer<typeof StepContractSliceBranchSchema>;
+
+/** Runtime scoped slice (populated at run in VS-5). */
 export const StepContractSliceSchema = z.object({
   step_id: z.string(),
   parent_id: z.string().nullable().optional(),
   description: z.string().optional(),
   role: StepRoleSchema,
-  branches: z.record(StepCatalogBranchSchema),
+  branches: z.record(StepContractSliceBranchSchema),
   workdir: z.string().optional(),
   iteration: z.number().int().nonnegative().optional(),
   inputs_from_run: z.record(z.unknown()).optional(),
 });
 
 export type StepContractSlice = z.infer<typeof StepContractSliceSchema>;
+
+export const ListStepContractsResponseSchema = z.object({
+  run_id: z.string(),
+  orchestration: StepOrchestrationSchema.optional(),
+  active: StepContractSliceSchema.nullable(),
+  callable: z.array(StepContractSliceSchema),
+  graph_digest: z.string(),
+});
+
+export type ListStepContractsResponse = z.infer<typeof ListStepContractsResponseSchema>;

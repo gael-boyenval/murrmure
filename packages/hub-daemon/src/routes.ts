@@ -22,6 +22,7 @@ import { mountSpaceIndexRoutes } from "./routes/spaces/index.js";
 import { mountArtifactRoutes } from "./routes/artifacts/index.js";
 import { mountSessionRunRoutes } from "./routes/sessions/index.js";
 import { mountResolveStepRoutes } from "./routes/runs/resolve-step.js";
+import { mountStepContractsRoutes } from "./routes/runs/step-contracts.js";
 import { mountGrantV2Routes } from "./routes/grants/index.js";
 import { mountExecutorPollRoutes } from "./routes/executor/index.js";
 import { mountJournalRoutes } from "./routes/journal/index.js";
@@ -320,6 +321,7 @@ export function createHubApp(ctx: DaemonContext) {
   mountArtifactRoutes(app, ctx);
   mountSessionRunRoutes(app, ctx);
   mountResolveStepRoutes(app, ctx);
+  mountStepContractsRoutes(app, ctx);
   mountGrantV2Routes(app, ctx);
   mountJournalRoutes(app, ctx);
   mountGateRoutes(app, ctx);

@@ -7,7 +7,7 @@ import type {
   ViewManifest,
 } from "@murrmure/contracts";
 import { compileFlowIr } from "./compile.js";
-import { lintStepContractManifest } from "./step-contract-compile.js";
+import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractManifest } from "./step-contract-compile.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
 export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint", "step_contract"] as const;
@@ -321,6 +321,16 @@ export function buildFlowApplyLintIndex(bundle: SpaceApplyBundle): FlowApplyLint
 export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWarning[] {
   const index = buildFlowApplyLintIndex(bundle);
   const warnings: FlowApplyLintWarning[] = [];
+  const knownStepIds = new Set<string>();
+  for (const flow of bundle.flows ?? []) {
+    const { catalog } = compileStepContractCatalog(flow.manifest, flow.flow_id);
+    if (catalog) {
+      for (const stepId of catalog.step_ids) knownStepIds.add(stepId);
+    }
+  }
+  for (const w of lintActionMurrmureTokens(bundle.actions?.file.actions ?? {}, knownStepIds)) {
+    warnings.push(w);
+  }
   for (const flow of bundle.flows ?? []) {
     const ir = compileFlowIr(flow.manifest, flow.flow_id);
     const raw =

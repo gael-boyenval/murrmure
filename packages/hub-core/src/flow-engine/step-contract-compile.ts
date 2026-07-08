@@ -15,10 +15,10 @@ export const STEP_CONTRACT_MIGRATION_DOC =
   "studio-specs/current/bridges/step-contract.md";
 
 export const KNOWN_MURRMURE_TOKENS = new Set([
-  "murrmure.run_id",
-  "murrmure.space_root",
-  "murrmure.agentStepContract",
-  "murrmure.inputs.json",
+  "run_id",
+  "space_root",
+  "agentStepContract",
+  "inputs.json",
 ]);
 
 const MURRMURE_TOKEN_PATTERN = /\{\{murrmure\.([^}]+)\}\}/g;
@@ -458,4 +458,37 @@ export function lintStepContractManifest(
 export function formatCatalogDigestSummary(catalog: StepContractCatalog): string {
   const short = catalog.digest.replace(/^sha256:/, "").slice(0, 12);
   return `${catalog.flow_id}: ${short}… (${catalog.step_ids.length} steps)`;
+}
+
+function walkActionStrings(
+  actions: Record<string, { prompt?: string; command?: string; cwd?: string }>,
+  visit: (text: string, actionName: string) => void,
+): void {
+  for (const [name, action] of Object.entries(actions)) {
+    if (action.prompt) visit(action.prompt, name);
+    if (action.command) visit(action.command, name);
+    if (action.cwd) visit(action.cwd, name);
+  }
+}
+
+export function lintActionMurrmureTokens(
+  actions: Record<string, { prompt?: string; command?: string; cwd?: string }>,
+  knownStepIds: Set<string>,
+  flowId = "actions",
+): StepContractLintWarning[] {
+  const warnings: StepContractLintWarning[] = [];
+  walkActionStrings(actions, (text, actionName) => {
+    for (const match of text.matchAll(MURRMURE_TOKEN_PATTERN)) {
+      const tokenPath = match[1]?.trim() ?? "";
+      if (!isKnownMurrmureToken(tokenPath, knownStepIds)) {
+        warnings.push({
+          flow_id: flowId,
+          step_id: actionName,
+          code: "UNKNOWN_MURRMURE_TOKEN",
+          message: `Unknown {{murrmure.${tokenPath}}} in action prompt — see ${STEP_CONTRACT_MIGRATION_DOC}`,
+        });
+      }
+    }
+  });
+  return warnings;
 }

@@ -41,6 +41,7 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_get_session", required_scope: "space:read", description: "Get session by id" },
   { name: "murrmure_create_run", required_scope: "flow:run", description: "Start a run in a session" },
   { name: "murrmure_get_run", required_scope: "space:read", description: "Get run describe document" },
+  { name: "murrmure_list_step_contracts", required_scope: "space:read", description: "List active step contract slice + graph_digest for a run" },
   { name: "murrmure_get_run_graph", required_scope: "flow:read", description: "Get run flowchart graph (manifest overlay + step memo)" },
   { name: "murrmure_attach_orchestration", required_scope: "flow:run", description: "Agent-push murrmure.flow.attach/v1; creates orchestration.validate gate" },
   { name: "murrmure_cancel_run", required_scope: "gate:resolve", description: "Cancel an in-flight run" },

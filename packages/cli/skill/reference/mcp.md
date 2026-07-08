@@ -11,6 +11,7 @@ Grant-filtered tools from `/v1/mcp/catalog`. Reload MCP after grant mint or `mrm
 | `murrmure_get_session` | `space:read` | Derived status from child runs |
 | `murrmure_create_run` | `flow:run` | Headless: `flow_id: null` |
 | `murrmure_get_run` | `space:read` | Includes step memo + journal replay |
+| **`murrmure_list_step_contracts`** | **`space:read`** | `{ run_id }` → active `StepContractSlice` + `graph_digest` |
 | `murrmure_cancel_run` | `gate:resolve` | Terminal runs reject restart |
 
 ## Invoke & space
@@ -41,7 +42,9 @@ Full map: [grants-migration.md](grants-migration.md) in studio-specs bridges.
 2. `murrmure_create_run` — headless or flow-backed
 3. `murrmure_invoke_action` — pass `session_id`, `run_id`, `step_id: action:{name}`
 4. **`murrmure_resolve_step`** — complete active flow step: `{ run_id, step_id, branch, payload }` (replaces `complete_action` for step_contract flows)
-5. `murrmure_get_run` — poll step memo until terminal
+5. Re-read **`active-step-contract.json`** after transitions in long shell sessions (path in `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`)
+6. **`murrmure_list_step_contracts`** — optional discovery: `{ run_id }` returns active slice + `graph_digest`
+7. `murrmure_get_run` — poll step memo until terminal
 
 ## v2 batch 2 — gates & journal
 

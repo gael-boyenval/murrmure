@@ -54,10 +54,19 @@ describe("preview-review-v2 reference example", () => {
     }
   });
 
-  test("feature-build skill uses resolve_step not complete_action", () => {
+  test("feature-build skill uses resolve_step and contract file loop", () => {
     const skill = readFileSync(join(EXAMPLE_ROOT, "skills/feature-build/SKILL.md"), "utf-8");
     expect(skill).toContain("murrmure_resolve_step");
+    expect(skill).toContain("active-step-contract.json");
     expect(skill).not.toContain("murrmure_complete_action");
+  });
+
+  test("feature_build action uses contract injection not complete_action", () => {
+    const actions = readFileSync(join(MURRMURE_ROOT, "actions.yaml"), "utf-8");
+    expect(actions).toContain("murrmure.agentStepContract");
+    expect(actions).toContain("active-step-contract.json");
+    expect(actions).not.toContain("murrmure_complete_action");
+    expect(actions).not.toContain("murrmure_wait_for_gate");
   });
 
   test("build script sets feedback_applied only with non-empty feedback", () => {
