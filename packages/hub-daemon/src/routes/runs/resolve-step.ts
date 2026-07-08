@@ -11,7 +11,7 @@ import { broadcastSse } from "../../context.js";
 export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, handler } = ctx;
 
-  app.post("/v1/runs/:run_id/steps/:step_id/resolve", async (c) => {
+  app.post("/v1/runs/:run_id/steps/:step_id{[^/]+}/resolve", async (c) => {
     const run_id = c.req.param("run_id");
     const step_id = c.req.param("step_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw);
@@ -75,6 +75,23 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
         cancelTimeoutMs: deps.cancelTimeoutMs,
         executorPollStore: deps.executorPollStore,
         dispatchSteps: deps.dispatchSteps,
+        registerArtifact: async ({ name, bytes }) => {
+          const put = await ctx.artifactService.putArtifact({
+            body: {
+              space_id,
+              name,
+              content_base64: bytes.toString("base64"),
+              authorized_readers: [space_id, `actor:${auth.actor_id}`],
+            },
+            actor_id: auth.actor_id,
+            token_id: auth.token_id,
+          });
+          if (put.http >= 400 || !("artifact" in put.body)) {
+            throw new Error("Artifact registration failed");
+          }
+          const artifact = put.body.artifact as { transfer_id: string; digest: string };
+          return { transfer_id: artifact.transfer_id, digest: artifact.digest };
+        },
       },
       {
         run_id,
@@ -92,7 +109,7 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
     if (!result.ok) {
       return c.json(
         { code: result.code, message: result.message },
-        result.http as 400 | 404 | 409,
+        result.http as 400 | 404 | 409 | 422,
       );
     }
 

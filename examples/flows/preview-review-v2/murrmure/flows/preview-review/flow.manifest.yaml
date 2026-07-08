@@ -19,7 +19,11 @@ steps:
       continue:
         schema:
           type: object
-          required: [spec_filename, spec_markdown, reviewer]
+          required: [spec_filename, reviewer]
+        artifact_slots:
+          spec:
+            description: Attached spec markdown file
+            max_bytes: 1048576
         next: write_spec
       cancel:
         schema: { type: object }
@@ -31,7 +35,7 @@ steps:
     executor:
       action: feature_write_spec
       params:
-        spec_markdown: "{{input.spec_markdown}}"
+        spec_path: "{{murrmure.step.intake.artifact.spec.path}}"
         spec_filename: "{{input.spec_filename}}"
     branches:
       completed:

@@ -402,12 +402,13 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
         exec_context: r.exec_context,
       }));
 
-    const { buildRunGraph } = await import("@murrmure/hub-core");
+    const { buildRunGraph, flowStepContractCatalog } = await import("@murrmure/hub-core");
     const graph = buildRunGraph({
       run_id: `run_${bare}`,
       flow_id: row.flow_id ?? pendingFlowId,
       flow_digest: row.flow_digest ?? ir?.digest,
       ir,
+      step_contract_catalog: flowStepContractCatalog(entry),
       step_memos: steps,
       siblings,
     });

@@ -6,6 +6,7 @@ export interface InvokeStepContractContext {
   contract_path: string;
   workdir: string;
   prompt_bindings: Record<string, string>;
+  run_artifacts_json?: string;
 }
 
 /** Shared invoke wire types (rev-1 §4.4). */

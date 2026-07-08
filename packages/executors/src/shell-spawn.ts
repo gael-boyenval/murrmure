@@ -36,6 +36,7 @@ export function resolveShellCommand(invoke: InvokeRequest, context: DispatchCont
     session_id: invoke.session_id,
     space_root: context.space_root,
     params: invoke.params,
+    murrmure_bindings: context.step_contract?.prompt_bindings,
   };
 
   const bindings = buildInvokeTemplateBindings(templateContext);
@@ -65,6 +66,7 @@ export function resolveShellPrompt(
       session_id: invoke.session_id,
       space_root: context.space_root,
       params: invoke.params,
+      murrmure_bindings: context.step_contract?.prompt_bindings,
     },
     context.action.prompt,
   );
@@ -179,6 +181,14 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           MURRMURE_INPUT: JSON.stringify(context.exec_input ?? invoke.exec_input ?? {}),
           MURRMURE_PROMPT: prompt,
         };
+        if (context.step_contract) {
+          invokeEnv.MURRMURE_STEP_CONTRACT = context.step_contract.slice_json;
+          invokeEnv.MURRMURE_ACTIVE_STEP_CONTRACT_PATH = context.step_contract.contract_path;
+          invokeEnv.MURRMURE_STEP_WORKDIR = context.step_contract.workdir;
+          if (context.step_contract.run_artifacts_json) {
+            invokeEnv.MURRMURE_RUN_ARTIFACTS = context.step_contract.run_artifacts_json;
+          }
+        }
 
         const { stdout, stderr, code } = await runCommand(
           command,

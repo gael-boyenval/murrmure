@@ -202,4 +202,123 @@ describe("http/artifacts/transfer", () => {
     const body = await materialize.json();
     expect(body.code).toBe("ARTIFACT_DIGEST_MISMATCH");
   });
+
+  test("step resolve promotes work upload to stable artifact slot", async () => {
+    const project = mkdtempSync(join(tmpdir(), "artifact-step-resolve-"));
+    try {
+      await fetch(`${baseUrl}/v1/spaces/${spaceA}/link`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ path: project, primary: true }),
+      });
+
+      const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceA}/grants`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          label: "artifact-step-agent",
+          capabilities: ["space:read", "flow:run", "step:resolve"],
+        }),
+      });
+      const agentToken = (await grantRes.json()).token;
+      const agentAuth = {
+        Authorization: `Bearer ${agentToken}`,
+        "Content-Type": "application/json",
+      };
+
+      const flowBundle = {
+        actions: { digest: "sha256:a", file: { version: 1, actions: {} } },
+        executors: {
+          digest: "sha256:e",
+          file: {
+            version: 1,
+            executors: { shell: { binding: { type: "shell_spawn", executor_id: "shell" } } },
+          },
+        },
+        hooks: { digest: "sha256:h", file: { version: 1, hooks: {} } },
+        flows: [
+          {
+            flow_id: "flw_artifact_intake",
+            rel_path: "flows/artifact-intake/flow.manifest.yaml",
+            digest: "sha256:f",
+            manifest: {
+              apiVersion: "murrmure.flow/v1",
+              name: "artifact-intake",
+              start: { manual: true },
+              steps: [
+                {
+                  id: "intake",
+                  presentation: { view: "intake" },
+                  branches: {
+                    continue: {
+                      schema: { type: "object", required: ["topic"] },
+                      artifact_slots: { spec: { max_bytes: 65536 } },
+                      next: null,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      await fetch(`${baseUrl}/v1/spaces/${spaceA}/apply`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ bundle: flowBundle }),
+      });
+
+      const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
+        method: "POST",
+        headers: agentAuth,
+        body: JSON.stringify({ title: "artifact intake", space_id: spaceA }),
+      });
+      const { session_id } = await sessionRes.json();
+
+      const runRes = await fetch(`${baseUrl}/v1/flows/flw_artifact_intake/run`, {
+        method: "POST",
+        headers: agentAuth,
+        body: JSON.stringify({ session_id, space_id: spaceA, input: {} }),
+      });
+      expect(runRes.status).toBe(201);
+      const { run_id } = await runRes.json();
+
+      const upload = await fetch(`${baseUrl}/v1/runs/${run_id}/steps/intake/work/upload`, {
+        method: "POST",
+        headers: agentAuth,
+        body: JSON.stringify({
+          filename: "spec.md",
+          content_base64: Buffer.from("# Spec\n", "utf-8").toString("base64"),
+        }),
+      });
+      expect(upload.status).toBe(201);
+
+      const resolve = await fetch(`${baseUrl}/v1/runs/${run_id}/steps/intake/resolve`, {
+        method: "POST",
+        headers: agentAuth,
+        body: JSON.stringify({
+          branch: "continue",
+          payload: { topic: "demo" },
+          artifacts_out: [{ slot: "spec", path: "spec.md" }],
+        }),
+      });
+      expect(resolve.status).toBe(200);
+
+      const stable = join(
+        project,
+        ".mrmr.temp",
+        "runs",
+        run_id,
+        "steps",
+        "intake",
+        "spec",
+        "spec.md",
+      );
+      expect(existsSync(stable)).toBe(true);
+      expect(readFileSync(stable, "utf-8")).toBe("# Spec\n");
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
 });

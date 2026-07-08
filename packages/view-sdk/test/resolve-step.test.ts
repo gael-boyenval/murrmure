@@ -19,4 +19,14 @@ describe("mapViewSubmitToResolveStep", () => {
   test("maps cancel to cancel branch", () => {
     expect(mapViewSubmitToResolveStep({}, "cancel")).toEqual({ branch: "cancel" });
   });
+
+  test("maps artifacts_out on submit", () => {
+    expect(
+      mapViewSubmitToResolveStep({ reviewer: "a@b" }, "submit", [{ slot: "spec", path: "hero.md" }]),
+    ).toEqual({
+      branch: "continue",
+      payload: { reviewer: "a@b" },
+      artifacts_out: [{ slot: "spec", path: "hero.md" }],
+    });
+  });
 });

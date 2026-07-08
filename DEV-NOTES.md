@@ -1,70 +1,74 @@
-# DEV-NOTES — VS-4 Safety invariants
+# DEV-NOTES — VS-6 Step artifacts + workdirs
 
-**Slice:** VS-4  
-**Branch:** `feat/step-contracts-vs-4-safety`  
-**Base:** `45308cf` (VS-3)
+**Slice:** VS-6  
+**Branch:** `feat/step-contracts-vs-6-artifacts`  
+**Base:** `feat/step-contracts-vs-3-shell-views` + VS-4 + VS-5 merges
 
 ## Summary
 
-Safety invariants for step-contract runs: monotonic step memos, terminal-run late resolve rejection (409), executor cancel on run failure, and split human/agent timeouts (ISSUE-14).
+Per-step workdirs, `artifacts_out` promotion on resolve, hub artifact registration, `{{murrmure.step.*.artifact.*}}` prompt injection, view file upload → workdir → resolve, and example flow/docs updates.
 
 ## Files touched
 
 ### Hub core
-- `packages/hub-core/src/projections/step-memo.ts` — monotonic terminal transitions
-- `packages/hub-core/src/flow-engine/step-resolve.ts` — reject resolve on terminal run
-- `packages/hub-core/src/invoke/run-executor-cancel.ts` — **new** registry + shell SIGTERM/SIGKILL
-- `packages/hub-core/src/invoke/dispatch.ts` — start/stop executor timeout scheduler
-- `packages/hub-core/src/run/service.ts` — cancel executors + poll store on `failRunWithNotification`
-- `packages/hub-core/src/executors/timeout-scheduler.ts` — **new** pause during `awaiting_human`
-- `packages/hub-core/src/executors/timeout-sweep.ts` — **new** periodic sweep + improved `ACTION_TIMED_OUT` copy
-- `packages/hub-core/src/executors/queue-store.ts` — `cancelOfferedForRun`, `extendOfferedDeadlinesForRun`
-- `packages/hub-core/src/projections/notifications.ts` — `runFailedNotificationCopy`, timeout summaries
-
-### Executors
-- `packages/executors/src/shell-spawn.ts` — `onProcessStart` hook for cancel registration
+- `packages/hub-core/src/flow-engine/step-artifacts.ts` — **new** workdir, promotion, bindings
+- `packages/hub-core/src/flow-engine/step-resolve.ts` — validate + promote `artifacts_out`
+- `packages/hub-core/src/flow-engine/step-open.ts` — `ensureStepWorkdir` on open
+- `packages/hub-core/src/flow-engine/step-contract-slice.ts` — artifact tokens in bindings + `buildFlowInvokeStepContract`
+- `packages/hub-core/src/flow-engine/templates.ts` — `{{murrmure.step.*}}` resolution
+- `packages/hub-core/src/invoke/dispatch.ts` — pass `step_contract` to executors
 
 ### Hub daemon
-- `packages/hub-daemon/src/invoke-service.ts` — register shell cancel; `ACTION_TIMED_OUT` reason
-- `packages/hub-daemon/src/routes/sessions/index.ts` — sync human-wait pause on step journal events
-- `packages/hub-daemon/src/main.ts` — start timeout sweep interval
+- `packages/hub-daemon/src/routes/runs/step-work-upload.ts` — **new** view upload endpoint
+- `packages/hub-daemon/src/routes/runs/resolve-step.ts` — `registerArtifact` on promotion
+- `packages/hub-daemon/src/routes.ts` — mount work upload
+- `packages/hub-daemon/src/invoke-service.ts` — `buildFlowInvokeStepContract` at dispatch
 
-### Docs / example / specs
-- `apps/docs/guide/tutorials/01-local-preview-review/09-troubleshooting.md` — timeouts section
-- `examples/flows/preview-review-v2/murrmure/actions.yaml` — `feature_write_spec.timeout_ms: 300000`
-- `studio-specs/current/bridges/step-contract.md` — engine invariants section
-- `studio-specs/plans/2026-07-07-phase-a-findings.md` — ISSUE-14 marked fixed
+### Executors / runtime
+- `packages/executors/src/shell-spawn.ts` — `MURRMURE_STEP_CONTRACT`, `MURRMURE_RUN_ARTIFACTS`, prompt bindings
+- `packages/runtime-contracts/src/types/invoke.ts` — `run_artifacts_json` on step contract context
+
+### View SDK / shell client
+- `packages/view-sdk/src/app/resolve-step.ts` — `uploadViewArtifacts`, `artifacts_out` body
+- `packages/view-sdk/src/app/provider.tsx` — `submit(params, artifacts?)`
+- `packages/shell-client/src/types.ts` — `artifacts_out` on `resolveStep`
+
+### Example / docs
+- `examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml` — `artifact_slots` on intake
+- `examples/flows/preview-review-v2/murrmure/actions.yaml` — spec path tokens
+- `examples/flows/preview-review-v2/murrmure/views/preview-review-intake/src/App.tsx` — file upload
+- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md`, `agent.md`
+- `studio-specs/current/bridges/step-contract.md`, `artifacts.md`
+- `apps/docs/guide/tutorials/01-local-preview-review/05-flow-manifest.md`
 
 ### Tests
-- `packages/hub-core/test/unit/projections/step-memo.test.ts` — monotonic
-- `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` — late resolve rejected
-- `packages/hub-core/test/unit/executors/timeout-scheduler.test.ts` — human wait excluded
-- `packages/hub-core/test/unit/invoke/run-executor-cancel.test.ts` — cancel handles
-- `packages/hub-daemon/test/http/actions/invoke-run-failed-notification.test.ts` — cancel on fail
+- `packages/hub-core/test/unit/flow-engine/step-resolve-artifacts.test.ts` — **new**
+- `packages/hub-core/test/unit/flow-engine/step-contract-slice.test.ts` — artifact bindings
+- `packages/hub-daemon/test/http/artifacts/transfer.test.ts` — work upload + resolve promotion
+- `packages/view-sdk/test/resolve-step.test.ts` — `artifacts_out` mapping
 
 ## Commands run
 
 ```bash
 pnpm exec vitest run --project @murrmure/hub-core \
-  test/unit/projections/step-memo.test.ts \
-  test/unit/flow-engine/step-resolve.test.ts \
-  test/unit/executors/timeout-scheduler.test.ts \
-  test/unit/invoke/run-executor-cancel.test.ts
+  test/unit/flow-engine/step-resolve-artifacts.test.ts \
+  test/unit/flow-engine/step-contract-slice.test.ts
 
-cd packages/hub-daemon && pnpm exec vitest run \
-  test/http/actions/invoke-run-failed-notification.test.ts
+cd packages/view-sdk && pnpm exec vitest run test/resolve-step.test.ts
+
+cd packages/hub-daemon && pnpm exec vitest run test/http/artifacts/transfer.test.ts
 ```
 
 All green.
 
 ## Manual tester notes (murrmuretuto)
 
-1. Start run; cancel at intake → run `failed`; late `resolve_step` → **409** `RUN_TERMINAL`.
-2. `write_spec` with slow agent (< timeout) + long pause on review → run must **not** fail `ACTION_TIMED_OUT` during review wait.
-3. Force fail run during `feature_build` → subprocess cancelled (hub logs / `ps`).
+1. Start `preview-review` run → intake view: attach spec **file** (not paste).
+2. After intake resolve, inspect `.mrmr.temp/runs/{run_id}/steps/intake/spec/` for stable artifact.
+3. `active-step-contract.json` / contract slice should include `steps.intake.artifact.spec.path` in `inputs_from_run`.
+4. On `feature_build` dispatch, resolved prompt contains `{{murrmure.step.intake.artifact.spec.path}}` value.
+5. Grant needs `step:resolve` for work upload + resolve.
 
-## Known gaps (out of VS-4 scope)
+## Known gaps (out of VS-6 scope)
 
-- VS-5: `active-step-contract.json` + prompt injection
-- VS-7: nested `build.review` goto (timeout pause already supports qualified child ids)
 - VS-8: delete legacy MCP tools

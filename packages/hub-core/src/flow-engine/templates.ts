@@ -1,5 +1,10 @@
 const INPUT_PATTERN = /\{\{input\.([^}]+)\}\}/g;
 const STEPS_OUTPUT_PATTERN = /\{\{steps\.([^.}]+)\.output(?:\.([^}]+))?\}\}/g;
+const MURRMURE_STEP_ARTIFACT_PATTERN =
+  /\{\{murrmure\.step\.([^.}]+)\.artifact\.([^.}]+)\.(path|transfer_id)\}\}/g;
+const MURRMURE_STEP_SCALAR_PATTERN =
+  /\{\{murrmure\.step\.([^.}]+)\.(description|workdir|iteration)\}\}/g;
+const MURRMURE_ATOMIC_PATTERN = /\{\{murrmure\.(run_id|space_root|agentStepContract|inputs\.json)\}\}/g;
 const ITEM_PATTERN = /\{\{item(?:\.([^}]+))?\}\}/g;
 const EVENT_PATTERN = /\{\{event(?:\.([^}]+))?\}\}/g;
 const ORIGIN_SPACE = "{{origin_space}}";
@@ -18,7 +23,11 @@ export function resolveStepSpace(space: string, originSpaceId: string): string {
   return space;
 }
 
-export function resolveTemplateString(template: string, execContext: Record<string, unknown>): string {
+export function resolveTemplateString(
+  template: string,
+  execContext: Record<string, unknown>,
+  murrmureBindings?: Record<string, string>,
+): string {
   const input = (execContext.input ?? execContext) as Record<string, unknown>;
   let out = template.replace(INPUT_PATTERN, (_, key: string) => {
     const value = input[key];
@@ -31,6 +40,30 @@ export function resolveTemplateString(template: string, execContext: Record<stri
     if (!field) return JSON.stringify(output);
     const value = readPath(output, field);
     return value === undefined || value === null ? "" : String(value);
+  });
+  out = out.replace(MURRMURE_STEP_ARTIFACT_PATTERN, (_, stepId: string, slot: string, field: string) => {
+    const artifacts = (execContext.artifacts ?? {}) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
+    const record = artifacts[stepId]?.[slot];
+    if (!record) return "";
+    const value = record[field];
+    return value === undefined || value === null ? "" : String(value);
+  });
+  out = out.replace(MURRMURE_STEP_SCALAR_PATTERN, (_, stepId: string, field: string) => {
+    if (murrmureBindings) {
+      const bound = murrmureBindings[`step.${stepId}.${field}`];
+      if (bound != null) return bound;
+    }
+    return "";
+  });
+  out = out.replace(MURRMURE_ATOMIC_PATTERN, (_, key: string) => {
+    if (murrmureBindings) {
+      const bound = murrmureBindings[key];
+      if (bound != null) return bound;
+    }
+    return "";
   });
   out = out.replace(ITEM_PATTERN, (_, field?: string) => {
     const item = execContext.item;
@@ -88,12 +121,13 @@ export function resolveMatrixValue(
 export function resolveStepParams(
   params: Record<string, unknown> | undefined,
   execContext: Record<string, unknown>,
+  murrmureBindings?: Record<string, string>,
 ): Record<string, unknown> | undefined {
   if (!params) return undefined;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === "string") {
-      out[key] = resolveTemplateString(value, execContext);
+      out[key] = resolveTemplateString(value, execContext, murrmureBindings);
     } else {
       out[key] = value;
     }

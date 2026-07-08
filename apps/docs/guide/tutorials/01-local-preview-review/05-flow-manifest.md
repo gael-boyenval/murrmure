@@ -72,8 +72,8 @@ steps:
 ### `intake` (checkpoint)
 
 - Run pauses; Desktop opens **intake view** in ViewCanvasHost
-- Human attaches spec from disk → `submit({ spec_markdown, spec_filename, reviewer })`
-- Payload becomes **run input** for the whole run
+- Human attaches spec from disk → on v2.2 step contracts use **`artifact_slots.spec`** + view upload (`artifacts_out`) instead of inline `spec_markdown`
+- Legacy: `submit({ spec_markdown, spec_filename, reviewer })` — payload becomes **run input** for the whole run
 
 ### `write_spec` (invoke)
 

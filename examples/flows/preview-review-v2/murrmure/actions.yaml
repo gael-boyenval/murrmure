@@ -4,13 +4,9 @@ actions:
   feature_write_spec:
     executor: shell
     prompt: |
-      Follow `agent.md`. Write the spec markdown to `specs/current/{{spec_filename}}`.
+      Follow `agent.md`. Copy the spec from the artifact path into `specs/current/{{spec_filename}}`.
 
-      ## Spec (from human intake — not in repo yet)
-      Filename: {{spec_filename}}
-      ---
-      {{spec_markdown}}
-      ---
+      Spec path: {{murrmure.step.intake.artifact.spec.path}}
 
       Run {{run_id}} / session {{session_id}}
     command: cursor agent -p --force "{{prompt}}"
@@ -22,6 +18,8 @@ actions:
     executor: shell
     prompt: |
       Follow `agent.md` and `skills/feature-build/SKILL.md`.
+
+      Spec path: {{murrmure.step.intake.artifact.spec.path}}
 
       {{murrmure.agentStepContract}}
 

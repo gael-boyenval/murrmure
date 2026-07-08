@@ -9,6 +9,7 @@ import {
   enqueueTaskOffer,
   DEFAULT_WORKER_TTL_MS,
   registerShellProcessCancel,
+  buildFlowInvokeStepContract,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -387,6 +388,15 @@ export class InvokeService {
       delivery: resolved.delivery,
       idempotency_key: input.idempotency_header,
     };
+
+    if (run_id && parsed.data.step_id && resolved.space_root) {
+      const stepContract = await buildFlowInvokeStepContract(this.studio, {
+        run_id,
+        step_id: parsed.data.step_id,
+        space_root: resolved.space_root,
+      });
+      if (stepContract) request.step_contract = stepContract;
+    }
 
     this.lastActor = { actor_id: input.actor_id, token_id: input.token_id };
 
