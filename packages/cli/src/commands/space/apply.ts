@@ -7,7 +7,7 @@ import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { runScopePreflight } from "../../lib/preflight.js";
 import { readSpaceApplyBundle, validateSpaceBundleCycles } from "../../lib/space-directory.js";
 import { readSpaceLink } from "../../lib/space-link-file.js";
-import { lintSpaceApplyBundle, strictLintFailures } from "@murrmure/hub-core";
+import { lintSpaceApplyBundle, strictLintFailures, formatCatalogDigestSummary, compileStepContractCatalog } from "@murrmure/hub-core";
 
 export const spaceApplyCommand = defineCommand({
   meta: {
@@ -81,9 +81,20 @@ export const spaceApplyCommand = defineCommand({
     const summary = body.summary as { actions?: number; flows?: number; changed?: number } | undefined;
     const warnCount = hubWarnings.length || localWarnings.length;
     const warnSuffix = warnCount > 0 ? ` · ${warnCount} warning(s)` : "";
+
+    const catalogLines: string[] = [];
+    for (const flow of bundle.flows ?? []) {
+      const { catalog } = compileStepContractCatalog(flow.manifest, flow.flow_id);
+      if (catalog) {
+        catalogLines.push(formatCatalogDigestSummary(catalog));
+      }
+    }
+    const catalogSuffix =
+      catalogLines.length > 0 ? ` · catalog ${catalogLines.join(", ")}` : "";
+
     printOk(
       {},
-      `✓ Indexed ${summary?.actions ?? 0} action(s), ${summary?.flows ?? 0} flow(s) (${summary?.changed ?? 0} changed)${warnSuffix}`,
+      `✓ Indexed ${summary?.actions ?? 0} action(s), ${summary?.flows ?? 0} flow(s) (${summary?.changed ?? 0} changed)${warnSuffix}${catalogSuffix}`,
     );
   },
 }) as CommandDef;

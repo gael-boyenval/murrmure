@@ -7,9 +7,10 @@ import type {
   ViewManifest,
 } from "@murrmure/contracts";
 import { compileFlowIr } from "./compile.js";
+import { lintStepContractManifest } from "./step-contract-compile.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
-export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint"] as const;
+export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint", "step_contract"] as const;
 
 export type EngineDispatchKind = (typeof ENGINE_DISPATCH_KINDS)[number];
 
@@ -298,6 +299,10 @@ export function lintFlowEngineCapabilities(
   lintInvokeCrossRefs(ir, index, ctx, out);
   lintManifestStart(ctx, out);
   lintManifestCheckpoints(ctx.manifest, index, ctx, out);
+  const contractWarnings = lintStepContractManifest(ctx.manifest, ctx.flow_id);
+  for (const w of contractWarnings) {
+    out.push(w);
+  }
   return out;
 }
 

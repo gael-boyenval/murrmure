@@ -15,6 +15,7 @@ export * from "./run-service.js";
 export * from "./cycle-detect.js";
 export * from "./start-flow.js";
 export * from "./engine-capabilities.js";
+export * from "./step-contract-compile.js";
 export * from "./exec-context.js";
 export * from "./checkpoint-dispatch.js";
 export * from "./checkpoint-resolve.js";

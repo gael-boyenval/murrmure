@@ -16,6 +16,7 @@ import { computeContentDigest } from "./digest.js";
 import { collectStepSpaces } from "./parse-flow-manifest.js";
 import { compileFlowIr } from "../flow-engine/compile.js";
 import { detectFlowCallCycles } from "../flow-engine/cycle-detect.js";
+import { compileStepContractCatalog } from "../flow-engine/step-contract-compile.js";
 
 function enrichCheckpointViewRefs(
   ir: ReturnType<typeof compileFlowIr>,
@@ -69,6 +70,7 @@ export function buildFlowIndexEntries(
     const flow_id = flow.flow_id || flowIdFromName(flow.manifest.name);
     const ir = compileFlowIr(flow.manifest, flow_id);
     enrichCheckpointViewRefs(ir, bundle.views, originSpaceId);
+    const { catalog } = compileStepContractCatalog(flow.manifest, flow_id);
     return {
       flow_id,
       origin_space_id: originSpaceId,
@@ -79,6 +81,7 @@ export function buildFlowIndexEntries(
       grants_required,
       view_ref: resolveViewRef(flow.manifest.start.requires_view, bundle.views, originSpaceId),
       ir,
+      step_contract_catalog: catalog ?? undefined,
     };
   });
 }
@@ -220,7 +223,12 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
       executors: snapshot.executors[0]?.digest,
       hooks: snapshot.hooks[0]?.digest,
       events: snapshot.events?.[0]?.digest,
-      flows: snapshot.flows.map((f) => ({ flow_id: f.flow_id, digest: f.digest })),
+      flows: snapshot.flows.map((f) => ({
+        flow_id: f.flow_id,
+        digest: f.digest,
+        step_contract_catalog_digest: f.step_contract_catalog?.digest,
+        step_contract_step_count: f.step_contract_catalog?.step_ids.length,
+      })),
     },
   };
 }

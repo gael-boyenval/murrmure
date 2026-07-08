@@ -1,44 +1,51 @@
 # Creating a flow
 
 ::: tip Start here
-**New workflows** use a **`murrmure/flows/`** manifest indexed with **`mrmr space apply`**.
+**New workflows** use a **`murrmure/`** directory indexed with **`mrmr space apply`**.
 
-→ **[Preview-review tutorial](./tutorials/01-local-preview-review/)** — scaffold with `mrmr space flow init`, apply, run checkpoint loop in **ViewCanvasHost**.
+→ **[Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/)** — build from `mrmr space init`, write manifest/actions/views by hand, run checkpoint loop in **ViewCanvasHost**.
 
-→ **[Known gaps](./known-gaps)** — deferred product surface (empty when v2 backlog ships).
+→ **[Known gaps](./known-gaps)** — deferred product surface.
 :::
 
-This page is a short index. The full walkthrough lives in the tutorial above.
+This page is a short index. The full walkthrough lives in Tutorial 1.
 
 ---
 
-## Quick path — v2 indexed flow
+## Authoring path (no shortcuts)
 
 ```bash
+mkdir -p ~/work/my-flow && cd ~/work/my-flow
 mrmr space init
-mrmr space flow init preview-review --template hello-gate
-cd murrmure/views/preview-review && npm install && npm run build
-cd ../preview-review-intake && npm install && npm run build
-mrmr space link --path . --space spc_ui_sandbox
+# remove flows/example — write your own under flows/{name}/
+# edit actions.yaml, executors.yaml, flow.manifest.yaml
+mrmr space view init my-view    # if you need checkpoint UI
+cd murrmure/views/my-view && npm install && npm run build
+cd ../../..
+mrmr space link --path . --create
 mrmr space apply --strict
-mrmr space status    # confirm flows count updated
+mrmr grant mint --space spc_… --capabilities flow:run,flow:read,action:invoke
 ```
 
-`hello-gate` scaffolds the [preview-review reference workflow](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md): intake checkpoint → build → review loop with `on_resolve` goto.
+See [Tutorial 1 — Create the repo](./tutorials/01-local-preview-review/01-create-the-repo) and [Flow manifest](./tutorials/01-local-preview-review/05-flow-manifest) for the full walkthrough.
 
-For a single invoke step without views, use `--template hello-invoke` — see [`hello-authoring`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/hello-authoring).
+## Step contracts (v2.2)
 
-Mint agent grants with **`--capabilities flow:run,flow:read`**. Run with **`mrmr flow run flw_flows_preview_review`** or Desktop **Run**.
+New flows use a **unified step shape** (`branches`, optional `executor`, optional `presentation`, optional nested `steps`) instead of separate `invoke:` / `checkpoint:` blocks.
 
-## Standalone view (add-on)
+- **Normative bridge:** [step-contract.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)
+- **Apply:** `mrmr space apply` compiles a **StepContractCatalog** and prints a digest; `--strict` rejects legacy manifests and unknown `{{murrmure.*}}` tokens.
+- **Runtime:** step resolve API ships in VS-2; until then catalog compile is the VS-1 deliverable.
 
-```bash
-mrmr space view init my-view
-cd murrmure/views/my-view && npm install
-mrmr view dev my-view
+```yaml
+# excerpt — see bridge for full nested preview-review manifest
+steps:
+  - id: intake
+    presentation: { view: preview-review-intake }
+    branches:
+      continue: { schema: { type: object }, next: write_spec }
+      cancel: { schema: { type: object }, next: null, fail_run: true }
 ```
-
-Checkpoint steps with `view_ref` open in **ViewCanvasHost** — see [View SDK](../reference/view-sdk).
 
 ## What you build (v2)
 
@@ -51,7 +58,7 @@ Checkpoint steps with `view_ref` open in **ViewCanvasHost** — see [View SDK](.
 | Checkpoint views | `murrmure/views/{id}/` (Vite+React + `view.manifest.yaml`) |
 | Hooks | `murrmure/hooks.yaml` |
 
----
+Checkpoint steps with `view` open in **ViewCanvasHost** — see [View SDK](../reference/view-sdk).
 
 ## Related
 

@@ -32,6 +32,8 @@ export * from "./journal/cloudevents.js";
 export * from "./journal/event-types.js";
 export * from "./journal/inline-payload.js";
 export * from "./entities/invoke.js";
+export * from "./entities/step-contract.js";
+export * from "./entities/resolve-step.js";
 export * from "./entities/executor-task-offer.js";
 export * from "./errors/denial.js";
 export * from "./commands/index.js";

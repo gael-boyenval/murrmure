@@ -12,6 +12,8 @@ export const JOURNAL_EVENT_TYPES = {
   ACTION_EXECUTOR_UNAVAILABLE: "mrmr.action.executor_unavailable",
   GATE_PENDING: "mrmr.gate.pending",
   GATE_RESOLVED: "mrmr.gate.resolved",
+  STEP_OPENED: "mrmr.step.opened",
+  STEP_RESOLVED: "mrmr.step.resolved",
   ARTIFACT_TRANSFERRED: "mrmr.artifact.transferred",
   ARTIFACT_EXPIRED: "mrmr.artifact.expired",
   HOOK_DELIVERED: "mrmr.hook.delivered",

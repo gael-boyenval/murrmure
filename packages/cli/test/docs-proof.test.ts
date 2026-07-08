@@ -15,9 +15,15 @@ const FDK_PATTERN =
 const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/index.md",
   "apps/docs/guide/tutorials/01-local-preview-review/index.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/01-scaffold-flow.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/02-install-and-connect.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/03-run-feedback-loop.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/01-create-the-repo.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/02-setup-wizard.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/03-agent-md-and-skills.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/05-flow-manifest.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/06-build-views.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/07-index-and-apply.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/08-run-the-loop.md",
+  "apps/docs/guide/tutorials/01-local-preview-review/09-troubleshooting.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/index.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-flow.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/02-admin-setup.md",
@@ -61,12 +67,78 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
-  test("10-T1 — preview-review-v2 example passes strict apply (Tutorial 1 tree)", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/preview-review-v2"), [
-      "preview-review",
-      "preview-review-intake",
-    ]);
-  }, 120_000);
+  test("10-T1 — preview-review-v2 example passes apply lint (legacy manifest; strict fails until VS-8)", () => {
+    const murrmureRoot = join(REPO_ROOT, "examples/flows/preview-review-v2");
+    const bundle = readSpaceApplyBundle(murrmureRoot);
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictLintFailures(warnings).some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+  });
+
+  test("VS-1 — step-contract bridge doc exists", () => {
+    const bridge = join(REPO_ROOT, "studio-specs/current/bridges/step-contract.md");
+    expect(existsSync(bridge)).toBe(true);
+    const content = readFileSync(bridge, "utf-8");
+    expect(content).toMatch(/branches/);
+    expect(content).toMatch(/StepContractCatalog/);
+  });
+
+  test("VS-1 — v2 step contract manifest passes strict apply lint", () => {
+    const manifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "strict-v2",
+      start: { manual: true },
+      steps: [
+        {
+          id: "intake",
+          presentation: { view: "preview-review-intake" },
+          branches: {
+            continue: { schema: { type: "object" }, next: "work" },
+            cancel: { schema: { type: "object" }, next: null, fail_run: true },
+          },
+        },
+        {
+          id: "work",
+          executor: { action: "feature_write_spec" },
+          branches: {
+            completed: { schema: { type: "object" }, next: null },
+          },
+        },
+      ],
+    };
+    const bundle = {
+      actions: {
+        digest: "sha256:actions",
+        file: {
+          version: 1,
+          actions: {
+            feature_write_spec: { executor: "shell" },
+          },
+        },
+      },
+      executors: {
+        digest: "sha256:exec",
+        file: {
+          version: 1,
+          executors: {
+            shell: { binding: { type: "shell_spawn", executor_id: "shell" } },
+          },
+        },
+      },
+      flows: [
+        {
+          flow_id: "flw_strict_v2",
+          rel_path: "flows/strict-v2/flow.manifest.yaml",
+          digest: "sha256:strictv2",
+          manifest,
+          raw: manifest,
+        },
+      ],
+      views: [],
+    };
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(strictLintFailures(warnings)).toEqual([]);
+  });
 
   test("10-T1b — preview-review manifest documents agent-owned orchestration variant", () => {
     const manifestPath = join(
@@ -84,20 +156,30 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(manifest.steps.some((s) => s.checkpoint?.on_resolve)).toBe(true);
   });
 
-  test("10-T2 — team-brief-v2 example passes strict apply", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/team-brief-v2"));
+  test("10-T2 — team-brief-v2 example emits legacy lint (strict fails until VS-8)", () => {
+    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/team-brief-v2"));
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
   });
 
-  test("10-T3 — daily-brief-v2 example passes strict apply", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/daily-brief-v2"), ["daily-brief"]);
-  }, 120_000);
-
-  test("10-U5 — demo-space passes strict apply", () => {
-    assertStrictApply(join(REPO_ROOT, "demo-space"));
+  test("10-T3 — daily-brief-v2 example emits legacy lint (strict fails until VS-8)", () => {
+    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/daily-brief-v2"));
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
   });
 
-  test("flows-tutorial example hello-authoring passes strict apply", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/hello-authoring"));
+  test("10-U5 — demo-space emits legacy lint (strict fails until VS-8)", () => {
+    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "demo-space"));
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+  });
+
+  test("flows-tutorial example hello-authoring emits legacy lint (strict fails until VS-8)", () => {
+    const bundle = readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/hello-authoring"));
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
   });
 });
 

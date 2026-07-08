@@ -112,7 +112,7 @@ describe("preview-review-v2 reference example", () => {
     }
   });
 
-  test("R1 — space apply --strict passes after view build", () => {
+  test("R1 — legacy manifest lints clean except LEGACY_STEP_KIND (strict until VS-8)", () => {
     for (const viewId of ["preview-review", "preview-review-intake"]) {
       const viewDir = join(MURRMURE_ROOT, "views", viewId);
       const distIndex = join(viewDir, "dist", "index.html");
@@ -125,7 +125,9 @@ describe("preview-review-v2 reference example", () => {
 
     const bundle = readSpaceApplyBundle(EXAMPLE_ROOT);
     const warnings = lintSpaceApplyBundle(bundle);
-    expect(strictLintFailures(warnings)).toEqual([]);
+    const strictFailures = strictLintFailures(warnings);
+    expect(strictFailures.every((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictFailures.length).toBeGreaterThan(0);
     expect(bundle.flows?.some((f) => f.flow_id === "flw_flows_preview_review")).toBe(true);
   }, 120_000);
 });

@@ -9,6 +9,7 @@ export const CAPABILITY_STRINGS = [
   "flow:run",
   "action:invoke",
   "gate:resolve",
+  "step:resolve",
   "journal:read",
   "executor:poll",
   "hub:admin",

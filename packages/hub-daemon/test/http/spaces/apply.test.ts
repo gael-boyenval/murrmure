@@ -467,4 +467,102 @@ describe("http/spaces/apply", () => {
     });
     expect(allowed.status).toBe(200);
   });
+
+  test("apply persists step_contract_catalog on v2-shaped flow", async () => {
+    const v2Manifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "step-contract-demo",
+      start: { manual: true },
+      steps: [
+        {
+          id: "intake",
+          presentation: { view: "intake-view" },
+          branches: {
+            continue: { schema: { type: "object" }, next: "work" },
+            cancel: { schema: { type: "object" }, next: null, fail_run: true },
+          },
+        },
+        {
+          id: "work",
+          executor: { action: "hello" },
+          branches: {
+            completed: { schema: { type: "object" }, next: null },
+          },
+        },
+      ],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_step_contract",
+              rel_path: "flows/step-contract/flow.manifest.yaml",
+              digest: "sha256:stepcontract1",
+              manifest: v2Manifest,
+              raw: v2Manifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status?.digests?.flows?.[0]?.step_contract_catalog_digest).toMatch(/^sha256:/);
+    expect(body.status?.digests?.flows?.[0]?.step_contract_step_count).toBe(2);
+
+    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_step_contract`, { headers: auth() });
+    expect(flowRes.status).toBe(200);
+    const flow = await flowRes.json();
+    expect(flow.step_contract_catalog?.step_ids).toEqual(["intake", "work"]);
+    expect(flow.step_contract_catalog?.digest).toMatch(/^sha256:/);
+  });
+
+  test("apply returns LEGACY_STEP_KIND warnings for invoke/checkpoint manifest", async () => {
+    const legacyManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "legacy-flow",
+      start: { manual: true },
+      steps: [
+        { id: "write", invoke: { space: "spc_x", action: "hello" } },
+        {
+          id: "review",
+          checkpoint: {
+            view: "review-view",
+            on_resolve: { default: { goto: "write" }, cancel: { fail: true } },
+          },
+        },
+      ],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_legacy_warn",
+              rel_path: "flows/legacy/flow.manifest.yaml",
+              digest: "sha256:legacyflow",
+              manifest: legacyManifest,
+              raw: legacyManifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const legacyWarnings = (body.warnings as Array<{ code: string }>).filter(
+      (w) => w.code === "LEGACY_STEP_KIND",
+    );
+    expect(legacyWarnings.length).toBeGreaterThanOrEqual(2);
+    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_legacy_warn`, { headers: auth() });
+    const flow = await flowRes.json();
+    expect(flow.step_contract_catalog).toBeUndefined();
+  });
 });

@@ -145,7 +145,7 @@ describe("space flow init scaffold", () => {
     );
   });
 
-  test("space apply --strict passes after view dist is built", () => {
+  test("space apply strict fails on legacy scaffold until VS-8 migration", () => {
     const murrmureRoot = join(targetDir, "murrmure");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
@@ -154,7 +154,9 @@ describe("space flow init scaffold", () => {
 
     const bundle = readSpaceApplyBundle(targetDir);
     const warnings = lintSpaceApplyBundle(bundle);
-    expect(strictLintFailures(warnings)).toEqual([]);
+    const strictFailures = strictLintFailures(warnings);
+    expect(strictFailures.every((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
+    expect(strictFailures.length).toBeGreaterThan(0);
     expect(bundle.flows?.some((f) => f.flow_id === "flw_flows_preview_review")).toBe(true);
   });
 

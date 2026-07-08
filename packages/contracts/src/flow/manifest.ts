@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { CapabilitySchema } from "../grants/capability.js";
 import { GateFormSchema } from "../entities/gate.js";
+import {
+  StepBranchDefinitionSchema,
+  StepContractManifestStepSchema,
+  StepExecutorSchema,
+  StepOrchestrationSchema,
+  StepPresentationSchema,
+  type StepContractManifestStep,
+} from "../entities/step-contract.js";
 
 export const FlowStartEventSchema = z.object({
   type: z.string(),
@@ -80,6 +88,12 @@ export const FlowParallelStepSchema = z.object({
 export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
   z.object({
     id: z.string(),
+    description: z.string().optional(),
+    orchestration: StepOrchestrationSchema.optional(),
+    executor: StepExecutorSchema.optional(),
+    presentation: StepPresentationSchema.optional(),
+    branches: z.record(StepBranchDefinitionSchema).optional(),
+    steps: z.array(StepContractManifestStepSchema).optional(),
     invoke: FlowInvokeStepSchema.optional(),
     parallel: FlowParallelStepSchema.optional(),
     gate: FlowGateStepSchema.optional(),
@@ -90,6 +104,12 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
 
 export type FlowStep = {
   id: string;
+  description?: string;
+  orchestration?: z.infer<typeof StepOrchestrationSchema>;
+  executor?: z.infer<typeof StepExecutorSchema>;
+  presentation?: z.infer<typeof StepPresentationSchema>;
+  branches?: Record<string, z.infer<typeof StepBranchDefinitionSchema>>;
+  steps?: StepContractManifestStep[];
   invoke?: z.infer<typeof FlowInvokeStepSchema>;
   parallel?: z.infer<typeof FlowParallelStepSchema>;
   gate?: z.infer<typeof FlowGateStepSchema>;

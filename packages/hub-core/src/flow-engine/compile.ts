@@ -1,7 +1,36 @@
 import type { FlowIr, FlowManifest, FlowStep, FlowStepIr } from "@murrmure/contracts";
 import { computeContentDigest } from "../index/digest.js";
+import { isStepContractStep } from "./step-contract-compile.js";
+
+function stepContractToIr(
+  step: FlowStep,
+  qualifiedId: string,
+  parentId: string | null,
+): FlowStepIr {
+  return {
+    id: qualifiedId,
+    kind: "step_contract",
+    step_contract: {
+      qualified_id: qualifiedId,
+      parent_id: parentId,
+    },
+  };
+}
+
+function flattenStepContractIr(step: FlowStep, parentId: string | null, prefix: string | null): FlowStepIr[] {
+  if (!isStepContractStep(step)) return [];
+  const qualifiedId = prefix ? `${prefix}.${step.id}` : step.id;
+  const out: FlowStepIr[] = [stepContractToIr(step, qualifiedId, parentId)];
+  for (const child of step.steps ?? []) {
+    out.push(...flattenStepContractIr(child as FlowStep, qualifiedId, qualifiedId));
+  }
+  return out;
+}
 
 function stepToIr(step: FlowStep): FlowStepIr {
+  if (isStepContractStep(step)) {
+    return stepContractToIr(step, step.id, null);
+  }
   if (step.invoke) {
     return {
       id: step.id,
@@ -84,7 +113,14 @@ function stepToIr(step: FlowStep): FlowStepIr {
 }
 
 export function compileFlowIr(manifest: FlowManifest, flow_id: string): FlowIr {
-  const steps = manifest.steps.map(stepToIr);
+  const steps: FlowStepIr[] = [];
+  for (const step of manifest.steps) {
+    if (isStepContractStep(step)) {
+      steps.push(...flattenStepContractIr(step, null, null));
+    } else {
+      steps.push(stepToIr(step));
+    }
+  }
   const body = {
     flow_id,
     name: manifest.name,
