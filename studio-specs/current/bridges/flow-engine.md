@@ -26,11 +26,7 @@ Maps rev-1 flow manifest semantics to hub runtime behavior. See [product/spec.md
 | `run-service.ts` | Session + Run creation, idempotency |
 | `space-home.ts` | Aggregated `/v1/spaces/:id/home` payload |
 | `templates.ts` | `{{input.*}}`, `{{steps.*}}`, `{{event.*}}` resolution |
-| `step-contract-compile.ts` | YAML → `StepContractCatalog`; nested flatten |
-| `step-resolve.ts` | Unified `resolve_step` handler; nested goto / complete:parent |
-| `step-open.ts` | Open step + executor dispatch + first nested child bootstrap |
-| `step-catalog.ts` | Catalog lookups; nested children ordering |
-| `step-contract-slice.ts` | Runtime injection slice + `active-step-contract.json` |
+| `cron.ts` | Schedule expression evaluation |
 
 ## Index pipeline
 
@@ -40,30 +36,7 @@ mrmr space apply → parseFlowManifest → compileFlowIr → enrichCheckpointVie
 
 Runs pin `flow_digest` from compiled IR at start.
 
-## Step contracts (v2.2)
-
-Flows authored with unified **`step`** blocks compile a **`StepContractCatalog`** at apply time. Runtime progression uses **`POST /v1/runs/{run_id}/steps/{step_id}/resolve`** (MCP: `murrmure_resolve_step`) — not gate resolve or `complete_action`.
-
-| Concept | Behavior |
-|---------|----------|
-| **Top-level step** | Linear `next:` routes; engine opens next step |
-| **Nested step** | Qualified id `parent.child`; routes use `goto`, `complete: parent`, `continue: parent` |
-| **engine-routed** | Engine opens siblings (e.g. `build.review` after `build.build-loop` completes); agent waits |
-| **Parent with executor** | One shell spawn on parent open; nested children loop without re-invoke |
-
-Normative detail: [step-contract.md](./step-contract.md).
-
-### Nested runtime (preview-review)
-
-1. Engine opens **build** → starts `feature_build` → opens **build.build-loop**
-2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`)
-3. Engine opens **build.review** (view, `awaiting_human`)
-4. Human validates → `complete: parent` → **build** completed → **archive**
-5. Feedback → `continue: parent` + `goto: build-loop` → same shell session
-
-Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_catalog` is present.
-
-## Legacy invoke/checkpoint (pre-v2.2)
+## Engine dispatch capabilities (runtime)
 
 **Source of truth:** `packages/hub-core/src/flow-engine/engine-capabilities.ts` — `ENGINE_DISPATCH_KINDS`.
 

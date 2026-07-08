@@ -28,16 +28,12 @@ export function App() {
   const ctx = useViewContext();
   const { submit, cancel } = useViewSubmit();
 
-  const buildLoopOutput = ctx.steps?.["build.build-loop"]?.output as
-    | Record<string, unknown>
-    | undefined;
-  const buildOutput = buildLoopOutput ?? (ctx.steps?.build?.output as Record<string, unknown> | undefined);
+  const buildOutput = ctx.steps?.build?.output as Record<string, unknown> | undefined;
   const previewUrl = previewUrlFromBuildOutput(buildOutput);
 
-  const reviewOutput = ctx.steps?.["build.review"]?.output ?? ctx.steps?.review?.output;
   const priorComments = useMemo(
-    () => normalizeComments(reviewOutput?.comments),
-    [reviewOutput?.comments],
+    () => normalizeComments(ctx.steps?.review?.output?.comments),
+    [ctx.steps?.review?.output?.comments],
   );
 
   const [draft, setDraft] = useState("");

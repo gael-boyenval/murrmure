@@ -1,6 +1,6 @@
 # Part 8 — Run the loop
 
-Walk through one full run: intake → write_spec → build (nested loop) → (optional feedback) → archive → commit.
+Walk through one full run: intake → write_spec → build (agent loop) → review → (optional feedback) → archive → commit.
 
 Open the space in Cursor (`cursor .`). Keep `agent.md` and **`skills/feature-build/SKILL.md`** in mind — the build agent should follow them for the whole session.
 
@@ -34,23 +34,21 @@ ls specs/current/
 cat specs/current/hero-section.md
 ```
 
-## Step 4 — Build + nested review loop
+## Step 4 — Build + review loop
 
 Flow invokes **`feature_build`** once. The Cursor agent should:
 
 1. Read `specs/current/hero-section.md`
 2. Update `index.html`
 3. Start or confirm dev server; discover local preview URL (e.g. `http://localhost:3000`)
-4. Read **`active-step-contract.json`** — active step is **`build.build-loop`**
-5. Call **`murrmure_resolve_step`** on **`build.build-loop`** with `branch: "completed"` and `{ preview_url: "…" }`
-6. **Engine opens `build.review`** — agent does **not** invoke review
-7. Call **`murrmure_wait_for_run`** — blocks until **`build.review`** is terminal
+4. Call **`murrmure_resolve_step`** with `branch: "completed"` and `{ preview_url: "…" }` → flow advances to **review**
+5. Call **`murrmure_wait_for_run`** — blocks until review step is terminal (human acts in the review view)
 
-**Verify:** run detail shows `steps.build.build-loop.output.preview_url` and `build.review` status `awaiting_human` then terminal.
+**Verify:** run detail shows `steps.build.output.preview_url`.
 
 ## Step 5 — Live review
 
-Review view opens in ViewCanvasHost (step **`build.review`**).
+Review view opens in ViewCanvasHost.
 
 - Check iframe shows updated site
 - Either **Validate** or add notes → **Send feedback**
@@ -59,14 +57,14 @@ Review view opens in ViewCanvasHost (step **`build.review`**).
 
 If you sent feedback:
 
-1. Agent receives `changes_required` + `comments` from **`build.review`** resolution
-2. Agent fixes site **in the same session** — engine reopens **`build.build-loop`**
-3. Agent resolves **`build.build-loop`** again with updated `preview_url`
-4. Engine reopens **`build.review`**; agent waits again
+1. Agent receives `changes_required` + `comments` from gate resolution
+2. Agent fixes site **in the same session** — flow reopens **review**, does **not** re-invoke **build**
+3. Agent calls **`murrmure_wait_for_gate`** again
+4. Review view opens again with updated preview (hot reload)
 
 ## Step 6 — Archive
 
-After **Validate**, parent **build** completes and flow invokes **`feature_archive`**.
+After **Validate**, flow invokes **`feature_archive`**.
 
 Agent should:
 
@@ -109,9 +107,9 @@ Run status: **completed**.
 ```text
 1. Human: pick spec from disk          (intake)
 2. Agent: write specs/current/         (feature_write_spec)
-3. Agent: code + resolve build-loop    (feature_build — same session)
-4. Engine: open build.review           (human iframe review)
-5. [optional] feedback → agent fixes → resolve build-loop again
+3. Agent: code + resolve_step       (feature_build — same session)
+4. Human: iframe review                (review)
+5. [optional] feedback → agent fixes → resolve_step build again (still build session)
 6. Agent: current → archive            (feature_archive)
 7. Agent: git commit + summary         (feature_commit)
 8. Run complete
