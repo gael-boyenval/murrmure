@@ -1,11 +1,10 @@
 {
   "name": "@murrmure/shell-web",
-  "version": "0.1.2",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:bundled": "VITE_MURRMURE_BUNDLED=1 vite",
     "build": "vite build",
     "build:bundled": "VITE_MURRMURE_BUNDLED=1 vite build",
     "preview": "vite preview",
@@ -15,7 +14,7 @@
   "dependencies": {
     "@murrmure/shell-client": "workspace:*",
     "@murrmure/shell-ui": "workspace:*",
-    "@murrmure/view-sdk": "workspace:*",
+  "@murrmure/view-sdk": "workspace:*",
     "@tanstack/react-query": "^5.66.9",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
@@ -24,8 +23,6 @@
     "@xyflow/react": "^12.4.4"
   },
   "devDependencies": {
-    "@storybook/react": "^8.6.14",
-    "@storybook/test": "^8.6.14",
     "@tailwindcss/vite": "^4.0.9",
     "@testing-library/react": "^16.2.0",
     "@types/react": "^18.3.11",

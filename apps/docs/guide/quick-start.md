@@ -71,8 +71,8 @@ Ask your connected agent:
 
 ## Next steps
 
-- Scaffold a real workflow: `mrmr space flow init preview-review --template hello-gate`
-- [Creating flows](./creating-flows) · [Tutorials](./tutorials/)
+- Build a real workflow from scratch: [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/)
+- [Creating flows](./creating-flows) · [All tutorials](./tutorials/)
 - [Murrmure Desktop](./desktop) · [Connect your agent](./agents-mcp)
 
 ## Done

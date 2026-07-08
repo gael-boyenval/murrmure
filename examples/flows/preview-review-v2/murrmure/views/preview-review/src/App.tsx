@@ -10,14 +10,26 @@ function normalizeComments(raw: unknown): Comment[] {
   );
 }
 
+/** Read preview URL from opaque build step output — convention or first http(s) string. */
+function previewUrlFromBuildOutput(output: Record<string, unknown> | undefined): string {
+  if (!output) return "";
+  if (typeof output.preview_url === "string" && output.preview_url.trim()) {
+    return output.preview_url.trim();
+  }
+  for (const value of Object.values(output)) {
+    if (typeof value === "string" && /^https?:\/\//.test(value.trim())) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
 export function App() {
   const ctx = useViewContext();
   const { submit, cancel } = useViewSubmit();
 
-  const previewUrl =
-    (ctx.steps?.build?.output?.preview_url as string | undefined) ??
-    (ctx.input?.preview_url as string | undefined) ??
-    "";
+  const buildOutput = ctx.steps?.build?.output as Record<string, unknown> | undefined;
+  const previewUrl = previewUrlFromBuildOutput(buildOutput);
 
   const priorComments = useMemo(
     () => normalizeComments(ctx.steps?.review?.output?.comments),

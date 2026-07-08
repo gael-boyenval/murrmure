@@ -1,15 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
-import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
-import { buildViewAppContext } from "../lib/view-app-context.js";
-import { mapViewSubmitToGateResolve } from "../lib/view-resolve-adapter.js";
-import { getHubBaseUrl, getShellToken } from "../hooks.js";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@murrmure/shell-ui";
+import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@murrmure/shell-ui";
 
 const RunFlowchartView = lazy(() =>
   import("../components/RunFlowchartView.js").then((m) => ({ default: m.RunFlowchartView })),
@@ -19,11 +15,9 @@ export function RunPage() {
   const { runId } = useParams();
   const [params] = useSearchParams();
   const focusGate = params.get("gate");
-  const forceAdmin = params.get("admin") === "1";
   const client = useShellClient();
   const queryClient = useQueryClient();
   const [selectedLaneId, setSelectedLaneId] = useState<string | undefined>();
-  const [resolveLoading, setResolveLoading] = useState(false);
 
   const runQuery = useQuery({
     queryKey: ["run", runId],
@@ -46,87 +40,6 @@ export function RunPage() {
   const gates = gatesQuery.data ?? [];
   const focused = focusGate ? gates.find((g) => g.gate_id === focusGate) : gates.find((g) => g.status === "pending");
   const run = runQuery.data;
-  const checkpointCanvas = Boolean(
-    focused?.status === "pending" && focused.view_ref && run?.flow_id && !forceAdmin,
-  );
-
-  const focusedGateId = focused?.gate_id;
-
-  const handleCheckpointSubmit = useCallback(
-    async (submitParams: Record<string, unknown>) => {
-      if (!focusedGateId || !client) return;
-      setResolveLoading(true);
-      try {
-        await client.gates.resolve(
-          focusedGateId,
-          mapViewSubmitToGateResolve(submitParams, "submit"),
-        );
-        await queryClient.refetchQueries({ queryKey: ["gates", runId] });
-        await queryClient.refetchQueries({ queryKey: ["run-graph", runId] });
-        await queryClient.refetchQueries({ queryKey: ["run", runId] });
-      } finally {
-        setResolveLoading(false);
-      }
-    },
-    [focusedGateId, client, queryClient, runId],
-  );
-
-  const handleCheckpointCancel = useCallback(async () => {
-    if (!focusedGateId || !client) return;
-    setResolveLoading(true);
-    try {
-      await client.gates.resolve(focusedGateId, mapViewSubmitToGateResolve({}, "cancel"));
-      await queryClient.refetchQueries({ queryKey: ["gates", runId] });
-      await queryClient.refetchQueries({ queryKey: ["run-graph", runId] });
-      await queryClient.refetchQueries({ queryKey: ["run", runId] });
-    } finally {
-      setResolveLoading(false);
-    }
-  }, [focusedGateId, client, queryClient, runId]);
-
-  const checkpointViewContext = useMemo(() => {
-    if (!focused || !run) return undefined;
-    return buildViewAppContext({
-      flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
-      space_id: run.space_id ?? focused.view_ref?.origin_space_id ?? "spc_local",
-      hub_base_url: getHubBaseUrl(),
-      token: getShellToken(),
-      session_id: run.session_id,
-      run_id: runId,
-      gate: focused,
-      exec_context: run.exec_context,
-    });
-  }, [
-    focused?.gate_id,
-    focused?.step_id,
-    focused?.payload_ref,
-    focused?.form,
-    focused?.view_ref?.view_id,
-    focused?.view_ref?.origin_space_id,
-    focused?.view_ref?.entry_url,
-    run?.flow_id,
-    run?.space_id,
-    run?.session_id,
-    run?.exec_context,
-    graphQuery.data?.flow_id,
-    runId,
-  ]);
-
-  if (checkpointCanvas && focused && run && checkpointViewContext) {
-    return (
-      <AppShell canvasMode>
-        <ViewCanvasHost
-          title={focused.title ?? "Checkpoint"}
-          viewRef={focused.view_ref}
-          context={checkpointViewContext}
-          onSubmit={handleCheckpointSubmit}
-          onCancel={handleCheckpointCancel}
-          submitting={resolveLoading}
-          adminHref={`/runs/${runId}?admin=1${focusGate ? `&gate=${focusGate}` : ""}`}
-        />
-      </AppShell>
-    );
-  }
 
   return (
     <AppShell>
@@ -153,19 +66,7 @@ export function RunPage() {
             />
           </Suspense>
         ) : run ? (
-          <JournalWaterfallView
-            run={run}
-            isLive={run.lifecycle === "working"}
-            onRetry={
-              run.lifecycle === "failed" || run.lifecycle === "cancelled"
-                ? async (_stepId) => {
-                    const result = await client!.runs.retry(runId!);
-                    await queryClient.invalidateQueries({ queryKey: ["run", runId] });
-                    window.location.assign(`/runs/${result.run.run_id}`);
-                  }
-                : undefined
-            }
-          />
+          <JournalWaterfallView run={run} />
         ) : null}
 
         {focused && focused.status === "pending" ? (
@@ -196,6 +97,18 @@ export function RunPage() {
           </Card>
         )}
 
+        {run?.lifecycle === "failed" || run?.lifecycle === "cancelled" ? (
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const result = await client!.runs.retry(runId!);
+              await queryClient.invalidateQueries({ queryKey: ["run", runId] });
+              window.location.assign(`/runs/${result.run.run_id}`);
+            }}
+          >
+            Retry
+          </Button>
+        ) : null}
       </div>
     </AppShell>
   );

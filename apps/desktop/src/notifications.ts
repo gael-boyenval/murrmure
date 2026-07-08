@@ -13,17 +13,9 @@ export interface DesktopOutOfShellPayload {
 export interface DesktopNotificationBridgeOptions {
   hubUrl: string;
   token: string;
-  /** Only show notifications targeted at this actor (from bootstrap whoami). */
-  currentActorId: string;
   /** When true, skip OS notifications (shell is focused). */
   isShellFocused?: () => boolean;
-  showNotification: (options: {
-    title: string;
-    body?: string;
-    subtitle?: string;
-    silent?: boolean;
-    deepLink?: string;
-  }) => void;
+  showNotification: (options: { title: string; body?: string; subtitle?: string; silent?: boolean }) => void;
   navigateToDeepLink: (deepLink: string) => void;
   fetchImpl?: typeof fetch;
 }
@@ -105,16 +97,11 @@ export async function subscribeDesktopOutOfShellNotifications(
         } catch {
           continue;
         }
-        if (payload.actor_id !== options.currentActorId) continue;
         if (options.isShellFocused?.()) continue;
-        // Electrobun showNotification has no click/URL hook — pre-navigate the shell
-        // so restoring the window lands on the deep-link route (open-url still handles clicks).
-        options.navigateToDeepLink(payload.deep_link);
         options.showNotification({
           title: payload.title,
           body: payload.body,
           subtitle: payload.kind === "gate" ? "Approval needed" : "Run failed",
-          deepLink: payload.deep_link,
         });
       }
     }

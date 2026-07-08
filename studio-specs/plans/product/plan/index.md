@@ -1,176 +1,134 @@
-# Murrmure v2 — Implementation spec (rev-5)
+# Space–Flow–Protocol v2 — Implementation Plan
 
-**Status:** active — **normative implementation spec** (phases 01–10, sequential execution)  
-**Date:** 2026-07-03 rev-5 — full rebuild after plan reviews + 14 decisions  
-**Prior revisions:** [09-review-synthesis.md](./09-review-synthesis.md) · rev-4 index (superseded)  
-**Plan reviews (historical):** [plan-review-1.md](./plan-review-1.md) · [plan-review-2.md](./plan-review-2.md) · [plan-review-3.md](./plan-review-3.md)  
-**Decisions (normative addenda):** [decisions/README.md](./decisions/README.md)  
-**Product spec:** [current/product/spec.md](../../../current/product/spec.md) §21  
-**Deferred (non-goals):** [current/product/deferred.md](../../../current/product/deferred.md)  
-**Reference workflow:** [06-reference-workflow-preview-review.md](./06-reference-workflow-preview-review.md)
+**Status:** executable plan — build order for rev-1  
+**Date:** 2026-06-30  
+**Normative spec:** [space-flow-protocol-v2.spec-rev-1.md](../space-flow-protocol-v2.spec-rev-1.md)  
+**Architecture:** [space-flow-protocol-v2.architecture.md](../space-flow-protocol-v2.architecture.md)  
+**Plan delta:** [plan-delta-rev1.md](../plan-delta-rev1.md) — deferred items pulled forward, dependency corrections  
+**Doc/skill/MCP tracker:** [00-doc-skill-mcp-tracker.md](./00-doc-skill-mcp-tracker.md)  
+**Philosophy:** [philosophy.md](../../../current/product/philosophy.md)
 
-> This plan **is the spec** for unfinished v2 product surface. Phase docs define schemas, APIs, acceptance criteria, and example trees — not direction-only backlog items.
-
-> **North star:** Custom views in `murrmure/views/` via **ViewCanvasHost** are the human OS. Shell chrome is admin/operator mode. See [philosophy.md § North star](../../../current/product/philosophy.md#north-star-non-negotiable--2026-07-03).
+> **Nothing in this plan is unassigned.** Every item agreed in rev-1, architecture §16b, philosophy, and [plan-delta-rev1.md](../plan-delta-rev1.md) has a phase owner. rev-1 "defer" markers overridden by the delta are listed there explicitly.
 
 ---
 
-## What we are building (one paragraph)
+## Product goal (unchanged)
 
-Authors scaffold **`murrmure/`** spaces with **flows + React views + actions**. `mrmr space apply` indexes them. Runs execute declarative steps; **checkpoint steps pause** for humans in **full-screen custom views**. **Review loops** (build → review → feedback → build → … → validated) use **`checkpoint.on_resolve` branching** inside one session/run. **`@murrmure/view-sdk`** (public npm) gives authors `createViewMount` + hooks; **`mrmr view dev`** iterates against fixtures in Desktop. The shell embeds views via **ViewCanvasHost**. Human resolve wire is **`disposition: continue | cancel`** + **`output`**. FDK **install pipeline** is deleted only after the above ships.
+> Teams run coordinated AI work across shared workspaces and machines: users define spaces and flows; the protocol delivers actions and artifacts; **sessions and runs** make cross-boundary work observable from start to finish.
 
----
-
-## Sequential execution order (normative)
-
-Execute phases **in this order**. Do not start a later phase until its **Depends on** rows are green.
-
-| Order | Phase | Spec | Delivers |
-|------:|-------|------|----------|
-| **01** | Apply validation | [01-apply-validation.md](./01-apply-validation.md) | `ENGINE_DISPATCH_KINDS`, apply lint, checkpoint view/`dist/` lint, doc-tracker warn CI |
-| **02** | View SDK | [02-view-sdk.md](./02-view-sdk.md) | `@murrmure/view-sdk/app`, npm publish, `mrmr space view init`, `mrmr view dev`, fixtures |
-| **03** | Engine completion | [03-engine-completion.md](./03-engine-completion.md) | Checkpoint dispatch, `disposition`+`output`, `on_resolve`, step outputs, `MURRMURE_INPUT` |
-| **04** | Space flow scaffold | [04-space-flow-scaffold.md](./04-space-flow-scaffold.md) | `mrmr space flow init`, hello-gate/hello-invoke templates |
-| **05** | ViewCanvasHost | [05-view-canvas-checkpoints.md](./05-view-canvas-checkpoints.md) | Checkpoint-only human UI, shell adapter, full primary region |
-| **06** | Reference workflow | [06-reference-workflow-preview-review.md](./06-reference-workflow-preview-review.md) | `preview-review-v2` example, R1–R6 layered verification, orchestration A/B |
-| **07** | Unified skill | [07-unified-murrmure-skill.md](./07-unified-murrmure-skill.md) | `murrmure` skill sole agent source (04a early, 04b rolling) |
-| **08** | CLI wizards | [08-cli-setup-wizards.md](./08-cli-setup-wizards.md) | `mrmr setup`, `space onboard`, TTFRun path |
-| **09** | FDK deletion | [09-fdk-deletion.md](./09-fdk-deletion.md) | Worker runtime removal; hub-daemon FDK modules excised |
-| **10** | Docs & proof | [10-docs-and-proof.md](./10-docs-and-proof.md) | Tutorial parity, acceptance fixtures, strict CI gates |
-
-### Parallel tracks (same PR rules apply)
-
-| Track | When | Rule |
-|-------|------|------|
-| **07b skill reference** | Rolling from phase 03 onward | Update skill `reference/*.md` in same PR as the phase it documents ([00-doc-skill-mcp-tracker.md](./00-doc-skill-mcp-tracker.md)) |
-| **09-pre test inventory** | Before phase 09 merge | [09-pre-fdk-test-disposition.md](./09-pre-fdk-test-disposition.md) 100% filled ([decision 11](./decisions/11-fdk-test-disposition-inventory.md)) |
-| **Acceptance fixtures** | From phase 03 onward | Add golden fixtures as phases ship; phase 10 consolidates |
-
-### Hard gates
-
-| Gate | Rule |
-|------|------|
-| **02 before 09 M6** | Do not delete `flow-dev-kit` until `@murrmure/view-sdk/app` ships |
-| **03 + 05 before 06 proof** | Review loop E2E needs engine + ViewCanvasHost |
-| **05 before 10-T1** | Tutorial 1 requires full canvas, not drawer |
-| **09-pre before 09** | Per-test disposition table complete; security rows ported or documented |
-| **07a before 09** | Skill has zero FDK push/evolution references |
+**Boundary test (every PR):** *Is this protocol, flow, view rule, or space implementation?*
 
 ---
 
-## Layer model (normative)
+## How to use this plan
 
-| Layer | Package / artifact | Role |
-|-------|-------------------|------|
-| **Protocol** | `hub-core`, hub HTTP | Session, run, checkpoint/gate, journal, apply index |
-| **Flow** | `murrmure/flows/*/flow.manifest.yaml` | Step graph: `triggers`, `invoke`, `checkpoint`, `start_flow` |
-| **View** | `murrmure/views/*` + `@murrmure/view-sdk/app` | React UI at checkpoint steps only |
-| **Shell** | `shell-web` + `@murrmure/view-sdk` (host) | ViewCanvasHost, resolve adapter, admin chrome |
-| **CLI** | `@murrmure/cli` | scaffold, apply, setup, view dev |
-
-**Retire:** FDK worker install, `@murrmure/flow-kit` **after** port to view-sdk (phase 02).
-
-**Canonical hub package:** `packages/hub-daemon/` — excise FDK modules inside; do **not** delete the package ([decision 13](./decisions/13-hub-daemon-canonical-no-studio-duplicates.md)).
+1. Read the phase doc **in full** before coding — it contains spec excerpts, file paths, tests, and doc updates.
+2. Complete **all** checklist items in a phase before marking it done — including [doc/skill/MCP updates](./00-doc-skill-mcp-tracker.md).
+3. Run phase acceptance script (CLI + shell demo steps) and CI gates listed in the phase.
+4. Update phase status in the table below (`⬜` → `✅`).
+5. Do not skip phases — later phases assume prior working behavior.
+6. When rev-1 says "defer" but [plan-delta-rev1.md](../plan-delta-rev1.md) assigns a phase, **follow the phase doc**.
 
 ---
 
-## Glossary (v2 normative)
+## Phase index
 
-| Term | Meaning |
-|------|---------|
-| **Checkpoint** | Flow step kind (`steps[].checkpoint`) — only human UI path; compiles to IR kind `checkpoint` (legacy alias `gate`) |
-| **Triggers** | Top-level `triggers:` — **when** a run may start; **no views** ([decision 05](./decisions/05-triggers-only-checkpoint-steps.md)) |
-| **Resolve wire** | `POST …/gates/{id}/resolve` body: `{ disposition: continue \| cancel, output? }` ([decision 04](./decisions/04-human-checkpoint-resolve-wire.md)) |
-| **output** | Step result bag → `exec_context.steps[step_id].output`; replaces author-facing `resume_data` |
-| **on_resolve** | Required `default` + `cancel`; optional `when`/`values` branching ([decision 06](./decisions/06-checkpoint-on-resolve-explicit.md)) |
-| **responseSchema** | View context hint under `gate.responseSchema` — **not** `form_schema` ([decision 03](./decisions/03-gate-view-context-shape.md)) |
-| **ViewCanvasHost** | Shell component filling primary region for checkpoint views |
-| **Session** | Human-facing correlation (`ses_*`, title) — journal, notifications, Desktop route ([decision 07](./decisions/07-session-vs-run-user-facing.md)) |
-| **Run** | Operator/debug (`run_*`) — one execution of the flow graph |
+| # | Phase | Delivers (working system) | Depends |
+|---|-------|---------------------------|---------|
+| [00](./00-doc-skill-mcp-tracker.md) | Doc/skill/MCP tracker | Cross-phase integration checklist (living doc) | — |
+| [01](./01-foundation-types.md) | Foundation & types | Rev-1 Zod contracts, CE journal shape, `Instance`→`Run` aliases, `ActionPort`/`ExecutorPort`, boundary CI baseline | — ✅ |
+| [02](./02-space-index-cli.md) | Space index & CLI | `mrmr space init/link/apply`; `mrmr grant mint`; hub indexes `murrmure/` files; shell lists linked space | 01 ✅ |
+| [03](./03-executor-invoke.md) | Executor & invoke | `ExecutorPort`, preflight, action invoke HTTP, `mcp_wake` shim; fail-fast on unreachable executor | 02 ✅ |
+| [04](./04-artifacts-exchange.md) | Artifacts & exchange | `.mrmr.temp/` protocol, exchange store, 64 KiB cap, GC sweeper, legal hold | 03 ✅ |
+| [05](./05-session-run-protocol.md) | Session & Run | Session/Run CRUD + list API, ACL/grant migration, MCP platform tools batch 1, step memo | 04 ✅ |
+| [06](./06-shell-foundation.md) | Shell foundation | `shell-ui` (shadcn dark), `shell-client`, global SSE, CLI instruction routes; configure mode retired | 05 ✅ |
+| [07](./07-notifications-gates-logs.md) | Notifications, gates, logs | Needs you, `/notifications`, gate resolve panel, `/logs`, landing space `PATCH /v1/me`, MCP batch 2 | 06 ✅ |
+| [08](./08-flow-engine-starts.md) | Flow engine & starts | Flow manifest index, manual/event/schedule start, space home sections, skill rewrite for space-directory authoring | 07 ✅ |
+| [09](./09-flowchart-parallel-hooks.md) | Flowchart, matrix, hooks | React Flow fork/join, matrix sibling runs, hook delivery (mandatory session+run), dedup chain | 08 ✅ |
+| [10](./10-mcp-orchestration-gate.md) | MCP orchestration attach | Agent push `murrmure.flow.attach/v1`, validate gate, read-only graph preview, bind on approve | 09 ✅ |
+| [11](./11-custom-views-view-sdk.md) | Custom views & view-sdk | `view-sdk`, `requires_view` + `view_ref`, form fallback; v1 mount worker demoted | 10 ✅ |
+| [12](./12-queue-poll-workers.md) | Queue poll workers | External worker poll API, worker grant, in-process dev adapter | 05 ✅ |
+| [13](./13-federation-remote.md) | Federation & remote | Virtual space bindings, `remote_hub` executor, cross-hub artifact materialize, optional `a2a` adapter | 12, 06, 07 ✅ |
+| [14](./14-flow-call-composition.md) | Flow-call composition | `start_flow` step, cycle detection, ACL inheritance, `flow_call` start condition | 09 ✅ |
+| [15](./15-out-of-shell-notifications.md) | Out-of-shell notifications | Email/desktop push for gate pending + run failed (assignees/watchers) | 07 ✅ |
+| [16](./16-platform-hygiene-promotion.md) | Hygiene & promotion | Bun SQLite adapter, package renames, v1 shim removal, promote spec to `current/` | 11, 14, 15 ✅ |
 
-**Removed (breaking OK):** `start.requires_view`, view `mode: "start"`, approval-centric resolve vocabulary at protocol edge.
-
----
-
-## Gap mapping
-
-| ID | Symptom | Phase |
-|----|---------|-------|
-| B1 | Checkpoint/gate steps don't run | **03** |
-| B2 | Step outputs empty (`{{steps.*}}`) | **03** |
-| B3 | `MURRMURE_INPUT` missing on shell_spawn | **03** |
-| B4 | No full canvas at checkpoints | **05** |
-| B5 | Apply doesn't lint capabilities | **01** |
-| B6 | No `space flow init` | **04** |
-| B7 | Skill fragmented (`murrmure-flow`) | **07** |
-| B8 | No setup wizard | **08** |
-| B9 | No view author SDK (stub HTML only) | **02** |
-| B10 | No multi-round review loop in v2 | **03** + **06** |
+**Status:** All phases ✅ — Murrmure Space–Flow–Protocol v2 complete per rev-1 + plan delta.
 
 ---
 
-## Decisions index (all resolved 2026-07-03)
+## Dependency graph
 
-| # | Topic | Phase impact |
-|---|-------|--------------|
-| [01](./decisions/01-view-sdk-npm-distribution.md) | Public npm `@murrmure/view-sdk` | 02 |
-| [02](./decisions/02-view-dev-loop.md) | `mrmr view dev`, fixtures, author-owned build | 02, 05 |
-| [03](./decisions/03-gate-view-context-shape.md) | Nested `gate`, `responseSchema` | 02, 05 |
-| [04](./decisions/04-human-checkpoint-resolve-wire.md) | `disposition`+`output`, orchestration A/B | 03, 05, 06, 10 |
-| [05](./decisions/05-triggers-only-checkpoint-steps.md) | `triggers:` only, checkpoint steps, input merge | 01, 03, 04, 05, 06 |
-| [06](./decisions/06-checkpoint-on-resolve-explicit.md) | Required `default`+`cancel` | 01, 03 |
-| [07](./decisions/07-session-vs-run-user-facing.md) | Session/title for humans | 05, 10 |
-| [08](./decisions/08-payload-ref-from-step-output.md) | Optional `payload_ref` from step output | 03, 05, 06 |
-| [09](./decisions/09-cli-scaffold-space-scoped.md) | `space flow init`, `space view init` | 02, 04 |
-| [10](./decisions/10-reference-workflow-verification-layered.md) | R1–R6 CI/manual/backlog | 06, 10 |
-| [11](./decisions/11-fdk-test-disposition-inventory.md) | Per-test port/delete table | 09-pre, 09 |
-| [12](./decisions/12-skill-eval-advisory-only.md) | Skill eval manual, not CI | 07 |
-| [13](./decisions/13-hub-daemon-canonical-no-studio-duplicates.md) | Keep `hub-daemon`; verify no `studio-*` | 09 |
-| [14](./decisions/14-doc-tracker-warn-from-phase-01.md) | Doc tracker warn CI from phase 01 | 01, 10 |
+```mermaid
+flowchart TD
+  P01[01 Foundation] --> P02[02 Space index]
+  P02 --> P03[03 Executor invoke]
+  P03 --> P04[04 Artifacts]
+  P04 --> P05[05 Session Run]
+  P05 --> P06[06 Shell foundation]
+  P06 --> P07[07 Notifications]
+  P07 --> P08[08 Flow starts]
+  P08 --> P09[09 Flowchart hooks]
+  P09 --> P10[10 MCP gate]
+  P10 --> P11[11 Custom views]
+  P05 --> P12[12 Queue poll]
+  P06 --> P13[13 Federation]
+  P07 --> P13
+  P12 --> P13
+  P09 --> P14[14 Flow call]
+  P07 --> P15[15 Out-of-shell notify]
+  P11 --> P16[16 Promotion]
+  P14 --> P16
+  P15 --> P16
+```
 
----
-
-## Success metrics
-
-1. **Preview-review E2E** — [06](./06-reference-workflow-preview-review.md) R1–R6 labeled CI/manual/backlog; CI layer green before v2 done
-2. **View author path** — `mrmr space view init` → `mrmr view dev` → `npm run build` → apply → checkpoint view renders with `createViewMount`
-3. **ViewCanvasHost** — all checkpoint steps with `view` use full main region
-4. **TTFRun ≤ 10 min** — `mrmr setup` → Run → checkpoint UI (session/title in chrome)
-5. **Zero FDK install** — after phase 09; tutorials v2-only
-6. **Apply strict clean** — all `examples/flows/*-v2/` pass `--strict`
+Phases **13** (federation) and **14** (flow-call) may run in parallel once their dependencies are ✅.
 
 ---
 
-## Already built (out of scope for phases)
+## Cross-cutting requirements (every phase)
 
-Space apply, sessions/runs, gates API, flow engine invoke/start_flow, hooks, federation. Legacy `start.requires_view` exists in code but is **wrong host** (drawer) and **removed from v2 manifest** ([decision 05](./decisions/05-triggers-only-checkpoint-steps.md)).
-
----
-
-## Cross-cutting rules
-
-| Requirement | Where |
-|-------------|-------|
-| [00-doc-skill-mcp-tracker](./00-doc-skill-mcp-tracker.md) | Same PR as code; warn CI from phase 01; strict at phase 10 |
-| known-gaps B1–B10 | Close in same PR as phase |
-| [06-reference-workflow](./06-reference-workflow-preview-review.md) | Update if checkpoint/view/resolve API changes |
-| North star | [.cursor/rules/murrmure-product-north-star.mdc](../../../../.cursor/rules/murrmure-product-north-star.mdc) |
+| Requirement | Where enforced |
+|-------------|----------------|
+| PR checklist: protocol / flow / view / space? | Phase doc + [rev-1 §14](../space-flow-protocol-v2.spec-rev-1.md) |
+| No prompts/skills/models in hub config | `studio-contracts` + hub-core review + conformance test |
+| Journal entries CloudEvents-valid | `studio-contracts/conformance/cloudevents.test.ts` |
+| Journal correlation | `session_id` + `run_id` extensions **and** derived `subject` path (§8.1) |
+| `pnpm check:boundaries` green | Extended in phase 01 (`hub-core` ↛ `hub-persistence`), tightened in 16 |
+| Doc/skill/MCP updates in same PR | [00-doc-skill-mcp-tracker](./00-doc-skill-mcp-tracker.md) |
+| Vitest green | `pnpm test` + phase-specific projects |
+| v1 shims until phase 16 | Removed in phase 16 — see CHANGELOG.md |
 
 ---
 
-## File map (rev-5)
+## Final system (after phase 16)
 
-| File | Notes |
-|------|-------|
-| `01`–`10` | Sequential phase specs (this rebuild) |
-| `00-doc-skill-mcp-tracker.md` | Living checklist |
-| `09-pre-fdk-test-disposition.md` | Required before phase 09 |
-| `decisions/` | Resolved Q&A — do not re-litigate |
-| `09-review-synthesis.md` | Pre-rev-5 synthesis |
-| `plan-review-*.md` | Subagent reviews — historical |
+When all phases are ✅, Murrmure v2 delivers:
 
-**Superseded filenames (removed in rev-5):** `03b-view-sdk.md`, old `02-engine-completion.md`, `03-space-flow-scaffold.md`, `04-unified-murrmure-skill.md`, `05-cli-setup-wizards.md`, `06-gate-requires-view.md`, `07-legacy-fdk-deletion.md`, `08-docs-and-proof.md`, `10-reference-workflow-preview-review.md` — content merged into sequential `01`–`10`.
+- Space-as-directory with `murrmure/` index (actions, executors, hooks, flows, views)
+- Every execution visible as Session + Run(s) with step memo and journal replay fallback
+- Reliable invoke with executor preflight and artifact exchange
+- CLI-first mutation; observer shell with shadcn dark UI, flowchart, gates, notifications, logs
+- Flow orchestration: start conditions, matrix parallel, gates, retry-as-new-run, flow-call composition
+- MCP platform catalog (§10.9) for agents using and building flows; attach gate for agent-proposed graphs
+- Hooks, custom views, external queue workers
+- Federation: remote spaces, remote_hub executor, cross-hub artifacts
+- Out-of-shell notifications; spec promoted to `studio-specs/current/`; v1 shims removed
 
 ---
 
-*End of spec index.*
+## Related artifacts
+
+| Doc | Role |
+|-----|------|
+| [space-flow-protocol-v2.spec-rev-1.md](../space-flow-protocol-v2.spec-rev-1.md) | Wire shapes, entity model, §16b resolutions, §10.9 MCP catalog |
+| [space-flow-protocol-v2.architecture.md](../space-flow-protocol-v2.architecture.md) | Package graph, ports, testing placement |
+| [plan-delta-rev1.md](../plan-delta-rev1.md) | Deferred → in-scope mapping, naming convention |
+| [00-doc-skill-mcp-tracker.md](./00-doc-skill-mcp-tracker.md) | Per-phase doc/skill/MCP ownership |
+| [hub/architecture.md](../../../current/hub/architecture.md) | v1 kernel ADRs (journal, federation sketch) |
+| [cli/spec.md](../../../current/cli/spec.md) | Existing CLI commands to extend |
+| [desktop/spec.md](../../../current/desktop/spec.md) | Bundled shell host |
+
+---
+
+*End of plan index.*

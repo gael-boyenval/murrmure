@@ -1,24 +1,80 @@
 # Part 3 — Connect agents
 
-Wire three MCP sessions — one per space.
+Wire three MCP sessions — one grant per space — and map wake labels to agent behavior.
+
+## MCP config pattern
+
+Each agent window gets its own MCP server entry (or env swap). Never reuse tokens across spaces.
+
+```json
+{
+  "mcpServers": {
+    "murrmure-orchestrator": {
+      "command": "murrmure",
+      "args": ["mcp"],
+      "env": {
+        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
+        "MURRMURE_HUB_TOKEN": "tok_orchestrator_…",
+        "MURRMURE_SPACE_ID": "spc_orchestrator"
+      }
+    },
+    "murrmure-knowledge": {
+      "command": "murrmure",
+      "args": ["mcp"],
+      "env": {
+        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
+        "MURRMURE_HUB_TOKEN": "tok_knowledge_…",
+        "MURRMURE_SPACE_ID": "spc_knowledge"
+      }
+    },
+    "murrmure-dev": {
+      "command": "murrmure",
+      "args": ["mcp"],
+      "env": {
+        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
+        "MURRMURE_HUB_TOKEN": "tok_dev_…",
+        "MURRMURE_SPACE_ID": "spc_dev"
+      }
+    }
+  }
+}
+```
+
+Reload the IDE after saving. See [Connect your agent (MCP)](../../agents-mcp).
 
 ## Orchestrator agent
 
-- Grant on `spc_orchestrator` with `flow:run`, `flow:read`, cross-space query scopes
-- Tools: `murrmure_invoke_action`, indexed patch actions, `murrmure_wait_for_gate` at publish checkpoint
+| Responsibility | MCP tools |
+|----------------|-----------|
+| Open brief | `murrmure_invoke_action` → `team_brief_open` |
+| Edit sections | Patch actions (skill-defined or custom indexed actions) |
+| Wait for human publish | `murrmure_wait_for_gate` on **publish** step |
+| Query knowledge | `murrmure_query_ask` targeting `spc_knowledge` |
+
+Start the flow manually in Desktop or via `mrmr flow run` on `team-brief`.
 
 ## Knowledge agent
 
-- Grant on `spc_knowledge`
-- Answers orchestrator `query_ask` requests (no custom flow required)
+Passive responder — no custom flow required.
+
+- Listens for `query_ask` directed at `spc_knowledge`
+- Answers from local docs / prompt context
+- Does not need `flow:run` unless you add indexed actions later
 
 ## Dev agent
 
-- Grant on `spc_dev`
-- Handles `handle_brief_published` wake from hooks
-- Uses `murrmure_wait_for_run` or journal to detect pending work
+| Responsibility | Mechanism |
+|----------------|-----------|
+| Receive publish wake | Hook `brief.published` → `mcp_wake` with `handle_brief_published` |
+| Detect pending work | `murrmure_wait_for_run`, journal subscription, or MCP wake handler in agent skill |
+| Fetch brief content | `murrmure_query_ask` against `spc_orchestrator` |
+| Write local artifact | Filesystem / repo edit in dev folder |
 
-See [Connect your agent (MCP)](../../agents-mcp) for `.cursor/mcp.json` snippets.
+Wake labels must match exactly between hook params and agent handler registration (`handle_brief_published`).
+
+## Verify each connection
+
+In each agent session, call **`murrmure_space_status`** and confirm the correct `spc_…` and tool catalog.
 
 ## Next
 

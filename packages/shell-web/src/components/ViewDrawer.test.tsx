@@ -19,36 +19,12 @@ describe("ViewParamForm", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Topic *"), { target: { value: "news" } });
+    fireEvent.change(screen.getByLabelText(/topic/i), { target: { value: "news" } });
     fireEvent.click(screen.getByRole("button", { name: "Start run" }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({ topic: "news" });
     });
-  });
-
-  it("renders description as helper text below the label", () => {
-    render(
-      <ViewParamForm
-        form={{
-          id: "run.params.v1",
-          fields: [
-            {
-              name: "topic",
-              type: "string",
-              required: true,
-              title: "Review topic",
-              description: "What should this run review?",
-            },
-          ],
-        }}
-        onSubmit={vi.fn()}
-      />,
-    );
-
-    const helper = screen.getByText("What should this run review?");
-    expect(helper).toBeTruthy();
-    expect(helper.className).toContain("text-muted-foreground");
   });
 });
 

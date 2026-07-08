@@ -177,6 +177,14 @@ describe("http/flows/requires-view", () => {
     );
     expect(assetRes.status).toBe(200);
     expect(await assetRes.text()).toContain("view ok");
+
+    const cookieOnlyRes = await fetch(
+      `${baseUrl}/v1/spaces/${spaceId}/views/review-params/dist/index.html`,
+      { headers: { Cookie: `murrmure_token=${addTokenId(bootstrapToken)}` } },
+    );
+    expect(cookieOnlyRes.status).toBe(200);
+    expect(await cookieOnlyRes.text()).toContain("view ok");
+
     rmSync(spaceRoot, { recursive: true, force: true });
   });
 });

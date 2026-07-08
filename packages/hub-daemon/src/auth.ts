@@ -18,12 +18,32 @@ export function parseBearer(req: Request): string | undefined {
   return bare.startsWith("tok_") ? bare : addTokenId(bare);
 }
 
+/** Session cookie set by shell/Desktop — enables view iframe asset loads (no Bearer on navigation). */
+export function parseCookieToken(req: Request): string | undefined {
+  const header = req.headers.get("Cookie");
+  if (!header) return undefined;
+  const match = header.match(/(?:^|;\s*)murrmure_token=([^;]*)/);
+  const raw = match?.[1]?.trim();
+  if (!raw) return undefined;
+  try {
+    const value = decodeURIComponent(raw);
+    if (!value) return undefined;
+    return value.startsWith("tok_") ? value : addTokenId(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseSessionToken(req: Request): string | undefined {
+  return parseBearer(req) ?? parseCookieToken(req);
+}
+
 export async function requireToken(
   studio: StudioPersistencePort,
   req: Request,
   pathSpaceId?: string,
 ): Promise<TokenContext | Response> {
-  const tokenId = parseBearer(req);
+  const tokenId = parseSessionToken(req);
   if (!tokenId) {
     return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
   }

@@ -1,15 +1,5 @@
 import { useState } from "react";
-import {
-  Button,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@murrmure/shell-ui";
-import { formatSchemaLabel } from "./schema-label.js";
+import { Button, Input, Label } from "@murrmure/shell-ui";
 
 export interface ReviewParamsViewProps {
   onSubmit: (params: Record<string, unknown>) => void;
@@ -31,7 +21,7 @@ export function ReviewParamsView({ onSubmit, onCancel, submitting }: ReviewParam
       }}
     >
       <div className="space-y-2">
-        <Label htmlFor="topic">{formatSchemaLabel({ name: "topic", required: true })}</Label>
+        <Label htmlFor="topic">Topic *</Label>
         <Input
           id="topic"
           required
@@ -41,20 +31,20 @@ export function ReviewParamsView({ onSubmit, onCancel, submitting }: ReviewParam
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="depth">{formatSchemaLabel({ name: "depth" })}</Label>
-        <Select value={depth} onValueChange={setDepth}>
-          <SelectTrigger id="depth">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="quick">quick</SelectItem>
-            <SelectItem value="standard">standard</SelectItem>
-            <SelectItem value="deep">deep</SelectItem>
-          </SelectContent>
-        </Select>
+        <Label htmlFor="depth">Depth</Label>
+        <select
+          id="depth"
+          className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={depth}
+          onChange={(e) => setDepth(e.target.value)}
+        >
+          <option value="quick">quick</option>
+          <option value="standard">standard</option>
+          <option value="deep">deep</option>
+        </select>
       </div>
       <div className="flex gap-2">
-        <Button type="submit" loading={submitting}>
+        <Button type="submit" disabled={submitting}>
           Start run
         </Button>
         {onCancel ? (

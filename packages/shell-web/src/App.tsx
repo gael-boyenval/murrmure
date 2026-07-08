@@ -10,7 +10,6 @@ import { NotificationsPage } from "./routes/NotificationsPage.js";
 import { LogsExplorerPage } from "./routes/LogsExplorerPage.js";
 import { RunPage } from "./routes/RunPage.js";
 import { SessionPage } from "./routes/SessionPage.js";
-import { ViewDevPage } from "./routes/ViewDevPage.js";
 import { useShellClient } from "./providers/ShellClientProvider.js";
 
 function HomeRedirect() {
@@ -70,16 +69,15 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<HomeRedirect />} />
-      <Route path="/connect" element={<ConnectPage />} />
-      <Route path="/configure/*" element={<Navigate to="/spaces/new" replace />} />
-      <Route path="/configure" element={<Navigate to="/spaces/new" replace />} />
-      <Route path="/setup" element={<Navigate to="/spaces/new" replace />} />
+      <Route
+        path="/connect"
+        element={bundled && hasToken ? <Navigate to="/spaces/new" replace /> : <ConnectPage />}
+      />
       <Route path="/spaces/new" element={<SpacesNewPage />} />
       <Route path="/spaces/:spaceId" element={<SpaceHomePage />} />
       <Route path="/spaces/:spaceId/flows/:flowId" element={<FlowPreviewPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/logs" element={<LogsExplorerPage />} />
-      <Route path="/spaces/:spaceId/dev/views/:viewId" element={<ViewDevPage />} />
       <Route path="/runs/:runId" element={<RunPage />} />
       <Route path="/sessions/:sessionId" element={<SessionPage />} />
       <Route path="*" element={<Navigate to={defaultRoute} replace />} />

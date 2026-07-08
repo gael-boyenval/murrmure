@@ -1,7 +1,7 @@
-# Role: normative preview-review reference flow — intake → build ↔ review → done.
+# Role: mixed orchestration — write_spec (shell) → build (shell + agent loop) → review → archive → commit.
 apiVersion: murrmure.flow/v1
 name: preview-review
-description: Localhost preview review until validated
+description: Spec intake → write → build (agent loop) → review → archive → commit
 
 triggers:
   manual: true
@@ -14,15 +14,24 @@ steps:
     checkpoint:
       view: preview-review-intake
       on_resolve:
-        default: { goto: build }
+        default: { goto: write_spec }
         cancel: { fail: true }
+
+  - id: write_spec
+    invoke:
+      space: "{{origin_space}}"
+      action: feature_write_spec
+      params:
+        spec_markdown: "{{input.spec_markdown}}"
+        spec_filename: "{{input.spec_filename}}"
+
   - id: build
     invoke:
       space: "{{origin_space}}"
-      action: run_preview_agent
+      action: feature_build
       params:
-        preview_url: "{{input.preview_url}}"
-        feedback: "{{steps.review.output.comments}}"
+        spec_filename: "{{input.spec_filename}}"
+
   - id: review
     checkpoint:
       view: preview-review
@@ -30,11 +39,21 @@ steps:
       on_resolve:
         when: output.outcome
         values:
-          validated: { goto: done }
-          changes_required: { goto: build }
-        default: { goto: done }
+          validated: { goto: archive }
+          changes_required: { goto: review }
+        default: { goto: archive }
         cancel: { fail: true }
-  - id: done
+
+  - id: archive
     invoke:
       space: "{{origin_space}}"
-      action: mark_validated
+      action: feature_archive
+      params:
+        spec_filename: "{{input.spec_filename}}"
+
+  - id: commit
+    invoke:
+      space: "{{origin_space}}"
+      action: feature_commit
+      params:
+        spec_filename: "{{input.spec_filename}}"

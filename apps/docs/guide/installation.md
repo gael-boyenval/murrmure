@@ -55,11 +55,12 @@ mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:
 
 ```bash
 mrmr space init
-mrmr space flow init my-flow --template hello-gate
+# Write murrmure/flows/{name}/flow.manifest.yaml, actions.yaml, executors.yaml — see Tutorial 1
+mrmr space link --path . --create
 mrmr space apply --strict
 ```
 
-See [Creating flows](./creating-flows) and [Flows tutorial](./flows-tutorial).
+See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creating-flows), and [Flows tutorial](./flows-tutorial).
 
 ## CI / headless environment
 

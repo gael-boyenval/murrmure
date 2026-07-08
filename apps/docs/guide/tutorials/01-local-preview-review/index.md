@@ -1,58 +1,76 @@
-# Tutorial 1 — Local preview review
+# Tutorial 1 — Feature spec, build, live review, commit
 
-One coding agent and one human reviewer collaborate through an indexed **preview-review** flow in `murrmure/`. Checkpoint steps open your **custom views** in **ViewCanvasHost** (full primary-region canvas) — not shell admin chrome.
+Build a real workflow on a static site repo with **Cursor** as the agent. One human attaches a **spec from their computer**; the agent writes it into the repo, implements, loops on **live review in one long agent session**, then **archives** the spec and **commits**.
 
-**Example tree:** [`examples/flows/preview-review-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2) (normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md)).
+## What you will learn
 
-## Tutorial goal
+- What a **space** is (repo + `agent.md` + skills + `murrmure/`)
+- **Murrmure protocol** vs **agent layer** (thin graph vs prompts + skills)
+- **Mixed orchestration** — shell prompts + agent-owned review loop inside **build**
+- **`murrmure_complete_action`** — report preview URL while the build step is still running
+- **Prompt triggers** in `actions.yaml`
+- Custom **checkpoint views** in ViewCanvasHost
 
-Build and run a minimal review loop on a local hub:
+## Story → steps
 
-- Human completes intake in a custom view
-- Agent runs a build action between rounds
-- Human reviews preview in **ViewCanvasHost** until validated
-- Engine branches via `checkpoint.on_resolve` (`changes_required` → build, `validated` → done)
+| # | Beat | Murrmure step | Defined in |
+|---|------|---------------|------------|
+| 1 | Spec file from disk | **intake** | intake view |
+| 2 | Agent writes `specs/current/` | **write_spec** | prompt + `agent.md` |
+| 3 | Agent codes + review loop | **build** | prompt + `skills/feature-build/SKILL.md` |
+| 4 | Human live review | **review** | review view |
+| 4b | Feedback (same agent session) | *(inside build)* | `wait_for_gate` → fix → wait again |
+| 5 | Human validates | → **archive** | flow routing |
+| 6 | Move spec → archive | **archive** | prompt + `agent.md` |
+| 7 | Git commit + summary | **commit** | prompt + `agent.md` |
 
-## How to use this tutorial
+```text
+intake → write_spec → build (complete_action + wait_for_gate loop) → review ⇄ review → archive → commit
+                              ↑                                              │
+                              └──────── same Cursor session, not re-invoke ──┘
+```
 
-Follow the parts in order:
+## Who owns the feedback loop?
 
-1. **Part 1** — scaffold `murrmure/` with `mrmr space flow init` (or clone the example tree)
-2. **Part 2** — build views, `mrmr space apply --strict`, link space, mint agent grant
-3. **Part 3** — run the loop in Desktop; optional **§B** documents agent-owned orchestration with `murrmure_wait_for_gate`
+| Pattern | Who loops | This tutorial |
+|---------|-----------|---------------|
+| **Flow-owned** | Engine `on_resolve` → `goto: build` (new subprocess each round) | No |
+| **Agent-owned (mixed)** | One **build** invoke; agent `complete_action` + `wait_for_gate` | **Yes** |
 
-## What you will build
+The flow never re-invokes **build** on feedback. `changes_required` routes to **review** again; the agent already running fixes locally.
 
-| Piece | Role |
-|-------|------|
-| **`preview-review` flow** | `flow.manifest.yaml` — intake → build → review loop |
-| **Custom views** | `preview-review-intake` + `preview-review` in `murrmure/views/` |
-| **Indexed actions** | `run_preview_agent`, `mark_validated` in `murrmure/actions.yaml` |
-| **One linked space** | `mrmr space link` + `mrmr space apply` |
-| **Agent grant** | MCP token with `flow:run` for build steps |
+## Data the human passes vs agent discovery
 
-## Checkpoints vs runs (v2 vocabulary)
+| Source | Fields | Who consumes |
+|--------|--------|--------------|
+| **Intake** (human) | `spec_markdown`, `spec_filename`, `reviewer` | Flow params |
+| **Build output** | Any JSON bag (`preview_url`, …) | Review view iframe via `steps.build.output` |
+| **Preview URL** | Discovered by agent (dev server, port, hostname) | Agent → `murrmure_complete_action` |
 
-| Term | Meaning |
-|------|---------|
-| **Session** (`ses_…`) | Human-visible correlation container (title, journal, Desktop route) |
-| **Run** (`run_…`) | One execution of the flow graph; pauses at **checkpoint** steps |
-| **Checkpoint** | Run status `input-required`; resolve with `{ disposition: "continue" \| "cancel", output }` |
-| **ViewCanvasHost** | Shell embeds `view_ref` in the primary region — your React UI, not built-in gate forms |
+No `preview.local.yaml` and no preview URL at intake — the agent discovers whatever URL works locally and reports it in step output.
 
-## Pages in this tutorial
+| Spec path | When |
+|-----------|------|
+| Human's disk | Attached at intake |
+| `specs/current/` | Agent writes on **write_spec** |
+| `specs/archive/` | Agent moves on **archive** |
 
-1. [Part 1 — Scaffold `preview-review`](./01-scaffold-flow)
-2. [Part 2 — Apply and connect](./02-install-and-connect)
-3. [Part 3 — Run the feedback loop](./03-run-feedback-loop) (includes **§B** agent-owned loop)
+## Pages (follow in order)
+
+1. [Create the repo](./01-create-the-repo)
+2. [Setup wizard — MCP and skills](./02-setup-wizard)
+3. [Agent layer — `agent.md` and space skill](./03-agent-md-and-skills)
+4. [Prompt triggers — `actions.yaml`](./04-prompt-triggers)
+5. [Flow manifest — thin graph](./05-flow-manifest)
+6. [Build the views](./06-build-views)
+7. [Index and apply](./07-index-and-apply)
+8. [Run the loop](./08-run-the-loop)
+9. [Troubleshooting](./09-troubleshooting)
 
 ## Prerequisites
 
-- Node.js 20+
-- Murrmure Desktop running locally (see [Desktop guide](../../desktop))
-- `@murrmure/cli` — `npm install -g @murrmure/cli`
-- Completed [Quick start](../../quick-start) or empty folder with `mrmr setup`
+Node.js 20+, Murrmure Desktop, `@murrmure/cli`, Cursor with CLI (`cursor agent`), Murrmure MCP connected (`action:invoke`, `space:read`).
 
 ## Next
 
-[Part 1 — Scaffold `preview-review` →](./01-scaffold-flow)
+[Part 1 — Create the repo →](./01-create-the-repo)

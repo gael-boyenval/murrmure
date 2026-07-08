@@ -1,16 +1,18 @@
 # Tutorials
 
-Hands-on walkthroughs for **v2 indexed flows** in `murrmure/`. Each tutorial uses `mrmr space apply`, custom views in **ViewCanvasHost**, and MCP platform tools — no worker install pipeline.
+Hands-on walkthroughs that teach **v2 indexed flows** from an empty folder. You write every manifest, action, view, and hook yourself — no pre-built flow packages, no “clone the repo and skip ahead.”
 
-Each tutorial links to an **`examples/flows/*-v2/`** tree validated in CI with `mrmr space apply --strict`.
+Each tutorial ends with a working workflow in **ViewCanvasHost** (custom views in the primary canvas), agent MCP grants, and `mrmr space apply`.
+
+Reference implementations live under `examples/flows/*-v2/` in the Murrmure repo — use them **only to compare** after you finish a part, not as a shortcut.
 
 ## Choose a tutorial
 
-| | Tutorial | Example tree | You learn |
-|---|----------|--------------|-----------|
-| **1** | [Local preview review](./01-local-preview-review/) | [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2) | Agent + human · preview loop · `on_resolve` branching |
-| **2** | [Multi-agent brief](./02-multi-agent-brief/) | [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2) | Three spaces · hooks wake · cross-space query |
-| **3** | [Daily brief trigger](./03-daily-brief-trigger/) | [`daily-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/daily-brief-v2) | Canvas action · event · agent wake · human review |
+| | Tutorial | You learn |
+|---|----------|-----------|
+| **1** | [Local preview review](./01-local-preview-review/) | Spec from disk · mixed orchestration · `complete_action` · build/review/archive/commit (9 parts) |
+| **2** | [Multi-agent brief](./02-multi-agent-brief/) | Three spaces · hooks wake · cross-space query |
+| **3** | [Daily brief trigger](./03-daily-brief-trigger/) | Canvas action · event · agent wake · human review |
 
 Recommended order: **1 → 2 → 3**.
 
@@ -20,7 +22,25 @@ Recommended order: **1 → 2 → 3**.
 - `@murrmure/cli` — see [Quick start](../quick-start) (`mrmr setup`)
 - [How it fits together](../how-it-fits-together) — two-minute architecture read
 
-For the full authoring reference (every manifest field and CLI flag), see the [Flows tutorial](../flows-tutorial).
+For field-by-field manifest reference after Tutorial 1, see [Flows tutorial](../flows-tutorial).
+
+## Core concepts (all tutorials)
+
+Murrmure separates **who does what** from **how work is coordinated**:
+
+| Concept | What it is |
+|---------|------------|
+| **Hub** | Local backend (`http://127.0.0.1:8787` with Desktop) — stores spaces, runs, journal, grants |
+| **Space** | Isolated workspace (`spc_…`) — one `murrmure/` tree linked with `mrmr space link` |
+| **Flow** | Declarative graph in `murrmure/flows/{name}/flow.manifest.yaml` |
+| **Run** | One execution of a flow (`run_…`) — pauses at **checkpoint** steps until a human resolves |
+| **Session** | Human-visible container (`ses_…`) — title, journal, Desktop route |
+| **Action** | Named invoke target in `murrmure/actions.yaml` — usually a shell script |
+| **View** | React UI in `murrmure/views/{id}/` — opens in **ViewCanvasHost** at checkpoint steps |
+| **Grant** | Agent token (`tok_…`) — MCP tools filtered by capabilities |
+| **Hook** | Event → action mapping in `murrmure/hooks.yaml` — wakes agents after apply |
+
+**Humans** use Desktop. **Authors** use the CLI to index `murrmure/`. **Agents** use MCP (`murrmure_invoke_action`, `murrmure_wait_for_gate`, …). All three talk to the same hub.
 
 ## v2 vocabulary (shared)
 

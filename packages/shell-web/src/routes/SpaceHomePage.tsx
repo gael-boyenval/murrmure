@@ -12,9 +12,8 @@ import {
 import { AppShell } from "../layout/AppShell.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { setActiveSpaceId } from "../hooks.js";
-import { useEffect } from "react";
-import { SpaceIndexPanel } from "../components/SpaceIndexPanel.js";
-import { EmittableEventsPanel } from "../components/EmittableEventsPanel.js";
+import { useEffect, useState } from "react";
+import { ViewDrawer } from "../components/ViewDrawer.js";
 
 function FlowRow({
   flow,
@@ -105,15 +104,32 @@ export function SpaceHomePage() {
       client!.spaces.runFlow(flow_id, { space_id: spaceId, input }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["space-home", spaceId] });
+      setViewFlow(null);
       navigate(`/sessions/${data.session.session_id}`);
     },
   });
 
-  const handleRun = (flow: SpaceHomeFlowRow) => {
-    runMutation.mutate({ flow_id: flow.flow_id, input: {} });
-  };
+  const [viewFlow, setViewFlow] = useState<{
+    flow_id: string;
+    name: string;
+    view_ref?: SpaceHomeFlowRow["view_ref"];
+    requires_view?: string | null;
+  } | null>(null);
 
   type SpaceHomeFlowRow = NonNullable<typeof homeQuery.data>["your_flows"][number];
+
+  const handleRun = (flow: SpaceHomeFlowRow) => {
+    if (flow.view_ref || flow.start?.requires_view) {
+      setViewFlow({
+        flow_id: flow.flow_id,
+        name: flow.name,
+        view_ref: flow.view_ref,
+        requires_view: flow.start?.requires_view ?? null,
+      });
+      return;
+    }
+    runMutation.mutate({ flow_id: flow.flow_id, input: {} });
+  };
 
   useEffect(() => {
     if (spaceId) setActiveSpaceId(spaceId);
@@ -132,40 +148,6 @@ export function SpaceHomePage() {
         {homeQuery.isLoading && (
           <p className="text-sm text-muted-foreground">Loading space home…</p>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Space index</CardTitle>
-            <CardDescription>Hooks, events, and actions from the last apply</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {home?.index ? (
-              <SpaceIndexPanel index={home.index} />
-            ) : homeQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading index…</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No index data</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Events you can trigger</CardTitle>
-            <CardDescription>
-              Event types other spaces listen for when emitted from here
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {home ? (
-              <EmittableEventsPanel events={home.emittable_events ?? []} />
-            ) : homeQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">No data</p>
-            )}
-          </CardContent>
-        </Card>
 
         {home && home.needs_attention.length > 0 && (
           <Card>
@@ -277,6 +259,17 @@ export function SpaceHomePage() {
           </CardContent>
         </Card>
       </div>
+
+      <ViewDrawer
+        open={Boolean(viewFlow)}
+        flow={viewFlow}
+        spaceId={spaceId!}
+        onClose={() => setViewFlow(null)}
+        onSubmit={(params) => {
+          if (viewFlow) runMutation.mutate({ flow_id: viewFlow.flow_id, input: params });
+        }}
+        submitting={runMutation.isPending}
+      />
     </AppShell>
   );
 }

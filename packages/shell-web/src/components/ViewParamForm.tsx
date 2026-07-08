@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { GateForm } from "@murrmure/shell-client";
 import { Button, Input, Label } from "@murrmure/shell-ui";
-import { formatSchemaLabel } from "./schema-label.js";
 
 export interface ViewParamFormProps {
   form: GateForm;
@@ -31,10 +30,10 @@ export function ViewParamForm({ form, onSubmit, onCancel, submitting }: ViewPara
     <form onSubmit={handleSubmit} className="space-y-4">
       {form.fields.map((field) => (
         <div key={field.name} className="space-y-2">
-          <Label htmlFor={field.name}>{formatSchemaLabel(field)}</Label>
-          {field.description ? (
-            <p className="text-sm text-muted-foreground">{field.description}</p>
-          ) : null}
+          <Label htmlFor={field.name}>
+            {field.name}
+            {field.required ? " *" : ""}
+          </Label>
           {field.type === "enum" && field.values?.length ? (
             <select
               id={field.name}
@@ -59,7 +58,7 @@ export function ViewParamForm({ form, onSubmit, onCancel, submitting }: ViewPara
         </div>
       ))}
       <div className="flex gap-2">
-        <Button type="submit" loading={submitting}>
+        <Button type="submit" disabled={submitting}>
           Start run
         </Button>
         {onCancel ? (

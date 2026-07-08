@@ -18,3 +18,10 @@ export const InvokeBodySchema = z.object({
 });
 
 export type InvokeBody = z.infer<typeof InvokeBodySchema>;
+
+/** Agent-reported completion for async / long-running invoke steps (mcp_session, shell + MCP loop). */
+export const ActionCompleteBodySchema = z.object({
+  result: z.record(z.unknown()).optional(),
+});
+
+export type ActionCompleteBody = z.infer<typeof ActionCompleteBodySchema>;

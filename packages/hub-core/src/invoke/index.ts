@@ -5,3 +5,4 @@ export * from "./memo-from-step.js";
 export * from "./preflight.js";
 export * from "./completion.js";
 export * from "./dispatch.js";
+export * from "./complete-dispatched.js";

@@ -1,14 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Checkbox,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@murrmure/shell-ui";
+import { Button } from "@murrmure/shell-ui";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 
 export function ProfileMenu() {
@@ -49,48 +40,37 @@ export function ProfileMenu() {
 
   return (
     <div className="flex items-center gap-2">
-      <fieldset className="flex flex-col gap-0.5 border-0 p-0">
-        <legend className="sr-only">Notifications</legend>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <Checkbox
-              id="notify-email"
-              checked={notifyEmail}
-              onCheckedChange={(checked) => setNotifyEmail.mutate(checked === true)}
-            />
-            <Label htmlFor="notify-email" className="text-xs font-normal text-muted-foreground">
-              Email
-            </Label>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Checkbox
-              id="notify-desktop"
-              checked={notifyDesktop}
-              onCheckedChange={(checked) => setNotifyDesktop.mutate(checked === true)}
-            />
-            <Label htmlFor="notify-desktop" className="text-xs font-normal text-muted-foreground">
-              Desktop
-            </Label>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">Alerts for gates and failed runs.</p>
-      </fieldset>
+      <label className="flex items-center gap-1 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={notifyEmail}
+          onChange={(e) => setNotifyEmail.mutate(e.target.checked)}
+        />
+        Email
+      </label>
+      <label className="flex items-center gap-1 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={notifyDesktop}
+          onChange={(e) => setNotifyDesktop.mutate(e.target.checked)}
+        />
+        Desktop
+      </label>
       {spaces.length > 0 ? (
-        <Select
-          value={landing ?? undefined}
-          onValueChange={(space_id) => setLanding.mutate(space_id)}
+        <select
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          value={landing ?? ""}
+          onChange={(e) => {
+            if (e.target.value) setLanding.mutate(e.target.value);
+          }}
         >
-          <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Landing space">
-            <SelectValue placeholder="Landing space…" />
-          </SelectTrigger>
-          <SelectContent>
-            {spaces.map((s) => (
-              <SelectItem key={s.space_id} value={s.space_id}>
-                {s.name ?? s.slug ?? s.space_id}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Landing space…</option>
+          {spaces.map((s) => (
+            <option key={s.space_id} value={s.space_id}>
+              {s.name ?? s.slug ?? s.space_id}
+            </option>
+          ))}
+        </select>
       ) : null}
       <Button variant="ghost" size="sm" asChild>
         <a href="/logs">Logs</a>

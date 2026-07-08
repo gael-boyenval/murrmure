@@ -1,15 +1,58 @@
-# Role: indexed invoke targets for preview-review reference workflow.
+# Role: shell prompt actions only (no .mjs harness scripts).
 version: 1
 actions:
-  run_preview_agent:
+  feature_write_spec:
     executor: shell
-    command: node murrmure/scripts/preview-review-build.mjs
+    prompt: |
+      Follow `agent.md`. Write the spec markdown to `specs/current/{{spec_filename}}`.
+
+      ## Spec (from human intake — not in repo yet)
+      Filename: {{spec_filename}}
+      ---
+      {{spec_markdown}}
+      ---
+
+      Run {{run_id}} / session {{session_id}}
+    command: cursor agent -p --force "{{prompt}}"
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 120000
-  mark_validated:
+
+  feature_build:
     executor: shell
-    command: echo '{"status":"validated"}'
+    prompt: |
+      Follow `agent.md` and `skills/feature-build/SKILL.md`.
+
+      Build step for spec `{{spec_filename}}`.
+      Run {{run_id}} / session {{session_id}} / step `build`.
+
+      Discover the local preview URL yourself (dev server, port, hostname — any key name is fine).
+      Use Murrmure MCP: `murrmure_complete_action` then `murrmure_wait_for_gate` review loop in this session.
+    command: cursor agent -p --force "{{prompt}}"
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 30000
+    timeout_ms: 3600000
+
+  feature_archive:
+    executor: shell
+    prompt: |
+      Follow `agent.md`. Move `specs/current/{{spec_filename}}` → `specs/archive/{{spec_filename}}`.
+      Output JSON only: {"archived_path":"specs/archive/…"}
+
+      Run {{run_id}}
+    command: cursor agent -p --force "{{prompt}}"
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 60000
+
+  feature_commit:
+    executor: shell
+    prompt: |
+      Follow `agent.md`. Git commit all changes for spec {{spec_filename}}.
+      Output JSON only: {"commit_message":"…","description":"…"}
+
+      Run {{run_id}}
+    command: cursor agent -p --force "{{prompt}}"
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 120000

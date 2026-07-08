@@ -104,7 +104,7 @@ Scaffold and index workflows in `murrmure/`:
 
 ```bash
 mrmr space init
-mrmr space flow init preview-review --template hello-gate
+# Author murrmure/flows/preview-review/flow.manifest.yaml + actions — see Tutorial 1
 mrmr space apply --strict
 mrmr flow run flw_flows_preview_review --input '{}' --space spc_ui_sandbox
 ```

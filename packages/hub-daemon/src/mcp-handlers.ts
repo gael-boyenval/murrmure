@@ -160,6 +160,32 @@ export function registerPlatformMcpHandlers(
     return data;
   });
 
+  registry.registerHandler("murrmure_complete_action", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? "");
+    const step_id = String(args.step_id ?? "");
+    if (!run_id || !step_id) {
+      throw new Error("run_id and step_id are required");
+    }
+
+    const res = await fetch(
+      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/complete`,
+      {
+        method: "POST",
+        headers: mcpHeaders(authCtx),
+        body: JSON.stringify({ result: args.result ?? {} }),
+      },
+    );
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new Error(
+        typeof data.message === "string"
+          ? data.message
+          : `Complete action failed (${res.status})`,
+      );
+    }
+    return data;
+  });
+
   registry.registerHandler("murrmure_create_session", async (args, authCtx) => {
     const res = await fetch(`${hubUrl()}/v1/sessions`, {
       method: "POST",

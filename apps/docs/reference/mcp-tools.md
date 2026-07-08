@@ -41,6 +41,7 @@ Example arguments:
 | `murrmure_space_status` | `space:read` | `GET /v1/spaces/{id}/index/status` |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | `murrmure_invoke_action` | `action:invoke` | `POST /v1/spaces/{id}/actions/{name}/invoke` |
+| `murrmure_complete_action` | `action:invoke` | `POST /v1/runs/{id}/steps/{step_id}/complete` — opaque `result` bag merged into `exec_context.steps.{step}.output` |
 
 ## v2 wait & journal tools (batch 2)
 

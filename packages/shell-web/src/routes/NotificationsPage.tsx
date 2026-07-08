@@ -1,16 +1,13 @@
-import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
-import { NotificationInboxItem } from "../components/NotificationInboxItem.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@murrmure/shell-ui";
 
 export function NotificationsPage() {
   const client = useShellClient();
   const queryClient = useQueryClient();
-  const activeRowRef = useRef<HTMLDivElement>(null);
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "pending"],
@@ -25,7 +22,6 @@ export function NotificationsPage() {
 
   const notifications = notificationsQuery.data?.notifications ?? [];
   const gateNotification = notifications.find((n) => n.kind === "gate" && n.gate_id);
-  const activeGateId = gateNotification?.gate_id;
 
   const gateQuery = useQuery({
     queryKey: ["gate", gateNotification?.gate_id],
@@ -54,12 +50,6 @@ export function NotificationsPage() {
     },
   });
 
-  useEffect(() => {
-    if (gateQuery.data) {
-      activeRowRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-    }
-  }, [gateQuery.data?.gate_id]);
-
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-6">
@@ -69,24 +59,14 @@ export function NotificationsPage() {
         </div>
 
         {gateQuery.data ? (
-          <div
-            id="notification-active-gate-panel"
-            aria-controls="notification-active-gate-row"
-            className="relative rounded-md ring-1 ring-primary/30"
-          >
-            <div
-              className="pointer-events-none absolute -bottom-3 left-6 z-10 h-3 w-px bg-primary/40"
-              aria-hidden="true"
-            />
-            <GatePanel
-              gate={gateQuery.data}
-              graph={graphQuery.data}
-              submitting={resolve.isPending}
-              onSubmit={async (values) => {
-                await resolve.mutateAsync(values);
-              }}
-            />
-          </div>
+          <GatePanel
+            gate={gateQuery.data}
+            graph={graphQuery.data}
+            submitting={resolve.isPending}
+            onSubmit={async (values) => {
+              await resolve.mutateAsync(values);
+            }}
+          />
         ) : null}
 
         <Card>
@@ -99,23 +79,24 @@ export function NotificationsPage() {
               <p className="text-sm text-muted-foreground">Nothing needs you right now.</p>
             ) : (
               notifications.map((n) => (
-                <NotificationInboxItem
-                  key={n.notification_id}
-                  ref={n.gate_id === activeGateId ? activeRowRef : undefined}
-                  notification={n}
-                  activeGateId={activeGateId}
-                  onDismiss={() => dismiss.mutate(n.notification_id)}
-                  runLink={
-                    n.run_id ? (
-                      <Link
-                        className="text-xs text-primary underline"
-                        to={`/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`}
-                      >
+                <div key={n.notification_id} className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+                  <div>
+                    <p className="text-sm font-medium">{n.title}</p>
+                    {n.summary ? <p className="text-xs text-muted-foreground">{n.summary}</p> : null}
+                    {n.run_id ? (
+                      <Link className="text-xs text-primary underline" to={`/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`}>
                         Open run
                       </Link>
-                    ) : null
-                  }
-                />
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => dismiss.mutate(n.notification_id)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               ))
             )}
           </CardContent>

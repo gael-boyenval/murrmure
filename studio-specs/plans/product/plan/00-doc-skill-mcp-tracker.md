@@ -1,135 +1,135 @@
-# Doc, skill & MCP tracker
+# Doc, skill & MCP update tracker (every phase)
 
-**Status:** phase 10 complete — final audit  
-**Normative spec:** [current/product/spec.md](../../../current/product/spec.md) §21  
-**Plan index:** [index.md](./index.md) (rev-5 sequential)
+**Status:** living checklist — update when a phase completes  
+**Normative MCP catalog:** rev-1 §10.9  
+**Agent skill package:** `packages/cli/skill/` (`@murrmure/skill`)
 
-> **Rule:** Each phase updates docs/skills **in the same PR** as its code (see per-phase **Docs** sections). Phase **10** is the final doc audit; intermediate phases must not leave broken links to legacy worker install paths.
->
-> **CI:** `check:doc-tracker` **warn-only from phase 01**; **strict (exit 1) from phase 10** ([decision 14](./decisions/14-doc-tracker-warn-from-phase-01.md)).
->
-> **North-star guard:** human-facing UX docs must keep the same framing as [philosophy.md § North star](../../../current/product/philosophy.md#north-star-non-negotiable--2026-07-03): custom views are primary, shell chrome is admin/operator mode, built-in forms/drawers are fallback-only when a view is expected.
+> **Rule:** Each phase updates docs/skills **in the same PR** as its code. Phase 16 promotes and reconciles — it does not introduce first-time v2 agent guidance.
 
 ---
 
 ## Cross-cutting artifacts
 
-| Artifact | Role |
-|----------|------|
-| `apps/docs/guide/known-gaps.md` | Human-facing gap list (empty when backlog shipped) |
-| `packages/cli/skill/reference/known-gaps.md` | Agent-facing gap list — **must match human** |
-| `packages/cli/skill/SKILL.md` | **`murrmure`** router (phase 07) |
-| `studio-specs/current/acceptance.md` | Golden fixtures (phase 10) |
-| `studio-specs/current/bridges/flow-engine.md` | Engine dispatch vs manifest |
-| `studio-specs/current/bridges/action-invoke.md` | shell_spawn env |
-| `studio-specs/current/product/philosophy.md` | North-star source wording |
-| `studio-specs/current/shell/spec.md` | ViewCanvasHost primary vs shell fallback |
-| `apps/docs/guide/{quick-start,desktop,flows-tutorial,review-workflow,tutorials/**}` | Human-facing UX narratives — view-first |
+| Artifact | Role | Owner phases |
+|----------|------|--------------|
+| `packages/cli/skill/SKILL.md` | Cursor agent index | 02, 05, 06, 08, 10, 13, 16 |
+| `packages/cli/skill/reference/*.md` | Deep dives (one level) | per table below |
+| `apps/docs/guide/agents-mcp.md` | Human MCP setup | 02, 05, 06, 07, 10 |
+| `apps/docs/guide/agent-skill.md` | Human skill install | 02, 08, 16 |
+| `apps/docs/reference/mcp-tools.md` | MCP tool reference | 05, 07, 10, 12 |
+| `studio-specs/current/cli/spec.md` | CLI commands | 02, 05, 06, 08, 12, 13 |
+| `studio-specs/current/build-capability/07-mcp-tool-model*.md` | MCP model spec | 05, 10 |
 
 ---
 
-## North-star UX checklist (cross-phase)
+## Per-phase updates
 
-- [x] Human docs never present shell chrome, drawer UI, or built-in gate forms as the primary path when checkpoint `view` is present
-- [x] `ViewCanvasHost` named explicitly in shell/spec + view-sdk/review workflow docs
-- [x] onboarding docs (`quick-start`, `desktop`) keep shell framed as operator handoff
-- [x] tutorial and flow authoring docs keep parity with full-canvas custom view checkpoints (phase 05 + phase 10)
+### Phase 01 — Foundation
+
+- [x] `studio-contracts/README.md` — entity inventory
+- [x] Architecture §2.3 + §3 cross-links to schema files
+
+### Phase 02 — Space index & CLI
+
+- [x] **CLI:** `mrmr grant mint`, `mrmr grant list`, `mrmr grant revoke` in [cli/spec.md](../../../current/cli/spec.md)
+- [x] **Docs:** [agents-mcp.md](../../../../apps/docs/guide/agents-mcp.md) — grant mint via CLI (replaces Configure UI)
+- [x] **Skill:** `reference/space-directory.md` *(new)* — `murrmure/` layout, init/link/apply
+- [x] **Skill:** `reference/grants.md` *(new)* — capability model §9.1, mint examples
+- [x] **MCP:** `murrmure_grant_mint`, `murrmure_space_status`, `murrmure_apply_space` stubs in catalog (implement handlers minimal OK)
+
+### Phase 03 — Executor & invoke
+
+- [x] **MCP:** `murrmure_invoke_action` → action invoke route (see §10.9)
+- [x] v1 shim: `mcp_wake` routes to invoke
+
+### Phase 04 — Artifacts
+
+- [x] **Docs:** [cross-space/spec.md](../../../current/cross-space/spec.md), `bridges/artifacts.md`
+- [x] User-facing: `.mrmr.temp` in CLI space template
+
+### Phase 05 — Session & Run
+
+- [x] **MCP:** platform tools §10.9 batch 1: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_get_session`, `murrmure_create_run`, `murrmure_get_run`, `murrmure_cancel_run`
+- [x] **Docs:** [mcp-tools.md](../../../../apps/docs/reference/mcp-tools.md) — v2 session/run tools; deprecate `instance_id` wording
+- [x] **Skill:** replace Instance → Run in SKILL.md platform model section
+- [x] **Skill:** `reference/mcp.md` — v2 tool table + scope mapping
+- [x] **Bridge:** `studio-specs/current/bridges/grants-migration.md` — v1 scope → v2 capability map
+
+### Phase 06 — Shell foundation
+
+- [x] **Docs:** [agents-mcp.md](../../../../apps/docs/guide/agents-mcp.md) — `/spaces/new` + `/connect` replace `/setup` Configure path
+- [x] **Shell spec:** [shell/spec.md](../../../current/shell/spec.md) — observer mode, CLI instruction pages, SSE auth
+- [x] **Skill:** Configure UI retired; grants via `mrmr grant mint`
+
+### Phase 07 — Notifications, gates, logs
+
+- [x] **MCP:** batch 2: `murrmure_wait_for_gate`, `murrmure_resolve_gate`, `murrmure_wait_for_run`, `murrmure_journal_query`
+- [x] **Docs:** mcp-tools.md gate/wait tools; shell notifications/gates in shell spec
+- [x] **Skill:** `reference/mcp.md` — wait/resolve patterns for agents operating flows
+
+### Phase 08 — Flow engine
+
+- [x] **Skill:** **rewrite flow change checklist** — space directory + `mrmr space apply` replaces FDK push/promote/apply as primary path
+- [x] **Skill:** `reference/flow-authoring.md` — `murrmure/flows/`, start conditions, no per-space install UX
+- [x] **Docs:** [agent-skill.md](../../../../apps/docs/guide/agent-skill.md) — v2 authoring model
+- [x] **CLI spec:** `mrmr flow run`, index refresh via apply
+
+### Phase 09 — Flowchart, matrix, hooks
+
+- [x] **Docs:** [triggers/spec.md](../../../current/triggers/spec.md) hook normalization; shell spec flowchart sections
+- [x] **MCP:** none new (uses batch 1/2)
+
+### Phase 10 — MCP attach
+
+- [x] **MCP:** `murrmure_attach_orchestration`, `murrmure_get_run_graph`
+- [x] **Skill:** when to file-push (`space apply`) vs MCP attach (ephemeral orchestration)
+- [x] **Docs:** §13.2 Cursor scenario in guide
+
+### Phase 11 — Custom views
+
+- [x] **Skill:** `reference/views.md` *(new)* — view-sdk, `requires_view`, form fallback
+- [x] **Docs:** view rule — not a hub entity (shell spec + view-sdk README)
+
+### Phase 12 — Queue poll
+
+- [x] **MCP:** none required (HTTP poll API for workers)
+- [x] **Skill:** `reference/workers.md` *(new)* — external poll worker deployment
+- [x] **Docs:** executor poll API in bridges
+
+### Phase 13 — Federation
+
+- [ ] **Skill:** cross-space invoke, virtual space bindings, federated run visibility limits
+- [ ] **Docs:** cross-space spec promotion
+
+### Phase 14 — Flow-call composition
+
+- [ ] **Docs:** flow authoring guide (flow-call vs duplicate steps); example orchestrator flow
+- [ ] Promote §5.5 to normative in phase 16 spec promotion
+
+### Phase 15 — Out-of-shell notifications
+
+- [ ] **Docs:** [desktop/spec.md](../../../current/desktop/spec.md) native notification bridge; SMTP ops note
+
+### Phase 16 — Promotion
+
+- [x] Promote rev-1 → `current/product/spec.md`
+- [x] Remove v1 shim docs (`transition`, `wait_for_state`, `instance_id`, Configure)
+- [x] `mrmr skill update` ships final SKILL.md
+- [x] CHANGELOG Murrmure v2
 
 ---
 
-## Phase 01 — Apply validation
+## v1 → v2 MCP mapping (shim period)
 
-- [x] **Code:** `engine-capabilities.ts`, lint in CLI + hub; checkpoint view/dist lint; on_resolve default/cancel lint
-- [x] **Spec:** CLI spec `space apply --strict`
-- [x] **Bridge:** flow-engine.md — dispatch kinds table
-- [x] **Skill:** `flow-authoring.md` — apply warnings
-- [x] **Docs:** known-gaps B5 removed (shipped); B1 notes apply warnings
-- [x] **Fixture:** `fixtures/space-apply/unsupported-step-kind.json`
-- [x] **CI:** `check:doc-tracker` warn-only script added
+| v1 tool | v2 replacement | Removed |
+|---------|----------------|---------|
+| `get_space_state` | `murrmure_get_space_state` | phase 16 |
+| `transition` | `murrmure_invoke_action` + run lifecycle | phase 16 |
+| `wait_for_state` | `murrmure_wait_for_run` / `murrmure_wait_for_gate` | phase 16 |
+| `emit_event` | journal via invoke/hook (or `murrmure_invoke_action`) | phase 16 |
+| `contract_versions` | `murrmure_space_status` (indexed digests) | phase 16 |
 
-## Phase 02 — View SDK
-
-- [x] **Code:** `view-sdk/app` — createViewMount, ViewProvider, hooks; npm publish ready
-- [x] **CLI:** `space view init`, `view dev` — Vite+React + fixtures
-- [x] **Docs:** view-sdk.md author section; skill views.md
-- [x] **Gate:** blocks 09 M6 until shipped
-- [x] Remove B9 from known-gaps when shipped
-
-## Phase 03 — Engine completion
-
-- [x] **Spec:** §5.2 checkpoint runtime; resolve wire `disposition`+`output`; §5.6 partial removed
-- [x] **Bridge:** flow-engine.md, action-invoke.md env table
-- [x] **Skill:** flow-authoring.md — checkpoints + `{{steps.*}}` + on_resolve
-- [x] **Docs:** environment.md shell_spawn; remove B1–B3 from known-gaps
-- [x] **Fixtures:** declarative-gate-chain, step-output-chaining, gate-loop-on-resolve
-
-## Phase 04 — Space flow scaffold
-
-- [x] **CLI spec:** `space flow init` + templates hello-gate / hello-invoke
-- [x] **Skill:** space-directory.md
-- [x] **Docs:** creating-flows.md; remove B6
-- [x] **Fixture:** space-flow-init-hello-gate.json
-- [x] **Align:** [06-reference-workflow-preview-review.md](./06-reference-workflow-preview-review.md) tree
-
-## Phase 05 — ViewCanvasHost + checkpoints
-
-- [x] **Spec:** §5.4 checkpoint view — **ViewCanvasHost** (full canvas), not drawer
-- [x] **Docs:** view-sdk.md checkpoint context; shell/spec.md ViewCanvasHost; session/title UX
-- [x] **Skill:** views.md — custom views primary; remove B4
-- [x] **Test:** shell component test for R3 CI minimum
-
-## Phase 06 — Reference workflow (example + R1–R6)
-
-- [x] **Example:** `examples/flows/preview-review-v2/` matches normative manifest
-- [x] **Fixtures:** engine loop fixtures linked from acceptance.md
-- [x] **Docs:** orchestration A/B in tutorials (phase 10 ships prose)
-
-## Phase 07 — Unified murrmure skill
-
-### 07a (early)
-
-- [x] Rename skill id + install path
-- [x] Rewrite SKILL.md router
-- [x] **Docs:** agent-skill.md, agents-mcp.md → pointers
-- [x] Delete skill FDK reference files (prep for phase 09)
-
-### 07b (rolling)
-
-- [x] Complete reference/*.md inventory per [07-unified-murrmure-skill.md](./07-unified-murrmure-skill.md)
-- [x] skill-eval fixtures + ≥5/6 pass — **advisory only, not CI** ([decision 12](./decisions/12-skill-eval-advisory-only.md))
-- [x] wizards.md — human vs agent paths
-
-## Phase 08 — CLI wizards
-
-- [x] **CLI spec:** setup, onboard, wizard table
-- [x] **Docs:** quick-start rewrite; desktop.md handoff sync
-- [x] **Skill:** cli.md, wizards.md
-- [x] **Fixture:** wizard-onboard-smoke.json
-
-## Phase 09-pre — FDK test disposition
-
-- [x] [09-pre-fdk-test-disposition.md](./09-pre-fdk-test-disposition.md) table 100% filled
-
-## Phase 09 — FDK deletion
-
-- [x] **Delete** human docs: flow-evolution, flow-dev-kit reference (not tutorials)
-- [x] **Rewrite before delete:** flows-tutorial + tutorials/** v2-complete (09-pre P5–P6)
-- [x] **Delete** skill: evolution-pipeline, capability-authoring, workers
-- [x] **Update:** README, how-it-fits-together, creating-flows, http-api, vitepress nav
-- [x] **Update:** deferred.md — remove FDK section
-- [x] **Update:** architecture.md — remove flow-kit from diagram
-- [x] **Verify:** no `studio-*` packages; hub-daemon canonical ([decision 13](./decisions/13-hub-daemon-canonical-no-studio-duplicates.md))
-- [x] CHANGELOG breaking note
-
-## Phase 10 — Docs & proof
-
-- [x] Full human doc checklist + tutorial parity in [10-docs-and-proof.md](./10-docs-and-proof.md)
-- [x] **Reference workflow** [06-reference-workflow-preview-review.md](./06-reference-workflow-preview-review.md) — R1–R6 labeled CI/manual/backlog
-- [x] **10-T1–T4** (+ 10-T1b) tutorial proofs green (automated layer)
-- [x] North-star UX docs consistent view-first terminology
-- [x] acceptance.md B1–B8 rows
-- [x] CI: known-gaps sync, FDK grep gate, **`check:doc-tracker` strict**
-- [x] demo-space murrmure/ in repo + CI apply --strict
+Both catalogs exposed during phases 05–15; v1 tools log deprecation warning.
 
 ---
 

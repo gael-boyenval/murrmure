@@ -1,9 +1,5 @@
 # Part 5 — Flow manifest
 
-::: warning Migrating in VS-7
-This page shows the **current** `invoke:` / `checkpoint:` manifest shape used until the v2.2 hard cutover (VS-8). The **target** unified step contract shape (`branches`, `executor`, `presentation`, nested `steps`) is documented in [Step contracts (v2.2)](../../creating-flows#step-contracts-v2-2) and [step-contract.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/step-contract.md). VS-7 rewrites this manifest with nested `build` + `build.review`; VS-1 already compiles `StepContractCatalog` when you apply a v2-shaped test flow.
-:::
-
 The flow manifest is **thin orchestration**: checkpoint ids, action names, param wiring. No build logic.
 
 ## Step 1 — Create the file

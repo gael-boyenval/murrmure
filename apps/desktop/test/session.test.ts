@@ -39,6 +39,7 @@ describe("createSessionInjectionScript", () => {
     expect(script).toContain('"tok_abc"');
     expect(script).toContain('"http://127.0.0.1:8787"');
     expect(script).not.toContain('"http://127.0.0.1:8787/"');
+    expect(script).toContain('document.cookie = "murrmure_token="');
   });
 });
 
