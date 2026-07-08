@@ -30,9 +30,10 @@ export interface UserProfile {
 
 export interface NotificationItem {
   notification_id: string;
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   status: "pending" | "dismissed" | "resolved";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   space_id: string;
@@ -137,8 +138,9 @@ export interface SpaceHomeRunRow {
 }
 
 export interface SpaceHomeAttentionRow {
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   title: string;
@@ -266,6 +268,18 @@ export interface RunDetailPayload {
   exec_context?: Record<string, unknown>;
   journal_replay?: Array<{ step_id: string; status: string }>;
   steps?: Array<{ step_id: string; status: string }>;
+  active_human_step?: {
+    step_id: string;
+    view_ref?: {
+      view_id: string;
+      origin_space_id?: string;
+      entry_url?: string;
+      shell_route?: string;
+      params_schema?: string;
+    };
+    assignees?: string[];
+    branch_names: string[];
+  };
 }
 
 export interface SessionDetailPayload {
@@ -333,6 +347,11 @@ export interface ShellClient {
   runs: {
     get(run_id: string): Promise<RunDetailPayload>;
     graph(run_id: string): Promise<RunGraphPayload>;
+    resolveStep(
+      run_id: string,
+      step_id: string,
+      body: { branch: string; payload?: Record<string, unknown>; idempotency_key?: string },
+    ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
     retry(run_id: string, body?: { from_step_id?: string; space_id?: string }): Promise<{ run: { run_id: string } }>;
   };
 }

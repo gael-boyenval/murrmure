@@ -1,0 +1,81 @@
+import { useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import type { RunDetailPayload, ShellClient } from "@murrmure/shell-client";
+import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
+import { buildViewAppContextFromRun } from "../lib/view-app-context.js";
+import { mapViewSubmitToResolveStep } from "../lib/view-resolve-adapter.js";
+import { shouldShowStepCanvas, viewRefFromActiveStep } from "../lib/step-view-binding.js";
+import { getStoredHubUrl, getShellToken } from "../hooks.js";
+
+export interface StepCanvasBindingInput {
+  client: ShellClient;
+  run: RunDetailPayload;
+  flow_id: string;
+  space_id: string;
+  title: string;
+  adminHref?: string;
+}
+
+export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
+  const queryClient = useQueryClient();
+  const client = input?.client;
+  const run = input?.run;
+  const flowId = input?.flow_id;
+  const spaceId = input?.space_id;
+  const title = input?.title;
+  const adminHref = input?.adminHref;
+
+  const runId = run?.run_id;
+  const stepId = run?.active_human_step?.step_id;
+  const showCanvas = run ? shouldShowStepCanvas(run) : false;
+  const viewRef = viewRefFromActiveStep(run?.active_human_step);
+
+  const context = useMemo(() => {
+    if (!run || !showCanvas || !flowId || !spaceId) return null;
+    return buildViewAppContextFromRun(run, {
+      hub_base_url: getStoredHubUrl(),
+      token: getShellToken() ?? "",
+      flow_id: flowId,
+      space_id: spaceId,
+    });
+  }, [run, showCanvas, flowId, spaceId, runId, stepId]);
+
+  const invalidate = useCallback(async () => {
+    if (!runId) return;
+    await queryClient.invalidateQueries({ queryKey: ["run", runId] });
+    await queryClient.invalidateQueries({ queryKey: ["run-graph", runId] });
+    await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    await queryClient.invalidateQueries({ queryKey: ["space-home"] });
+  }, [queryClient, runId]);
+
+  const onSubmit = useCallback(
+    async (params: Record<string, unknown>) => {
+      if (!client || !runId || !stepId) return;
+      const body = mapViewSubmitToResolveStep(params, "submit");
+      await client.runs.resolveStep(runId, stepId, body);
+      await invalidate();
+    },
+    [client, runId, stepId, invalidate],
+  );
+
+  const onCancel = useCallback(async () => {
+    if (!client || !runId || !stepId) return;
+    const body = mapViewSubmitToResolveStep({}, "cancel");
+    await client.runs.resolveStep(runId, stepId, body);
+    await invalidate();
+  }, [client, runId, stepId, invalidate]);
+
+  const canvas =
+    showCanvas && context && title ? (
+      <ViewCanvasHost
+        title={title}
+        viewRef={viewRef}
+        context={context}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        adminHref={adminHref}
+      />
+    ) : null;
+
+  return { showCanvas, canvas, onSubmit, onCancel, context };
+}

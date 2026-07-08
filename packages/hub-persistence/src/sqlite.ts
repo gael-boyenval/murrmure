@@ -1269,8 +1269,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
   async insertNotification(row: NotificationRow): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO notifications (notification_id, actor_id, kind, status, gate_id, run_id, session_id, space_id, space_hidden, title, summary, expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notifications (notification_id, actor_id, kind, status, gate_id, step_id, run_id, session_id, space_id, space_hidden, title, summary, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.notification_id,
@@ -1278,6 +1278,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         row.kind,
         row.status,
         row.gate_id ?? null,
+        row.step_id ?? null,
         row.run_id ?? null,
         row.session_id ?? null,
         row.space_id,
@@ -1307,6 +1308,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       kind: r.kind as NotificationRow["kind"],
       status: r.status as NotificationRow["status"],
       gate_id: r.gate_id ?? undefined,
+      step_id: r.step_id ?? undefined,
       run_id: r.run_id ?? undefined,
       session_id: r.session_id ?? undefined,
       space_id: r.space_id,
@@ -1326,6 +1328,15 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         `UPDATE notifications SET status = 'dismissed', dismissed_at = ? WHERE notification_id = ? AND actor_id = ?`,
       )
       .run(at, notification_id, actor_id);
+  }
+
+  async resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void> {
+    const bareRun = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
+    this.db
+      .prepare(
+        `UPDATE notifications SET status = 'resolved', resolved_at = ? WHERE run_id = ? AND step_id = ? AND status = 'pending'`,
+      )
+      .run(at, bareRun, step_id);
   }
 
   async resolveNotificationsForGate(gate_id: string, at: string): Promise<void> {

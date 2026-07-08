@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FlowViewRefSchema } from "../flow/view-ref.js";
 
 /** Normative step statuses (v2.2 § Step identity/status). */
 export const StepStatusSchema = z.enum([
@@ -56,6 +57,7 @@ export type StepExecutor = z.infer<typeof StepExecutorSchema>;
 
 export const StepPresentationSchema = z.object({
   view: z.string(),
+  view_ref: FlowViewRefSchema.optional(),
   assignees: z.array(z.string()).optional(),
   expires_at: z.string().optional(),
 });

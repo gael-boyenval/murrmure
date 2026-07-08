@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ViewCanvasHostProps } from "../components/ViewCanvasHost.js";
 import { ShellClientContext } from "../providers/ShellClientProvider.js";
-import type { GateItem, ShellClient } from "@murrmure/shell-client";
+import type { ShellClient } from "@murrmure/shell-client";
 import { SessionPage } from "./SessionPage.js";
 
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
@@ -18,16 +18,20 @@ vi.mock("../components/ViewCanvasHost.js", () => ({
   },
 }));
 
-const pendingGate: GateItem = {
-  gate_id: "gte_sess",
+const activeHumanRun = {
   run_id: "run_abc",
   session_id: "ses_1",
-  step_id: "review",
-  status: "pending",
-  view_ref: {
-    view_id: "preview-review",
-    origin_space_id: "spc_demo",
-    entry_url: "./dist/index.html",
+  flow_id: "flw_demo",
+  space_id: "spc_demo",
+  lifecycle: "input-required",
+  active_human_step: {
+    step_id: "review",
+    branch_names: ["validated"],
+    view_ref: {
+      view_id: "preview-review",
+      origin_space_id: "spc_demo",
+      entry_url: "./dist/index.html",
+    },
   },
 };
 
@@ -48,21 +52,16 @@ describe("SessionPage checkpoint canvas", () => {
           status: "active",
         }),
         listRuns: vi.fn().mockResolvedValue({
-          runs: [{ run_id: "run_abc", lifecycle: "working" }],
+          runs: [{ run_id: "run_abc", lifecycle: "input-required" }],
         }),
       },
       runs: {
-        get: vi.fn().mockResolvedValue({
-          run_id: "run_abc",
-          session_id: "ses_1",
-          flow_id: "flw_demo",
-          space_id: "spc_demo",
-          lifecycle: "working",
-        }),
+        get: vi.fn().mockResolvedValue(activeHumanRun),
         graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [] }),
+        resolveStep: vi.fn(),
       },
       gates: {
-        listForRun: vi.fn().mockResolvedValue([pendingGate]),
+        listForRun: vi.fn().mockResolvedValue([]),
         resolve: vi.fn(),
       },
       auth: { mintSseTicket: vi.fn() },
@@ -108,5 +107,6 @@ describe("SessionPage checkpoint canvas", () => {
     expect(after.onSubmit).toBe(before.onSubmit);
     expect(after.onCancel).toBe(before.onCancel);
     expect(after.context).toBe(before.context);
+    expect(after.context.step?.step_id).toBe("review");
   });
 });

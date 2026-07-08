@@ -22,6 +22,7 @@ import {
 } from "../orchestration/bind.js";
 import { parseOrchestrationPayloadRef, type OrchestrationPreview } from "../orchestration/preview.js";
 import type { Capability } from "@murrmure/contracts";
+import { flowUsesStepContracts } from "../flow-engine/step-catalog.js";
 import { isDeclarativeCheckpointStep } from "../flow-engine/checkpoint-dispatch.js";
 import { advanceFlowAfterCheckpointResolve, type CheckpointRunnerDeps } from "../flow-engine/checkpoint-runner.js";
 
@@ -214,6 +215,7 @@ async function isFlowCheckpointGate(
   const run = await deps.studio.getRun(row.run_id);
   if (!run?.flow_id || !run.flow_digest) return false;
   const entry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+  if (flowUsesStepContracts(entry)) return false;
   if (!entry?.ir) return false;
   const step = entry.ir.steps.find((s) => s.id === row.step_id);
   return isDeclarativeCheckpointStep(step);

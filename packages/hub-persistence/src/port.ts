@@ -87,9 +87,10 @@ export interface GateRow {
 export interface NotificationRow {
   notification_id: string;
   actor_id: string;
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   status: "pending" | "dismissed" | "resolved";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   space_id: string;
@@ -295,6 +296,7 @@ export interface StudioPersistencePort {
   listNotifications(actor_id: string, filter?: { status?: NotificationRow["status"] }): Promise<NotificationRow[]>;
   dismissNotification(notification_id: string, actor_id: string, at: string): Promise<void>;
   resolveNotificationsForGate(gate_id: string, at: string): Promise<void>;
+  resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void>;
   countPendingNotifications(actor_id: string): Promise<number>;
 
   getUserPrefs(actor_id: string): Promise<UserPrefsRow | null>;

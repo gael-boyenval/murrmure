@@ -62,6 +62,7 @@ export function ViewDevPage() {
       hub_base_url: hubBase,
       token,
       gate: { gate_id: "gte_dev", step_id: "review" },
+  step: { step_id: "review", branch_names: ["validated"] },
     } satisfies ViewAppContext);
 
   if (sessionQuery.isLoading) {

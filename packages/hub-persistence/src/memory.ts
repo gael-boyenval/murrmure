@@ -641,6 +641,15 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     }
   }
 
+  async resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void> {
+    const bareRun = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
+    for (const [id, n] of this.notifications) {
+      if (n.run_id === bareRun && n.step_id === step_id && n.status === "pending") {
+        this.notifications.set(id, { ...n, status: "resolved", resolved_at: at });
+      }
+    }
+  }
+
   async resolveNotificationsForGate(gate_id: string, at: string): Promise<void> {
     const bare = gate_id.startsWith("gate_") ? gate_id.slice(5) : gate_id;
     for (const [id, n] of this.notifications) {

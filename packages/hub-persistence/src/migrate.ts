@@ -390,6 +390,12 @@ export function migrateStudio(db: Database.Database): void {
     db.exec(`ALTER TABLE user_prefs ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1`);
     db.exec(`ALTER TABLE user_prefs ADD COLUMN notify_desktop INTEGER NOT NULL DEFAULT 1`);
   }
+
+  const notificationCols = db.prepare("PRAGMA table_info(notifications)").all() as Array<{ name: string }>;
+  const notificationColNames = new Set(notificationCols.map((c) => c.name));
+  if (!notificationColNames.has("step_id")) {
+    db.exec(`ALTER TABLE notifications ADD COLUMN step_id TEXT`);
+  }
 }
 
 function migrateFlowIndexCompositeKey(db: Database.Database): void {

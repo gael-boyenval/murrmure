@@ -1,5 +1,5 @@
 import type { ViewAppContext } from "@murrmure/view-sdk";
-import type { GateItem } from "@murrmure/shell-client";
+import type { RunDetailPayload } from "@murrmure/shell-client";
 
 export interface ViewRefLike {
   view_id: string;
@@ -15,11 +15,12 @@ export interface BuildViewAppContextInput {
   token: string;
   session_id?: string;
   run_id?: string;
-  gate: Pick<GateItem, "gate_id" | "step_id" | "payload_ref" | "form">;
+  step_id: string;
+  branch_names?: string[];
   exec_context?: Record<string, unknown>;
 }
 
-/** Build ViewAppContext for ViewCanvasHost from run + pending gate (decision 03). */
+/** Build ViewAppContext for ViewCanvasHost from run + active human step (v2.2). */
 export function buildViewAppContext(input: BuildViewAppContextInput): ViewAppContext {
   const exec = input.exec_context ?? {};
   const stepsRaw = exec.steps;
@@ -39,13 +40,35 @@ export function buildViewAppContext(input: BuildViewAppContextInput): ViewAppCon
     token: input.token,
     session_id: input.session_id,
     run_id: input.run_id,
-    gate: {
-      gate_id: input.gate.gate_id,
-      step_id: input.gate.step_id,
-      payload_ref: input.gate.payload_ref,
-      ...(input.gate.form ? { responseSchema: input.gate.form } : {}),
+    step: {
+      step_id: input.step_id,
+      branch_names: input.branch_names,
     },
     ...(steps ? { steps } : {}),
     ...(runInput ? { input: runInput } : {}),
   };
+}
+
+export function buildViewAppContextFromRun(
+  run: RunDetailPayload,
+  input: {
+    hub_base_url: string;
+    token: string;
+    flow_id: string;
+    space_id: string;
+  },
+): ViewAppContext | null {
+  const active = run.active_human_step;
+  if (!active) return null;
+  return buildViewAppContext({
+    flow_id: input.flow_id,
+    space_id: input.space_id,
+    hub_base_url: input.hub_base_url,
+    token: input.token,
+    session_id: run.session_id,
+    run_id: run.run_id,
+    step_id: active.step_id,
+    branch_names: active.branch_names,
+    exec_context: run.exec_context,
+  });
 }

@@ -53,7 +53,7 @@ Bootstrap token: `space_id: "bootstrap"` in policy — only for `POST /v1/spaces
 | `PATCH …/instances/{id}/metadata` | `instance.metadata.patch` | P-ADR-07 |
 | `POST …/transitions` | `state.transition` | `Idempotency-Key` → `command_id` |
 | `GET …/gates` | `query: gate.list` | |
-| `POST …/gates/{id}/resolve` | `gate.resolve` | |
+| `POST …/gates/{id}/resolve` | `gate.resolve` | **Orchestration approval only** — not flow step progression (use `POST …/runs/{id}/steps/{step_id}/resolve`) |
 | `POST …/events` | `event.append` | |
 | `GET …/events` | `query: event.tail` | `from_seq` query param |
 | `POST …/waits` | `wait.register` | |

@@ -157,7 +157,7 @@ export function SpaceHomePage() {
             <CardContent className="space-y-2">
               {home.needs_attention.map((item) => (
                 <Link
-                  key={item.gate_id ?? item.run_id}
+                  key={item.gate_id ?? item.step_id ?? item.run_id}
                   to={item.session_id ? `/sessions/${item.session_id}` : "#"}
                   className="block text-sm hover:underline"
                 >

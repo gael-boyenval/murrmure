@@ -217,6 +217,10 @@ export async function resolveFlowStep(
     idempotency_key: input.body.idempotency_key,
   });
 
+  if (memo.status === "awaiting_human") {
+    await deps.studio.resolveNotificationsForRunStep(input.run_id, input.step_id, ts);
+  }
+
   await persistRunExecContext(deps.studio, input.run_id, execContext);
 
   const sessionId = input.session_id ?? (run.session_id ? `ses_${run.session_id}` : undefined);

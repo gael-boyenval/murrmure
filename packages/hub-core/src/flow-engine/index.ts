@@ -19,6 +19,7 @@ export * from "./step-contract-compile.js";
 export * from "./step-catalog.js";
 export * from "./step-open.js";
 export * from "./step-resolve.js";
+export * from "./step-view-ref.js";
 export * from "./exec-context.js";
 export * from "./checkpoint-dispatch.js";
 export * from "./checkpoint-resolve.js";

@@ -228,6 +228,7 @@ export function mountNotificationRoutes(app: Hono, ctx: DaemonContext): void {
         kind: n.kind,
         status: n.status,
         gate_id: n.gate_id ? addGateId(n.gate_id) : undefined,
+        step_id: n.step_id,
         run_id: n.run_id ? `run_${n.run_id}` : undefined,
         session_id: n.session_id ? `ses_${n.session_id}` : undefined,
         space_id: addSpaceId(n.space_id),

@@ -120,7 +120,9 @@ export function ViewCanvasHost({
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-          {context.gate?.step_id ? (
+          {context.step?.step_id ? (
+            <p className="truncate text-sm text-muted-foreground">{context.step.step_id}</p>
+          ) : context.gate?.step_id ? (
             <p className="truncate text-sm text-muted-foreground">{context.gate.step_id}</p>
           ) : null}
         </div>

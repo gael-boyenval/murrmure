@@ -1,88 +1,67 @@
-# DEV-NOTES — VS-2 Unified resolve API + linear step runner
+# DEV-NOTES — VS-3 Shell human resolve + ViewCanvasHost
 
-**Slice:** VS-2  
-**Branch:** `feat/step-contracts-vs-2-resolve`  
-**Date:** 2026-07-08
+**Slice:** VS-3  
+**Branch:** `feat/step-contracts-vs-3-shell-views`  
+**Base:** `2382dbf` (VS-2)
 
 ## Summary
 
-Shipped unified step resolve (`POST /v1/runs/{run_id}/steps/{step_id}/resolve` + `murrmure_resolve_step`), linear top-level step_contract runner, `awaiting_human` step memos, explicit_resolve for agent executor steps, and migrated `preview-review-v2` to v2.2 linear manifest (top-level review kept until VS-7).
+ViewCanvasHost and notifications now bind to **step memos** (`awaiting_human`), not the gate queue. View submit targets `POST /v1/runs/{run_id}/steps/{step_id}/resolve`. Flow progression via `POST /gates/.../resolve` is disabled for step-contract runs (orchestration approval gates unchanged).
 
 ## Files touched
 
-### contracts
-- `packages/contracts/src/entities/run-step-memo.ts` — add `awaiting_human` status
+### Hub core
+- `packages/hub-core/src/projections/step-memo.ts` — `STEP_OPENED` → `awaiting_human` when `role=human` or `view_id` present (C1)
+- `packages/hub-core/src/projections/journal-replay.ts` — pass role/view_id into memo projection
+- `packages/hub-core/src/flow-engine/step-view-ref.ts` — catalog view_ref enrichment + `findActiveHumanStep`
+- `packages/hub-core/src/index/apply-index.ts` — denormalize `presentation.view_ref` at apply
+- `packages/hub-core/src/flow-engine/step-open.ts` — `human_step` notifications on open
+- `packages/hub-core/src/flow-engine/step-resolve.ts` — resolve human_step notifications on resolve
+- `packages/hub-core/src/flow-engine/space-home.ts` — needs_attention from awaiting_human memos
+- `packages/hub-core/src/gates/service.ts` — skip flow checkpoint progression for step-contract flows
+- `packages/hub-core/src/projections/notifications.ts` — `human_step` kind + drafts
 
-### hub-core
-- `packages/hub-core/src/flow-engine/step-catalog.ts` — catalog helpers
-- `packages/hub-core/src/flow-engine/step-open.ts` — open step (human/agent)
-- `packages/hub-core/src/flow-engine/step-resolve.ts` — resolve + bootstrap + route apply
-- `packages/hub-core/src/flow-engine/advance-runner.ts` — step_contract bootstrap; skip legacy advance
-- `packages/hub-core/src/flow-engine/plan.ts` — include `step_contract` in linear plan
-- `packages/hub-core/src/projections/step-memo.ts` — STEP_OPENED/STEP_RESOLVED journal mapping
-- `packages/hub-core/src/grants/migrate.ts` — `step:resolve` capability
-- `packages/hub-core/test/unit/flow-engine/advance-runner.test.ts` — new
+### Hub persistence / daemon
+- `packages/hub-persistence/src/port.ts`, `sqlite.ts`, `memory.ts`, `migrate.ts` — `step_id` on notifications
+- `packages/hub-daemon/src/routes/sessions/index.ts` — `active_human_step` on `GET /v1/runs/{id}`
+- `packages/hub-daemon/src/routes/phase07/index.ts` — `step_id` in notification wire
 
-### hub-daemon
-- `packages/hub-daemon/src/routes/runs/resolve-step.ts` — HTTP handler
-- `packages/hub-daemon/src/routes.ts` — mount resolve routes
-- `packages/hub-daemon/src/mcp-handlers.ts` — `murrmure_resolve_step`
-- `packages/hub-daemon/src/mcp-tool-registry.ts` — tool + capability
-- `packages/hub-daemon/src/routes/sessions/index.ts` — explicit_resolve memo projection
-- `packages/hub-daemon/test/http/runs/resolve-step.test.ts` — new
-- `packages/hub-daemon/test/http/deprecated-removed.test.ts` — resolve_step in catalog
+### Shell / view-sdk
+- `packages/shell-client/src/client.ts`, `types.ts` — `runs.resolveStep`, `active_human_step`, `human_step` notification kind
+- `packages/shell-web/src/routes/RunPage.tsx`, `SessionPage.tsx` — ViewCanvasHost from step memos
+- `packages/shell-web/src/hooks/useStepCanvasBinding.tsx` — shared canvas binding hook
+- `packages/shell-web/src/lib/view-app-context.ts`, `step-view-binding.ts`
+- `packages/shell-web/src/routes/NotificationsPage.tsx`, `SpaceHomePage.tsx`
+- `packages/view-sdk/src/types.ts`, `app/provider.tsx`, `app/resolve-step.ts` — direct resolve-step submit
 
-### shell-web
-- `packages/shell-web/src/lib/view-resolve-adapter.ts` — `mapViewSubmitToResolveStep`
-- `packages/shell-web/src/lib/view-resolve-adapter.test.ts` — new cases
-
-### example + cli tests
-- `examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml` — v2.2 linear
-- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md` — resolve_step
-- `packages/cli/test/preview-review-v2-example.test.ts` — v2.2 expectations
-
-### docs / specs
-- `studio-specs/current/bridges/step-contract.md` — resolve API section
-- `studio-specs/current/bridges/action-invoke.md` — explicit_resolve note
-- `studio-specs/plans/2026-07-07-step-contracts-unified-state-machine.md` — VS-2 status
-- `apps/docs/reference/mcp-tools.md`
-- `packages/cli/skill/reference/mcp.md`
-- `apps/docs/guide/tutorials/01-local-preview-review/08-run-the-loop.md`
+### Contracts / docs / tests
+- `packages/contracts/src/entities/step-contract.ts` — `presentation.view_ref`
+- `studio-specs/current/bridges/step-contract.md` — ViewCanvasHost section
+- `apps/docs/guide/tutorials/01-local-preview-review/06-build-views.md` — submit → resolve note
+- Tests listed below
 
 ## Commands run
 
 ```bash
-git checkout -b feat/step-contracts-vs-2-resolve
-
-pnpm --filter @murrmure/contracts build
-pnpm --filter @murrmure/hub-core build
-pnpm exec vitest run --project @murrmure/hub-core test/unit/flow-engine/advance-runner.test.ts
-pnpm exec vitest run --project @murrmure/hub-daemon test/http/runs/resolve-step.test.ts
-pnpm exec vitest run --project @murrmure/hub-daemon test/http/deprecated-removed.test.ts
-pnpm exec vitest run --project @murrmure/cli test/preview-review-v2-example.test.ts
-pnpm exec vitest run --project @murrmure/shell-web src/lib/view-resolve-adapter.test.ts
+pnpm --filter @murrmure/hub-core test step-memo step-view-ref
+pnpm --filter @murrmure/hub-daemon test requires-view resolve-step gates/resolve
+pnpm --filter @murrmure/shell-web test RunPage SessionPage ViewCanvasHost
+pnpm --filter @murrmure/view-sdk test resolve-step
 ```
 
-## Manual test notes
+## Manual tester notes
 
-1. Re-apply space with migrated linear manifest (`mrmr space apply --strict`).
-2. Mint grant with `step:resolve` (replaces `gate:resolve` for flow step completion).
-3. Run preview-review → intake resolves via view (VS-3 wires ViewCanvasHost to resolve; curl/MCP works now).
-4. Agent build step: `murrmure_resolve_step({ step_id: "build", branch: "completed", payload: { preview_url } })`.
-5. Human review: view submit → `branch: validated | changes_required` (shell wiring VS-3).
+1. Re-apply preview-review v2.2 manifest on murrmuretuto (from VS-2).
+2. Mint grant with `step:resolve` (not `gate:resolve` for flow steps).
+3. Desktop: full run → intake + review views in ViewCanvasHost (not GatePanel).
+4. DevTools iframe: no `token_denied`; assets load via cookie auth.
+5. Space home / notifications: “Needs you: {step_id}” when `awaiting_human`.
+6. Validate + feedback branches advance via resolve-step (feedback stays on review until VS-7 nested).
 
-## Known gaps (VS-3+)
+## Known gaps (out of VS-3 scope)
 
-- ViewCanvasHost still binds pending **gates** for legacy flows; step_contract human steps use `awaiting_human` memos without gates until VS-3.
-- Nested steps / engine-routed goto — VS-7.
-- `active-step-contract.json`, prompt injection — VS-5.
-- `complete_action` / `wait_for_gate` still registered (VS-8 removal).
-- Terminal run late-resolve 409, monotonic memos — VS-4.
-
-## Grant capabilities (manual)
-
-```bash
-mrmr grant mint --space spc_… \
-  --capabilities flow:run,flow:read,action:invoke,step:resolve,space:read,journal:read \
-  --label cursor
-```
+- VS-4: late resolve 409, monotonic memos, executor cancel/timeouts
+- VS-5: `active-step-contract.json`, `ctx.contract` injection
+- VS-7: nested `build.review` loop
+- VS-8: delete legacy gate/MCP tools
+- Legacy invoke/checkpoint flows still use gates until VS-8 cutover

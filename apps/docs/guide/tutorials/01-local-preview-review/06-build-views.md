@@ -216,8 +216,10 @@ cd ~/work/my-feature-site
 
 | API | Role |
 |-----|------|
-| `useViewSubmit()` | `submit(payload)` resolves checkpoint; `cancel()` fails run |
-| `useViewContext()` | Run input, prior step outputs (`steps.build.output`, …) |
+| `useViewSubmit()` | `submit(payload)` → `POST …/steps/{step_id}/resolve`; `cancel()` resolves `cancel` branch |
+| `useViewContext()` | `ctx.step.step_id`, run input, prior step outputs (`steps.build.output`, …) |
+
+Human steps use **step memos** (`awaiting_human`), not gate rows. ViewCanvasHost binds to `active_human_step` on the run.
 
 ## Checkpoint
 

@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ViewCanvasHostProps } from "../components/ViewCanvasHost.js";
 import { ShellClientContext } from "../providers/ShellClientProvider.js";
-import type { GateItem, ShellClient } from "@murrmure/shell-client";
+import type { ShellClient } from "@murrmure/shell-client";
 import { RunPage } from "./RunPage.js";
 
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
@@ -24,41 +24,37 @@ vi.mock("../components/ViewCanvasHost.js", () => ({
   },
 }));
 
-const pendingGate: GateItem = {
-  gate_id: "gte_run",
+const activeHumanRun = {
   run_id: "run_abc",
   session_id: "ses_1",
-  step_id: "review",
-  status: "pending",
-  title: "Review checkpoint",
-  view_ref: {
-    view_id: "preview-review",
-    origin_space_id: "spc_demo",
-    entry_url: "./dist/index.html",
+  flow_id: "flw_demo",
+  space_id: "spc_demo",
+  lifecycle: "input-required",
+  active_human_step: {
+    step_id: "review",
+    branch_names: ["validated", "changes_required", "cancel"],
+    view_ref: {
+      view_id: "preview-review",
+      origin_space_id: "spc_demo",
+      entry_url: "./dist/index.html",
+    },
   },
 };
 
-function renderRunPage(gateStatusRef: { current: string }) {
+function renderRunPage(runRef: { current: typeof activeHumanRun | null }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   const mockClient = {
     runs: {
-      get: vi.fn().mockResolvedValue({
-        run_id: "run_abc",
-        session_id: "ses_1",
-        flow_id: "flw_demo",
-        space_id: "spc_demo",
-        lifecycle: "working",
-      }),
+      get: vi.fn().mockImplementation(async () => runRef.current),
       graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [] }),
+      resolveStep: vi.fn().mockImplementation(async () => {
+        runRef.current = null;
+      }),
     },
     gates: {
-      listForRun: vi.fn().mockImplementation(async () => [
-        { ...pendingGate, status: gateStatusRef.current },
-      ]),
-      resolve: vi.fn().mockImplementation(async () => {
-        gateStatusRef.current = "cancelled";
-      }),
+      listForRun: vi.fn().mockResolvedValue([]),
+      resolve: vi.fn(),
     },
     auth: { mintSseTicket: vi.fn() },
     journal: { subscribe: () => () => undefined },
@@ -83,9 +79,9 @@ afterEach(() => {
 });
 
 describe("RunPage checkpoint canvas", () => {
-  it("cancel resolves gate, refetches, and exits canvas when gate is terminal", async () => {
-    const gateStatusRef = { current: "pending" };
-    renderRunPage(gateStatusRef);
+  it("cancel resolves step, refetches, and exits canvas when step is no longer awaiting_human", async () => {
+    const runRef = { current: activeHumanRun as typeof activeHumanRun | null };
+    renderRunPage(runRef);
 
     await waitFor(() => {
       expect(screen.getByTestId("view-canvas-host")).toBeTruthy();
@@ -100,24 +96,17 @@ describe("RunPage checkpoint canvas", () => {
   });
 
   it("keeps stable ViewCanvasHost props across unrelated parent re-renders", async () => {
-    const gateStatusRef = { current: "pending" };
+    const runRef = { current: activeHumanRun as typeof activeHumanRun | null };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     const mockClient = {
       runs: {
-        get: vi.fn().mockResolvedValue({
-          run_id: "run_abc",
-          session_id: "ses_1",
-          flow_id: "flw_demo",
-          space_id: "spc_demo",
-          lifecycle: "working",
-        }),
+        get: vi.fn().mockImplementation(async () => runRef.current),
         graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [] }),
+        resolveStep: vi.fn(),
       },
       gates: {
-        listForRun: vi.fn().mockImplementation(async () => [
-          { ...pendingGate, status: gateStatusRef.current },
-        ]),
+        listForRun: vi.fn().mockResolvedValue([]),
         resolve: vi.fn(),
       },
       auth: { mintSseTicket: vi.fn() },

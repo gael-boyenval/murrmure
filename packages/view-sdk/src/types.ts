@@ -14,7 +14,14 @@ export interface ViewHostContext {
 /** Optional schema describing expected human response / submit shape (not a form renderer mandate). */
 export type ResponseSchema = GateForm;
 
-/** Checkpoint gate block — nested ids only (no top-level gate_id). */
+/** Active human step block — v2.2 step contract mounts. */
+export interface ViewStepContext {
+  step_id: string;
+  branch_names?: string[];
+  contract?: Record<string, unknown>;
+}
+
+/** Legacy orchestration gate block (orchestration approval only). */
 export interface ViewGateContext {
   gate_id: string;
   step_id: string;
@@ -24,8 +31,10 @@ export interface ViewGateContext {
 
 /** Full context — shell → view postMessage payload at checkpoint mounts. */
 export interface ViewAppContext extends ViewHostContext {
-  /** Present at all checkpoint mounts (step 0 + mid-run). */
+  /** Legacy orchestration approval mounts only. */
   gate?: ViewGateContext;
+  /** v2.2 human step contract mount. */
+  step?: ViewStepContext;
   steps?: Record<string, { output?: Record<string, unknown>; status?: string }>;
   input?: Record<string, unknown>;
 }

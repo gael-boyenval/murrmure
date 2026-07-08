@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
+import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@murrmure/shell-ui";
 
 const RunFlowchartView = lazy(() =>
@@ -37,9 +38,34 @@ export function RunPage() {
     enabled: Boolean(client && runId),
   });
 
-  const gates = gatesQuery.data ?? [];
-  const focused = focusGate ? gates.find((g) => g.gate_id === focusGate) : gates.find((g) => g.status === "pending");
   const run = runQuery.data;
+  const gates = gatesQuery.data ?? [];
+  const orchestrationGate = gates.find(
+    (g) => g.status === "pending" && g.step_id.startsWith("orchestration:"),
+  );
+  const focused =
+    focusGate ? gates.find((g) => g.gate_id === focusGate) : orchestrationGate ?? gates.find((g) => g.status === "pending");
+
+  const bindingInput = useMemo(
+    () =>
+      run && client
+        ? {
+            client,
+            run,
+            flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
+            space_id: run.space_id ?? "",
+            title: run.active_human_step?.step_id ?? "Review",
+            adminHref: `/runs/${runId}?operator=1`,
+          }
+        : null,
+    [client, run, graphQuery.data?.flow_id, runId],
+  );
+
+  const { showCanvas, canvas } = useStepCanvasBinding(bindingInput);
+
+  if (showCanvas && canvas) {
+    return canvas;
+  }
 
   return (
     <AppShell>

@@ -188,3 +188,200 @@ describe("http/flows/requires-view", () => {
     rmSync(spaceRoot, { recursive: true, force: true });
   });
 });
+
+const STEP_CONTRACT_VIEWS_FLOW = {
+  actions: {
+    digest: "sha256:sc-actions",
+    file: { version: 1, actions: { noop: { executor: "shell" } } },
+  },
+  executors: {
+    digest: "sha256:sc-exec",
+    file: {
+      version: 1,
+      executors: {
+        shell: { binding: { type: "shell_spawn", executor_id: "shell" } },
+      },
+    },
+  },
+  hooks: { digest: "sha256:sc-hooks", file: { version: 1, hooks: {} } },
+  flows: [
+    {
+      flow_id: "flw_step_views",
+      rel_path: "flows/step-views/flow.manifest.yaml",
+      digest: "sha256:sc-flow",
+      manifest: {
+        apiVersion: "murrmure.flow/v1",
+        name: "step-views",
+        start: { manual: true },
+        steps: [
+          {
+            id: "intake",
+            presentation: { view: "intake-view" },
+            branches: {
+              continue: { schema: { type: "object", required: ["topic"] }, next: "review" },
+              cancel: { schema: { type: "object" }, fail_run: true },
+            },
+          },
+          {
+            id: "review",
+            presentation: { view: "review-view" },
+            branches: {
+              validated: { schema: { type: "object" }, next: null },
+              cancel: { schema: { type: "object" }, fail_run: true },
+            },
+          },
+        ],
+      },
+    },
+  ],
+  views: [
+    {
+      view_id: "intake-view",
+      rel_path: "views/intake/view.manifest.yaml",
+      digest: "sha256:intake-view",
+      manifest: {
+        apiVersion: "murrmure.view/v1",
+        id: "intake-view",
+        shell_route: "murrmure/intake",
+        entry: "./dist/index.html",
+      },
+    },
+    {
+      view_id: "review-view",
+      rel_path: "views/review/view.manifest.yaml",
+      digest: "sha256:review-view",
+      manifest: {
+        apiVersion: "murrmure.view/v1",
+        id: "review-view",
+        shell_route: "murrmure/review",
+        entry: "./dist/index.html",
+      },
+    },
+  ],
+};
+
+describe("http/flows/requires-view step memos", () => {
+  let baseUrl: string;
+  let cleanup: () => void;
+  let bootstrapToken: string;
+  let spaceId: string;
+  let resolveToken: string;
+
+  beforeAll(async () => {
+    const dir = mkdtempSync(join(tmpdir(), "hub-step-views-"));
+    bootstrapToken = "01JBOOTSTRAPTOKEN00000022";
+    const daemon = await startHubDaemon({
+      databasePath: join(dir, "murrmure.db"),
+      port: 0,
+      dataDir: join(dir, "data"),
+      defaultSpaceId: "",
+      bootstrapToken,
+    });
+    const addr = daemon.server.address();
+    const port = typeof addr === "object" && addr ? addr.port : 8787;
+    baseUrl = `http://127.0.0.1:${port}`;
+    cleanup = () => {
+      daemon.server.close();
+      rmSync(dir, { recursive: true, force: true });
+    };
+
+    const auth = {
+      Authorization: `Bearer ${addTokenId(bootstrapToken)}`,
+      "Content-Type": "application/json",
+    };
+    const created = await fetch(`${baseUrl}/v1/spaces`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ slug: "step-views", name: "Step Views" }),
+    });
+    spaceId = (await created.json()).space_id;
+
+    await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ bundle: STEP_CONTRACT_VIEWS_FLOW }),
+    });
+
+    const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        label: "human",
+        capabilities: ["space:read", "flow:run", "step:resolve"],
+      }),
+    });
+    resolveToken = (await grantRes.json()).token;
+  });
+
+  afterAll(() => cleanup?.());
+
+  const agentAuth = () => ({
+    Authorization: `Bearer ${resolveToken}`,
+    "Content-Type": "application/json",
+  });
+
+  test("run exposes active_human_step with intake view_ref (no gate)", async () => {
+    const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
+      method: "POST",
+      headers: agentAuth(),
+      body: JSON.stringify({ title: "step views", space_id: spaceId }),
+    });
+    const session = await sessionRes.json();
+
+    const runRes = await fetch(`${baseUrl}/v1/flows/flw_step_views/run`, {
+      method: "POST",
+      headers: agentAuth(),
+      body: JSON.stringify({ session_id: session.session_id, space_id: spaceId, input: {} }),
+    });
+    const { run_id } = await runRes.json();
+
+    const getRun = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(run_id)}`, {
+      headers: agentAuth(),
+    });
+    const runBody = await getRun.json();
+    expect(runBody.active_human_step?.step_id).toBe("intake");
+    expect(runBody.active_human_step?.view_ref?.view_id).toBe("intake-view");
+    expect(runBody.steps?.find((s: { step_id: string }) => s.step_id === "intake")?.status).toBe(
+      "awaiting_human",
+    );
+
+    const gatesRes = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(run_id)}/gates`, {
+      headers: agentAuth(),
+    });
+    const gatesBody = await gatesRes.json();
+    expect(gatesBody.gates.filter((g: { status: string }) => g.status === "pending")).toHaveLength(0);
+  });
+
+  test("resolve intake advances to review awaiting_human", async () => {
+    const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
+      method: "POST",
+      headers: agentAuth(),
+      body: JSON.stringify({ title: "review step", space_id: spaceId }),
+    });
+    const session = await sessionRes.json();
+
+    const runRes = await fetch(`${baseUrl}/v1/flows/flw_step_views/run`, {
+      method: "POST",
+      headers: agentAuth(),
+      body: JSON.stringify({ session_id: session.session_id, space_id: spaceId, input: {} }),
+    });
+    const { run_id } = await runRes.json();
+
+    const resolveRes = await fetch(
+      `${baseUrl}/v1/runs/${encodeURIComponent(run_id)}/steps/intake/resolve`,
+      {
+        method: "POST",
+        headers: agentAuth(),
+        body: JSON.stringify({ branch: "continue", payload: { topic: "ai" } }),
+      },
+    );
+    expect(resolveRes.status).toBe(200);
+
+    const getRun = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(run_id)}`, {
+      headers: agentAuth(),
+    });
+    const runBody = await getRun.json();
+    expect(runBody.active_human_step?.step_id).toBe("review");
+    expect(runBody.active_human_step?.view_ref?.view_id).toBe("review-view");
+  });
+});

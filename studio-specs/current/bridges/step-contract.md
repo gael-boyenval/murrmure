@@ -222,7 +222,20 @@ Journal events: `mrmr.step.opened`, `mrmr.step.resolved`.
 
 Step memos use `awaiting_human` for open human steps (no gate entity for step_contract flows).
 
-View SDK `submit(params)` → shell maps to `{ branch, payload }` via `mapViewSubmitToResolveStep` → same resolve handler.
+View SDK `submit(params)` → `POST /v1/runs/{run_id}/steps/{step_id}/resolve` (same handler as `murrmure_resolve_step`). Shell **ViewCanvasHost** binds to `active_human_step` from run memos — not the gate queue.
+
+### ViewCanvasHost binding (VS-3)
+
+| Context field | Source |
+|---------------|--------|
+| `ctx.run_id` | Active run |
+| `ctx.step.step_id` | Step memo with `status = awaiting_human` |
+| `ctx.step.branch_names` | Compiled catalog branches |
+| View iframe `view_ref` | `presentation.view` denormalized at apply |
+
+Flow human steps do **not** create gate rows. Notifications / “Needs you” query step memos (`human_step` kind) and orchestration gates only.
+
+Submit/cancel from views maps via `mapViewSubmitToResolveStep` → `{ branch, payload }`.
 
 ---
 

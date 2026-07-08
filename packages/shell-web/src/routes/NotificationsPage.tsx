@@ -4,6 +4,7 @@ import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@murrmure/shell-ui";
+import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 
 export function NotificationsPage() {
   const client = useShellClient();
@@ -21,6 +22,28 @@ export function NotificationsPage() {
   });
 
   const notifications = notificationsQuery.data?.notifications ?? [];
+  const humanStepNotification = notifications.find(
+    (n) => n.kind === "human_step" && n.run_id && n.step_id,
+  );
+
+  const humanRunQuery = useQuery({
+    queryKey: ["run", humanStepNotification?.run_id],
+    queryFn: () => client!.runs.get(humanStepNotification!.run_id!),
+    enabled: Boolean(client && humanStepNotification?.run_id),
+  });
+
+  const humanCanvas = useStepCanvasBinding(
+    humanRunQuery.data && client && humanStepNotification
+      ? {
+          client,
+          run: humanRunQuery.data,
+          flow_id: humanRunQuery.data.flow_id ?? "flw_unknown",
+          space_id: humanRunQuery.data.space_id ?? humanStepNotification.space_id,
+          title: humanStepNotification.title,
+        }
+      : null,
+  );
+
   const gateNotification = notifications.find((n) => n.kind === "gate" && n.gate_id);
 
   const gateQuery = useQuery({
@@ -58,6 +81,8 @@ export function NotificationsPage() {
           <p className="text-sm text-muted-foreground">Actionable inbox — gates and failures.</p>
         </div>
 
+        {humanCanvas.showCanvas && humanCanvas.canvas ? humanCanvas.canvas : null}
+
         {gateQuery.data ? (
           <GatePanel
             gate={gateQuery.data}
@@ -84,8 +109,15 @@ export function NotificationsPage() {
                     <p className="text-sm font-medium">{n.title}</p>
                     {n.summary ? <p className="text-xs text-muted-foreground">{n.summary}</p> : null}
                     {n.run_id ? (
-                      <Link className="text-xs text-primary underline" to={`/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`}>
-                        Open run
+                      <Link
+                        className="text-xs text-primary underline"
+                        to={
+                          n.kind === "human_step" && n.session_id
+                            ? `/sessions/${n.session_id}`
+                            : `/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`
+                        }
+                      >
+                        Open {n.kind === "human_step" ? "view" : "run"}
                       </Link>
                     ) : null}
                   </div>

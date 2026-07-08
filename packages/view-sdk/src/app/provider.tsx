@@ -7,6 +7,16 @@ import {
 } from "react";
 import type { ViewAppContext } from "../types.js";
 import { postViewMessage } from "./messages.js";
+import { mapViewSubmitToResolveStep } from "./resolve-step.js";
+
+function resolveViaHost(context: ViewAppContext, params: Record<string, unknown>, action: "submit" | "cancel") {
+  postViewMessage(
+    action === "submit"
+      ? { type: "murrmure.view.submit", params }
+      : { type: "murrmure.view.cancel" },
+    context.hub_base_url,
+  );
+}
 
 export interface ViewRuntimeContextValue {
   context: ViewAppContext;
@@ -59,16 +69,30 @@ export function useViewSubmit(): {
   submit: (params: Record<string, unknown>) => void;
   cancel: () => void;
 } {
-  const { context } = useViewRuntime();
+  const { context, hubClient } = useViewRuntime();
   return useMemo(
     () => ({
       submit: (params: Record<string, unknown>) => {
-        postViewMessage({ type: "murrmure.view.submit", params }, context.hub_base_url);
+        if (context.step?.step_id && context.run_id) {
+          const body = mapViewSubmitToResolveStep(params, "submit");
+          void hubClient.runs
+            .resolveStep(context.run_id, context.step.step_id, body)
+            .catch(() => resolveViaHost(context, params, "submit"));
+          return;
+        }
+        resolveViaHost(context, params, "submit");
       },
       cancel: () => {
-        postViewMessage({ type: "murrmure.view.cancel" }, context.hub_base_url);
+        if (context.step?.step_id && context.run_id) {
+          const body = mapViewSubmitToResolveStep({}, "cancel");
+          void hubClient.runs
+            .resolveStep(context.run_id, context.step.step_id, body)
+            .catch(() => resolveViaHost(context, {}, "cancel"));
+          return;
+        }
+        resolveViaHost(context, {}, "cancel");
       },
     }),
-    [context.hub_base_url],
+    [context, hubClient],
   );
 }

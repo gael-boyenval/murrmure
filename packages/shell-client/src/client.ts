@@ -229,6 +229,24 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) throw new Error(`runs.graph failed: ${res.status}`);
         return res.json() as Promise<import("./types.js").RunGraphPayload>;
       },
+      async resolveStep(run_id, step_id, body) {
+        const res = await fetch(
+          `${base}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/resolve`,
+          {
+            method: "POST",
+            headers: authHeaders(token),
+            body: JSON.stringify(body),
+          },
+        );
+        if (!res.ok) throw new Error(`runs.resolveStep failed: ${res.status}`);
+        return res.json() as Promise<{
+          ok: boolean;
+          run_id: string;
+          step_id: string;
+          branch: string;
+          status: string;
+        }>;
+      },
       async retry(run_id, body = {}) {
         const res = await fetch(`${base}/v1/runs/${encodeURIComponent(run_id)}/retry`, {
           method: "POST",

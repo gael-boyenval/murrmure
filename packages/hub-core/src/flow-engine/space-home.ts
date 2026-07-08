@@ -8,6 +8,7 @@ import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { toRunDto, toSessionDto } from "../session/index.js";
 import { canExecuteFlow, canReadFlow } from "./start.js";
 import { buildSpaceHomeIndex, type SpaceHomeIndexSection } from "./space-home-index.js";
+import { flowUsesStepContracts } from "./step-catalog.js";
 import {
   buildEmittableEventsCatalog,
   type EmittableEventEntry,
@@ -44,8 +45,9 @@ export interface SpaceHomeRunRow {
 }
 
 export interface SpaceHomeAttentionRow {
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   title: string;
@@ -132,6 +134,7 @@ export async function buildSpaceHome(
 
   const active_runs: SpaceHomeRunRow[] = [];
   const recent_completed: SpaceHomeRunRow[] = [];
+  const needs_attention: SpaceHomeAttentionRow[] = [];
 
   for (const session of sessions) {
     const runs = await studio.listRunsBySession(session.session_id);
@@ -148,6 +151,23 @@ export async function buildSpaceHome(
       };
       if (run.lifecycle === "working" || run.lifecycle === "input-required") {
         active_runs.push(row);
+
+        if (run.flow_id) {
+          const entry = await studio.getFlowIndexEntry(run.flow_id, run.space_id);
+          if (flowUsesStepContracts(entry)) {
+            const memos = await studio.listRunStepMemos(`run_${run.run_id}`);
+            for (const memo of memos) {
+              if (memo.status !== "awaiting_human") continue;
+              needs_attention.push({
+                kind: "human_step",
+                step_id: memo.step_id,
+                run_id: dto.run_id,
+                session_id: dto.session_id,
+                title: `Needs you: ${memo.step_id}`,
+              });
+            }
+          }
+        }
       } else if (
         run.lifecycle === "completed" ||
         run.lifecycle === "failed" ||
@@ -160,8 +180,6 @@ export async function buildSpaceHome(
 
   recent_completed.sort((a, b) => (b.ended_at ?? b.started_at).localeCompare(a.ended_at ?? a.started_at));
   recent_completed.splice(20);
-
-  const needs_attention: SpaceHomeAttentionRow[] = [];
 
   const pendingGates = await studio.listPendingGates({});
   for (const gate of pendingGates) {

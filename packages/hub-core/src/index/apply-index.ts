@@ -17,6 +17,7 @@ import { collectStepSpaces } from "./parse-flow-manifest.js";
 import { compileFlowIr } from "../flow-engine/compile.js";
 import { detectFlowCallCycles } from "../flow-engine/cycle-detect.js";
 import { compileStepContractCatalog } from "../flow-engine/step-contract-compile.js";
+import { enrichCatalogViewRefs } from "../flow-engine/step-view-ref.js";
 
 function enrichCheckpointViewRefs(
   ir: ReturnType<typeof compileFlowIr>,
@@ -71,6 +72,9 @@ export function buildFlowIndexEntries(
     const ir = compileFlowIr(flow.manifest, flow_id);
     enrichCheckpointViewRefs(ir, bundle.views, originSpaceId);
     const { catalog } = compileStepContractCatalog(flow.manifest, flow_id);
+    if (catalog) {
+      enrichCatalogViewRefs(catalog, bundle.views, originSpaceId);
+    }
     return {
       flow_id,
       origin_space_id: originSpaceId,

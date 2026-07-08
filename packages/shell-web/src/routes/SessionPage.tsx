@@ -1,10 +1,11 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
+import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from "@murrmure/shell-ui";
 
 const RunFlowchartView = lazy(() =>
@@ -52,7 +53,31 @@ export function SessionPage() {
   const session = sessionQuery.data;
   const runs = runsQuery.data?.runs ?? [];
   const focusedRun = runs.find((r) => r.run_id === focusRunId);
-  const pendingGate = gatesQuery.data?.find((g) => g.status === "pending");
+  const run = runQuery.data;
+  const orchestrationGate = gatesQuery.data?.find(
+    (g) => g.status === "pending" && g.step_id.startsWith("orchestration:"),
+  );
+
+  const bindingInput = useMemo(
+    () =>
+      run && client
+        ? {
+            client,
+            run,
+            flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
+            space_id: run.space_id ?? "",
+            title: session?.title ?? run.active_human_step?.step_id ?? "Session",
+            adminHref: `/sessions/${sessionId}?operator=1`,
+          }
+        : null,
+    [client, run, graphQuery.data?.flow_id, session?.title, sessionId],
+  );
+
+  const { showCanvas, canvas } = useStepCanvasBinding(bindingInput);
+
+  if (showCanvas && canvas) {
+    return canvas;
+  }
 
   return (
     <AppShell>
@@ -83,18 +108,18 @@ export function SessionPage() {
               <CardTitle className="text-base">Runs</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {runs.map((run) => (
+              {runs.map((runRow) => (
                 <button
-                  key={run.run_id}
+                  key={runRow.run_id}
                   type="button"
                   className={`block w-full rounded-md border px-3 py-2 text-left ${
-                    run.run_id === focusRunId ? "border-primary bg-muted/40" : "border-border"
+                    runRow.run_id === focusRunId ? "border-primary bg-muted/40" : "border-border"
                   }`}
-                  onClick={() => setSelectedRunId(run.run_id)}
+                  onClick={() => setSelectedRunId(runRow.run_id)}
                 >
-                  <span className="font-mono">{run.run_id}</span>
+                  <span className="font-mono">{runRow.run_id}</span>
                   <Badge className="ml-2" variant="outline">
-                    {run.lifecycle}
+                    {runRow.lifecycle}
                   </Badge>
                 </button>
               ))}
@@ -103,12 +128,12 @@ export function SessionPage() {
         </div>
 
         <div className="w-full shrink-0 space-y-4 lg:w-96">
-          {pendingGate ? (
+          {orchestrationGate ? (
             <GatePanel
-              gate={pendingGate}
+              gate={orchestrationGate}
               graph={graphQuery.data}
               onSubmit={async (values) => {
-                await client!.gates.resolve(pendingGate.gate_id, values);
+                await client!.gates.resolve(orchestrationGate.gate_id, values);
                 await gatesQuery.refetch();
                 await graphQuery.refetch();
               }}

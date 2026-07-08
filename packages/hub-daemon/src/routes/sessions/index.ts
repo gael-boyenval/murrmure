@@ -23,6 +23,7 @@ import {
   completeDispatchedAction,
   flowStepContractCatalog,
   requiresExplicitResolve,
+  findActiveHumanStep,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -347,11 +348,17 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       })));
     }
 
+    const flowEntry = row.flow_id
+      ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id)
+      : null;
+    const active_human_step = findActiveHumanStep(steps, flowStepContractCatalog(flowEntry)) ?? undefined;
+
     return c.json({
       ...run,
       instance_id: runIdToInstanceId(run.run_id),
       steps,
       journal_replay,
+      active_human_step,
     });
   });
 
