@@ -21,6 +21,7 @@ import { mountMurrmureRoutes } from "./routes/murrmure/shared-config.js";
 import { mountSpaceIndexRoutes } from "./routes/spaces/index.js";
 import { mountArtifactRoutes } from "./routes/artifacts/index.js";
 import { mountSessionRunRoutes } from "./routes/sessions/index.js";
+import { mountResolveStepRoutes } from "./routes/runs/resolve-step.js";
 import { mountGrantV2Routes } from "./routes/grants/index.js";
 import { mountExecutorPollRoutes } from "./routes/executor/index.js";
 import { mountJournalRoutes } from "./routes/journal/index.js";
@@ -318,6 +319,7 @@ export function createHubApp(ctx: DaemonContext) {
   mountExecutorPollRoutes(app, ctx, ctx.executorPollStore);
   mountArtifactRoutes(app, ctx);
   mountSessionRunRoutes(app, ctx);
+  mountResolveStepRoutes(app, ctx);
   mountGrantV2Routes(app, ctx);
   mountJournalRoutes(app, ctx);
   mountGateRoutes(app, ctx);

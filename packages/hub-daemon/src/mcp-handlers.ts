@@ -186,6 +186,36 @@ export function registerPlatformMcpHandlers(
     return data;
   });
 
+  registry.registerHandler("murrmure_resolve_step", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? "");
+    const step_id = String(args.step_id ?? "");
+    const branch = String(args.branch ?? "");
+    if (!run_id || !step_id || !branch) {
+      throw new Error("run_id, step_id, and branch are required");
+    }
+
+    const res = await fetch(
+      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/resolve`,
+      {
+        method: "POST",
+        headers: mcpHeaders(authCtx),
+        body: JSON.stringify({
+          branch,
+          payload: args.payload ?? {},
+          artifacts_out: args.artifacts_out,
+          idempotency_key: args.idempotency_key,
+        }),
+      },
+    );
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new Error(
+        typeof data.message === "string" ? data.message : `Resolve step failed (${res.status})`,
+      );
+    }
+    return data;
+  });
+
   registry.registerHandler("murrmure_create_session", async (args, authCtx) => {
     const res = await fetch(`${hubUrl()}/v1/sessions`, {
       method: "POST",

@@ -41,7 +41,8 @@ Example arguments:
 | `murrmure_space_status` | `space:read` | `GET /v1/spaces/{id}/index/status` |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | `murrmure_invoke_action` | `action:invoke` | `POST /v1/spaces/{id}/actions/{name}/invoke` |
-| `murrmure_complete_action` | `action:invoke` | `POST /v1/runs/{id}/steps/{step_id}/complete` — opaque `result` bag merged into `exec_context.steps.{step}.output` |
+| **`murrmure_resolve_step`** | **`step:resolve`** | **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — branch + payload (+ optional `artifacts_out`) |
+| ~~`murrmure_complete_action`~~ | `action:invoke` | **Deprecated for flow steps** — use `murrmure_resolve_step`. Removed VS-8. |
 
 ## v2 wait & journal tools (batch 2)
 

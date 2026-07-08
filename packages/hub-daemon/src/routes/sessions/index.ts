@@ -21,6 +21,8 @@ import {
   compileFlowIr,
   mergeActionResultIntoRun,
   completeDispatchedAction,
+  flowStepContractCatalog,
+  requiresExplicitResolve,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -559,7 +561,15 @@ export async function projectStepMemoFromJournal(
     (m) => m.step_id === input.step_id,
   ) ?? null;
   const ts = input.ts ?? new Date().toISOString();
-  const next = applyStepMemoFromJournal(existing, {
+  const run = await ctx.murrmurePersistence.getRun(bare);
+  const flowEntry =
+    run?.flow_id != null
+      ? await ctx.murrmurePersistence.getFlowIndexEntry(run.flow_id, run.space_id)
+      : null;
+  const catalog = flowStepContractCatalog(flowEntry);
+  const explicitResolve = requiresExplicitResolve(catalog, input.step_id);
+
+  let next = applyStepMemoFromJournal(existing, {
     run_id: `run_${bare}`,
     step_id: input.step_id,
     type: input.type,
@@ -568,6 +578,11 @@ export async function projectStepMemoFromJournal(
     error_code: input.error_code,
     executor_type: input.executor_type,
   });
+
+  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && explicitResolve && next) {
+    next = { ...next, status: "working", completed_at: undefined };
+  }
+
   if (
     input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
     existing?.status === "completed"
@@ -603,7 +618,11 @@ export async function projectStepMemoFromJournal(
     "mrmr.action.timed_out",
     "mrmr.gate.resolved",
   ];
-  if (terminalTypes.includes(input.type)) {
+  const skipAdvance =
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED ||
+    (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && explicitResolve);
+
+  if (terminalTypes.includes(input.type) && !skipAdvance) {
     await maybeCompleteHeadlessRun(
       {
         studio: ctx.murrmurePersistence,

@@ -41,8 +41,8 @@ Flow invokes **`feature_build`** once. The Cursor agent should:
 1. Read `specs/current/hero-section.md`
 2. Update `index.html`
 3. Start or confirm dev server; discover local preview URL (e.g. `http://localhost:3000`)
-4. Call **`murrmure_complete_action`** with `{ preview_url: "…" }` → flow advances to **review**
-5. Call **`murrmure_wait_for_gate`** — blocks until you act in the review view
+4. Call **`murrmure_resolve_step`** with `branch: "completed"` and `{ preview_url: "…" }` → flow advances to **review**
+5. Call **`murrmure_wait_for_run`** — blocks until review step is terminal (human acts in the review view)
 
 **Verify:** run detail shows `steps.build.output.preview_url`.
 
@@ -107,9 +107,9 @@ Run status: **completed**.
 ```text
 1. Human: pick spec from disk          (intake)
 2. Agent: write specs/current/         (feature_write_spec)
-3. Agent: code + complete_action       (feature_build — same session)
+3. Agent: code + resolve_step       (feature_build — same session)
 4. Human: iframe review                (review)
-5. [optional] feedback → agent fixes → wait_for_gate again (still build session)
+5. [optional] feedback → agent fixes → resolve_step build again (still build session)
 6. Agent: current → archive            (feature_archive)
 7. Agent: git commit + summary         (feature_commit)
 8. Run complete

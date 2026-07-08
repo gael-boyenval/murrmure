@@ -17,6 +17,8 @@
 6. Async executors (`mcp_session`) → `dispatched`; completion via journal callback.
 7. On `mrmr.action.completed` inside a flow run → `exec_context.steps[step_id].output` updated (phase 03).
 
+**Step contract flows (v2.2):** agent executor steps use **`explicit_resolve`** — subprocess exit does not complete the step. Agents call **`murrmure_resolve_step`** (`POST /v1/runs/{run_id}/steps/{step_id}/resolve`) with an explicit **branch** name. Human steps resolve via the same endpoint (view submit → shell adapter).
+
 ## Headless invoke
 
 CLI / direct HTTP without a flow uses `step_id: action:{action_name}`.

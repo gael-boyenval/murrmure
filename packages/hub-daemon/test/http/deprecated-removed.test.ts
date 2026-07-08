@@ -152,4 +152,24 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     expect(names).toContain("murrmure_emit_event");
     expect(names).not.toContain("emit_event");
   });
+
+  test("MCP catalog includes murrmure_resolve_step when grant has step:resolve", async () => {
+    const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ label: "resolver", scopes: ["space:read", "step:resolve"] }),
+    });
+    const resolverToken = (await grantRes.json()).token as string;
+
+    const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
+      headers: { Authorization: `Bearer ${resolverToken}` },
+    });
+    expect(res.status).toBe(200);
+    const { tools } = (await res.json()) as { tools: Array<{ name: string }> };
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("murrmure_resolve_step");
+  });
 });

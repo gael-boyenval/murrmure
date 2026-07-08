@@ -4,6 +4,7 @@ import type { DispatchOutcome, DispatchStatus } from "@murrmure/runtime-contract
 const STEP_TO_DISPATCH: Record<RunStepMemo["status"], DispatchStatus | null> = {
   pending: null,
   working: "dispatched",
+  awaiting_human: null,
   completed: "completed",
   failed: "failed",
   skipped: "failed",

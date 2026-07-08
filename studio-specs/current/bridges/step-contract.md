@@ -218,7 +218,11 @@ POST /v1/runs/{run_id}/steps/{step_id}/resolve
 }
 ```
 
-Journal events: `mrmr.step.opened`, `mrmr.step.resolved` (wired in VS-2).
+Journal events: `mrmr.step.opened`, `mrmr.step.resolved`.
+
+Step memos use `awaiting_human` for open human steps (no gate entity for step_contract flows).
+
+View SDK `submit(params)` → shell maps to `{ branch, payload }` via `mapViewSubmitToResolveStep` → same resolve handler.
 
 ---
 

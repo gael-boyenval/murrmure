@@ -18,7 +18,8 @@ Grant-filtered tools from `/v1/mcp/catalog`. Reload MCP after grant mint or `mrm
 | Tool | Capability |
 |------|------------|
 | `murrmure_invoke_action` | `action:invoke` |
-| `murrmure_complete_action` | `action:invoke` | Report step completion + opaque `result` while invoke still running (`POST /v1/runs/{id}/steps/{step}/complete`) |
+| **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` → `POST /v1/runs/{id}/steps/{step_id}/resolve` |
+| ~~`murrmure_complete_action`~~ | `action:invoke` | **Deprecated for flow steps** (VS-8 removes) — use `murrmure_resolve_step` |
 | `murrmure_apply_space` | `space:write` |
 | `murrmure_space_status` | `space:read` |
 | `murrmure_grant_mint` | `space:admin` |
@@ -39,7 +40,7 @@ Full map: [grants-migration.md](grants-migration.md) in studio-specs bridges.
 1. `murrmure_create_session` — correlation context
 2. `murrmure_create_run` — headless or flow-backed
 3. `murrmure_invoke_action` — pass `session_id`, `run_id`, `step_id: action:{name}`
-4. `murrmure_complete_action` — long-running shell/MCP invoke: report `{ result: { … } }` to advance flow before process exits
+4. **`murrmure_resolve_step`** — complete active flow step: `{ run_id, step_id, branch, payload }` (replaces `complete_action` for step_contract flows)
 5. `murrmure_get_run` — poll step memo until terminal
 
 ## v2 batch 2 — gates & journal

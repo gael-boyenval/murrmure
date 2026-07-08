@@ -1,11 +1,11 @@
 ---
 name: feature-build
-description: Build site, report preview via murrmure_complete_action, and run the wait_for_gate review loop. Use when feature_build runs.
+description: Build site, resolve build step, and wait for human review via murrmure_wait_for_run. Use when feature_build runs.
 ---
 
 # Feature build (mixed orchestration)
 
-Read `agent.md` first. Murrmure MCP must be connected (`action:invoke`, `space:read`).
+Read `agent.md` first. Murrmure MCP must be connected (`action:invoke`, `step:resolve`, `space:read`).
 
 ## Build + review loop (same session)
 
@@ -14,29 +14,30 @@ Read `agent.md` first. Murrmure MCP must be connected (`action:invoke`, `space:r
 3. **Advance flow to review** (while this shell action is still running):
 
 ```json
-murrmure_complete_action({
+murrmure_resolve_step({
   "run_id": "<run_id from prompt>",
   "step_id": "build",
-  "result": {
+  "branch": "completed",
+  "payload": {
     "preview_url": "http://your-local-url:3000"
   }
 })
 ```
 
-You may add other keys (`dev_command`, custom names) — step output is an opaque bag.
-
 4. **Wait for human** in the review view:
 
 ```
-murrmure_wait_for_gate({ "run_id": "<run_id>" })
+murrmure_wait_for_run({ "run_id": "<run_id>" })
 ```
 
-5. On `changes_required`, read `comments`, fix locally, call `wait_for_gate` again. Do **not** spawn a new `cursor agent` subprocess.
+Poll `murrmure_get_run` until `steps.review` is terminal (`completed` or `failed`).
 
-6. On `validated`, exit — flow runs **archive** then **commit**.
+5. On `changes_required`, read `steps.review.output.comments`, fix locally, call `resolve_step` on **build** again with updated `preview_url`. Do **not** spawn a new `cursor agent` subprocess.
+
+6. On `validated`, exit — flow runs **archive** then **commit** (engine dispatches; resolve those steps when prompted).
 
 ## Rules
 
+- Use **`murrmure_resolve_step`** for all agent step completions (do not use legacy complete-action MCP).
 - Never `murrmure_resolve_gate` for human review (humans use the view).
-- Refresh run state with `murrmure_get_run` when you need latest `steps.review.output`.
-- Cross-space preview: use `query_ask` if another space owns the preview URL.
+- Refresh run state with `murrmure_get_run` when you need latest step outputs.

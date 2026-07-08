@@ -11,6 +11,10 @@ export function stepStatusFromJournalType(type: string): RunStepStatus | null {
     case JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT:
     case JOURNAL_EVENT_TYPES.ACTION_EXECUTOR_UNAVAILABLE:
       return "failed";
+    case JOURNAL_EVENT_TYPES.STEP_OPENED:
+      return "working";
+    case JOURNAL_EVENT_TYPES.STEP_RESOLVED:
+      return "completed";
     default:
       return null;
   }

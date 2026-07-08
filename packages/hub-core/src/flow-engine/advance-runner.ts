@@ -21,6 +21,8 @@ import {
   tryDispatchPendingCheckpoint,
   type CheckpointRunnerDeps,
 } from "./checkpoint-runner.js";
+import { flowUsesStepContracts } from "./step-catalog.js";
+import { bootstrapStepContractFlow } from "./step-resolve.js";
 
 export interface FlowAdvanceAuth {
   actor_id: string;
@@ -63,6 +65,10 @@ export async function maybeAdvanceFlow(
 
   const entry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
   if (!entry?.ir) return;
+
+  if (flowUsesStepContracts(entry)) {
+    return;
+  }
 
   const memos = await deps.studio.listRunStepMemos(`run_${runBare}`);
   const stepMemo = memos.find((m) => m.step_id === input.step_id);
@@ -434,6 +440,17 @@ export async function bootstrapInitialFlowStep(
   if (!spaceId) return;
   const auth = await deps.resolveFlowAuth(run);
   const sessionId = `ses_${run.session_id}`;
+
+  if (flowUsesStepContracts(entry)) {
+    await bootstrapStepContractFlow(deps, {
+      run_id: `run_${runBare}`,
+      session_id: sessionId,
+      space_id: spaceId,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+    });
+    return;
+  }
 
   const startedStartFlow = await tryStartFlowStepIfPending(deps, {
     runBare,

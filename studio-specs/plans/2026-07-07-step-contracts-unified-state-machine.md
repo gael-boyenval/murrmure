@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-07  
 **Updated:** 2026-07-08  
-**Status:** In progress (VS-1 — catalog compile)  
+**Status:** In progress (VS-2 — resolve API + linear runner)  
 **Inputs:** [Phase A findings](./2026-07-07-phase-a-findings.md), [reviews](./step-contracts-v21review-opus.md), [action-invoke bridge](../current/bridges/action-invoke.md), [artifacts bridge](../current/bridges/artifacts.md)
 
 **Reviews:** [Opus](./step-contracts-v21review-opus.md) · [Codex](./step-contracts-v21review-codex.md) · [Sonnet](./step-contracts-v21review-sonnet.md)
