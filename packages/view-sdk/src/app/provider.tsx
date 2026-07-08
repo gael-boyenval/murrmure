@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { ViewAppContext } from "../types.js";
 import { postViewMessage } from "./messages.js";
-import { mapViewSubmitToResolveStep } from "./resolve-step.js";
+import { mapViewSubmitToResolveStep, uploadViewArtifacts, type ViewSubmitArtifact } from "./resolve-step.js";
 
 function resolveViaHost(context: ViewAppContext, params: Record<string, unknown>, action: "submit" | "cancel") {
   postViewMessage(
@@ -66,18 +66,28 @@ export function useViewHubClient(): ShellClient {
 }
 
 export function useViewSubmit(): {
-  submit: (params: Record<string, unknown>) => void;
+  submit: (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => void;
   cancel: () => void;
 } {
   const { context, hubClient } = useViewRuntime();
   return useMemo(
     () => ({
-      submit: (params: Record<string, unknown>) => {
+      submit: (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => {
         if (context.step?.step_id && context.run_id) {
-          const body = mapViewSubmitToResolveStep(params, "submit");
-          void hubClient.runs
-            .resolveStep(context.run_id, context.step.step_id, body)
-            .catch(() => resolveViaHost(context, params, "submit"));
+          const resolve = async () => {
+            const artifacts_out = artifacts?.length
+              ? await uploadViewArtifacts({
+                  hub_base_url: context.hub_base_url,
+                  token: context.token,
+                  run_id: context.run_id!,
+                  step_id: context.step!.step_id,
+                  artifacts,
+                })
+              : undefined;
+            const body = mapViewSubmitToResolveStep(params, "submit", artifacts_out);
+            await hubClient.runs.resolveStep(context.run_id!, context.step!.step_id, body);
+          };
+          void resolve().catch(() => resolveViaHost(context, params, "submit"));
           return;
         }
         resolveViaHost(context, params, "submit");

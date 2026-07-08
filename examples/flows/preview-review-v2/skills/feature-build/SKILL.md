@@ -20,7 +20,7 @@ Optional discovery: **`murrmure_list_step_contracts`** returns the active slice 
 
 One **`feature_build`** shell spawn owns the whole loop. Review is **`build.review`** — the **engine** opens it after you resolve **`build.build-loop`**. Do **not** invoke or resolve review yourself.
 
-1. Implement from `specs/current/{spec_filename}` (paths may also appear in `inputs_from_run`).
+1. Implement from `specs/current/{spec_filename}` or the injected path `{{murrmure.step.intake.artifact.spec.path}}` (see `inputs_from_run` in the contract file).
 2. Start dev server; note the working preview URL.
 3. **Advance to human review** (engine opens `build.review`):
 

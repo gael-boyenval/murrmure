@@ -25,6 +25,13 @@ import {
   shouldMergeCheckpointInput,
 } from "./exec-context.js";
 import { maybeCompleteFlowCallParent } from "./start-flow.js";
+import type { ArtifactRegisterFn } from "./step-artifacts.js";
+import {
+  mergeArtifactsIntoExecContext,
+  promoteArtifactsOut,
+  validateArtifactsOut,
+} from "./step-artifacts.js";
+import { resolveSpaceRoot } from "../invoke/resolve.js";
 
 export interface StepResolveJournal extends StepOpenJournal {
   append(input: {
@@ -43,6 +50,7 @@ export interface StepResolveDeps extends SessionRunDeps {
   studio: StudioPersistencePort;
   handler: HubHandler;
   dispatchSteps: FlowAdvanceDeps["dispatchSteps"];
+  registerArtifact?: ArtifactRegisterFn;
 }
 
 function bareRunId(run_id: string): string {
@@ -407,6 +415,11 @@ export async function resolveFlowStep(
     return { ok: false, code: "INVALID_PAYLOAD", message: schemaError, http: 400 };
   }
 
+  const artifactError = validateArtifactsOut(input.body.artifacts_out, entry.artifact_slots);
+  if (artifactError) {
+    return { ok: false, code: "INVALID_ARTIFACTS", message: artifactError, http: 400 };
+  }
+
   const ts = deps.clock.nowIso();
   const routes = branchRoutes(entry, input.body.branch);
   const failRun = isFailRoute(routes);
@@ -424,6 +437,34 @@ export async function resolveFlowStep(
     output: stepOutput,
     completed_at: ts,
   });
+
+  if (input.body.artifacts_out?.length && entry.artifact_slots) {
+    const spaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
+    const bindings = await deps.studio.getSpaceBindings(spaceBare);
+    const space_root = resolveSpaceRoot(bindings);
+    if (!space_root) {
+      return {
+        ok: false,
+        code: "SPACE_ROOT_MISSING",
+        message: "artifacts_out requires a linked space root path",
+        http: 422,
+      };
+    }
+    try {
+      const promoted = await promoteArtifactsOut({
+        space_root,
+        run_id: input.run_id,
+        step_id: input.step_id,
+        artifacts_out: input.body.artifacts_out,
+        artifact_slots: entry.artifact_slots,
+        registerArtifact: deps.registerArtifact,
+      });
+      execContext = mergeArtifactsIntoExecContext(execContext, input.step_id, promoted);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Artifact promotion failed";
+      return { ok: false, code: "ARTIFACT_PROMOTION_FAILED", message, http: 400 };
+    }
+  }
 
   const topLevelIds = topLevelCatalogSteps(catalog).map((e) => e.step_id);
   const stepIndex = topLevelIds.indexOf(input.step_id);

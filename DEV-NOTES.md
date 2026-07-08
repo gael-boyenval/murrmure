@@ -1,69 +1,74 @@
-# DEV-NOTES — VS-7 Nested steps + engine-routed goto
+# DEV-NOTES — VS-6 Step artifacts + workdirs
 
-**Slice:** VS-7  
-**Branch:** `feat/step-contracts-vs-7-nested`  
-**Base:** VS-4 + VS-5 integration (`feat/step-contracts-vs-3-shell-views` merge)
+**Slice:** VS-6  
+**Branch:** `feat/step-contracts-vs-6-artifacts`  
+**Base:** `feat/step-contracts-vs-3-shell-views` + VS-4 + VS-5 merges
 
 ## Summary
 
-Nested step runtime under parent **build**: `build.build-loop` ⇄ `build.review` with engine-routed `goto`, `complete: parent`, and `continue: parent`. Top-level **review** removed from preview-review manifest. Run graph shows nested nodes; HTTP resolve accepts qualified step ids (dots in path).
+Per-step workdirs, `artifacts_out` promotion on resolve, hub artifact registration, `{{murrmure.step.*.artifact.*}}` prompt injection, view file upload → workdir → resolve, and example flow/docs updates.
 
 ## Files touched
 
 ### Hub core
-- `packages/hub-core/src/flow-engine/step-resolve.ts` — nested route vocabulary (`goto`, `complete_parent`, `continue_parent`); remove `NESTED_STEP_UNSUPPORTED`
-- `packages/hub-core/src/flow-engine/step-open.ts` — bootstrap first nested child on parent open; contract file for leaf step only
-- `packages/hub-core/src/flow-engine/step-catalog.ts` — `nestedCatalogChildren`, `parentHasNestedChildren`
-- `packages/hub-core/src/flow-engine/graph.ts` — `buildStepContractRunGraph` for nested nodes + loop-back edge
+- `packages/hub-core/src/flow-engine/step-artifacts.ts` — **new** workdir, promotion, bindings
+- `packages/hub-core/src/flow-engine/step-resolve.ts` — validate + promote `artifacts_out`
+- `packages/hub-core/src/flow-engine/step-open.ts` — `ensureStepWorkdir` on open
+- `packages/hub-core/src/flow-engine/step-contract-slice.ts` — artifact tokens in bindings + `buildFlowInvokeStepContract`
+- `packages/hub-core/src/flow-engine/templates.ts` — `{{murrmure.step.*}}` resolution
+- `packages/hub-core/src/invoke/dispatch.ts` — pass `step_contract` to executors
 
 ### Hub daemon
-- `packages/hub-daemon/src/routes/runs/resolve-step.ts` — route pattern `:step_id{[^/]+}` for qualified ids
-- `packages/hub-daemon/src/routes/sessions/index.ts` — pass `step_contract_catalog` to graph builder
+- `packages/hub-daemon/src/routes/runs/step-work-upload.ts` — **new** view upload endpoint
+- `packages/hub-daemon/src/routes/runs/resolve-step.ts` — `registerArtifact` on promotion
+- `packages/hub-daemon/src/routes.ts` — mount work upload
+- `packages/hub-daemon/src/invoke-service.ts` — `buildFlowInvokeStepContract` at dispatch
 
-### Example + views
-- `examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml` — nested build block
-- `examples/flows/preview-review-v2/murrmure/views/preview-review/src/App.tsx` — read `build.build-loop` / `build.review` outputs
-- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md`, `agent.md`, `README.md`
+### Executors / runtime
+- `packages/executors/src/shell-spawn.ts` — `MURRMURE_STEP_CONTRACT`, `MURRMURE_RUN_ARTIFACTS`, prompt bindings
+- `packages/runtime-contracts/src/types/invoke.ts` — `run_artifacts_json` on step contract context
 
-### Docs / specs
-- `apps/docs/guide/tutorials/01-local-preview-review/index.md`, `05-flow-manifest.md`, `08-run-the-loop.md`
-- `studio-specs/current/bridges/flow-engine.md` — step contracts + nested lifecycle section
+### View SDK / shell client
+- `packages/view-sdk/src/app/resolve-step.ts` — `uploadViewArtifacts`, `artifacts_out` body
+- `packages/view-sdk/src/app/provider.tsx` — `submit(params, artifacts?)`
+- `packages/shell-client/src/types.ts` — `artifacts_out` on `resolveStep`
+
+### Example / docs
+- `examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml` — `artifact_slots` on intake
+- `examples/flows/preview-review-v2/murrmure/actions.yaml` — spec path tokens
+- `examples/flows/preview-review-v2/murrmure/views/preview-review-intake/src/App.tsx` — file upload
+- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md`, `agent.md`
+- `studio-specs/current/bridges/step-contract.md`, `artifacts.md`
+- `apps/docs/guide/tutorials/01-local-preview-review/05-flow-manifest.md`
 
 ### Tests
-- `packages/hub-core/test/unit/flow-engine/nested-steps.test.ts` — **new**
-- `packages/hub-daemon/test/http/runs/nested-resolve.test.ts` — **new**
-- `packages/cli/test/preview-review-v2-example.test.ts` — nested manifest assertions
+- `packages/hub-core/test/unit/flow-engine/step-resolve-artifacts.test.ts` — **new**
+- `packages/hub-core/test/unit/flow-engine/step-contract-slice.test.ts` — artifact bindings
+- `packages/hub-daemon/test/http/artifacts/transfer.test.ts` — work upload + resolve promotion
+- `packages/view-sdk/test/resolve-step.test.ts` — `artifacts_out` mapping
 
 ## Commands run
 
 ```bash
-pnpm exec vitest run --project @murrmure/hub-core test/unit/flow-engine/nested-steps.test.ts test/unit/flow-engine/step-resolve.test.ts
-pnpm exec vitest run --project @murrmure/hub-core test/unit/flow-engine/step-contract-compile.test.ts
-cd packages/hub-daemon && pnpm exec vitest run test/http/runs/nested-resolve.test.ts test/http/runs/resolve-step.test.ts
-pnpm --filter @murrmure/cli test preview-review-v2-example
+pnpm exec vitest run --project @murrmure/hub-core \
+  test/unit/flow-engine/step-resolve-artifacts.test.ts \
+  test/unit/flow-engine/step-contract-slice.test.ts
+
+cd packages/view-sdk && pnpm exec vitest run test/resolve-step.test.ts
+
+cd packages/hub-daemon && pnpm exec vitest run test/http/artifacts/transfer.test.ts
 ```
 
 All green.
 
 ## Manual tester notes (murrmuretuto)
 
-Full Tutorial 1 on nested manifest:
+1. Start `preview-review` run → intake view: attach spec **file** (not paste).
+2. After intake resolve, inspect `.mrmr.temp/runs/{run_id}/steps/intake/spec/` for stable artifact.
+3. `active-step-contract.json` / contract slice should include `steps.intake.artifact.spec.path` in `inputs_from_run`.
+4. On `feature_build` dispatch, resolved prompt contains `{{murrmure.step.intake.artifact.spec.path}}` value.
+5. Grant needs `step:resolve` for work upload + resolve.
 
-1. Intake → attach spec
-2. `write_spec` → `specs/current/hero-section.md`
-3. Single `feature_build` session
-4. Agent resolves **`build.build-loop`** with `preview_url` (not top-level `build`)
-5. Engine opens **`build.review`** without agent invoke — iframe in ViewCanvasHost
-6. Feedback round: `changes_required` → engine reopens **`build.build-loop`** → resolve again → **`build.review`** again
-7. Validate → parent **build** completes → **archive** → **commit**
-8. Run graph shows `build.build-loop` and `build.review` nested under **build**
+## Known gaps (out of VS-6 scope)
 
-Record: run_id, iteration count on loop-back, screenshots.
-
-**Grant:** `step:resolve` required (unchanged from VS-2).
-
-## Known gaps (out of VS-7 scope)
-
-- VS-6: artifact slots / work upload routes (local WIP may exist untracked)
-- VS-8: delete legacy MCP tools; strict apply rejects invoke/checkpoint YAML
-- murrmuretuto manifest mirror (external repo — copy from `examples/flows/preview-review-v2/`)
+- VS-8: delete legacy MCP tools

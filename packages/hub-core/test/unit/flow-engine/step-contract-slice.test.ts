@@ -135,6 +135,38 @@ describe("flow-engine/step-contract-slice", () => {
     expect(JSON.parse(bindings["inputs.json"])).toEqual({ spec_filename: "x.md" });
   });
 
+  test("buildMurrmurePromptBindings exposes artifact path tokens", () => {
+    const exec_context = {
+      artifacts: {
+        intake: {
+          spec: {
+            slot: "spec",
+            path: ".mrmr.temp/runs/run_01TEST/steps/intake/spec/x.md",
+            name: "x.md",
+            transfer_id: "xfr_01",
+          },
+        },
+      },
+    };
+    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_preview_review");
+    const build = catalog!.entries.find((e) => e.step_id === "build")!;
+    const slice = buildStepContractSlice({
+      entry: build,
+      exec_context,
+      run_id: "run_01TEST",
+      space_root: "/tmp/space",
+    });
+    const bindings = buildMurrmurePromptBindings({
+      slice,
+      space_root: "/tmp/space",
+      run_id: "run_01TEST",
+      exec_context,
+    });
+    expect(bindings["step.intake.artifact.spec.path"]).toContain("intake/spec/x.md");
+    expect(bindings["step.intake.artifact.spec.transfer_id"]).toBe("xfr_01");
+    expect(slice.inputs_from_run["steps.intake.artifact.spec.path"]).toContain("intake/spec/x.md");
+  });
+
   test("buildInvokeStepContractContext wires env and path fields", () => {
     const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_preview_review");
     const build = catalog!.entries.find((e) => e.step_id === "build")!;

@@ -17,6 +17,7 @@ export * from "./start-flow.js";
 export * from "./engine-capabilities.js";
 export * from "./step-contract-compile.js";
 export * from "./step-contract-slice.js";
+export * from "./step-artifacts.js";
 export * from "./step-catalog.js";
 export * from "./step-open.js";
 export * from "./step-resolve.js";

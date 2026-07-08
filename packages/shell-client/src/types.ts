@@ -350,7 +350,12 @@ export interface ShellClient {
     resolveStep(
       run_id: string,
       step_id: string,
-      body: { branch: string; payload?: Record<string, unknown>; idempotency_key?: string },
+      body: {
+        branch: string;
+        payload?: Record<string, unknown>;
+        artifacts_out?: Array<{ slot: string; path: string }>;
+        idempotency_key?: string;
+      },
     ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
     retry(run_id: string, body?: { from_step_id?: string; space_id?: string }): Promise<{ run: { run_id: string } }>;
   };

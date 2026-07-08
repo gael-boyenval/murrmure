@@ -7,6 +7,7 @@ import type { FlowStepDispatch } from "./types.js";
 import { resolveSpaceRoot } from "../invoke/resolve.js";
 import { flowStepContractCatalog, nestedCatalogChildren } from "./step-catalog.js";
 import { buildStepContractSlice, writeActiveStepContract } from "./step-contract-slice.js";
+import { ensureStepWorkdir } from "./step-artifacts.js";
 
 function bareRunId(run_id: string): string {
   return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
@@ -158,6 +159,7 @@ export async function openStepContract(
         const bindings = await deps.studio.getSpaceBindings(spaceBare);
         const space_root = resolveSpaceRoot(bindings);
         if (space_root) {
+          await ensureStepWorkdir(space_root, input.run_id, input.step_id);
           const slice = buildStepContractSlice({
             entry: input.entry,
             exec_context: input.exec_context,

@@ -13,6 +13,11 @@ import type {
 import type { InvokeStepContractContext } from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { catalogEntryForStep, flowStepContractCatalog } from "./step-catalog.js";
+import {
+  artifactPathsForInputs,
+  buildArtifactMurrmureBindings,
+  runArtifactsFromExecContext,
+} from "./step-artifacts.js";
 
 export function bareRunId(run_id: string): string {
   return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
@@ -73,6 +78,7 @@ function buildSliceBranches(entry: StepContractCatalogEntry): Record<string, Ste
 export function buildInputsFromRun(exec_context: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = {
     ...((exec_context.input ?? {}) as Record<string, unknown>),
+    ...artifactPathsForInputs(exec_context),
   };
   const steps = (exec_context.steps ?? {}) as Record<string, { output?: Record<string, unknown> }>;
   for (const [stepId, record] of Object.entries(steps)) {
@@ -146,26 +152,70 @@ export function buildMurrmurePromptBindings(input: {
   slice: StepContractSlice;
   space_root: string;
   run_id: string;
+  exec_context?: Record<string, unknown>;
 }): Record<string, string> {
-  return {
+  const bindings: Record<string, string> = {
     run_id: prefixedRunId(input.run_id),
     space_root: input.space_root,
     agentStepContract: renderAgentStepContractMarkdown(input.slice),
     "inputs.json": JSON.stringify(input.slice.inputs_from_run ?? {}, null, 2),
   };
+  if (input.slice.description) {
+    bindings[`step.${input.slice.step_id}.description`] = input.slice.description;
+  }
+  if (input.slice.workdir) {
+    bindings[`step.${input.slice.step_id}.workdir`] = input.slice.workdir;
+  }
+  if (input.slice.iteration != null) {
+    bindings[`step.${input.slice.step_id}.iteration`] = String(input.slice.iteration);
+  }
+  if (input.exec_context) {
+    Object.assign(bindings, buildArtifactMurrmureBindings(runArtifactsFromExecContext(input.exec_context)));
+  }
+  return bindings;
 }
 
 export function buildInvokeStepContractContext(input: {
   slice: StepContractSlice;
   space_root: string;
   run_id: string;
+  exec_context?: Record<string, unknown>;
 }): InvokeStepContractContext {
+  const prompt_bindings = buildMurrmurePromptBindings(input);
+  const artifacts = input.exec_context ? runArtifactsFromExecContext(input.exec_context) : {};
   return {
     slice_json: JSON.stringify(input.slice),
     contract_path: activeStepContractPath(input.space_root, input.run_id),
     workdir: stepWorkdirPath(input.space_root, input.run_id, input.slice.step_id),
-    prompt_bindings: buildMurrmurePromptBindings(input),
+    prompt_bindings,
+    run_artifacts_json: Object.keys(artifacts).length > 0 ? JSON.stringify(artifacts) : undefined,
   };
+}
+
+export async function buildFlowInvokeStepContract(
+  studio: StudioPersistencePort,
+  input: { run_id: string; step_id: string; space_root: string },
+): Promise<InvokeStepContractContext | undefined> {
+  const bare = bareRunId(input.run_id);
+  const run = await studio.getRun(bare);
+  if (!run?.flow_id) return undefined;
+  const flowEntry = await studio.getFlowIndexEntry(run.flow_id, run.space_id);
+  const catalog = flowStepContractCatalog(flowEntry);
+  if (!catalog) return undefined;
+  const entry = catalogEntryForStep(catalog, input.step_id);
+  if (!entry) return undefined;
+  const slice = buildStepContractSlice({
+    entry,
+    exec_context: run.exec_context,
+    run_id: prefixedRunId(input.run_id),
+    space_root: input.space_root,
+  });
+  return buildInvokeStepContractContext({
+    slice,
+    space_root: input.space_root,
+    run_id: input.run_id,
+    exec_context: run.exec_context,
+  });
 }
 
 export function findActiveStepMemo(memos: RunStepMemo[]): RunStepMemo | undefined {

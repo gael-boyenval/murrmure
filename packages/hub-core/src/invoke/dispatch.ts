@@ -183,6 +183,7 @@ export async function orchestrateInvoke(
     ...request,
     step_id,
     delivery: resolved.delivery,
+    step_contract: request.step_contract,
   };
 
   const outcome = await port.dispatch(dispatchRequest, {
@@ -190,6 +191,7 @@ export async function orchestrateInvoke(
     binding: resolved.binding,
     space_root: resolved.space_root,
     exec_input: request.exec_input,
+    step_contract: request.step_contract,
   });
 
   const normalized = { ...outcome, step_id: outcome.step_id ?? step_id, run_id: outcome.run_id ?? request.run_id };

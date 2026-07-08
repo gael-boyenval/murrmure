@@ -81,6 +81,18 @@ Before dispatch the hub materializes each artifact into the target space inbox a
 
 `mrmr space init` scaffolds `.mrmr.temp/` with a gitignore hint.
 
+## Step-scoped layout (v2.2 step contracts)
+
+```text
+.mrmr.temp/runs/{run_id}/steps/{qualified}/work/     # scratch
+.mrmr.temp/runs/{run_id}/steps/{qualified}/{slot}/   # stable after resolve
+```
+
+| Operation | API |
+|-----------|-----|
+| Upload to scratch | `POST /v1/runs/{run_id}/steps/{step_id}/work/upload` |
+| Promote on resolve | `artifacts_out` on `POST …/resolve` |
+
 ## GC
 
 Daemon daily tick runs `ArtifactGcCommand` (hub-core pure logic):

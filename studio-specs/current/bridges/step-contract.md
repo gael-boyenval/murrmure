@@ -252,6 +252,21 @@ Human review may use optional `presentation.expires_at`; it is separate from act
 
 ---
 
+## Step artifacts (VS-6)
+
+Per-step scratch and stable artifact paths under `.mrmr.temp/runs/{run_id}/steps/{qualified}/`.
+
+| Path | Role |
+|------|------|
+| `steps/{qualified}/work/` | Scratch while step is active |
+| `steps/{qualified}/{slot}/{name}` | Stable after resolve promotes `artifacts_out` |
+
+Declare `artifact_slots` on branches; resolve with `artifacts_out: [{ slot, path }]` where `path` is relative to workdir. Views upload via `POST …/work/upload` then resolve (View SDK `submit(params, artifacts?)`).
+
+Prompt tokens: `{{murrmure.step.{qualified}.artifact.{slot}.path}}` and `.transfer_id`.
+
+---
+
 ## Migration from invoke/checkpoint
 
 1. Replace each `invoke:` step with `executor:` + `branches` (`completed` / `failed`).
