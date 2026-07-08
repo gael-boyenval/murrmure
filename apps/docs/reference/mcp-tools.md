@@ -29,6 +29,7 @@ Example arguments:
 | `murrmure_get_session` | `space:read` | `GET /v1/sessions/{id}` |
 | `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
 | `murrmure_get_run` | `space:read` | `GET /v1/runs/{id}` |
+| **`murrmure_list_step_contracts`** | **`space:read`** | **`GET /v1/runs/{id}/step-contracts`** — active slice + `graph_digest` |
 | `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
 | `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
 | `murrmure_cancel_run` | `gate:resolve` | `POST /v1/runs/{id}/cancel` |

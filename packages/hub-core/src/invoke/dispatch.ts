@@ -9,6 +9,8 @@ import {
   validateJournalInlinePayload,
 } from "../journal/append.js";
 import type { InvokeOrchestratorDeps, ResolvedInvoke } from "./types.js";
+import type { ExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
+import { defaultExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
 
 export interface InvokeActor {
   actor_id: string;
@@ -18,6 +20,7 @@ export interface InvokeActor {
 export interface OrchestrateInvokeOptions {
   /** Skip idempotency memo lookup (e.g. when draining a queued invoke). */
   skipMemoLookup?: boolean;
+  executorTimeoutScheduler?: ExecutorTimeoutScheduler;
 }
 
 /** Terminal for idempotent retry — prevents duplicate journal/MCP publish on redispatch. */
@@ -96,6 +99,9 @@ export async function orchestrateInvoke(
     }
   }
 
+  const scheduler = options?.executorTimeoutScheduler ?? defaultExecutorTimeoutScheduler;
+  const timeoutMs = resolved.action.timeout_ms;
+
   const port = deps.registry.getPort(resolved.binding);
   if (!port) {
     const outcome = {
@@ -164,6 +170,15 @@ export async function orchestrateInvoke(
     data: withIdempotencyKey({ executor_type: resolved.binding.type }, idempotencyKey),
   });
 
+  if (request.run_id && timeoutMs) {
+    scheduler.start({
+      run_id: request.run_id,
+      step_id,
+      timeout_ms: timeoutMs,
+      action_name: request.action_name,
+    });
+  }
+
   const dispatchRequest: InvokeRequest = {
     ...request,
     step_id,
@@ -230,6 +245,7 @@ export async function orchestrateInvoke(
       if (idempotencyKey && shouldMemoizeOutcome(failed)) {
         await Promise.resolve(deps.memoStore.set(idempotencyKey, failed));
       }
+      if (request.run_id) scheduler.stop(request.run_id, step_id);
       return buildInvokeResponse(failed);
     }
 
@@ -264,6 +280,7 @@ export async function orchestrateInvoke(
         idempotencyKey,
       ),
     });
+    if (request.run_id) scheduler.stop(request.run_id, step_id);
   }
 
   if (idempotencyKey && shouldMemoizeOutcome(normalized)) {

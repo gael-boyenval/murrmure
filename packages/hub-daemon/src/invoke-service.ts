@@ -8,6 +8,7 @@ import {
   failRunWithNotification,
   enqueueTaskOffer,
   DEFAULT_WORKER_TTL_MS,
+  registerShellProcessCancel,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -44,6 +45,11 @@ export class InvokeService {
   ) {
     const clock = { now: () => Date.now(), nowIso: () => new Date().toISOString() };
     this.registry = createExecutorRegistry({
+      shellSpawn: {
+        onProcessStart: ({ run_id, child }) => {
+          registerShellProcessCancel(run_id, child);
+        },
+      },
       mcpSession: {
         isReachable: (spaceId) => this.mcpWake.hasConnectedSession(spaceId),
         publish: (spaceId, message) => this.publishToSpace(spaceId, message),
@@ -402,12 +408,16 @@ export class InvokeService {
           handler: this.handler,
           ids: { ulid: () => ulid() },
           clock: { nowIso: () => new Date().toISOString() },
+          executorPollStore: this.ctx.executorPollStore,
         },
         {
           run_id,
           actor_id: input.actor_id,
           token_id: input.token_id,
-          reason: response.dispatch.error_code ?? "invoke_failed",
+          reason:
+            response.dispatch.error_code === "ACTION_TIMED_OUT"
+              ? "ACTION_TIMED_OUT"
+              : (response.dispatch.error_code ?? "invoke_failed"),
         },
       );
       broadcastSse(this.ctx, {

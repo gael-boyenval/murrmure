@@ -193,7 +193,7 @@ CLI surfaces the catalog digest on apply:
 
 Known `{{murrmure.*}}` tokens at VS-1:
 
-- `murrmure.run_id`, `murrmure.space_root`, `murrmure.agentStepContract`, `murrmure.inputs.json`
+- `murrmure.run_id`, `murrmure.space_root`, `murrmure.agentStepContract`, `murrmure.inputs.json` (token path after `murrmure.` prefix)
 - `murrmure.step.{qualified}.description|workdir|iteration`
 - `murrmure.step.{qualified}.artifact.{slot}.path|transfer_id`
 
@@ -236,6 +236,19 @@ View SDK `submit(params)` → `POST /v1/runs/{run_id}/steps/{step_id}/resolve` (
 Flow human steps do **not** create gate rows. Notifications / “Needs you” query step memos (`human_step` kind) and orchestration gates only.
 
 Submit/cancel from views maps via `mapViewSubmitToResolveStep` → `{ branch, payload }`.
+
+---
+
+## Engine invariants (VS-4)
+
+| Invariant | Behavior |
+|-----------|----------|
+| Monotonic memos | Terminal step memos (`completed` / `failed`) never regress via journal replay |
+| Terminal run reject | `POST …/resolve` on `failed` / `completed` / `cancelled` runs → **409** `RUN_TERMINAL` |
+| Executor cancel | Run failure cancels in-flight shell subprocesses and queued executor tasks |
+| Split timeouts | `timeout_ms` counts **agent work only**; hub pauses the executor clock while a nested human step is `awaiting_human` |
+
+Human review may use optional `presentation.expires_at`; it is separate from action `timeout_ms`.
 
 ---
 

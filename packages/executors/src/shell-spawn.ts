@@ -15,6 +15,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 export interface ShellSpawnDeps {
   spawn?: typeof spawn;
+  onProcessStart?: (input: { run_id?: string; step_id: string; child: ReturnType<typeof spawn> }) => void;
 }
 
 /** Single-quoted string safe for /bin/sh -c. */
@@ -82,12 +83,20 @@ function runCommand(
   timeoutMs: number,
   spawnFn: typeof spawn,
   extraEnv: Record<string, string>,
+  onProcessStart?: ShellSpawnDeps["onProcessStart"],
+  processMeta?: { run_id?: string; step_id: string },
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
     const child = spawnFn(command, {
       cwd,
       shell: true,
       env: { ...process.env, ...extraEnv },
+    });
+
+    onProcessStart?.({
+      run_id: processMeta?.run_id,
+      step_id: processMeta?.step_id ?? "unknown",
+      child,
     });
 
     let stdout = "";
@@ -133,6 +142,7 @@ function parseShellResult(
 
 export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPort {
   const spawnFn = deps.spawn ?? spawn;
+  const onProcessStart = deps.onProcessStart;
 
   return {
     async preflight(_binding, _context): Promise<ReachabilityResult> {
@@ -176,6 +186,8 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           timeoutMs,
           spawnFn,
           invokeEnv,
+          onProcessStart,
+          { run_id: invoke.run_id, step_id },
         );
         if (code !== 0) {
           return {

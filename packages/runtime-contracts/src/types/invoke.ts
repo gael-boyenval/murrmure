@@ -1,5 +1,13 @@
 import type { ExecutorBinding } from "../ports/indexed-executor-binding.js";
 
+/** VS-5 step contract context passed to shell_spawn at dispatch. */
+export interface InvokeStepContractContext {
+  slice_json: string;
+  contract_path: string;
+  workdir: string;
+  prompt_bindings: Record<string, string>;
+}
+
 /** Shared invoke wire types (rev-1 §4.4). */
 export interface InvokeExpect {
   response_schema?: string;
@@ -19,6 +27,8 @@ export interface DispatchContext {
   space_root?: string;
   /** Shallow copy of `exec_context.input` for shell_spawn `MURRMURE_INPUT`. */
   exec_input?: Record<string, unknown>;
+  /** VS-5 step contract injection for shell_spawn. */
+  step_contract?: InvokeStepContractContext;
 }
 
 export interface InvokeRequest {
@@ -34,6 +44,8 @@ export interface InvokeRequest {
   artifacts_in?: string[];
   delivery?: "fail_fast" | "queue_until_executor";
   idempotency_key?: string;
+  /** VS-5 step contract injection for shell_spawn. */
+  step_contract?: InvokeStepContractContext;
 }
 
 export type DispatchStatus =

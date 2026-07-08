@@ -4,6 +4,9 @@ import type { FlowAdvanceDeps } from "./advance-runner.js";
 import { buildHumanStepNotificationDrafts } from "../projections/notifications.js";
 import { resolveStepParams, resolveStepSpace } from "./templates.js";
 import type { FlowStepDispatch } from "./types.js";
+import { resolveSpaceRoot } from "../invoke/resolve.js";
+import { flowStepContractCatalog } from "./step-catalog.js";
+import { buildStepContractSlice, writeActiveStepContract } from "./step-contract-slice.js";
 
 function bareRunId(run_id: string): string {
   return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
@@ -38,6 +41,7 @@ export async function openStepContract(
 ): Promise<void> {
   const ts = deps.clock.nowIso();
   const runBare = bareRunId(input.run_id);
+  const spaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
   const status = input.entry.presentation?.view ? "awaiting_human" : "working";
 
   await deps.studio.upsertRunStepMemo({
@@ -84,7 +88,6 @@ export async function openStepContract(
   await deps.studio.updateRunLifecycle(runBare, status === "awaiting_human" ? "input-required" : "working", ts);
 
   if (status === "awaiting_human") {
-    const spaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
     const space = await deps.studio.getSpace(spaceBare);
     const grants = await deps.studio.listGrants(spaceBare);
     const drafts = buildHumanStepNotificationDrafts({
@@ -120,6 +123,23 @@ export async function openStepContract(
         expires_at: draft.expires_at,
         created_at: draft.created_at,
       });
+    }
+  }
+
+  const run = await deps.studio.getRun(runBare);
+  if (run?.flow_id) {
+    const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+    const catalog = flowStepContractCatalog(flowEntry);
+    const bindings = await deps.studio.getSpaceBindings(spaceBare);
+    const space_root = resolveSpaceRoot(bindings);
+    if (catalog && space_root) {
+      const slice = buildStepContractSlice({
+        entry: input.entry,
+        exec_context: input.exec_context,
+        run_id: input.run_id,
+        space_root,
+      });
+      await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
     }
   }
 }

@@ -1,67 +1,72 @@
-# DEV-NOTES — VS-3 Shell human resolve + ViewCanvasHost
+# DEV-NOTES — VS-5 Discovery injection
 
-**Slice:** VS-3  
-**Branch:** `feat/step-contracts-vs-3-shell-views`  
-**Base:** `2382dbf` (VS-2)
+**Slice:** VS-5  
+**Branch:** `feat/step-contracts-vs-5-discovery`  
+**Base:** `45308cf` (VS-4)
 
 ## Summary
 
-ViewCanvasHost and notifications now bind to **step memos** (`awaiting_human`), not the gate queue. View submit targets `POST /v1/runs/{run_id}/steps/{step_id}/resolve`. Flow progression via `POST /gates/.../resolve` is disabled for step-contract runs (orchestration approval gates unchanged).
+Step contract discovery at runtime: `StepContractSlice` generator, `active-step-contract.json` on every step open, `MURRMURE_STEP_CONTRACT` / `{{murrmure.agentStepContract}}` prompt injection, `murrmure_list_step_contracts` MCP + `GET /v1/runs/{id}/step-contracts`, action prompt token lint at apply.
 
 ## Files touched
 
+### Contracts
+- `packages/contracts/src/entities/step-contract.ts` — `StepContractSliceBranch.then`, `ListStepContractsResponse`
+
 ### Hub core
-- `packages/hub-core/src/projections/step-memo.ts` — `STEP_OPENED` → `awaiting_human` when `role=human` or `view_id` present (C1)
-- `packages/hub-core/src/projections/journal-replay.ts` — pass role/view_id into memo projection
-- `packages/hub-core/src/flow-engine/step-view-ref.ts` — catalog view_ref enrichment + `findActiveHumanStep`
-- `packages/hub-core/src/index/apply-index.ts` — denormalize `presentation.view_ref` at apply
-- `packages/hub-core/src/flow-engine/step-open.ts` — `human_step` notifications on open
-- `packages/hub-core/src/flow-engine/step-resolve.ts` — resolve human_step notifications on resolve
-- `packages/hub-core/src/flow-engine/space-home.ts` — needs_attention from awaiting_human memos
-- `packages/hub-core/src/gates/service.ts` — skip flow checkpoint progression for step-contract flows
-- `packages/hub-core/src/projections/notifications.ts` — `human_step` kind + drafts
+- `packages/hub-core/src/flow-engine/step-contract-slice.ts` — **new** slice builder, file writer, markdown render, list response
+- `packages/hub-core/src/flow-engine/step-open.ts` — write `active-step-contract.json` on open
+- `packages/hub-core/src/flow-engine/step-contract-compile.ts` — fix known token paths; `lintActionMurrmureTokens`
+- `packages/hub-core/src/flow-engine/engine-capabilities.ts` — lint actions at apply
+- `packages/hub-core/src/flow-engine/index.ts` — export slice module
+- `packages/hub-core/src/invoke/dispatch.ts` — pass `step_contract` to executors
 
-### Hub persistence / daemon
-- `packages/hub-persistence/src/port.ts`, `sqlite.ts`, `memory.ts`, `migrate.ts` — `step_id` on notifications
-- `packages/hub-daemon/src/routes/sessions/index.ts` — `active_human_step` on `GET /v1/runs/{id}`
-- `packages/hub-daemon/src/routes/phase07/index.ts` — `step_id` in notification wire
+### Runtime / executors
+- `packages/runtime-contracts/src/types/invoke.ts` — `step_contract` on request + dispatch context
+- `packages/executors/src/invoke-shell-prompt.ts` — `murrmure_bindings` in templates
+- `packages/executors/src/shell-spawn.ts` — `MURRMURE_STEP_CONTRACT`, path, workdir env vars
 
-### Shell / view-sdk
-- `packages/shell-client/src/client.ts`, `types.ts` — `runs.resolveStep`, `active_human_step`, `human_step` notification kind
-- `packages/shell-web/src/routes/RunPage.tsx`, `SessionPage.tsx` — ViewCanvasHost from step memos
-- `packages/shell-web/src/hooks/useStepCanvasBinding.tsx` — shared canvas binding hook
-- `packages/shell-web/src/lib/view-app-context.ts`, `step-view-binding.ts`
-- `packages/shell-web/src/routes/NotificationsPage.tsx`, `SpaceHomePage.tsx`
-- `packages/view-sdk/src/types.ts`, `app/provider.tsx`, `app/resolve-step.ts` — direct resolve-step submit
+### Hub daemon
+- `packages/hub-daemon/src/routes/runs/step-contracts.ts` — **new** HTTP list endpoint
+- `packages/hub-daemon/src/routes.ts` — mount route
+- `packages/hub-daemon/src/mcp-tool-registry.ts` — `murrmure_list_step_contracts`
+- `packages/hub-daemon/src/mcp-handlers.ts` — MCP handler
+- `packages/hub-daemon/src/invoke-service.ts` — build injection context for flow invokes
 
-### Contracts / docs / tests
-- `packages/contracts/src/entities/step-contract.ts` — `presentation.view_ref`
-- `studio-specs/current/bridges/step-contract.md` — ViewCanvasHost section
-- `apps/docs/guide/tutorials/01-local-preview-review/06-build-views.md` — submit → resolve note
-- Tests listed below
+### Docs / skills / example
+- `studio-specs/current/bridges/step-contract.md` — discovery injection section
+- `apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md` — contract injection (no `complete_action`)
+- `apps/docs/reference/mcp-tools.md` — `list_step_contracts`
+- `packages/cli/skill/reference/mcp.md` — contract file loop
+- `examples/flows/preview-review-v2/murrmure/actions.yaml` — `{{murrmure.agentStepContract}}`
+- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md` — contract file loop
+
+### Tests
+- `packages/hub-core/test/unit/flow-engine/step-contract-slice.test.ts`
+- `packages/hub-daemon/test/http/runs/step-contracts.test.ts`
+- `packages/cli/test/preview-review-v2-example.test.ts` — no `complete_action` in skill/actions
 
 ## Commands run
 
 ```bash
-pnpm --filter @murrmure/hub-core test step-memo step-view-ref
-pnpm --filter @murrmure/hub-daemon test requires-view resolve-step gates/resolve
-pnpm --filter @murrmure/shell-web test RunPage SessionPage ViewCanvasHost
-pnpm --filter @murrmure/view-sdk test resolve-step
+pnpm exec vitest run --project @murrmure/hub-core test/unit/flow-engine/step-contract-slice.test.ts
+pnpm exec vitest run --project @murrmure/hub-core test/unit/flow-engine/step-contract-compile.test.ts
+cd packages/hub-daemon && pnpm exec vitest run test/http/runs/step-contracts.test.ts
+pnpm --filter @murrmure/cli test preview-review-v2-example
 ```
 
-## Manual tester notes
+All green.
 
-1. Re-apply preview-review v2.2 manifest on murrmuretuto (from VS-2).
-2. Mint grant with `step:resolve` (not `gate:resolve` for flow steps).
-3. Desktop: full run → intake + review views in ViewCanvasHost (not GatePanel).
-4. DevTools iframe: no `token_denied`; assets load via cookie auth.
-5. Space home / notifications: “Needs you: {step_id}” when `awaiting_human`.
-6. Validate + feedback branches advance via resolve-step (feedback stays on review until VS-7 nested).
+## Manual tester notes (murrmuretuto)
 
-## Known gaps (out of VS-3 scope)
+1. Start `preview-review` run → inspect `.mrmr.temp/runs/{run_id}/active-step-contract.json` (exists; matches active step).
+2. Resolve intake → file rewritten for `write_spec` / next step.
+3. On `feature_build` dispatch: prompt contains `{{murrmure.agentStepContract}}` block; env has `MURRMURE_STEP_CONTRACT`.
+4. MCP `murrmure_list_step_contracts({ run_id })` → `active` slice + `graph_digest`.
+5. Grant needs `space:read` for list tool (already on typical agent grants).
 
-- VS-4: late resolve 409, monotonic memos, executor cancel/timeouts
-- VS-5: `active-step-contract.json`, `ctx.contract` injection
-- VS-7: nested `build.review` loop
-- VS-8: delete legacy gate/MCP tools
-- Legacy invoke/checkpoint flows still use gates until VS-8 cutover
+## Known gaps (out of VS-5 scope)
+
+- VS-6: artifact slot paths in slice (`{{murrmure.step.*.artifact.*}}`)
+- VS-7: nested goto; `orchestration: engine-routed` in list response for build parent
+- VS-8: delete `complete_action` / `wait_for_gate` MCP tools

@@ -12,6 +12,7 @@ export interface InvokeTemplateContext {
   session_id?: string;
   space_root?: string;
   params?: Record<string, unknown>;
+  murrmure_bindings?: Record<string, string>;
 }
 
 export function buildInvokeTemplateBindings(context: InvokeTemplateContext): Record<string, string> {
@@ -25,6 +26,12 @@ export function buildInvokeTemplateBindings(context: InvokeTemplateContext): Rec
 
   for (const [key, value] of Object.entries(context.params ?? {})) {
     bindings[key] = formatTemplateValue(value);
+  }
+
+  if (context.murrmure_bindings) {
+    for (const [key, value] of Object.entries(context.murrmure_bindings)) {
+      bindings[`murrmure.${key}`] = value;
+    }
   }
 
   return bindings;

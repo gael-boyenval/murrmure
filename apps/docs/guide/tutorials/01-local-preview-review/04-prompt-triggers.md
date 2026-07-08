@@ -47,11 +47,10 @@ actions:
     prompt: |
       Follow `agent.md` and `skills/feature-build/SKILL.md`.
 
-      Build step for spec `{{spec_filename}}`.
-      Run {{run_id}} / session {{session_id}} / step `build`.
+      {{murrmure.agentStepContract}}
 
-      Discover the local preview URL yourself (dev server, port, hostname — any key name is fine).
-      Use Murrmure MCP: `murrmure_complete_action` then `murrmure_wait_for_gate` review loop in this session.
+      During the loop, re-read:
+        {{murrmure.space_root}}/.mrmr.temp/runs/{{murrmure.run_id}}/active-step-contract.json
     command: cursor agent -p --force "{{prompt}}"
     cwd: "{{space_root}}"
     delivery: fail_fast
@@ -87,24 +86,25 @@ actions:
 | Action | Flow step | Agent job |
 |--------|-----------|-----------|
 | `feature_write_spec` | **write_spec** | Write intake spec to `specs/current/` |
-| `feature_build` | **build** | Code site, `complete_action` with preview URL, `wait_for_gate` loop |
+| `feature_build` | **build** | Code site; follow injected step contract + `active-step-contract.json` loop |
 | `feature_archive` | **archive** | Move spec current → archive |
 | `feature_commit` | **commit** | Git commit + message + description JSON |
 
 ### What the hub does
 
-1. Expands `{{spec_markdown}}`, `{{run_id}}`, etc. in the prompt
-2. Sets `MURRMURE_INVOKE_PARAMS`, `MURRMURE_INPUT`, `MURRMURE_PROMPT` for the child process
+1. Expands `{{murrmure.agentStepContract}}`, `{{murrmure.run_id}}`, `{{spec_markdown}}`, etc. in the prompt
+2. Sets `MURRMURE_STEP_CONTRACT`, `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`, `MURRMURE_STEP_WORKDIR`, plus `MURRMURE_INVOKE_PARAMS`, `MURRMURE_INPUT`, `MURRMURE_PROMPT`
 3. Runs `cursor agent -p --force "…"` in the space root
 4. Journals dispatch + completion
 
 ### Build is special
 
-**Build** may finish protocol-wise before the Cursor process exits:
+**Build** is a long-lived shell session. The hub injects the active **step contract slice** at dispatch and rewrites `active-step-contract.json` on every engine transition:
 
-1. Agent calls **`murrmure_complete_action`** → hub merges `result` into `exec_context.steps.build.output` and advances flow to **review**
-2. Agent stays alive and **`murrmure_wait_for_gate`** until human validates
-3. On feedback, agent fixes locally — flow reopens **review**, does **not** re-invoke **build**
+1. Agent reads `{{murrmure.agentStepContract}}` in the initial prompt
+2. During the loop, re-read `.mrmr.temp/runs/{run_id}/active-step-contract.json`
+3. Complete steps with **`murrmure_resolve_step`** (not `murrmure_complete_action`)
+4. Optional discovery: **`murrmure_list_step_contracts`** returns the active slice + `graph_digest`
 
 ### What Murrmure does not do
 
