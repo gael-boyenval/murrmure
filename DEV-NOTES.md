@@ -1,70 +1,41 @@
-# DEV-NOTES — VS-4 Safety invariants
+# DEV-NOTES — VS-5 + VS-4 merged (base for VS-6)
 
-**Slice:** VS-4  
-**Branch:** `feat/step-contracts-vs-4-safety`  
-**Base:** `45308cf` (VS-3)
+**Slice:** VS-5 (merged into VS-3 branch) + VS-4 already present  
+**Branch:** `feat/step-contracts-vs-3-shell-views` (pre-VS-6)  
+**Next:** `feat/step-contracts-vs-6-artifacts`
 
 ## Summary
 
-Safety invariants for step-contract runs: monotonic step memos, terminal-run late resolve rejection (409), executor cancel on run failure, and split human/agent timeouts (ISSUE-14).
+Merged VS-5 discovery injection on top of VS-4 safety invariants. Runtime step contract slices, `active-step-contract.json`, `murrmure_list_step_contracts`, and prompt token lint are in place. VS-6 adds per-step workdirs, `artifacts_out` promotion, and artifact path injection.
 
-## Files touched
+## Files touched (VS-4 + VS-5 merge)
 
-### Hub core
+### Contracts
+- `packages/contracts/src/entities/step-contract.ts` — `StepContractSliceBranch.then`, `ListStepContractsResponse`
+
+### Hub core (VS-4)
 - `packages/hub-core/src/projections/step-memo.ts` — monotonic terminal transitions
 - `packages/hub-core/src/flow-engine/step-resolve.ts` — reject resolve on terminal run
-- `packages/hub-core/src/invoke/run-executor-cancel.ts` — **new** registry + shell SIGTERM/SIGKILL
-- `packages/hub-core/src/invoke/dispatch.ts` — start/stop executor timeout scheduler
-- `packages/hub-core/src/run/service.ts` — cancel executors + poll store on `failRunWithNotification`
-- `packages/hub-core/src/executors/timeout-scheduler.ts` — **new** pause during `awaiting_human`
-- `packages/hub-core/src/executors/timeout-sweep.ts` — **new** periodic sweep + improved `ACTION_TIMED_OUT` copy
-- `packages/hub-core/src/executors/queue-store.ts` — `cancelOfferedForRun`, `extendOfferedDeadlinesForRun`
-- `packages/hub-core/src/projections/notifications.ts` — `runFailedNotificationCopy`, timeout summaries
+- `packages/hub-core/src/invoke/run-executor-cancel.ts` — registry + shell SIGTERM/SIGKILL
+- `packages/hub-core/src/executors/timeout-scheduler.ts` — pause during `awaiting_human`
 
-### Executors
-- `packages/executors/src/shell-spawn.ts` — `onProcessStart` hook for cancel registration
+### Hub core (VS-5)
+- `packages/hub-core/src/flow-engine/step-contract-slice.ts` — slice builder, file writer, markdown render
+- `packages/hub-core/src/flow-engine/step-open.ts` — write `active-step-contract.json` on open
+- `packages/hub-core/src/flow-engine/step-contract-compile.ts` — token lint
 
-### Hub daemon
-- `packages/hub-daemon/src/invoke-service.ts` — register shell cancel; `ACTION_TIMED_OUT` reason
-- `packages/hub-daemon/src/routes/sessions/index.ts` — sync human-wait pause on step journal events
-- `packages/hub-daemon/src/main.ts` — start timeout sweep interval
+### Hub daemon (VS-5)
+- `packages/hub-daemon/src/routes/runs/step-contracts.ts` — HTTP list endpoint
+- `packages/hub-daemon/src/mcp-handlers.ts` — `murrmure_list_step_contracts`
 
-### Docs / example / specs
-- `apps/docs/guide/tutorials/01-local-preview-review/09-troubleshooting.md` — timeouts section
-- `examples/flows/preview-review-v2/murrmure/actions.yaml` — `feature_write_spec.timeout_ms: 300000`
-- `studio-specs/current/bridges/step-contract.md` — engine invariants section
-- `studio-specs/plans/2026-07-07-phase-a-findings.md` — ISSUE-14 marked fixed
+### Docs / skills
+- `apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md`
+- `examples/flows/preview-review-v2/skills/feature-build/SKILL.md`
 
-### Tests
-- `packages/hub-core/test/unit/projections/step-memo.test.ts` — monotonic
-- `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` — late resolve rejected
-- `packages/hub-core/test/unit/executors/timeout-scheduler.test.ts` — human wait excluded
-- `packages/hub-core/test/unit/invoke/run-executor-cancel.test.ts` — cancel handles
-- `packages/hub-daemon/test/http/actions/invoke-run-failed-notification.test.ts` — cancel on fail
+## Known gaps (VS-6 scope)
 
-## Commands run
-
-```bash
-pnpm exec vitest run --project @murrmure/hub-core \
-  test/unit/projections/step-memo.test.ts \
-  test/unit/flow-engine/step-resolve.test.ts \
-  test/unit/executors/timeout-scheduler.test.ts \
-  test/unit/invoke/run-executor-cancel.test.ts
-
-cd packages/hub-daemon && pnpm exec vitest run \
-  test/http/actions/invoke-run-failed-notification.test.ts
-```
-
-All green.
-
-## Manual tester notes (murrmuretuto)
-
-1. Start run; cancel at intake → run `failed`; late `resolve_step` → **409** `RUN_TERMINAL`.
-2. `write_spec` with slow agent (< timeout) + long pause on review → run must **not** fail `ACTION_TIMED_OUT` during review wait.
-3. Force fail run during `feature_build` → subprocess cancelled (hub logs / `ps`).
-
-## Known gaps (out of VS-4 scope)
-
-- VS-5: `active-step-contract.json` + prompt injection
-- VS-7: nested `build.review` goto (timeout pause already supports qualified child ids)
+- Per-step workdirs + `artifacts_out` promotion
+- `{{murrmure.step.*.artifact.*}}` path injection in prompts
+- View file upload → artifact slots
+- VS-7: nested goto
 - VS-8: delete legacy MCP tools
