@@ -228,9 +228,12 @@ export function buildRunFailedNotificationDraft(input: {
   space_name?: string;
   actor_id: string;
   can_read_space: boolean;
+  title?: string;
+  summary?: string;
 }): NotificationDraft | null {
   if (!input.can_read_space) return null;
 
+  const copy = runFailedNotificationCopy(undefined);
   return {
     notification_id: input.notification_id(),
     actor_id: input.actor_id,
@@ -240,10 +243,27 @@ export function buildRunFailedNotificationDraft(input: {
     session_id: input.session_id,
     space_id: input.space_id,
     space_hidden: false,
-    title: "Run failed",
-    summary: input.space_name ?? input.space_id,
+    title: input.title ?? copy.title,
+    summary: input.summary ?? input.space_name ?? input.space_id,
     created_at: input.now,
   };
+}
+
+export function runFailedNotificationCopy(reason?: string): { title: string; summary?: string } {
+  if (reason === "ACTION_TIMED_OUT") {
+    return {
+      title: "Run failed: agent action timed out",
+      summary:
+        "An executor exceeded its agent-work time limit. Human review wait time is excluded from action timeouts.",
+    };
+  }
+  if (reason?.startsWith("ACTION_TIMED_OUT:")) {
+    return {
+      title: "Run failed: agent action timed out",
+      summary: reason.slice("ACTION_TIMED_OUT:".length),
+    };
+  }
+  return { title: "Run failed" };
 }
 
 export function actorCanReadSpace(

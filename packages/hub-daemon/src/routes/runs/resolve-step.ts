@@ -73,6 +73,7 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
         ids: deps.ids,
         clock: deps.clock,
         cancelTimeoutMs: deps.cancelTimeoutMs,
+        executorPollStore: deps.executorPollStore,
         dispatchSteps: deps.dispatchSteps,
       },
       {

@@ -44,9 +44,19 @@
 | Symptom | Fix |
 |---------|-----|
 | `TOOL_NOT_AUTHORIZED` | Re-mint grant with `action:invoke` + `space:read`; reload MCP |
-| `murrmure_complete_action` missing | Grant lacks `action:invoke`; reload MCP after mint |
+| `murrmure_resolve_step` missing | Grant lacks `step:resolve`; reload MCP after mint |
 | Apply strict fails | Build both views; check four action names match manifest |
 | Flow missing on Desktop | Wrong space linked |
+
+## Timeouts (VS-4)
+
+| Symptom | Fix |
+|---------|-----|
+| `ACTION_TIMED_OUT` during human review | Should not happen — human `awaiting_human` time is **excluded** from executor `timeout_ms`. Upgrade hub to VS-4+; check nested review is a separate step memo, not blocking inside the agent subprocess |
+| Run failed after cancel at intake | Expected — late `resolve_step` returns **409** on terminal runs |
+| Agent killed mid-build after run failed elsewhere | Expected — run failure **cancels** in-flight shell executors |
+
+`feature_write_spec.timeout_ms` defaults to **300000** (5 min agent work only). Human intake/review waits do not consume that budget.
 
 See also [Troubleshooting](../../troubleshooting), [Review workflow](../../review-workflow), [MCP tools reference](../../../reference/mcp-tools).
 

@@ -111,6 +111,15 @@ export async function resolveFlowStep(
     return { ok: false, code: "RUN_NOT_FOUND", message: "Run not found", http: 404 };
   }
 
+  if (run.lifecycle === "completed" || run.lifecycle === "failed" || run.lifecycle === "cancelled") {
+    return {
+      ok: false,
+      code: "RUN_TERMINAL",
+      message: `Run is ${run.lifecycle}; late resolve rejected`,
+      http: 409,
+    };
+  }
+
   const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
   const catalog = flowStepContractCatalog(flowEntry);
   if (!catalog) {

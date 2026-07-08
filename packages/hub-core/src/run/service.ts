@@ -2,9 +2,16 @@ import type { Capability, RunLifecycle, SessionCreatedBy } from "@murrmure/contr
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { HubHandler } from "../handlers/hub.js";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import type { ExecutorPollStore } from "../executors/queue-store.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 import { canStartFlow } from "../grants/migrate.js";
-import { buildRunFailedNotificationDraft, resolveRunFailedNotificationRecipients } from "../projections/notifications.js";
+import {
+  buildRunFailedNotificationDraft,
+  resolveRunFailedNotificationRecipients,
+  runFailedNotificationCopy,
+} from "../projections/notifications.js";
+import { cancelRunExecutors } from "../invoke/run-executor-cancel.js";
+import { defaultExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
 import { instanceStateToLifecycle, runIdToInstanceId } from "./lifecycle.js";
 import { toRunDto, refreshSessionStatus, toSessionDto } from "../session/index.js";
 import { deriveSessionStatus } from "../session/status.js";
@@ -15,6 +22,7 @@ export interface SessionRunDeps {
   ids: { ulid: () => string };
   clock: { nowIso: () => string };
   cancelTimeoutMs?: number;
+  executorPollStore?: ExecutorPollStore;
 }
 
 function bare(id: string): string {
@@ -60,9 +68,13 @@ export async function failRunWithNotification(
   }
 
   const ts = deps.clock.nowIso();
+  cancelRunExecutors(input.run_id);
+  defaultExecutorTimeoutScheduler.stopRun(input.run_id);
+  deps.executorPollStore?.cancelOfferedForRun(input.run_id, "RUN_FAILED", input.reason ?? "Run failed");
   await deps.studio.updateRunLifecycle(runBare, "failed", ts);
 
   const spaceBare = run.space_id;
+  const { title, summary } = runFailedNotificationCopy(input.reason);
   if (spaceBare) {
     const session = await deps.studio.getSession(run.session_id);
     const space = await deps.studio.getSpace(spaceBare);
@@ -84,6 +96,8 @@ export async function failRunWithNotification(
         space_name: space?.name ?? space?.slug,
         actor_id: notifyActor,
         can_read_space: actorCanReadSpaceForNotification(notifyActor, grants, session?.actor_id),
+        title,
+        summary: summary ?? space?.name ?? space?.slug,
       });
 
       if (draft) {
@@ -110,7 +124,7 @@ export async function failRunWithNotification(
       run_id: prefixedRun(runBare),
       actor_id: input.actor_id,
       token_id: input.token_id,
-      data: { reason: input.reason },
+      data: { reason: input.reason, title, summary },
     });
   }
 

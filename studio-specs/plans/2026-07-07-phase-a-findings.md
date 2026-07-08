@@ -108,6 +108,14 @@ View iframe loads hub asset URL **without** `Authorization` header.
 
 ---
 
+## ISSUE-14 — Executor timeout includes human review wait
+
+| Context | Result | Status |
+|---------|--------|--------|
+| Parent `feature_build.timeout_ms` ticks during nested `build.review` human wait | Run fails `ACTION_TIMED_OUT` while reviewer is in ViewCanvasHost | **Fixed in VS-4** — hub pauses executor timeout while child step is `awaiting_human`; human time excluded from `timeout_ms` |
+
+---
+
 ## Hypothesis tracker (final)
 
 | ID | Verdict |

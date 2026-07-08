@@ -16,18 +16,17 @@ actions:
     command: cursor agent -p --force "{{prompt}}"
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 120000
+    timeout_ms: 300000
 
   feature_build:
     executor: shell
     prompt: |
       Follow `agent.md` and `skills/feature-build/SKILL.md`.
 
-      Build step for spec `{{spec_filename}}`.
-      Run {{run_id}} / session {{session_id}} / step `build`.
+      {{murrmure.agentStepContract}}
 
-      Discover the local preview URL yourself (dev server, port, hostname — any key name is fine).
-      Use Murrmure MCP: `murrmure_complete_action` then `murrmure_wait_for_gate` review loop in this session.
+      During the loop, re-read:
+        {{murrmure.space_root}}/.mrmr.temp/runs/{{murrmure.run_id}}/active-step-contract.json
     command: cursor agent -p --force "{{prompt}}"
     cwd: "{{space_root}}"
     delivery: fail_fast

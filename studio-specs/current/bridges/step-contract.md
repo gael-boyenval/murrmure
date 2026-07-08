@@ -193,7 +193,7 @@ CLI surfaces the catalog digest on apply:
 
 Known `{{murrmure.*}}` tokens at VS-1:
 
-- `murrmure.run_id`, `murrmure.space_root`, `murrmure.agentStepContract`, `murrmure.inputs.json`
+- `murrmure.run_id`, `murrmure.space_root`, `murrmure.agentStepContract`, `murrmure.inputs.json` (token path after `murrmure.` prefix)
 - `murrmure.step.{qualified}.description|workdir|iteration`
 - `murrmure.step.{qualified}.artifact.{slot}.path|transfer_id`
 
@@ -236,6 +236,73 @@ View SDK `submit(params)` → `POST /v1/runs/{run_id}/steps/{step_id}/resolve` (
 Flow human steps do **not** create gate rows. Notifications / “Needs you” query step memos (`human_step` kind) and orchestration gates only.
 
 Submit/cancel from views maps via `mapViewSubmitToResolveStep` → `{ branch, payload }`.
+
+---
+
+## Engine invariants (VS-4)
+
+| Invariant | Behavior |
+|-----------|----------|
+| Monotonic memos | Terminal step memos (`completed` / `failed`) never regress via journal replay |
+| Terminal run reject | `POST …/resolve` on `failed` / `completed` / `cancelled` runs → **409** `RUN_TERMINAL` |
+| Executor cancel | Run failure cancels in-flight shell subprocesses and queued executor tasks |
+| Split timeouts | `timeout_ms` counts **agent work only**; hub pauses the executor clock while a nested human step is `awaiting_human` |
+
+Human review may use optional `presentation.expires_at`; it is separate from action `timeout_ms`.
+
+---
+
+## Discovery injection (VS-5)
+
+When step `S` becomes active, hub computes **`StepContractSlice(run, S)`** — branch schemas, **`then`** route hints, workdir, `inputs_from_run`. Does **not** include the full flow graph.
+
+### `active-step-contract.json`
+
+Rewritten on every engine transition (`open`, `goto`, `complete: parent`):
+
+```text
+{space_root}/.mrmr.temp/runs/{run_id}/active-step-contract.json
+```
+
+Agent loop for long shell sessions:
+
+```text
+read active-step-contract.json → resolve → wait → read again
+```
+
+### Prompt and environment injection
+
+| Delivery | Content |
+|----------|---------|
+| `MURRMURE_STEP_CONTRACT` | Initial JSON `StepContractSlice` at dispatch |
+| `MURRMURE_ACTIVE_STEP_CONTRACT_PATH` | Absolute path to `active-step-contract.json` |
+| `MURRMURE_STEP_WORKDIR` | Active step scratch path |
+| `{{murrmure.agentStepContract}}` | Markdown render of active slice in action prompts |
+| `{{murrmure.inputs.json}}` | Prior-step inputs slice |
+
+`mrmr space apply --strict` validates `{{murrmure.*}}` tokens in flow manifests **and** action prompts.
+
+### `murrmure_list_step_contracts`
+
+```http
+GET /v1/runs/{run_id}/step-contracts
+```
+
+MCP: `murrmure_list_step_contracts({ run_id })` — capability `space:read`.
+
+Response:
+
+```json
+{
+  "run_id": "run_…",
+  "orchestration": "engine-routed",
+  "active": { "step_id": "build", "branches": { "completed": { "then": "engine opens review" } } },
+  "callable": [],
+  "graph_digest": "sha256:…"
+}
+```
+
+Complex flows: agents use **`list_step_contracts` + `get_run`** instead of memorizing branches. Simple flows: initial prompt + contract file suffice.
 
 ---
 

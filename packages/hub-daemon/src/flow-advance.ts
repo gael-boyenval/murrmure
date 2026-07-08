@@ -39,6 +39,7 @@ function flowAdvanceDeps(ctx: DaemonContext): FlowAdvanceDeps {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    executorPollStore: ctx.executorPollStore,
     resolveFlowAuth: (run) => resolveFlowRunAuth(ctx, run),
     dispatchSteps: async (input) => {
       await dispatchFlowSteps(ctx.invokeService, input);

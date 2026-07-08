@@ -8,7 +8,7 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep } from "@murrmure/hub-core";
 import { ContractV2Schema } from "@murrmure/contracts";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -189,6 +189,14 @@ export async function startHubDaemon(config: DaemonConfig) {
   wrapHandlerForOutOfShell(handler, ctx.outOfShellService);
   triggerDispatcher.invokeService = ctx.invokeService;
 
+  const stopTimeoutSweep = startExecutorTimeoutSweep({
+    studio: murrmurePersistence,
+    handler,
+    ids,
+    clock,
+    executorPollStore: executorPollStore,
+  });
+
   void reconcileHeadlessRuns({ studio: murrmurePersistence, handler, ids, clock })
     .then((stats) => {
       const total = stats.completed + stats.failed + stats.stale_failed;
@@ -267,6 +275,7 @@ export async function startHubDaemon(config: DaemonConfig) {
       process.off("SIGTERM", handleSigterm);
       stopArtifactGc();
       stopFlowScheduler();
+      stopTimeoutSweep();
       releaseLock(config);
       await closeServerGracefully(server);
       await kernelPersistence.close();

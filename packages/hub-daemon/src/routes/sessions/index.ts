@@ -24,6 +24,7 @@ import {
   flowStepContractCatalog,
   requiresExplicitResolve,
   findActiveHumanStep,
+  defaultExecutorTimeoutScheduler,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -37,6 +38,7 @@ function sessionRunDeps(ctx: DaemonContext) {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    executorPollStore: ctx.executorPollStore,
     dispatchSteps: async (input: {
       dispatch: import("@murrmure/hub-core").FlowStepDispatch[];
       session_id: string;
@@ -560,6 +562,8 @@ export async function projectStepMemoFromJournal(
     error_code?: string;
     executor_type?: string;
     result?: Record<string, unknown>;
+    role?: string;
+    view_id?: string;
   },
 ): Promise<void> {
   if (!input.run_id || !input.step_id) return;
@@ -584,6 +588,8 @@ export async function projectStepMemoFromJournal(
     idempotency_key: input.idempotency_key,
     error_code: input.error_code,
     executor_type: input.executor_type,
+    role: input.role,
+    view_id: input.view_id,
   });
 
   if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && explicitResolve && next) {
@@ -598,6 +604,30 @@ export async function projectStepMemoFromJournal(
   }
 
   if (next) await ctx.murrmurePersistence.upsertRunStepMemo(next);
+
+  const memos = await ctx.murrmurePersistence.listRunStepMemos(`run_${bare}`);
+  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && !explicitResolve) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+  } else if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_FAILED ||
+    input.type === JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
+  ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+  }
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.STEP_OPENED ||
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED
+  ) {
+    const extendMs = defaultExecutorTimeoutScheduler.syncHumanWaitPause({
+      run_id: input.run_id,
+      catalog,
+      memos,
+    });
+    if (extendMs > 0) {
+      ctx.executorPollStore.extendOfferedDeadlinesForRun(input.run_id, extendMs);
+    }
+  }
 
   if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && input.result) {
     await mergeActionResultIntoRun(ctx.murrmurePersistence, {
