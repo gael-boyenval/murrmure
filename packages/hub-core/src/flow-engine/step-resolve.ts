@@ -1,4 +1,10 @@
-import type { ResolveStepBody, RunStepMemo, StepCatalogRoute } from "@murrmure/contracts";
+import type {
+  ResolveStepBody,
+  RunStepMemo,
+  StepCatalogRoute,
+  StepContractCatalog,
+  StepContractCatalogEntry,
+} from "@murrmure/contracts";
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
@@ -9,7 +15,6 @@ import { planLinearSteps } from "./plan.js";
 import {
   catalogEntryForStep,
   flowStepContractCatalog,
-  isTopLevelStepContractStep,
   topLevelCatalogSteps,
 } from "./step-catalog.js";
 import { openStepContract, type StepOpenJournal } from "./step-open.js";
@@ -58,7 +63,7 @@ function validatePayloadSchema(
   return null;
 }
 
-function branchRoutes(entry: NonNullable<ReturnType<typeof catalogEntryForStep>>, branch: string): StepCatalogRoute[] {
+function branchRoutes(entry: StepContractCatalogEntry, branch: string): StepCatalogRoute[] {
   return entry.branches[branch]?.routes ?? [];
 }
 
@@ -77,6 +82,29 @@ function isRunCompleteRoute(routes: StepCatalogRoute[]): boolean {
   return routes.some((r) => r.engine === "advance") && !routes.some((r) => r.engine === "open");
 }
 
+function gotoTargetFromRoutes(routes: StepCatalogRoute[]): string | undefined {
+  return routes.find((r) => r.engine === "goto")?.step_id;
+}
+
+function hasCompleteParentRoute(routes: StepCatalogRoute[]): boolean {
+  return routes.some((r) => r.engine === "complete_parent");
+}
+
+function hasContinueParentRoute(routes: StepCatalogRoute[]): boolean {
+  return routes.some((r) => r.engine === "continue_parent");
+}
+
+function parentSuccessRoutes(parentEntry: StepContractCatalogEntry): StepCatalogRoute[] {
+  const completed = parentEntry.branches.completed?.routes;
+  if (completed?.length) return completed;
+  for (const branch of Object.values(parentEntry.branches)) {
+    if (!branch.routes.some((r) => r.engine === "fail_run" || r.fail_run)) {
+      return branch.routes;
+    }
+  }
+  return [{ engine: "advance" }];
+}
+
 function stepsToResetForBackwardLoop(
   catalogStepIds: string[],
   fromStepId: string,
@@ -86,6 +114,200 @@ function stepsToResetForBackwardLoop(
   const toIdx = catalogStepIds.indexOf(toStepId);
   if (fromIdx < 0 || toIdx < 0 || toIdx >= fromIdx) return [];
   return catalogStepIds.slice(toIdx);
+}
+
+function defaultAdvanceDeps(
+  deps: StepResolveDeps,
+  input: { actor_id: string; token_id: string; advance?: FlowAdvanceDeps },
+): FlowAdvanceDeps {
+  return (
+    input.advance ?? {
+      studio: deps.studio,
+      handler: deps.handler,
+      ids: deps.ids,
+      clock: deps.clock,
+      cancelTimeoutMs: deps.cancelTimeoutMs,
+      resolveFlowAuth: async () => ({
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        capabilities: ["flow:run", "action:invoke"],
+      }),
+      dispatchSteps: deps.dispatchSteps,
+    }
+  );
+}
+
+async function reopenNestedStep(
+  deps: StepResolveDeps,
+  input: {
+    run_id: string;
+    catalog: StepContractCatalog;
+    goto_step_id: string;
+    exec_context: Record<string, unknown>;
+    space_id: string;
+    session_id?: string;
+    actor_id: string;
+    token_id: string;
+    journal: StepResolveJournal;
+    advance: FlowAdvanceDeps;
+  },
+): Promise<void> {
+  const gotoEntry = catalogEntryForStep(input.catalog, input.goto_step_id);
+  if (!gotoEntry) return;
+
+  const steps = (input.exec_context.steps ?? {}) as Record<
+    string,
+    { output?: Record<string, unknown> }
+  >;
+  const prior = steps[input.goto_step_id]?.output;
+  const iteration = (Number(prior?.iteration) || 1) + 1;
+  const execContext = mergeStepOutputIntoExecContext(input.exec_context, input.goto_step_id, {
+    status: "working",
+    output: { ...prior, iteration },
+  });
+  await persistRunExecContext(deps.studio, input.run_id, execContext);
+
+  await deps.studio.upsertRunStepMemo({
+    run_id: input.run_id,
+    step_id: input.goto_step_id,
+    status: "pending",
+  });
+
+  await openStepContract(input.advance, {
+    run_id: input.run_id,
+    session_id: input.session_id ?? "",
+    space_id: input.space_id,
+    step_id: input.goto_step_id,
+    entry: gotoEntry,
+    exec_context: execContext,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    journal: input.journal,
+    skip_nested_bootstrap: true,
+  });
+}
+
+async function applyResolvedRoutes(
+  deps: StepResolveDeps,
+  input: {
+    run_id: string;
+    runBare: string;
+    catalog: StepContractCatalog;
+    resolvedEntry: StepContractCatalogEntry;
+    routes: StepCatalogRoute[];
+    exec_context: Record<string, unknown>;
+    resolved_step_id: string;
+    space_id: string;
+    session_id?: string;
+    actor_id: string;
+    token_id: string;
+    journal: StepResolveJournal;
+    advance: FlowAdvanceDeps;
+  },
+): Promise<void> {
+  const { routes, resolvedEntry } = input;
+  const ts = deps.clock.nowIso();
+
+  if (hasCompleteParentRoute(routes) && resolvedEntry.parent_id) {
+    const parentId = resolvedEntry.parent_id;
+    const parentEntry = catalogEntryForStep(input.catalog, parentId);
+    if (!parentEntry) return;
+
+    await deps.studio.upsertRunStepMemo({
+      run_id: input.run_id,
+      step_id: parentId,
+      status: "completed",
+      completed_at: ts,
+    });
+
+    await applyResolvedRoutes(deps, {
+      ...input,
+      resolvedEntry: parentEntry,
+      resolved_step_id: parentId,
+      routes: parentSuccessRoutes(parentEntry),
+    });
+    return;
+  }
+
+  const gotoTarget = gotoTargetFromRoutes(routes);
+  if (hasContinueParentRoute(routes) && gotoTarget) {
+    await reopenNestedStep(deps, {
+      run_id: input.run_id,
+      catalog: input.catalog,
+      goto_step_id: gotoTarget,
+      exec_context: input.exec_context,
+      space_id: input.space_id,
+      session_id: input.session_id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      journal: input.journal,
+      advance: input.advance,
+    });
+    return;
+  }
+
+  if (gotoTarget) {
+    const nextEntry = catalogEntryForStep(input.catalog, gotoTarget);
+    if (nextEntry) {
+      await openStepContract(input.advance, {
+        run_id: input.run_id,
+        session_id: input.session_id ?? "",
+        space_id: input.space_id,
+        step_id: gotoTarget,
+        entry: nextEntry,
+        exec_context: input.exec_context,
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        journal: input.journal,
+        skip_nested_bootstrap: true,
+      });
+    }
+    return;
+  }
+
+  const nextStepId = openTargetFromRoutes(routes);
+  if (typeof nextStepId === "string") {
+    const topLevelIds = topLevelCatalogSteps(input.catalog).map((e) => e.step_id);
+    const stepIndex = topLevelIds.indexOf(input.resolved_step_id);
+    if (stepIndex >= 0 && topLevelIds.indexOf(nextStepId) >= 0 && topLevelIds.indexOf(nextStepId) < stepIndex) {
+      for (const resetId of stepsToResetForBackwardLoop(topLevelIds, input.resolved_step_id, nextStepId)) {
+        await deps.studio.upsertRunStepMemo({
+          run_id: input.run_id,
+          step_id: resetId,
+          status: "pending",
+        });
+      }
+    }
+
+    const nextEntry = catalogEntryForStep(input.catalog, nextStepId);
+    if (nextEntry) {
+      await openStepContract(input.advance, {
+        run_id: input.run_id,
+        session_id: input.session_id ?? "",
+        space_id: input.space_id,
+        step_id: nextStepId,
+        entry: nextEntry,
+        exec_context: input.exec_context,
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        journal: input.journal,
+      });
+    }
+    return;
+  }
+
+  if (isRunCompleteRoute(routes) || nextStepId === null) {
+    await completeRunIfFinished(deps, {
+      run_id: input.run_id,
+      runBare: input.runBare,
+      catalog: input.catalog,
+      memos: await deps.studio.listRunStepMemos(input.run_id),
+      space_id: input.space_id,
+      session_id: input.session_id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+    });
+  }
 }
 
 export async function resolveFlowStep(
@@ -134,15 +356,6 @@ export async function resolveFlowStep(
   const entry = catalogEntryForStep(catalog, input.step_id);
   if (!entry) {
     return { ok: false, code: "STEP_NOT_FOUND", message: "Step not in flow catalog", http: 404 };
-  }
-
-  if (!isTopLevelStepContractStep(catalog, input.step_id)) {
-    return {
-      ok: false,
-      code: "NESTED_STEP_UNSUPPORTED",
-      message: "Nested step resolve is not supported until VS-7",
-      http: 409,
-    };
   }
 
   const branchDef = entry.branches[input.body.branch];
@@ -249,6 +462,14 @@ export async function resolveFlowStep(
   });
 
   if (failRun) {
+    if (entry.parent_id) {
+      await deps.studio.upsertRunStepMemo({
+        run_id: input.run_id,
+        step_id: entry.parent_id,
+        status: "failed",
+        completed_at: ts,
+      });
+    }
     await failRunWithNotification(deps, {
       run_id: input.run_id,
       actor_id: input.actor_id,
@@ -264,58 +485,22 @@ export async function resolveFlowStep(
     };
   }
 
-  const nextStepId = openTargetFromRoutes(routes);
-  const advanceDeps = input.advance ?? {
-    studio: deps.studio,
-    handler: deps.handler,
-    ids: deps.ids,
-    clock: deps.clock,
-    cancelTimeoutMs: deps.cancelTimeoutMs,
-    resolveFlowAuth: async () => ({
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-      capabilities: ["flow:run", "action:invoke"],
-    }),
-    dispatchSteps: deps.dispatchSteps,
-  };
-
-  if (typeof nextStepId === "string") {
-    if (stepIndex >= 0 && topLevelIds.indexOf(nextStepId) >= 0 && topLevelIds.indexOf(nextStepId) < stepIndex) {
-      for (const resetId of stepsToResetForBackwardLoop(topLevelIds, input.step_id, nextStepId)) {
-        await deps.studio.upsertRunStepMemo({
-          run_id: input.run_id,
-          step_id: resetId,
-          status: "pending",
-        });
-      }
-    }
-
-    const nextEntry = catalogEntryForStep(catalog, nextStepId);
-    if (nextEntry) {
-      await openStepContract(advanceDeps, {
-        run_id: input.run_id,
-        session_id: sessionId ?? "",
-        space_id: input.space_id,
-        step_id: nextStepId,
-        entry: nextEntry,
-        exec_context: execContext,
-        actor_id: input.actor_id,
-        token_id: input.token_id,
-        journal: input.journal,
-      });
-    }
-  } else if (isRunCompleteRoute(routes) || nextStepId === null) {
-    await completeRunIfFinished(deps, {
-      run_id: input.run_id,
-      runBare,
-      catalog,
-      memos: await deps.studio.listRunStepMemos(input.run_id),
-      space_id: input.space_id,
-      session_id: sessionId,
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-    });
-  }
+  const advanceDeps = defaultAdvanceDeps(deps, input);
+  await applyResolvedRoutes(deps, {
+    run_id: input.run_id,
+    runBare,
+    catalog,
+    resolvedEntry: entry,
+    routes,
+    exec_context: execContext,
+    resolved_step_id: input.step_id,
+    space_id: input.space_id,
+    session_id: sessionId,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    journal: input.journal,
+    advance: advanceDeps,
+  });
 
   return {
     ok: true,
@@ -331,7 +516,7 @@ async function completeRunIfFinished(
   input: {
     run_id: string;
     runBare: string;
-    catalog: NonNullable<ReturnType<typeof flowStepContractCatalog>>;
+    catalog: StepContractCatalog;
     memos: RunStepMemo[];
     space_id: string;
     session_id?: string;
@@ -426,7 +611,7 @@ export async function bootstrapStepContractFlow(
 
 export function stepContractAdvanceComplete(
   memos: RunStepMemo[],
-  catalog: NonNullable<ReturnType<typeof flowStepContractCatalog>>,
+  catalog: StepContractCatalog,
 ): boolean {
   const topLevel = topLevelCatalogSteps(catalog);
   return topLevel.every((step) => {

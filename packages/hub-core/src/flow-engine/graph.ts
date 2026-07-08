@@ -1,6 +1,13 @@
-import type { FlowIr, FlowStepIr, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type {
+  FlowIr,
+  FlowStepIr,
+  RunLifecycle,
+  RunStepMemo,
+  StepContractCatalog,
+} from "@murrmure/contracts";
 import { buildStepDispatch } from "./advance.js";
 import type { FlowStepDispatch } from "./types.js";
+import { nestedCatalogChildren, topLevelCatalogSteps } from "./step-catalog.js";
 
 export interface RunGraphLane {
   step_id: string;
@@ -18,6 +25,7 @@ export interface RunGraphNode {
   run_id?: string;
   federated?: boolean;
   remote_label?: string;
+  parent_step_id?: string;
 }
 
 export interface RunGraphEdge {
@@ -49,9 +57,14 @@ export function buildRunGraph(input: {
   flow_id?: string | null;
   flow_digest?: string;
   ir?: FlowIr;
+  step_contract_catalog?: StepContractCatalog | null;
   step_memos: RunStepMemo[];
   siblings?: RunGraphSibling[];
 }): RunGraphResponse {
+  if (input.step_contract_catalog?.entries.length) {
+    return buildStepContractRunGraph(input);
+  }
+
   const nodes: RunGraphNode[] = [];
   const edges: RunGraphEdge[] = [];
   const lanes: RunGraphLane[] = [];
@@ -147,6 +160,72 @@ export function buildRunGraph(input: {
     nodes,
     edges,
     lanes,
+    step_memos: input.step_memos,
+  };
+}
+
+function buildStepContractRunGraph(input: {
+  run_id: string;
+  flow_id?: string | null;
+  flow_digest?: string;
+  step_contract_catalog: StepContractCatalog;
+  step_memos: RunStepMemo[];
+}): RunGraphResponse {
+  const catalog = input.step_contract_catalog;
+  const memoByStep = new Map(input.step_memos.map((m) => [m.step_id, m]));
+  const nodes: RunGraphNode[] = [];
+  const edges: RunGraphEdge[] = [];
+  let prevChainTail: string | undefined;
+
+  for (const step of topLevelCatalogSteps(catalog)) {
+    const nodeId = `step:${step.step_id}`;
+    nodes.push({
+      id: nodeId,
+      step_id: step.step_id,
+      kind: "step_contract",
+      status: memoByStep.get(step.step_id)?.status,
+    });
+    if (prevChainTail) {
+      edges.push({ id: `${prevChainTail}->${nodeId}`, source: prevChainTail, target: nodeId });
+    }
+
+    const children = nestedCatalogChildren(catalog, step.step_id);
+    let nestedTail = nodeId;
+    if (children.length > 0) {
+      for (const child of children) {
+        const childNodeId = `step:${child.step_id}`;
+        nodes.push({
+          id: childNodeId,
+          step_id: child.step_id,
+          kind: "step_contract",
+          status: memoByStep.get(child.step_id)?.status,
+          parent_step_id: step.step_id,
+        });
+        edges.push({ id: `${nestedTail}->${childNodeId}`, source: nestedTail, target: childNodeId });
+        nestedTail = childNodeId;
+      }
+
+      const review = children.find((c) => c.step_id.endsWith(".review"));
+      const buildLoop = children.find((c) => c.step_id.endsWith(".build-loop"));
+      if (review && buildLoop) {
+        edges.push({
+          id: `${review.step_id}->${buildLoop.step_id}:loop`,
+          source: `step:${review.step_id}`,
+          target: `step:${buildLoop.step_id}`,
+        });
+      }
+    }
+
+    prevChainTail = children.length > 0 ? `step:${children[children.length - 1]!.step_id}` : nodeId;
+  }
+
+  return {
+    run_id: input.run_id,
+    flow_id: input.flow_id,
+    flow_digest: input.flow_digest,
+    nodes,
+    edges,
+    lanes: [],
     step_memos: input.step_memos,
   };
 }

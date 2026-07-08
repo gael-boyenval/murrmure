@@ -1,6 +1,6 @@
 # Part 5 — Flow manifest
 
-The flow manifest is **thin orchestration**: checkpoint ids, action names, param wiring. No build logic.
+The flow manifest is **thin orchestration**: step ids, action names, param wiring, nested review under **build**. No build logic.
 
 ## Step 1 — Create the file
 
@@ -9,7 +9,7 @@ The flow manifest is **thin orchestration**: checkpoint ids, action names, param
 ```yaml
 apiVersion: murrmure.flow/v1
 name: preview-review
-description: Spec intake → write → build (agent loop) → review → archive → commit
+description: Spec intake → write → build (nested review loop) → archive → commit
 
 triggers:
   manual: true
@@ -19,119 +19,174 @@ start:
 
 steps:
   - id: intake
-    checkpoint:
+    description: Human attaches spec markdown.
+    presentation:
       view: preview-review-intake
-      on_resolve:
-        default: { goto: write_spec }
-        cancel: { fail: true }
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec_filename, spec_markdown, reviewer]
+        next: write_spec
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
   - id: write_spec
-    invoke:
-      space: "{{origin_space}}"
+    description: Agent writes spec to repo.
+    executor:
       action: feature_write_spec
       params:
         spec_markdown: "{{input.spec_markdown}}"
         spec_filename: "{{input.spec_filename}}"
+    branches:
+      completed:
+        schema: { type: object }
+        next: build
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
   - id: build
-    invoke:
-      space: "{{origin_space}}"
+    description: Build site and human review loop until validated.
+    orchestration: engine-routed
+    executor:
       action: feature_build
       params:
         spec_filename: "{{input.spec_filename}}"
-
-  - id: review
-    checkpoint:
-      view: preview-review
-      assignees: ["{{input.reviewer}}"]
-      on_resolve:
-        when: output.outcome
-        values:
-          validated: { goto: archive }
-          changes_required: { goto: review }
-        default: { goto: archive }
-        cancel: { fail: true }
+    steps:
+      - id: build-loop
+        description: Implement site; resolve when preview URL ready.
+        branches:
+          completed:
+            schema:
+              type: object
+              required: [preview_url]
+            goto: review
+          failed:
+            schema: { type: object }
+            fail: true
+      - id: review
+        description: Human validates preview.
+        presentation:
+          view: preview-review
+          assignees: ["{{input.reviewer}}"]
+        branches:
+          validated:
+            schema: { type: object }
+            complete: parent
+          changes_required:
+            schema:
+              type: object
+              properties:
+                comments: { type: array }
+            continue: parent
+            goto: build-loop
+          cancel:
+            schema: { type: object }
+            fail: true
+    branches:
+      completed:
+        schema: { type: object }
+        next: archive
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
   - id: archive
-    invoke:
-      space: "{{origin_space}}"
+    executor:
       action: feature_archive
       params:
         spec_filename: "{{input.spec_filename}}"
+    branches:
+      completed:
+        schema: { type: object }
+        next: commit
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
   - id: commit
-    invoke:
-      space: "{{origin_space}}"
+    executor:
       action: feature_commit
       params:
         spec_filename: "{{input.spec_filename}}"
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 ```
+
+There is **no top-level `review` step** — review lives under **`build`** as **`build.review`**.
 
 ## Step 2 — Walk through each step
 
-### `intake` (checkpoint)
+### `intake` (human step)
 
 - Run pauses; Desktop opens **intake view** in ViewCanvasHost
-- Human attaches spec from disk → `submit({ spec_markdown, spec_filename, reviewer })`
-- Payload becomes **run input** for the whole run
+- Human attaches spec from disk — v2.2 uses **`artifact_slots.spec`** on the `continue` branch: the view uploads to the step workdir and resolves with `artifacts_out` (not inline `spec_markdown`)
+- `spec_filename` and `reviewer` remain in the resolve **payload**; the spec bytes live under `.mrmr.temp/runs/{run_id}/steps/intake/spec/`
 
-### `write_spec` (invoke)
+### `write_spec` (agent step)
 
 - Hub calls `feature_write_spec` with spec content from intake
 - Agent writes `specs/current/{spec_filename}`
 
-### `build` (invoke)
+### `build` (parent — mixed orchestration)
 
-- Hub calls `feature_build` once per run
-- Agent implements site, discovers preview URL, calls **`murrmure_complete_action`**
-- Agent loops **`murrmure_wait_for_gate`** on feedback — same session, no re-invoke
+- Hub calls **`feature_build`** once (one shell spawn)
+- Engine opens **`build.build-loop`** as the active nested child
+- Agent resolves **`build.build-loop`** with `{ preview_url }` when ready
+- Engine opens **`build.review`** — agent waits; humans use the view
 
-### `review` (checkpoint)
+### `build.review` (nested human step)
 
-- Live-review view reads **`steps.build.output`** for iframe URL
-- **Validated** → **archive**
-- **Send feedback** → **review** again (agent fixes inside running **build**)
+- Live-review view reads **`steps.build.build-loop.output.preview_url`** for iframe URL
+- **Validated** → `complete: parent` → flow advances to **archive**
+- **Send feedback** → `continue: parent` + `goto: build-loop` (agent fixes in same session)
 
-### `archive` (invoke)
+### `archive` / `commit` (agent steps)
 
-- Hub calls `feature_archive`
-- Agent moves `specs/current/{file}` → `specs/archive/{file}`
-
-### `commit` (invoke)
-
-- Hub calls `feature_commit`
-- Agent commits; returns `commit_message` + `description` in output JSON
+- Hub calls `feature_archive` then `feature_commit` after parent **build** completes
 
 ## Step 3 — Data flow diagram
 
 ```text
 intake submit
   └─► input.spec_markdown, input.spec_filename, input.reviewer
-        └─► write_spec params
-        └─► build / archive / commit params (spec_filename)
+        └─► write_spec / build / archive / commit params
 write_spec
   └─► specs/current/{file} on disk
-build + complete_action
-  └─► steps.build.output  ← opaque JSON (preview_url, …)
-review submit (feedback)
-  └─► steps.review.output.comments
-        └─► agent reads via wait_for_gate / get_run (not build re-invoke)
+build.build-loop resolve
+  └─► steps.build.build-loop.output.preview_url
+build.review submit (feedback)
+  └─► steps.build.review.output.comments
+        └─► agent reads via wait_for_run / get_run
 ```
 
 ## Step 4 — Concepts
 
 | Term | Meaning |
 |------|---------|
-| **Checkpoint** | Human must act; run status `input-required` |
-| **Invoke** | Hub dispatches an action immediately |
-| **Run input** | Shallow-merged from first checkpoint output |
-| **on_resolve** | Routing after human submits a checkpoint |
-| **complete_action** | Agent reports step result while invoke still running |
+| **Nested step** | Child under a parent (`build.build-loop`, `build.review`) |
+| **engine-routed** | Engine opens next step from manifest routes; agent resolves owned steps only |
+| **`goto`** | Nested sibling transition (engine opens target) |
+| **`complete: parent`** | Nested success closes parent and advances top-level `next` |
+| **`resolve_step`** | Unified completion API for agents and views |
 
 ## Checkpoint
 
-- [ ] Six steps: intake, write_spec, build, review, archive, commit
-- [ ] `changes_required` routes to **review**, not **build**
+- [ ] Five top-level steps: intake, write_spec, build, archive, commit (no top-level review)
+- [ ] Nested `build-loop` ⇄ `review` under **build**
+- [ ] `changes_required` uses `goto: build-loop`, not re-invoke **build**
 - [ ] Archive runs before commit
 
 ## Next
