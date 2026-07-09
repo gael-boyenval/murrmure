@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -19,8 +19,17 @@ import { resolveAuthSource } from "../src/lib/auth-source.js";
 describe("resolveAuthSource", () => {
   const env = { ...process.env };
 
+  beforeEach(() => {
+    testHomeRef.value = mkdtempSync(join(tmpdir(), "murrmure-doctor-auth-source-"));
+    process.env = { ...env };
+  });
+
   afterEach(() => {
     process.env = { ...env };
+    if (testHomeRef.value) {
+      rmSync(testHomeRef.value, { recursive: true, force: true });
+      testHomeRef.value = "";
+    }
   });
 
   test("prefers flags over env", () => {
@@ -33,6 +42,14 @@ describe("resolveAuthSource", () => {
     process.env.MURRMURE_HUB_URL = "http://env.example";
     process.env.MURRMURE_HUB_TOKEN = "tok_env";
     expect(resolveAuthSource()).toBe("env");
+  });
+
+  test("detects active grant source when env is absent", () => {
+    const grantsDir = join(testHomeRef.value, ".murrmure", "grants");
+    mkdirSync(grantsDir, { recursive: true });
+    writeFileSync(join(grantsDir, "spc_ui_sandbox.token"), "tok_space\n");
+    writeFileSync(join(grantsDir, "active"), "spc_ui_sandbox\n");
+    expect(resolveAuthSource()).toBe("active-grant");
   });
 });
 

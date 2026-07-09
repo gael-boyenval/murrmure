@@ -85,13 +85,12 @@ export function App() {
             setError(null);
             try {
               const content_base64 = await fileToBase64(specFile);
-              submit(
+              await submit(
                 { reviewer: reviewer.trim(), spec_filename: specFilename.trim() },
                 [{ slot: "spec", filename: specFilename.trim(), content_base64 }],
               );
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Upload failed");
-            } finally {
+              setError(err instanceof Error ? err.message : "Submit failed");
               setSubmitting(false);
             }
           }}

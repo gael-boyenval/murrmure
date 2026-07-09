@@ -256,6 +256,15 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) throw new Error(`runs.retry failed: ${res.status}`);
         return res.json() as Promise<{ run: { run_id: string } }>;
       },
+      async cancel(run_id, body = {}) {
+        const res = await fetch(`${base}/v1/runs/${encodeURIComponent(run_id)}/cancel`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`runs.cancel failed: ${res.status}`);
+        return res.json() as Promise<{ run: { run_id: string; lifecycle: string } }>;
+      },
     },
   };
 }

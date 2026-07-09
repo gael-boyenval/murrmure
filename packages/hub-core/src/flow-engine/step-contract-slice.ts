@@ -128,19 +128,79 @@ export async function writeActiveStepContract(input: {
   return path;
 }
 
+export function renderMurrmureProtocolEnvelope(input: {
+  run_id: string;
+  session_id?: string;
+  space_id?: string;
+  action_name: string;
+  space_root: string;
+  contract_markdown: string;
+  contract_path?: string;
+  workdir?: string;
+}): string {
+  const lines: string[] = [
+    "# Murrmure protocol (auto-generated — authoritative)",
+    "",
+    "Use the **Task** section for what to build or change. Use this section for how to interact with Murrmure.",
+    "If the run is cancelled, failed, or completed, stop immediately — do not keep working.",
+    "",
+    "## Session",
+    `- **Run:** ${input.run_id}`,
+  ];
+  if (input.session_id) lines.push(`- **Session:** ${input.session_id}`);
+  if (input.space_id) lines.push(`- **Space:** ${input.space_id}`);
+  lines.push(`- **Action:** ${input.action_name}`);
+  lines.push(`- **Space root:** ${input.space_root}`);
+  if (input.workdir) lines.push(`- **Step workdir:** ${input.workdir}`);
+  if (input.contract_path) {
+    lines.push(`- **Active contract file:** ${input.contract_path}`);
+  }
+  lines.push("");
+  lines.push("## Step contract");
+  lines.push(input.contract_markdown);
+  lines.push("");
+  lines.push("## Discovery");
+  lines.push(
+    "After each engine transition, re-read the active contract file above (or `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`).",
+  );
+  lines.push("Structured JSON is also in `MURRMURE_STEP_CONTRACT`; workdir in `MURRMURE_STEP_WORKDIR`.");
+  lines.push("");
+  lines.push("## Resolve API");
+  lines.push("- `murrmure_resolve_step` — close the active agent-owned step with a branch + payload.");
+  lines.push("- `murrmure_wait_for_run` — block until human steps finish (long-lived build sessions only).");
+  lines.push("- Never resolve human-owned steps (`awaiting_human`).");
+  return lines.join("\n").trim();
+}
+
 export function renderAgentStepContractMarkdown(slice: StepContractSlice): string {
   const lines: string[] = [`## Active step: ${slice.step_id}`];
   if (slice.iteration && slice.iteration > 1) {
     lines[0] = `## Active step: ${slice.step_id} (iteration ${slice.iteration})`;
+  }
+  if (slice.parent_id) {
+    lines.push(`Parent: ${slice.parent_id} (nested child — resolve this step_id, not the parent)`);
   }
   if (slice.description) lines.push(slice.description);
   if (slice.workdir) lines.push(`Workdir: ${slice.workdir}`);
   lines.push("");
 
   for (const [branchName, branch] of Object.entries(slice.branches)) {
+    const required =
+      branch.schema &&
+      typeof branch.schema === "object" &&
+      Array.isArray((branch.schema as { required?: unknown }).required)
+        ? ((branch.schema as { required: string[] }).required ?? [])
+        : [];
+    const payloadHint =
+      required.length > 0
+        ? `{ ${required.map((k) => `${k}: …`).join(", ")} }`
+        : "{ … }";
     lines.push(
-      `When ready: murrmure_resolve_step({ step_id: "${slice.step_id}", branch: "${branchName}", payload: … })`,
+      `When ready: murrmure_resolve_step({ run_id: "<run_id>", step_id: "${slice.step_id}", branch: "${branchName}", payload: ${payloadHint} })`,
     );
+    if (required.length > 0) {
+      lines.push(`Required payload: ${required.join(", ")}`);
+    }
     lines.push(`Then: ${branch.then}`);
     lines.push("");
   }
@@ -192,6 +252,25 @@ export function buildInvokeStepContractContext(input: {
   };
 }
 
+export function findActiveStepMemo(memos: RunStepMemo[]): RunStepMemo | undefined {
+  const active = memos.filter((m) => m.status === "working" || m.status === "awaiting_human");
+  if (active.length === 0) return undefined;
+  return active.sort((a, b) => b.step_id.split(".").length - a.step_id.split(".").length)[0];
+}
+
+/** Shell invoke on a parent executor step should inject the active nested child contract. */
+export function resolveInvokeContractStepId(
+  executor_step_id: string,
+  memos: RunStepMemo[],
+): string {
+  const nestedWorking = memos
+    .filter(
+      (m) => m.status === "working" && m.step_id.startsWith(`${executor_step_id}.`),
+    )
+    .sort((a, b) => b.step_id.length - a.step_id.length);
+  return nestedWorking[0]?.step_id ?? executor_step_id;
+}
+
 export async function buildFlowInvokeStepContract(
   studio: StudioPersistencePort,
   input: { run_id: string; step_id: string; space_root: string },
@@ -202,7 +281,9 @@ export async function buildFlowInvokeStepContract(
   const flowEntry = await studio.getFlowIndexEntry(run.flow_id, run.space_id);
   const catalog = flowStepContractCatalog(flowEntry);
   if (!catalog) return undefined;
-  const entry = catalogEntryForStep(catalog, input.step_id);
+  const memos = await studio.listRunStepMemos(prefixedRunId(input.run_id));
+  const contractStepId = resolveInvokeContractStepId(input.step_id, memos);
+  const entry = catalogEntryForStep(catalog, contractStepId);
   if (!entry) return undefined;
   const slice = buildStepContractSlice({
     entry,
@@ -216,10 +297,6 @@ export async function buildFlowInvokeStepContract(
     run_id: input.run_id,
     exec_context: run.exec_context,
   });
-}
-
-export function findActiveStepMemo(memos: RunStepMemo[]): RunStepMemo | undefined {
-  return memos.find((m) => m.status === "working" || m.status === "awaiting_human");
 }
 
 function flowOrchestration(

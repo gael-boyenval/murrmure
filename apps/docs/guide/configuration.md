@@ -66,7 +66,9 @@ mrmr grant revoke --space spc_ui_sandbox grt_…
 | Harness | `cursor-local`, `ci`, … |
 | `flow_acl` | Package ids the grant may use (e.g. `review-loop`) |
 
-Copy the **one-time token** into MCP config (`MURRMURE_HUB_TOKEN`). Revoke immediately if a token leaks.
+Export the **one-time token** as `MURRMURE_HUB_TOKEN` and run `mrmr grant use --space ...` to set your local active pointer.
+Never commit live grant tokens (`tok_...`) to git; keep MCP config on env-variable references only.
+If a token leaks or is committed, revoke the grant (`mrmr grant revoke --space spc_... grt_...`) and mint a replacement token.
 
 ## Members
 

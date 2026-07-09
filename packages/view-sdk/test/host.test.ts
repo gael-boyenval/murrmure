@@ -12,6 +12,7 @@ describe("view-sdk host protocol", () => {
   it("isViewHostInboundMessage validates submit payload", () => {
     expect(isViewHostInboundMessage({ type: "murrmure.view.ready" })).toBe(true);
     expect(isViewHostInboundMessage({ type: "murrmure.view.cancel" })).toBe(true);
+    expect(isViewHostInboundMessage({ type: "murrmure.view.resolved" })).toBe(true);
     expect(
       isViewHostInboundMessage({ type: "murrmure.view.submit", params: { topic: "news" } }),
     ).toBe(true);
@@ -152,6 +153,34 @@ describe("view-sdk host protocol", () => {
     window.dispatchEvent(event);
 
     expect(onSubmit).toHaveBeenCalledWith({ topic: "ai" });
+    cleanup();
+    iframe.remove();
+  });
+
+  it("attachViewHostBridge forwards resolved from iframe", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+
+    const onResolved = vi.fn();
+    const cleanup = attachViewHostBridge(
+      iframe,
+      {
+        flow_id: "flw_demo",
+        space_id: "spc_demo",
+        hub_base_url: "http://127.0.0.1:8787",
+        token: "tok",
+      },
+      { onResolved },
+    );
+
+    const event = new MessageEvent("message", {
+      data: { type: "murrmure.view.resolved" },
+      origin: "http://127.0.0.1:8787",
+      source: iframe.contentWindow,
+    });
+    window.dispatchEvent(event);
+
+    expect(onResolved).toHaveBeenCalled();
     cleanup();
     iframe.remove();
   });

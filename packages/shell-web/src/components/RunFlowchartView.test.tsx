@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, test, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, test, beforeAll, afterEach, vi } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { RunFlowchartView } from "./RunFlowchartView.js";
 import type { RunGraphPayload } from "@murrmure/shell-client";
 
@@ -12,6 +12,10 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as typeof ResizeObserver;
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 const graph: RunGraphPayload = {
@@ -39,5 +43,124 @@ describe("RunFlowchartView partial failure", () => {
     render(<RunFlowchartView graph={graph} selectedRunId="run_B" />);
     expect(screen.getByText("lane-a")).toBeTruthy();
     expect(screen.getByText("lane-b")).toBeTruthy();
+  });
+});
+
+describe("RunFlowchartView nested steps", () => {
+  test("renders child step labels inside parent group", () => {
+    const nestedGraph: RunGraphPayload = {
+      run_id: "run_1",
+      flow_id: "flw_nested",
+      nodes: [
+        { id: "step:build", step_id: "build", kind: "step_contract", status: "working" },
+        {
+          id: "step:build.build-loop",
+          step_id: "build.build-loop",
+          kind: "step_contract",
+          status: "completed",
+          parent_step_id: "build",
+        },
+        {
+          id: "step:build.review",
+          step_id: "build.review",
+          kind: "step_contract",
+          status: "working",
+          parent_step_id: "build",
+        },
+      ],
+      edges: [
+        { id: "build->loop", source: "step:build", target: "step:build.build-loop" },
+        { id: "loop->review", source: "step:build.build-loop", target: "step:build.review" },
+        { id: "review->loop:loop", source: "step:build.review", target: "step:build.build-loop" },
+      ],
+      lanes: [],
+      step_memos: [
+        {
+          step_id: "build.build-loop",
+          status: "completed",
+          started_at: "2026-07-08T12:00:00.000Z",
+          executor_type: "shell",
+        },
+        {
+          step_id: "build.review",
+          status: "working",
+          started_at: "2026-07-08T12:01:00.000Z",
+        },
+      ] as RunGraphPayload["step_memos"],
+    };
+
+    render(<RunFlowchartView graph={nestedGraph} selectedStepId="build.review" />);
+    expect(screen.getByText("build-loop ×1")).toBeTruthy();
+    expect(screen.getByText("review")).toBeTruthy();
+    expect(screen.getByText(/executor · shell/i)).toBeTruthy();
+    expect(screen.getAllByText(/started ·/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("shows loop iteration count from exec context", () => {
+    const nestedGraph: RunGraphPayload = {
+      run_id: "run_1",
+      flow_id: "flw_nested",
+      nodes: [
+        { id: "step:build", step_id: "build", kind: "step_contract", status: "working" },
+        {
+          id: "step:build.build-loop",
+          step_id: "build.build-loop",
+          kind: "step_contract",
+          status: "working",
+          parent_step_id: "build",
+        },
+        {
+          id: "step:build.review",
+          step_id: "build.review",
+          kind: "step_contract",
+          status: "completed",
+          parent_step_id: "build",
+        },
+      ],
+      edges: [
+        { id: "build->loop", source: "step:build", target: "step:build.build-loop" },
+        { id: "loop->review", source: "step:build.build-loop", target: "step:build.review" },
+        { id: "review->loop:loop", source: "step:build.review", target: "step:build.build-loop" },
+      ],
+      lanes: [],
+      step_memos: [],
+    };
+
+    render(
+      <RunFlowchartView
+        graph={nestedGraph}
+        execContext={{
+          steps: {
+            "build.build-loop": { output: { preview_url: "http://x", iteration: 3 } },
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("build-loop ×3")).toBeTruthy();
+  });
+
+  test("selects parent step when group header is clicked", () => {
+    const nestedGraph: RunGraphPayload = {
+      run_id: "run_1",
+      flow_id: "flw_nested",
+      nodes: [
+        { id: "step:build", step_id: "build", kind: "step_contract", status: "working" },
+        {
+          id: "step:build.build-loop",
+          step_id: "build.build-loop",
+          kind: "step_contract",
+          status: "working",
+          parent_step_id: "build",
+        },
+      ],
+      edges: [{ id: "build->loop", source: "step:build", target: "step:build.build-loop" }],
+      lanes: [],
+      step_memos: [],
+    };
+    const onSelectStep = vi.fn();
+
+    render(<RunFlowchartView graph={nestedGraph} onSelectStep={onSelectStep} />);
+    fireEvent.click(screen.getByTestId("rf__node-group:build"));
+    expect(onSelectStep).toHaveBeenCalledWith("build");
   });
 });

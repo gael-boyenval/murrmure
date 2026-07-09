@@ -16,7 +16,7 @@ import {
   validateSpaceBundleCycles,
 } from "./space-directory.js";
 import { readSpaceLink } from "./space-link-file.js";
-import { probeMcpCatalog, scanMcpConfig, type SpaceDoctorMcpContext } from "./space-doctor-mcp.js";
+import { probeMcpLiveHealth, scanMcpConfig, type SpaceDoctorMcpContext } from "./space-doctor-mcp.js";
 
 export type SpaceDoctorSeverity = "error" | "warning" | "info";
 
@@ -357,32 +357,102 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
     }
   }
 
-  const mcpBroken = result.issues.some((issue) =>
-    issue.code.startsWith("MCP_") && issue.severity !== "info",
+  const mcpCodes = new Set(
+    result.issues
+      .filter((issue) => issue.code.startsWith("MCP_") && issue.severity !== "info")
+      .map((issue) => issue.code),
   );
-  if (mcpBroken && result.mcp) {
-    const relConfig = result.mcp.suggested_config_path.startsWith(project)
-      ? result.mcp.suggested_config_path.slice(project.length + 1)
+  if (mcpCodes.size > 0) {
+    const addUniqueStep = (step: SpaceDoctorFixStep): void => {
+      if (steps.some((existing) => existing.command === step.command)) {
+        return;
+      }
+      steps.push(step);
+    };
+
+    const suggestedConfigPath = result.mcp?.suggested_config_path ?? join(project, ".cursor", "mcp.json");
+    const relConfig = suggestedConfigPath.startsWith(project)
+      ? suggestedConfigPath.slice(project.length + 1)
       : ".cursor/mcp.json";
-    steps.push({
-      command: `# fix ${relConfig} — see suggested MCP snippet below`,
-      why: "agent MCP config is missing or misconfigured",
-    });
-    if (result.space_id) {
-      steps.push({
-        command: `mrmr grant mint --space ${result.space_id} --label cursor-agent`,
-        why: "mint a grant token for MURRMURE_HUB_TOKEN",
+    const linkedSpaceId = result.workspace.linked_space_id ?? result.space_id;
+    const shapeIssueCodes = [
+      "MCP_CONFIG_MISSING",
+      "MCP_CONFIG_SHAPE",
+      "MCP_INVALID_JSON",
+      "MCP_SCHEMA_INVALID",
+      "MCP_NO_MURRMURE_SERVER",
+      "MCP_FAT_COMMAND_SHAPE",
+      "MCP_ALIAS_COMMAND",
+      "MCP_LEGACY_COMMAND",
+      "MCP_COMMAND_UNEXPECTED",
+      "MCP_FAT_ENV_KEYS",
+      "MCP_MISSING_TOKEN",
+      "MCP_PLACEHOLDER_TOKEN",
+    ];
+
+    if (mcpCodes.has("MCP_CONFIG_MISSING")) {
+      addUniqueStep({
+        command: `# create ${relConfig} — see suggested MCP snippet below`,
+        why: "connect Cursor agents to this workspace",
+      });
+    } else {
+      addUniqueStep({
+        command: `# fix ${relConfig} — see suggested MCP snippet below`,
+        why: "repair MCP config before running agents",
       });
     }
-  } else if (result.issues.some((issue) => issue.code === "MCP_CONFIG_MISSING")) {
-    steps.push({
-      command: `# create .cursor/mcp.json — see suggested MCP snippet below`,
-      why: "connect Cursor agents to this space",
-    });
-    if (result.space_id) {
-      steps.push({
-        command: `mrmr grant mint --space ${result.space_id} --label cursor-agent`,
-        why: "mint MURRMURE_HUB_TOKEN for MCP env",
+
+    if (shapeIssueCodes.some((code) => mcpCodes.has(code))) {
+      addUniqueStep({
+        command: "mrmr space doctor --fix",
+        why: "rewrite mcp.json to thin murrmure-mcp shape",
+      });
+    }
+
+    if (mcpCodes.has("MCP_DISCOVERY")) {
+      addUniqueStep({
+        command: "mrmr login --hub-url http://127.0.0.1:8787",
+        why: "refresh shared discovery and hub auth",
+      });
+    }
+
+    if (mcpCodes.has("MCP_TOKEN_SET")) {
+      if (result.space_id) {
+        addUniqueStep({
+          command: `mrmr grant mint --space ${result.space_id} --label cursor-agent`,
+          why: "mint MURRMURE_HUB_TOKEN for MCP bridge",
+        });
+      }
+      addUniqueStep({
+        command: "# export MURRMURE_HUB_TOKEN=<grant token>",
+        why: "make token visible to murrmure-mcp runtime",
+      });
+    }
+
+    if (mcpCodes.has("MCP_TOKEN_SPACE_MATCH") && linkedSpaceId) {
+      addUniqueStep({
+        command: `mrmr grant use --space ${linkedSpaceId}`,
+        why: "align active grant with linked space (ISSUE-07)",
+      });
+    }
+
+    if (mcpCodes.has("MCP_CATALOG_LIVE") || mcpCodes.has("MCP_PROBE_INVOKE")) {
+      addUniqueStep({
+        command: "mrmr whoami",
+        why: "verify active token scopes and linked spaces",
+      });
+      if (linkedSpaceId) {
+        addUniqueStep({
+          command: `mrmr grant use --space ${linkedSpaceId}`,
+          why: "switch to the grant expected by this workspace",
+        });
+      }
+    }
+
+    if (mcpCodes.has("MCP_SCHEMA_PRESENT")) {
+      addUniqueStep({
+        command: "# update/restart hub daemon so murrmure_resolve_step advertises inputSchema.required",
+        why: "schema metadata is required for reliable MCP calls",
       });
     }
   }
@@ -719,25 +789,18 @@ export async function runSpaceDoctor(options: {
   const mcpScan = scanMcpConfig({
     projectPath,
     cwd: discovered.cwd,
-    linkedSpaceId: spaceId,
-    authHubUrl: auth?.hubUrl,
     authToken: auth?.token,
   });
   issues.push(...mcpScan.issues);
-
-  if (auth && spaceId) {
-    const mcpToken =
-      mcpScan.context.servers[0]?.env.MURRMURE_HUB_TOKEN ??
-      mcpScan.context.servers[0]?.env.MURRMURE_TOKEN ??
-      auth.token;
-    issues.push(
-      ...(await probeMcpCatalog({
-        hubUrl: auth.hubUrl,
-        token: mcpToken,
-        spaceId,
-      })),
-    );
-  }
+  issues.push(
+    ...(await probeMcpLiveHealth({
+      projectPath,
+      cwd: discovered.cwd,
+      linkedSpaceId: workspace.linked_space_id,
+      auth,
+      context: mcpScan.context,
+    })),
+  );
 
   if (auth && !spaceId) {
     const whoami = await fetchWhoami(auth);
@@ -825,10 +888,10 @@ export async function runSpaceDoctor(options: {
   }
 
   let hub: (SpaceDoctorSnapshot & { reachable: boolean }) | undefined;
-  if (options.auth && spaceId) {
+  if (auth && spaceId) {
     try {
-      const res = await fetch(`${options.auth.hubUrl}/v1/spaces/${spaceId}/index/status`, {
-        headers: { Authorization: `Bearer ${options.auth.token}` },
+      const res = await fetch(`${auth.hubUrl}/v1/spaces/${spaceId}/index/status`, {
+        headers: { Authorization: `Bearer ${auth.token}` },
       });
       if (!res.ok) {
         pushIssue(issues, {
@@ -887,7 +950,7 @@ export async function runSpaceDoctor(options: {
         message: error instanceof Error ? error.message : "Could not reach hub for index status",
       });
     }
-  } else if (spaceId) {
+  } else if (spaceId && !auth) {
     pushIssue(issues, {
       code: "HUB_CHECK_SKIPPED",
       severity: "info",

@@ -12,13 +12,6 @@ import { dirname, join } from "node:path";
 
 const DEV_LINK_MARKER = ".dev/cli-global-link.json";
 
-const CLI_BINARIES = [
-  { name: "mrmr", script: "cli.js" },
-  { name: "murrmure", script: "cli.js" },
-  { name: "mrmr-mcp", script: "mcp.js" },
-  { name: "murrmure-mcp", script: "mcp.js" },
-] as const;
-
 interface DevLinkEntry {
   path: string;
   previousTarget?: string;
@@ -32,6 +25,10 @@ interface DevLinkState {
 
 export function cliPackageDir(repoRoot: string): string {
   return join(repoRoot, "packages/cli");
+}
+
+export function mcpBridgePackageDir(repoRoot: string): string {
+  return join(repoRoot, "packages/mcp-bridge");
 }
 
 export function devLinkMarkerPath(repoRoot: string): string {
@@ -69,15 +66,20 @@ export function resolveDevBinDir(): string {
   return resolveGlobalBinDir();
 }
 
-export function buildCli(repoRoot: string): void {
-  const result = spawnSync("pnpm", ["--filter", "@murrmure/cli", "build"], {
+function buildPackage(repoRoot: string, packageName: string): void {
+  const result = spawnSync("pnpm", ["--filter", packageName, "build"], {
     cwd: repoRoot,
     stdio: "inherit",
     env: process.env,
   });
   if (result.status !== 0) {
-    throw new Error("CLI build failed");
+    throw new Error(`Build failed for ${packageName}`);
   }
+}
+
+export function buildCli(repoRoot: string): void {
+  buildPackage(repoRoot, "@murrmure/cli");
+  buildPackage(repoRoot, "@murrmure/mcp-bridge");
 }
 
 function readDevLinkState(repoRoot: string): DevLinkState | null {
@@ -94,7 +96,7 @@ function writeDevLinkState(repoRoot: string, state: DevLinkState): void {
   writeFileSync(markerPath, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
 }
 
-/** Symlink built `mrmr` / `murrmure` into the active global bin dir for local dev testing. */
+/** Symlink built `mrmr` / `murrmure` / `murrmure-mcp` into global bin for local dev testing. */
 export function linkCliGlobal(repoRoot: string): void {
   if (readDevLinkState(repoRoot)) {
     throw new Error("CLI dev global links already active — stop the other dev session first");
@@ -102,14 +104,26 @@ export function linkCliGlobal(repoRoot: string): void {
 
   buildCli(repoRoot);
   const binDir = resolveDevBinDir();
-  const cliDist = join(cliPackageDir(repoRoot), "dist");
+  const binaries = [
+    {
+      name: "mrmr",
+      target: join(cliPackageDir(repoRoot), "dist", "cli.js"),
+    },
+    {
+      name: "murrmure",
+      target: join(cliPackageDir(repoRoot), "dist", "cli.js"),
+    },
+    {
+      name: "murrmure-mcp",
+      target: join(mcpBridgePackageDir(repoRoot), "dist", "main.js"),
+    },
+  ] as const;
   const state: DevLinkState = { bin_dir: binDir, bins: [] };
 
-  for (const { name, script } of CLI_BINARIES) {
+  for (const { name, target } of binaries) {
     const binPath = join(binDir, name);
-    const target = join(cliDist, script);
     if (!existsSync(target)) {
-      throw new Error(`CLI build output missing: ${target}`);
+      throw new Error(`Build output missing: ${target}`);
     }
 
     const entry: DevLinkEntry = { path: binPath, replacedFile: false };
@@ -130,7 +144,7 @@ export function linkCliGlobal(repoRoot: string): void {
   }
 
   writeDevLinkState(repoRoot, state);
-  console.log(`[desktop:dev:hmr] linked mrmr → ${cliDist} (${binDir})`);
+  console.log(`[desktop:dev:hmr] linked mrmr, murrmure, murrmure-mcp (${binDir})`);
 }
 
 /** Remove dev global symlinks created by linkCliGlobal. */

@@ -7,7 +7,7 @@ import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { runScopePreflight } from "../../lib/preflight.js";
 import { readSpaceApplyBundle, validateSpaceBundleCycles } from "../../lib/space-directory.js";
 import { readSpaceLink } from "../../lib/space-link-file.js";
-import { lintSpaceApplyBundle, strictLintFailures, formatCatalogDigestSummary, compileStepContractCatalog } from "@murrmure/hub-core";
+import { lintSpaceApplyBundle, strictLintFailures, formatCatalogDigestSummary, compileStepContractCatalog, writeSpaceBriefingFile } from "@murrmure/hub-core";
 
 export const spaceApplyCommand = defineCommand({
   meta: {
@@ -65,6 +65,14 @@ export const spaceApplyCommand = defineCommand({
     if (!res.ok) {
       const denial = mapHubDenial(res.status, body);
       printErr(denial.code, denial.message, "hint" in denial ? denial.hint : undefined);
+    }
+
+    try {
+      await writeSpaceBriefingFile(projectPath, bundle, spaceId);
+    } catch (error) {
+      cliConsola.warn(
+        `Briefing write failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     const hubWarnings = Array.isArray(body.warnings) ? body.warnings : [];

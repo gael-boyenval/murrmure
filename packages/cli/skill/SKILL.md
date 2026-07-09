@@ -76,4 +76,5 @@ mrmr grant mint --space spc_ui_sandbox --capabilities space:read,flow:run,action
 mrmr skill install
 ```
 
-Env: `MURRMURE_HUB_URL`, `MURRMURE_TOKEN` / `MURRMURE_HUB_TOKEN`, `MURRMURE_SPACE_ID`.
+MCP env: `MURRMURE_HUB_TOKEN` only (thin `murrmure-mcp` config).  
+CLI/env defaults: `MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, optional `MURRMURE_SPACE_ID`.

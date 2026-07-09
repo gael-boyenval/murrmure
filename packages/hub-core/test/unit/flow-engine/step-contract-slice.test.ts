@@ -111,7 +111,7 @@ describe("flow-engine/step-contract-slice", () => {
     });
     const md = renderAgentStepContractMarkdown(slice);
     expect(md).toContain("## Active step: build");
-    expect(md).toContain('murrmure_resolve_step({ step_id: "build", branch: "completed"');
+    expect(md).toContain('murrmure_resolve_step({ run_id: "<run_id>", step_id: "build", branch: "completed"');
     expect(md).toContain("Then: engine opens archive");
   });
 
@@ -267,5 +267,17 @@ describe("flow-engine/step-contract-slice", () => {
     expect(result.active?.step_id).toBe("intake");
     expect(result.graph_digest).toBe(catalog!.graph_digest);
     expect(result.callable).toEqual([]);
+  });
+
+  test("resolveInvokeContractStepId prefers active nested child over parent executor", async () => {
+    const { resolveInvokeContractStepId } = await import(
+      "../../../src/flow-engine/step-contract-slice.js"
+    );
+    const memos = [
+      { run_id: "run_1", step_id: "build", status: "working" as const },
+      { run_id: "run_1", step_id: "build.build-loop", status: "working" as const },
+    ];
+    expect(resolveInvokeContractStepId("build", memos)).toBe("build.build-loop");
+    expect(resolveInvokeContractStepId("write_spec", memos)).toBe("write_spec");
   });
 });

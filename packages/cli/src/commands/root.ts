@@ -16,7 +16,6 @@ import { meCommand } from "./me/index.js";
 import { workerCommand } from "./worker/index.js";
 import { viewCommand } from "./view/index.js";
 import { federationCommand } from "./federation.js";
-import { mcpCommand } from "./mcp.js";
 import { setupCommand } from "./setup.js";
 import { globalArgs } from "../lib/flags.js";
 
@@ -38,7 +37,7 @@ export const rootCommand = defineCommand({
     name: "mrmr",
     version: readCliVersion(),
     description:
-      "Murrmure CLI — auth, spaces, runtime, flows, skills, and MCP (`mrmr mcp`).",
+      "Murrmure CLI — auth, spaces, runtime, flows, skills, and setup tools.",
   },
   args: globalArgs,
   subCommands: {
@@ -59,6 +58,5 @@ export const rootCommand = defineCommand({
     flow: flowCommand,
     view: viewCommand,
     skill: skillCommand,
-    mcp: mcpCommand,
   },
 });

@@ -7,3 +7,14 @@ This tree is the **orchestrator space** (`team-brief` flow + hooks). Knowledge a
 ```bash
 mrmr space apply --strict
 ```
+
+## Connect agent (thin MCP)
+
+For each space agent, mint and activate a scoped token:
+
+```bash
+mrmr grant mint --space spc_... --label "cursor-agent"
+mrmr grant use --space spc_...
+```
+
+Use the thin MCP config shape with `command: "murrmure-mcp"` and `MURRMURE_HUB_TOKEN` only.

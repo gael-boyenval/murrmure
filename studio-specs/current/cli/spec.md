@@ -110,7 +110,7 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `skill update` | impl | none |
 | `skill version` | impl | none |
 
-**Separate binary:** `murrmure-mcp` / `mrmr-mcp` — MCP stdio server (unchanged).
+**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using the thin config shape (`command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN`).
 
 ## Auth resolution order
 
@@ -253,10 +253,11 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 | `space grant list` | GET `/v1/spaces/:id/grants` | JSON or pretty-printed hub body |
 | `space grant mint` | POST `/v1/spaces/:id/grants` | Body uses **`flow_acl`**; `--label` required; `--capabilities` alias for `--scopes` |
 | `grant mint` | same | Top-level alias of `space grant mint` |
+| `grant use --space <space_id>` | local filesystem | Activates `~/.murrmure/grants/<space>.token` via `~/.murrmure/grants/active` pointer |
 | `space grant revoke <grant_id>` | POST `…/grants/:id/revoke` | |
 | `space grant rotate <grant_id>` | POST `…/grants/:id/rotate` | Returns new one-time token |
 
-**Mint human output:** prints `grant_id`, label, token on stdout, stderr warning *"Save this token — it will not be shown again."* Never auto-saves token to disk.
+**Mint human output:** prints `grant_id`, label, one-time `export MURRMURE_HUB_TOKEN=...`, offers writing thin `.cursor/mcp.json` (global by default, `--local` for project), and stores token under `~/.murrmure/grants/<space>.token`.
 
 **Scope denial (human, mint):**
 
@@ -373,7 +374,7 @@ After scaffold: `npm install` in view dir, then `mrmr view dev {id}` or `npm run
 
 | Command | Requires | Action |
 |---------|----------|--------|
-| `install` | none | Copy to `.cursor/skills/murrmure-flow/` |
+| `install` | none | Copy to `.cursor/skills/murrmure/` |
 | `update` | none | Overwrite skill tree |
 | `version` | none | Print bundled VERSION |
 

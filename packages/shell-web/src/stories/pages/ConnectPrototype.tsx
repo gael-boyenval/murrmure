@@ -12,7 +12,7 @@ import { buildMcpSnippet, McpSnippetCard } from "../../components/McpSnippetCard
 import { PrototypeShell } from "../prototype-shell.js";
 
 const HUB_URL = "http://127.0.0.1:8787";
-const mcpSnippet = buildMcpSnippet({ hubUrl: HUB_URL });
+const mcpSnippet = buildMcpSnippet({});
 
 export function ConnectPrototype() {
   return (

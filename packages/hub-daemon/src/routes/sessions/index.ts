@@ -22,6 +22,8 @@ import {
   mergeActionResultIntoRun,
   flowStepContractCatalog,
   requiresExplicitResolve,
+  shouldAutoResolveExecutorStep,
+  maybeAutoResolveExecutorStepAfterAction,
   findActiveHumanStep,
   defaultExecutorTimeoutScheduler,
 } from "@murrmure/hub-core";
@@ -352,7 +354,12 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const flowEntry = row.flow_id
       ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id)
       : null;
-    const active_human_step = findActiveHumanStep(steps, flowStepContractCatalog(flowEntry)) ?? undefined;
+    const active_human_step =
+      findActiveHumanStep(
+        steps,
+        flowStepContractCatalog(flowEntry),
+        flowEntry?.origin_space_id ?? row.space_id,
+      ) ?? undefined;
 
     return c.json({
       ...run,
@@ -504,6 +511,53 @@ export async function projectStepMemoFromJournal(
   const catalog = flowStepContractCatalog(flowEntry);
   const explicitResolve = requiresExplicitResolve(catalog, input.step_id);
 
+  if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
+    explicitResolve &&
+    input.result &&
+    catalog &&
+    input.run_id &&
+    input.step_id &&
+    run?.space_id &&
+    shouldAutoResolveExecutorStep(catalog, input.step_id)
+  ) {
+    const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
+    const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
+    const journal: import("@murrmure/hub-core").StepResolveJournal = {
+      append: async (entry) => {
+        await ctx.handler.appendSpaceJournal({
+          type: entry.type,
+          space_id: entry.space_id,
+          session_id: entry.session_id,
+          run_id: entry.run_id,
+          actor_id: entry.actor_id,
+          token_id: entry.token_id,
+          data: { ...entry.data, step_id: entry.step_id },
+        });
+      },
+    };
+    const { flowAdvanceDeps } = await import("../../flow-advance.js");
+    const autoResolved = await maybeAutoResolveExecutorStepAfterAction(
+      {
+        ...sessionRunDeps(ctx),
+        registerArtifact: undefined,
+      },
+      {
+        run_id: input.run_id,
+        step_id: input.step_id,
+        result: input.result,
+        actor_id: "system_flow",
+        token_id: "system",
+        space_id,
+        session_id,
+        catalog,
+        journal,
+        advance: flowAdvanceDeps(ctx),
+      },
+    );
+    if (autoResolved) return;
+  }
+
   let next = applyStepMemoFromJournal(existing, {
     run_id: `run_${bare}`,
     step_id: input.step_id,
@@ -524,17 +578,32 @@ export async function projectStepMemoFromJournal(
     input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
     existing?.status === "completed"
   ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+    if (input.result) {
+      await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+        run_id: input.run_id,
+        step_id: input.step_id,
+        status: "completed",
+        result: input.result,
+        completed_at: ts,
+      });
+    }
     return;
   }
 
   if (next) await ctx.murrmurePersistence.upsertRunStepMemo(next);
 
   const memos = await ctx.murrmurePersistence.listRunStepMemos(`run_${bare}`);
-  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && !explicitResolve) {
-    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
-  } else if (
+  if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED ||
     input.type === JOURNAL_EVENT_TYPES.ACTION_FAILED ||
     input.type === JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
+  ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+  }
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED
   ) {
     defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
   }
@@ -565,12 +634,26 @@ export async function projectStepMemoFromJournal(
     input.type === JOURNAL_EVENT_TYPES.ACTION_FAILED ||
     input.type === JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
   ) {
-    await mergeActionResultIntoRun(ctx.murrmurePersistence, {
-      run_id: input.run_id,
-      step_id: input.step_id,
-      status: "failed",
-      completed_at: ts,
-    });
+    const stepAlreadyTerminal =
+      existing?.status === "completed" || existing?.status === "failed" || next?.status === "completed";
+    if (stepAlreadyTerminal) {
+      if (input.result) {
+        await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "completed",
+          result: input.result,
+          completed_at: ts,
+        });
+      }
+    } else {
+      await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+        run_id: input.run_id,
+        step_id: input.step_id,
+        status: "failed",
+        completed_at: ts,
+      });
+    }
   }
 
   const terminalTypes = [

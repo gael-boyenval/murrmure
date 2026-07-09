@@ -5,6 +5,7 @@ import type { ViewAppContext } from "@murrmure/view-sdk";
 import { ViewHostFrame, resolveViewEntryUrl } from "@murrmure/view-sdk";
 import { Badge, Button, cn } from "@murrmure/shell-ui";
 import type { ViewRefLike } from "../lib/view-app-context.js";
+import { DataTableView } from "./DataTableView.js";
 import { ReviewParamsView } from "./ReviewParamsView.js";
 import { ViewParamForm } from "./ViewParamForm.js";
 import { defaultRunParamsForm } from "@murrmure/view-sdk";
@@ -22,6 +23,7 @@ export interface ViewCanvasHostProps {
   context: ViewAppContext;
   onSubmit: (params: Record<string, unknown>) => void;
   onCancel?: () => void;
+  onResolved?: () => void;
   submitting?: boolean;
   /** Dev-only fixture tabs (decision 02). */
   devMode?: boolean;
@@ -31,6 +33,9 @@ export interface ViewCanvasHostProps {
   /** Link back to operator session view when in production checkpoint mode. */
   adminHref?: string;
   adminLabel?: string;
+  /** Link to space home for navigation out of full-screen checkpoint. */
+  homeHref?: string;
+  homeLabel?: string;
 }
 
 const BUILTIN_ROUTES: Record<
@@ -63,6 +68,7 @@ export function ViewCanvasHost({
   context,
   onSubmit,
   onCancel,
+  onResolved,
   submitting,
   devMode,
   fixtureTabs,
@@ -70,6 +76,8 @@ export function ViewCanvasHost({
   onFixtureChange,
   adminHref,
   adminLabel = "Operator view",
+  homeHref,
+  homeLabel = "Space home",
 }: ViewCanvasHostProps) {
   const shellRoute = viewRef?.shell_route;
   const BuiltinView = shellRoute ? BUILTIN_ROUTES[shellRoute] : undefined;
@@ -84,13 +92,14 @@ export function ViewCanvasHost({
       : undefined);
 
   const [devSubmitLog, setDevSubmitLog] = useState<string | null>(null);
+  const [devSubmitParams, setDevSubmitParams] = useState<Record<string, unknown> | null>(null);
 
   const handleSubmit = useCallback(
     (params: Record<string, unknown>) => {
       if (devMode) {
-        const line = `[dev] submit ${JSON.stringify(params)}`;
-        setDevSubmitLog(line);
-        console.info(line);
+        setDevSubmitLog("[dev] submit");
+        setDevSubmitParams(params);
+        console.info("[dev] submit", params);
         return;
       }
       onSubmit(params);
@@ -100,16 +109,19 @@ export function ViewCanvasHost({
 
   const handleCancel = useCallback(() => {
     if (devMode) {
-      const line = "[dev] cancel";
-      setDevSubmitLog(line);
-      console.info(line);
+      setDevSubmitLog("[dev] cancel");
+      setDevSubmitParams(null);
+      console.info("[dev] cancel");
       return;
     }
     onCancel?.();
   }, [devMode, onCancel]);
 
   useEffect(() => {
-    if (!devMode) setDevSubmitLog(null);
+    if (!devMode) {
+      setDevSubmitLog(null);
+      setDevSubmitParams(null);
+    }
   }, [activeFixture, devMode]);
 
   return (
@@ -128,11 +140,20 @@ export function ViewCanvasHost({
         </div>
         {devMode ? (
           <Badge variant="outline">Dev</Badge>
-        ) : adminHref ? (
-          <Button variant="outline" size="sm" asChild>
-            <Link to={adminHref}>{adminLabel}</Link>
-          </Button>
-        ) : null}
+        ) : (
+          <div className="flex shrink-0 items-center gap-2">
+            {homeHref ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={homeHref}>{homeLabel}</Link>
+              </Button>
+            ) : null}
+            {adminHref ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={adminHref}>{adminLabel}</Link>
+              </Button>
+            ) : null}
+          </div>
+        )}
       </header>
 
       {devMode && fixtureTabs && fixtureTabs.length > 0 ? (
@@ -169,6 +190,7 @@ export function ViewCanvasHost({
             context={context}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
+            onResolved={onResolved}
             className="absolute inset-0 h-full w-full border-0 bg-background"
           />
         ) : (
@@ -187,12 +209,17 @@ export function ViewCanvasHost({
       </div>
 
       {devMode && devSubmitLog ? (
-        <p
+        <div
           data-testid="view-canvas-dev-log"
-          className="shrink-0 border-t border-border px-4 py-2 font-mono text-xs text-muted-foreground"
+          className="shrink-0 border-t border-border px-4 py-2 text-xs text-muted-foreground"
         >
-          {devSubmitLog}
-        </p>
+          <p className="mb-1 font-mono">{devSubmitLog.startsWith("[dev] submit") ? "[dev] submit" : devSubmitLog}</p>
+          {devSubmitParams ? (
+            <DataTableView value={devSubmitParams} />
+          ) : (
+            <span className="font-mono">{devSubmitLog}</span>
+          )}
+        </div>
       ) : null}
     </div>
   );

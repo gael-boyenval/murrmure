@@ -113,15 +113,17 @@ Ports wired in `@murrmure/hub-core`: PolicyPort, RulesPort (v2 bridge), Conditio
 
 | Variable | Purpose |
 |----------|---------|
-| `MURRMURE_HUB_URL` | Hub base URL (CLI, MCP, shell) |
-| `MURRMURE_HUB_TOKEN` | Bearer token for agent/human |
-| `MURRMURE_SPACE_ID` | Default space (MCP tools — no space_id in tool args) |
+| `MURRMURE_HUB_URL` | Hub base URL (CLI and shell) |
+| `MURRMURE_HUB_TOKEN` | Bearer token for CLI and MCP agents |
+| `MURRMURE_SPACE_ID` | Optional CLI default `--space` fallback |
 | `MURRMURE_DEPLOY_TOKEN` | CI push attestation |
 | `MURRMURE_INSTALL_ID` | Worker spawn context |
 | `MURRMURE_PACKAGE_ID` | Legacy alias for flow id in worker env — prefer `MURRMURE_FLOW_ID` |
 | `MURRMURE_FLOW_ID` | Live flow id in worker subprocess |
 | `MURRMURE_VERSION` | Live semver in worker subprocess |
 | `MURRMURE_CONTRACT_REF_ID` | Pinned contract ref in worker |
+
+MCP config does not require `MURRMURE_SPACE_ID`; space identity is token-derived.
 
 No `STUDIO_*` legacy aliases in Murrmure v1.
 
@@ -131,7 +133,8 @@ No `STUDIO_*` legacy aliases in Murrmure v1.
 packages/hub-core/               @murrmure/hub-core
 packages/hub-persistence/        @murrmure/hub-persistence
 packages/hub-daemon/             @murrmure/hub-daemon
-packages/cli/                    @murrmure/cli (MCP + skill + flow build bundled)
+packages/cli/                    @murrmure/cli (setup, grants, skill, flow tooling)
+packages/mcp-bridge/             @murrmure/mcp-bridge (murrmure-mcp stdio bridge)
 packages/flow-dev-kit/           @murrmure/flow-dev-kit
 packages/skill/                  @murrmure/skill (private)
 packages/contracts/              @murrmure/contracts

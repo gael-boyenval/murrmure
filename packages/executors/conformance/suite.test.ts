@@ -89,7 +89,56 @@ describe("executor conformance", () => {
       },
     );
     expect(outcome.status).toBe("completed");
-    expect(outcome.result).toEqual({ ok: true });
+    expect(outcome.result).toEqual({ ok: true, stdout: '{"ok":true}\n', stderr: "" });
+  });
+
+  test("shell_spawn detached mode returns dispatched for step_contract flows", async () => {
+    const chunks: string[] = [];
+    let completed: import("@murrmure/runtime-contracts").DispatchOutcome | undefined;
+    const registry = createExecutorRegistry({
+      mcpSession: { isReachable: () => false, publish: () => {} },
+      shellSpawn: {
+        spawn: () => {
+          const child = new EventEmitter() as NodeJS.EventEmitter & {
+            stdout: EventEmitter;
+            stderr: EventEmitter;
+            kill: () => void;
+          };
+          child.stdout = new EventEmitter();
+          child.stderr = new EventEmitter();
+          process.nextTick(() => {
+            child.stdout.emit("data", Buffer.from("agent working\n"));
+            child.stdout.emit("data", Buffer.from("done\n"));
+            child.emit("close", 0);
+          });
+          return child;
+        },
+        onOutputChunk: (chunk) => chunks.push(`${chunk.stream}:${chunk.chunk}`),
+        onShellComplete: async (input) => {
+          completed = input.outcome;
+        },
+      },
+    });
+    const shellBinding = { type: "shell_spawn" as const, executor_id: "shell" };
+    const port = registry.getPort(shellBinding)!;
+    const outcome = await port.dispatch(
+      { space_id: "spc_test", action_name: "feature_write_spec", run_id: "run_1", step_id: "write_spec" },
+      {
+        action: { name: "feature_write_spec", command: "cursor agent -p --force {{prompt}}" },
+        binding: shellBinding,
+        space_root: "/tmp/project",
+        step_contract: {
+          slice_json: "{}",
+          contract_path: "/tmp/project/.mrmr.temp/runs/run_1/active-step-contract.json",
+          workdir: "/tmp/project/.mrmr.temp/runs/run_1/steps/write_spec/work",
+          prompt_bindings: {},
+        },
+      },
+    );
+    expect(outcome.status).toBe("dispatched");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(chunks).toContain("stdout:agent working\n");
+    expect(completed?.status).toBe("completed");
   });
 
   test("shell_spawn timeout returns ACTION_TIMED_OUT", async () => {
@@ -225,7 +274,7 @@ describe("executor conformance", () => {
     const second = await orchestrateInvoke(resolved, request, actor, deps);
 
     expect(first.dispatch.status).toBe("completed");
-    expect(first.body).toEqual({ n: 1 });
+    expect(first.body).toEqual({ n: 1, stdout: '{"n":1}\n', stderr: "" });
     expect(second.dispatch.status).toBe("completed");
     expect(second.dispatch).toEqual(first.dispatch);
     expect(dispatchCount).toBe(1);

@@ -2,6 +2,8 @@
 
 Maps [spec.md](../flow-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
 
+MCP transport assumption: `murrmure-mcp` bridge with token-only MCP env (`MURRMURE_HUB_TOKEN`).
+
 ## HTTP additions
 
 | Method | Path | Command | Notes |
@@ -34,7 +36,7 @@ Client → server (first message after connect):
     "contract_versions": [
       { "flow_id": "review-loop", "version": "2.0.0", "contract_ref_id": "cref_…" }
     ],
-    "known_tools": ["transition", "create_review_session"]
+    "known_tools": ["murrmure_space_status", "murrmure_resolve_step", "murrmure_wait_for_run"]
   }
 }
 ```

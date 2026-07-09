@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ensureBootstrapSession } from "../src/session.js";
 import { linkCliGlobal, unlinkCliGlobal } from "./dev-hmr-cli.js";
 import { killDevDesktopOrphans, killProcessTree } from "./dev-hmr-process.js";
 
@@ -83,7 +84,7 @@ process.on("SIGTERM", () => {
 });
 
 try {
-  console.log("[desktop:dev:hmr] building + linking CLI globally (mrmr / murrmure)…");
+  console.log("[desktop:dev:hmr] building + linking CLI + bridge globally (mrmr / murrmure / murrmure-mcp)…");
   linkCliGlobal(repoRoot);
   cliLinked = true;
 
@@ -96,7 +97,13 @@ try {
   await waitForOk(shellDevUrl, "shell");
 
   console.log("[desktop:dev:hmr] starting native window…");
-  const window = start("pnpm", ["--filter", "@murrmure/desktop", "dev:hmr"]);
+  const hubUrl = `http://127.0.0.1:${hubPort}`;
+  const session = await ensureBootstrapSession({ hubUrl });
+  const window = start("pnpm", ["--filter", "@murrmure/desktop", "dev:hmr"], {
+    MURRMURE_REPO_ROOT: repoRoot,
+    MURRMURE_BOOTSTRAP_TOKEN: session.token,
+    MURRMURE_BOOTSTRAP_ACTOR_ID: session.actor_id,
+  });
   children.push(window);
 
   for (const child of children) {

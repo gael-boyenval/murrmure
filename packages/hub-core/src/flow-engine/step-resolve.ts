@@ -9,12 +9,14 @@ import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { failRunWithNotification, type SessionRunDeps } from "../run/service.js";
+import { cancelStepExecutor, terminateRunExecutors } from "../invoke/run-executor-cancel.js";
 import { refreshSessionStatus } from "../session/index.js";
 import type { FlowAdvanceDeps } from "./advance-runner.js";
 import { planLinearSteps } from "./plan.js";
 import {
   catalogEntryForStep,
   flowStepContractCatalog,
+  shouldAutoResolveExecutorStep,
   topLevelCatalogSteps,
 } from "./step-catalog.js";
 import { openStepContract, type StepOpenJournal } from "./step-open.js";
@@ -233,6 +235,7 @@ async function applyResolvedRoutes(
       status: "completed",
       completed_at: ts,
     });
+    cancelStepExecutor(input.run_id, parentId);
 
     await applyResolvedRoutes(deps, {
       ...input,
@@ -486,6 +489,10 @@ export async function resolveFlowStep(
     idempotency_key: input.body.idempotency_key,
   });
 
+  if (entry.executor?.action) {
+    cancelStepExecutor(input.run_id, input.step_id);
+  }
+
   if (memo.status === "awaiting_human") {
     await deps.studio.resolveNotificationsForRunStep(input.run_id, input.step_id, ts);
   }
@@ -580,6 +587,11 @@ async function completeRunIfFinished(
 
   const anyFailed = input.memos.some((m) => m.status === "failed");
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: input.run_id,
+    executorPollStore: deps.executorPollStore,
+    reason: anyFailed ? "run failed" : "run completed",
+  });
   await deps.studio.updateRunLifecycle(input.runBare, anyFailed ? "failed" : "completed", ts);
   if (!anyFailed && input.session_id) {
     await deps.handler.appendSpaceJournal({
@@ -613,6 +625,78 @@ async function completeRunIfFinished(
       { actor_id: input.actor_id, token_id: input.token_id },
     );
   }
+}
+
+/** After shell action succeeds, resolve headless executor steps (not nested build sessions). */
+export async function maybeAutoResolveExecutorStepAfterAction(
+  deps: StepResolveDeps,
+  input: {
+    run_id: string;
+    step_id: string;
+    result: Record<string, unknown>;
+    actor_id: string;
+    token_id: string;
+    space_id: string;
+    session_id?: string;
+    catalog: StepContractCatalog;
+    journal: StepResolveJournal;
+    advance?: FlowAdvanceDeps;
+  },
+): Promise<boolean> {
+  if (!shouldAutoResolveExecutorStep(input.catalog, input.step_id)) return false;
+
+  const resolved = await resolveFlowStep(deps, {
+    run_id: input.run_id,
+    step_id: input.step_id,
+    body: { branch: "completed", payload: input.result },
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    space_id: input.space_id,
+    session_id: input.session_id,
+    journal: input.journal,
+    advance: input.advance,
+  });
+  return resolved.ok;
+}
+
+/** Fail runs when an executor step times out or fails with a fail_run branch. */
+export async function maybeAdvanceStepContractFlow(
+  deps: FlowAdvanceDeps,
+  input: {
+    run_id: string;
+    step_id: string;
+    actor_id: string;
+    token_id: string;
+  },
+): Promise<void> {
+  const runBare = bareRunId(input.run_id);
+  const run = await deps.studio.getRun(runBare);
+  if (!run?.flow_id) return;
+  if (run.lifecycle === "completed" || run.lifecycle === "failed" || run.lifecycle === "cancelled") {
+    return;
+  }
+
+  const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+  const catalog = flowStepContractCatalog(flowEntry);
+  if (!catalog) return;
+
+  const memos = await deps.studio.listRunStepMemos(input.run_id);
+  const memo = memos.find((m) => m.step_id === input.step_id);
+  if (!memo || memo.status !== "failed") return;
+
+  const stepEntry = catalogEntryForStep(catalog, input.step_id);
+  const failedBranch = stepEntry?.branches.failed;
+  const shouldFailRun = failedBranch?.routes?.some(
+    (route) => route.fail_run === true || route.engine === "fail_run",
+  );
+  if (!shouldFailRun) return;
+
+  await failRunWithNotification(deps, {
+    run_id: input.run_id,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    reason: memo.error_code ?? `step_failed:${input.step_id}`,
+  });
 }
 
 export async function bootstrapStepContractFlow(

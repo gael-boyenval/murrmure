@@ -1,4 +1,5 @@
 import { readCredentials } from "./auth-store.js";
+import { readActiveGrantSpace } from "./grant-store.js";
 import type { GlobalFlags } from "./flags.js";
 import { printErr } from "./output.js";
 
@@ -11,6 +12,8 @@ export function resolveSpaceId(
   if (positionalSpaceId) return { spaceId: positionalSpaceId };
   if (flags.space) return { spaceId: flags.space };
   if (process.env.MURRMURE_SPACE_ID) return { spaceId: process.env.MURRMURE_SPACE_ID };
+  const activeGrantSpace = readActiveGrantSpace();
+  if (activeGrantSpace) return { spaceId: activeGrantSpace };
 
   const credentials = readCredentials();
   if (credentials?.defaultSpaceId) return { spaceId: credentials.defaultSpaceId };
@@ -18,7 +21,7 @@ export function resolveSpaceId(
   return {
     error: "MISSING_SPACE",
     message:
-      "Missing space — pass --space, set MURRMURE_SPACE_ID, or configure defaultSpaceId via mrmr login",
+      "Missing space — pass --space, set MURRMURE_SPACE_ID, run mrmr grant use --space <spc_…>, or configure defaultSpaceId via mrmr login",
   };
 }
 

@@ -51,6 +51,17 @@ Injected on every dispatch (`packages/executors/src/shell-spawn.ts`):
 
 Scripts should prefer these env vars over hub API scraping. See [environment.md](../../../apps/docs/reference/environment.md).
 
+### MCP agent environment (bridge process)
+
+MCP agents connect through `murrmure-mcp` (`@murrmure/mcp-bridge`) with thin config:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `MURRMURE_HUB_TOKEN` | ✅ | Required bearer token for MCP catalog/call |
+| `MURRMURE_SPACE_ID` | ❌ | Not required; token claims define space identity |
+
+MCP config keeps only `MURRMURE_HUB_TOKEN`.
+
 ## Migration from mcp_wake
 
 - `wake_label` → `action_name`

@@ -11,7 +11,7 @@ A **local-first hub runtime** where humans and agents coordinate through **sessi
 | **Murrmure Desktop** | Primary human path — gates, runs, notifications, space home |
 | **CLI (`mrmr`)** | Admin — spaces, grants, `murrmure/` init/link/apply, federation, workers |
 
-MCP (`murrmure-mcp`) is the agent integration path bundled with the CLI.
+MCP (`murrmure-mcp`) is the agent integration path shipped by `@murrmure/mcp-bridge`.
 
 ## Core entities (v2)
 

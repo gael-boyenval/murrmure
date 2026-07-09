@@ -222,4 +222,42 @@ describe("flow-engine/advance-runner (step contracts)", () => {
       expect(result.code).toBe("BRANCH_NOT_FOUND");
     }
   });
+
+  test("maybeAdvanceFlow fails run when executor step failed with fail_run branch", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedCatalogRun(studio);
+    await studio.upsertRunStepMemo({
+      run_id: "run_run1",
+      step_id: "work",
+      status: "failed",
+      error_code: "ACTION_TIMED_OUT",
+      completed_at: clock.nowIso(),
+    });
+
+    const { maybeAdvanceFlow } = await import("../../../src/flow-engine/advance-runner.js");
+    await maybeAdvanceFlow(
+      {
+        studio,
+        handler: { appendSpaceJournal: vi.fn() } as never,
+        ids,
+        clock,
+        cancelTimeoutMs: 5000,
+        resolveFlowAuth: async () => ({
+          actor_id: "actor_a",
+          token_id: "tok_a",
+          capabilities: ["flow:run"],
+        }),
+        dispatchSteps: vi.fn(),
+      },
+      {
+        run_id: "run_run1",
+        step_id: "work",
+        actor_id: "actor_a",
+        token_id: "tok_a",
+      },
+    );
+
+    const run = await studio.getRun("run1");
+    expect(run?.lifecycle).toBe("failed");
+  });
 });

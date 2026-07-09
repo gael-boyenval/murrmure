@@ -88,7 +88,9 @@ export const spaceInitCommand = defineCommand({
       if (skill.installed) {
         cliConsola.success(`Installed murrmure skill to ${skill.path} (v${skill.version})`);
       }
-      console.log("Next: edit murrmure/actions.yaml, then run `mrmr space link --path . --create`");
+      console.log(
+        "Next: run `mrmr space link --path . --create`, `mrmr space apply`, then `mrmr grant mint --space <spc_…>` to connect MCP.",
+      );
     } catch (error) {
       printErr("SCAFFOLD_FAILED", error instanceof Error ? error.message : "Scaffold failed");
     }

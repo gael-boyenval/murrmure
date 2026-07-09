@@ -14,6 +14,7 @@ import { useShellClient } from "../providers/ShellClientProvider.js";
 import { setActiveSpaceId } from "../hooks.js";
 import { useEffect, useState } from "react";
 import { ViewDrawer } from "../components/ViewDrawer.js";
+import { DismissRunButton } from "../components/DismissRunButton.js";
 
 function FlowRow({
   flow,
@@ -63,18 +64,38 @@ function FlowRow({
   );
 }
 
-function RunRow({ run }: { run: { run_id: string; session_id: string; lifecycle: string; title?: string } }) {
+function RunRow({
+  run,
+  spaceId,
+  showDismiss,
+  onDismissed,
+}: {
+  run: { run_id: string; session_id: string; lifecycle: string; title?: string };
+  spaceId?: string;
+  showDismiss?: boolean;
+  onDismissed?: () => void | Promise<void>;
+}) {
   return (
-    <Link
-      to={`/sessions/${run.session_id}`}
-      className="block border-b border-border py-2 last:border-0 hover:bg-muted/40"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm">{run.title ?? run.run_id}</span>
-        <Badge variant="outline">{run.lifecycle}</Badge>
-      </div>
-      <p className="font-mono text-xs text-muted-foreground">{run.run_id}</p>
-    </Link>
+    <div className="flex items-center gap-2 border-b border-border py-2 last:border-0">
+      <Link
+        to={`/sessions/${run.session_id}`}
+        className="min-w-0 flex-1 hover:bg-muted/40"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-sm">{run.title ?? run.run_id}</span>
+          <Badge variant="outline">{run.lifecycle}</Badge>
+        </div>
+        <p className="font-mono text-xs text-muted-foreground">{run.run_id}</p>
+      </Link>
+      {showDismiss ? (
+        <DismissRunButton
+          runId={run.run_id}
+          spaceId={spaceId}
+          lifecycle={run.lifecycle}
+          onDismissed={onDismissed}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -140,7 +161,7 @@ export function SpaceHomePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl space-y-4">
+      <div className="mx-auto w-full min-w-2xl max-w-2xl space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
           {space?.name ?? space?.slug ?? spaceId}
         </h1>
@@ -174,7 +195,15 @@ export function SpaceHomePage() {
           </CardHeader>
           <CardContent>
             {home?.active_runs.length ? (
-              home.active_runs.map((run) => <RunRow key={run.run_id} run={run} />)
+              home.active_runs.map((run) => (
+                <RunRow
+                  key={run.run_id}
+                  run={run}
+                  spaceId={spaceId}
+                  showDismiss
+                  onDismissed={() => queryClient.invalidateQueries({ queryKey: ["space-home", spaceId] })}
+                />
+              ))
             ) : (
               <p className="text-sm text-muted-foreground">No active runs</p>
             )}

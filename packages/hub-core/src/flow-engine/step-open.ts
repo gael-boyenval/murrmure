@@ -5,8 +5,12 @@ import { buildHumanStepNotificationDrafts } from "../projections/notifications.j
 import { resolveStepParams, resolveStepSpace } from "./templates.js";
 import type { FlowStepDispatch } from "./types.js";
 import { resolveSpaceRoot } from "../invoke/resolve.js";
-import { flowStepContractCatalog, nestedCatalogChildren } from "./step-catalog.js";
-import { buildStepContractSlice, writeActiveStepContract } from "./step-contract-slice.js";
+import { flowStepContractCatalog, nestedCatalogChildren, catalogEntryForStep } from "./step-catalog.js";
+import {
+  buildStepContractSlice,
+  writeActiveStepContract,
+  resolveInvokeContractStepId,
+} from "./step-contract-slice.js";
 import { ensureStepWorkdir } from "./step-artifacts.js";
 
 function bareRunId(run_id: string): string {
@@ -70,6 +74,32 @@ export async function openStepContract(
     });
   }
 
+  const run = await deps.studio.getRun(runBare);
+  let bootstrappedChild = false;
+  if (run?.flow_id) {
+    const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+    const catalog = flowStepContractCatalog(flowEntry);
+    if (catalog && !input.skip_nested_bootstrap && !input.entry.parent_id) {
+      const children = nestedCatalogChildren(catalog, input.step_id);
+      const firstChild = children[0];
+      if (firstChild) {
+        bootstrappedChild = true;
+        await openStepContract(deps, {
+          run_id: input.run_id,
+          session_id: input.session_id,
+          space_id: input.space_id,
+          step_id: firstChild.step_id,
+          entry: firstChild,
+          exec_context: input.exec_context,
+          actor_id: input.actor_id,
+          token_id: input.token_id,
+          journal: input.journal,
+          skip_nested_bootstrap: true,
+        });
+      }
+    }
+  }
+
   if (input.entry.executor?.action) {
     const space_id = resolveStepSpace(input.entry.executor.space ?? "{{origin_space}}", input.space_id);
     const params = resolveStepParams(input.entry.executor.params, input.exec_context);
@@ -79,6 +109,30 @@ export async function openStepContract(
       action_name: input.entry.executor.action,
       params,
     };
+
+    const runForContract = await deps.studio.getRun(runBare);
+    if (runForContract?.flow_id) {
+      const flowEntry = await deps.studio.getFlowIndexEntry(runForContract.flow_id, runForContract.space_id);
+      const catalog = flowStepContractCatalog(flowEntry);
+      const bindings = await deps.studio.getSpaceBindings(spaceBare);
+      const space_root = resolveSpaceRoot(bindings);
+      if (catalog && space_root) {
+        const memos = await deps.studio.listRunStepMemos(input.run_id);
+        const contractStepId = resolveInvokeContractStepId(input.step_id, memos);
+        const contractEntry = catalogEntryForStep(catalog, contractStepId);
+        if (contractEntry) {
+          await ensureStepWorkdir(space_root, input.run_id, contractStepId);
+          const slice = buildStepContractSlice({
+            entry: contractEntry,
+            exec_context: input.exec_context,
+            run_id: input.run_id,
+            space_root,
+          });
+          await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
+        }
+      }
+    }
+
     await deps.dispatchSteps({
       dispatch: [dispatch],
       session_id: input.session_id,
@@ -129,45 +183,22 @@ export async function openStepContract(
     }
   }
 
-  const run = await deps.studio.getRun(runBare);
-  if (run?.flow_id) {
-    const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+  const runAfter = await deps.studio.getRun(runBare);
+  if (runAfter?.flow_id) {
+    const flowEntry = await deps.studio.getFlowIndexEntry(runAfter.flow_id, runAfter.space_id);
     const catalog = flowStepContractCatalog(flowEntry);
-    if (catalog) {
-      let bootstrappedChild = false;
-      if (!input.skip_nested_bootstrap && !input.entry.parent_id) {
-        const children = nestedCatalogChildren(catalog, input.step_id);
-        const firstChild = children[0];
-        if (firstChild) {
-          bootstrappedChild = true;
-          await openStepContract(deps, {
-            run_id: input.run_id,
-            session_id: input.session_id,
-            space_id: input.space_id,
-            step_id: firstChild.step_id,
-            entry: firstChild,
-            exec_context: input.exec_context,
-            actor_id: input.actor_id,
-            token_id: input.token_id,
-            journal: input.journal,
-            skip_nested_bootstrap: true,
-          });
-        }
-      }
-
-      if (!bootstrappedChild) {
-        const bindings = await deps.studio.getSpaceBindings(spaceBare);
-        const space_root = resolveSpaceRoot(bindings);
-        if (space_root) {
-          await ensureStepWorkdir(space_root, input.run_id, input.step_id);
-          const slice = buildStepContractSlice({
-            entry: input.entry,
-            exec_context: input.exec_context,
-            run_id: input.run_id,
-            space_root,
-          });
-          await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
-        }
+    if (catalog && !bootstrappedChild) {
+      const bindings = await deps.studio.getSpaceBindings(spaceBare);
+      const space_root = resolveSpaceRoot(bindings);
+      if (space_root) {
+        await ensureStepWorkdir(space_root, input.run_id, input.step_id);
+        const slice = buildStepContractSlice({
+          entry: input.entry,
+          exec_context: input.exec_context,
+          run_id: input.run_id,
+          space_root,
+        });
+        await writeActiveStepContract({ space_root, run_id: input.run_id, slice });
       }
     }
   }

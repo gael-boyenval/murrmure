@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:bundled": "VITE_MURRMURE_BUNDLED=1 vite",
     "build": "vite build",
     "build:bundled": "VITE_MURRMURE_BUNDLED=1 vite build",
     "preview": "vite preview",

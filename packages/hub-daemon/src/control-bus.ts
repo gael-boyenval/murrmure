@@ -1,3 +1,5 @@
+import { formatControlWake } from "./wake-prompt.js";
+
 export interface ControlPrincipal {
   space_id: string;
   token_id: string;
@@ -25,11 +27,29 @@ export type ControlMessage =
       };
     }
   | {
+      method: "murrmure/control.invoke_action";
+      params: {
+        seq: number;
+        action_name: string;
+        step_id?: string;
+        run_id?: string;
+        session_id?: string;
+        params?: Record<string, unknown>;
+        expect?: unknown;
+        artifacts_in?: unknown;
+        executor_id?: string;
+        prompt?: string;
+      };
+    }
+  | {
       method: "murrmure/control.wake_pending";
-      params: { seq: number; wake_label: string; payload: unknown };
+      params: { seq: number; wake_label: string; payload: unknown; prompt?: string };
     };
 
 const TTL_MS = 24 * 60 * 60 * 1000;
+type ControlMessageWithoutSeq = Omit<ControlMessage, "params"> & {
+  params: Omit<ControlMessage["params"], "seq">;
+};
 
 function principalKey(p: ControlPrincipal): string {
   return `${p.space_id}:${p.token_id}:${p.client_id}`;
@@ -55,11 +75,12 @@ export class ControlBus {
     }
   }
 
-  publish(principal: ControlPrincipal, msg: Omit<ControlMessage, "params"> & { params: Omit<ControlMessage["params"], "seq"> }): ControlMessage {
+  publish(principal: ControlPrincipal, msg: ControlMessageWithoutSeq): ControlMessage {
     this.purgeExpired();
     const key = principalKey(principal);
     const seq = this.nextSeq(key);
-    const full = { ...msg, params: { ...msg.params, seq } } as ControlMessage;
+    const params = this.withRenderedPrompt(msg.method, msg.params);
+    const full = { ...msg, params: { ...params, seq } } as ControlMessage;
     const box = this.outboxes.get(key) ?? { messages: [], expiresAt: Date.now() + TTL_MS };
     box.messages.push(full);
     box.expiresAt = Date.now() + TTL_MS;
@@ -113,5 +134,18 @@ export class ControlBus {
     if (!this.outboxes.has(key)) {
       this.outboxes.set(key, { messages: [], expiresAt: Date.now() + TTL_MS });
     }
+  }
+
+  private withRenderedPrompt(
+    method: string,
+    params: Omit<ControlMessage["params"], "seq">,
+  ): Omit<ControlMessage["params"], "seq"> {
+    const asRecord = params as Record<string, unknown>;
+    if (typeof asRecord.prompt === "string" && asRecord.prompt.trim()) {
+      return params;
+    }
+    const prompt = formatControlWake(method, asRecord);
+    if (!prompt) return params;
+    return { ...asRecord, prompt } as Omit<ControlMessage["params"], "seq">;
   }
 }

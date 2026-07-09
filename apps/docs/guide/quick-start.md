@@ -18,7 +18,7 @@ Desktop injects the bootstrap token automatically. You land on **`/spaces/new`**
 From your project directory (or an empty folder):
 
 ```bash
-npm install -g @murrmure/cli
+npm install -g @murrmure/cli @murrmure/mcp-bridge
 mrmr setup
 ```
 

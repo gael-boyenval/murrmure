@@ -1,5 +1,12 @@
 # Changelog
 
+## MCP reliability phase 3 (2026-07-09)
+
+### Breaking
+
+- MCP client onboarding now uses `murrmure-mcp` (package `@murrmure/mcp-bridge`) with thin config shape.
+- Legacy fat MCP config examples (`command: "murrmure"` + `args: ["mcp"]` + space-id env pinning) are removed from docs/spec guidance.
+
 ## Murrmure v2 product GA — phases 01–10 (2026-07-03)
 
 ### Added

@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import {
   grantListCommand,
   grantMintCommand,
+  grantUseCommand,
   grantRevokeCommand,
   grantRotateCommand,
 } from "./space/grant.js";
@@ -12,6 +13,7 @@ export const grantCommand = defineCommand({
   subCommands: {
     list: grantListCommand,
     mint: grantMintCommand,
+    use: grantUseCommand,
     revoke: grantRevokeCommand,
     rotate: grantRotateCommand,
   },

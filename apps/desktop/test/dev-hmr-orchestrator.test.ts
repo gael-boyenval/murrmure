@@ -9,6 +9,11 @@ describe("dev-hmr-cli", () => {
     expect(cliPackageDir("/repo")).toBe("/repo/packages/cli");
   });
 
+  test("mcpBridgePackageDir resolves packages/mcp-bridge from repo root", async () => {
+    const { mcpBridgePackageDir } = await import("../scripts/dev-hmr-cli.js");
+    expect(mcpBridgePackageDir("/repo")).toBe("/repo/packages/mcp-bridge");
+  });
+
   test("devLinkMarkerPath is under repo .dev/", async () => {
     const { devLinkMarkerPath } = await import("../scripts/dev-hmr-cli.js");
     expect(devLinkMarkerPath("/repo")).toBe("/repo/.dev/cli-global-link.json");
@@ -33,10 +38,12 @@ describe("dev-hmr-cli link lifecycle", () => {
 
   test("linkCliGlobal symlinks built CLI into global bin and unlink restores", async () => {
     const cliDist = join(repoRoot, "packages/cli/dist");
+    const bridgeDist = join(repoRoot, "packages/mcp-bridge/dist");
     const { mkdirSync, writeFileSync } = await import("node:fs");
     mkdirSync(cliDist, { recursive: true });
+    mkdirSync(bridgeDist, { recursive: true });
     writeFileSync(join(cliDist, "cli.js"), "#!/usr/bin/env node\n");
-    writeFileSync(join(cliDist, "mcp.js"), "#!/usr/bin/env node\n");
+    writeFileSync(join(bridgeDist, "main.js"), "#!/usr/bin/env node\n");
 
     vi.doMock("node:child_process", async () => {
       const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
@@ -59,10 +66,13 @@ describe("dev-hmr-cli link lifecycle", () => {
 
     expect(existsSync(join(binDir, "mrmr"))).toBe(true);
     expect(readlinkSync(join(binDir, "mrmr"))).toBe(join(cliDist, "cli.js"));
+    expect(existsSync(join(binDir, "murrmure-mcp"))).toBe(true);
+    expect(readlinkSync(join(binDir, "murrmure-mcp"))).toBe(join(bridgeDist, "main.js"));
     expect(existsSync(devLinkMarkerPath(repoRoot))).toBe(true);
 
     unlinkCliGlobal(repoRoot);
     expect(existsSync(join(binDir, "mrmr"))).toBe(false);
+    expect(existsSync(join(binDir, "murrmure-mcp"))).toBe(false);
     expect(existsSync(devLinkMarkerPath(repoRoot))).toBe(false);
   });
 });

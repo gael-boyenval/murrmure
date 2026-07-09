@@ -42,10 +42,6 @@ export async function wizardMintAgentGrant(
     label,
     token,
     capabilities: AGENT_GRANT_CAPABILITIES,
-    mcp_snippet: buildMcpConfigSnippet({
-      hubUrl: auth.hubUrl,
-      token,
-      spaceId,
-    }),
+    mcp_snippet: buildMcpConfigSnippet({ token }),
   };
 }

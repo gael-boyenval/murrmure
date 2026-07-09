@@ -26,7 +26,7 @@ The wizard runs steps in order. Here is **why each exists**:
 | **Init** | Creates `murrmure/` skeleton | Home for flows, actions, views |
 | **Link** | Binds this folder → space id | Hub knows which disk path is this space |
 | **Apply** | Indexes `murrmure/` (empty flows OK for now) | Desktop **Run** appears after you add a flow |
-| **Skill** | `mrmr skill install` | **Platform** skill — Murrmure MCP tools, gates, runs |
+| **Skill** | `mrmr skill install` | **Platform** skill — Murrmure tools, gates, runs |
 | **Grant** | Mints agent token + MCP JSON snippet | Cursor gets hub access |
 
 ### MCP snippet — purpose
@@ -35,9 +35,8 @@ Paste into `.cursor/mcp.json`:
 
 | Variable | Purpose |
 |----------|---------|
-| `MURRMURE_HUB_URL` | Where to send MCP calls |
-| `MURRMURE_HUB_TOKEN` | Agent identity (not your human login) |
-| `MURRMURE_SPACE_ID` | Which space's flows this agent sees |
+| `command: "murrmure-mcp"` | Launches the MCP bridge |
+| `MURRMURE_HUB_TOKEN` | Agent identity (space and ACL come from token claims) |
 
 Reload Cursor. Test: *“Call murrmure_space_status.”*
 

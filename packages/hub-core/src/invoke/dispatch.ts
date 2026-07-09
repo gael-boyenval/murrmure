@@ -21,6 +21,12 @@ export interface OrchestrateInvokeOptions {
   /** Skip idempotency memo lookup (e.g. when draining a queued invoke). */
   skipMemoLookup?: boolean;
   executorTimeoutScheduler?: ExecutorTimeoutScheduler;
+  /** Persist resolved shell command/prompt (e.g. into run exec_context). */
+  onDispatchAudit?: (input: {
+    run_id: string;
+    step_id: string;
+    audit: import("@murrmure/runtime-contracts").DispatchAudit;
+  }) => void | Promise<void>;
 }
 
 /** Terminal for idempotent retry — prevents duplicate journal/MCP publish on redispatch. */
@@ -158,6 +164,34 @@ export async function orchestrateInvoke(
     return buildInvokeResponse(outcome);
   }
 
+  const dispatchRequest: InvokeRequest = {
+    ...request,
+    step_id,
+    delivery: resolved.delivery,
+    step_contract: request.step_contract,
+  };
+
+  const dispatchContext = {
+    action: resolved.action,
+    binding: resolved.binding,
+    space_root: resolved.space_root,
+    exec_input: request.exec_input,
+    step_contract: request.step_contract,
+  };
+
+  const dispatchAudit = port.resolveDispatchAudit
+    ? await port.resolveDispatchAudit(dispatchRequest, dispatchContext)
+    : undefined;
+
+  const dispatchedData: Record<string, unknown> = {
+    executor_type: resolved.binding.type,
+  };
+  if (dispatchAudit) {
+    dispatchedData.command = dispatchAudit.command;
+    dispatchedData.prompt = dispatchAudit.prompt;
+    dispatchedData.cwd = dispatchAudit.cwd;
+  }
+
   await journalInvokeLifecycle(deps.journal, {
     type: JOURNAL_EVENT_TYPES.ACTION_DISPATCHED,
     space_id: request.space_id,
@@ -167,8 +201,16 @@ export async function orchestrateInvoke(
     action_name: request.action_name,
     actor_id: actor.actor_id,
     token_id: actor.token_id,
-    data: withIdempotencyKey({ executor_type: resolved.binding.type }, idempotencyKey),
+    data: withIdempotencyKey(dispatchedData, idempotencyKey),
   });
+
+  if (dispatchAudit && request.run_id) {
+    await options?.onDispatchAudit?.({
+      run_id: request.run_id,
+      step_id,
+      audit: dispatchAudit,
+    });
+  }
 
   if (request.run_id && timeoutMs) {
     scheduler.start({
@@ -179,20 +221,7 @@ export async function orchestrateInvoke(
     });
   }
 
-  const dispatchRequest: InvokeRequest = {
-    ...request,
-    step_id,
-    delivery: resolved.delivery,
-    step_contract: request.step_contract,
-  };
-
-  const outcome = await port.dispatch(dispatchRequest, {
-    action: resolved.action,
-    binding: resolved.binding,
-    space_root: resolved.space_root,
-    exec_input: request.exec_input,
-    step_contract: request.step_contract,
-  });
+  const outcome = await port.dispatch(dispatchRequest, dispatchContext);
 
   const normalized = { ...outcome, step_id: outcome.step_id ?? step_id, run_id: outcome.run_id ?? request.run_id };
 

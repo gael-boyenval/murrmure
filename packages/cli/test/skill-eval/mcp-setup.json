@@ -2,10 +2,10 @@
   "id": "mcp-setup",
   "prompt": "How do I connect Cursor to Murrmure MCP?",
   "expected_keywords": [
-    "MURRMURE_HUB_URL",
+    "murrmure-mcp",
     "MURRMURE_HUB_TOKEN",
-    "MURRMURE_SPACE_ID",
-    "murrmure mcp",
+    "mrmr grant mint",
+    "mrmr grant use",
     "murrmure_space_status"
   ],
   "advisory": true

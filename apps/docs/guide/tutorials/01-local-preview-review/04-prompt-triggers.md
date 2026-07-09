@@ -37,7 +37,7 @@ actions:
       ---
 
       Run {{run_id}} / session {{session_id}}
-    command: cursor agent -p --force "{{prompt}}"
+    command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 120000
@@ -51,7 +51,7 @@ actions:
 
       During the loop, re-read:
         {{murrmure.space_root}}/.mrmr.temp/runs/{{murrmure.run_id}}/active-step-contract.json
-    command: cursor agent -p --force "{{prompt}}"
+    command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 3600000
@@ -63,10 +63,10 @@ actions:
       Output JSON only: {"archived_path":"specs/archive/…"}
 
       Run {{run_id}}
-    command: cursor agent -p --force "{{prompt}}"
+    command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 60000
+    timeout_ms: 3600000
 
   feature_commit:
     executor: shell
@@ -75,10 +75,10 @@ actions:
       Output JSON only: {"commit_message":"…","description":"…"}
 
       Run {{run_id}}
-    command: cursor agent -p --force "{{prompt}}"
+    command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 120000
+    timeout_ms: 3600000
 ```
 
 ## Step 3 — Read each action
@@ -92,17 +92,33 @@ actions:
 
 ### What the hub does
 
-1. Expands `{{murrmure.agentStepContract}}`, `{{murrmure.run_id}}`, `{{spec_markdown}}`, etc. in the prompt
-2. Sets `MURRMURE_STEP_CONTRACT`, `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`, `MURRMURE_STEP_WORKDIR`, plus `MURRMURE_INVOKE_PARAMS`, `MURRMURE_INPUT`, `MURRMURE_PROMPT`
-3. Runs `cursor agent -p --force "…"` in the space root
-4. Journals dispatch + completion
+1. Expands **task** placeholders (`{{spec_path}}`, `{{murrmure.step.intake.artifact.spec.path}}`, etc.) from your `prompt:` block
+2. **Auto-appends** a separated **Murrmure protocol** section (step contract, resolve API, run/session ids, `active-step-contract.json` path) — you do **not** author `{{murrmure.agentStepContract}}` anymore
+3. Sets `MURRMURE_STEP_CONTRACT`, `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`, `MURRMURE_STEP_WORKDIR`, plus `MURRMURE_INVOKE_PARAMS`, `MURRMURE_INPUT`, `MURRMURE_PROMPT`
+4. Runs `cursor agent -p --force "…"` in the space root
+5. Journals dispatch + completion
+6. **Kills** the agent subprocess when the run is dismissed/failed/completed or when an executor step closes
+
+### Prompt shape (what the agent sees)
+
+```text
+<!-- MURRMURE_TASK_BEGIN -->
+# Task
+…your actions.yaml prompt…
+<!-- MURRMURE_TASK_END -->
+
+<!-- MURRMURE_PROTOCOL_BEGIN -->
+# Murrmure protocol (auto-generated — authoritative)
+…run/session/action, step contract, resolve_step branches…
+<!-- MURRMURE_PROTOCOL_END -->
+```
 
 ### Build is special
 
 **Build** is a long-lived shell session. The hub injects the active **step contract slice** at dispatch and rewrites `active-step-contract.json` on every engine transition:
 
-1. Agent reads `{{murrmure.agentStepContract}}` in the initial prompt
-2. During the loop, re-read `.mrmr.temp/runs/{run_id}/active-step-contract.json`
+1. Agent reads the **Task** section for build/review loop behavior
+2. Agent follows the **Murrmure protocol** section (and re-reads `active-step-contract.json` after transitions)
 3. Complete steps with **`murrmure_resolve_step`**
 4. Optional discovery: **`murrmure_list_step_contracts`** returns the active slice + `graph_digest`
 

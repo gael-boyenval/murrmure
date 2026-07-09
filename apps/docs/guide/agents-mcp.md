@@ -1,69 +1,69 @@
 # Connect your agent (MCP)
 
-Murrmure agents connect through **MCP**. Humans use **Murrmure Desktop**; admins use the **`mrmr` CLI** for setup and grants.
-
-**Agent authoring and protocol behavior:** follow the installed **[murrmure skill](./agent-skill)** (`mrmr skill install`) — not this page. This page covers MCP connection only.
+Murrmure agents connect through the `murrmure-mcp` bridge. Humans work in Desktop; operators use `mrmr` for setup and grants.
 
 ## What MCP gives your agent
 
-- Platform tools: `murrmure_space_status`, `murrmure_invoke_action`, `murrmure_resolve_step`, `murrmure_wait_for_run`, …
-- Grant-filtered catalog scoped to `MURRMURE_SPACE_ID`
-- v2 indexed flows after `mrmr space apply`
+- Grant-filtered platform tools (`murrmure_space_status`, `murrmure_invoke_action`, `murrmure_resolve_step`, `murrmure_wait_for_run`, ...)
+- Indexed flow availability after `mrmr space apply`
+- Wake/control delivery through the local bridge process
 
 ## Before you start
 
-1. Murrmure Desktop running (or hub at `http://127.0.0.1:8787`)
-2. Target space exists (`spc_...`)
-3. Grant token from **`mrmr grant mint`**
-4. Node.js 20+ and `@murrmure/cli` installed ([Installation](./installation))
-5. **`mrmr skill install`** for flow/view/checkpoint guidance
+1. Desktop is running (hub discovery is written to `~/.murrmure/hubs/shared.json`)
+2. A target space exists (`spc_...`)
+3. Node.js 20+ and `@murrmure/cli` installed
+4. Optional but recommended: `mrmr skill install`
 
-## 1) Install MCP package
-
-```bash
-npm install -g @murrmure/cli
-```
-
-## 2) Mint grant
+## 1) Install CLI and MCP bridge
 
 ```bash
-mrmr grant mint --space spc_… --label "cursor-agent" --capabilities space:read,flow:run,action:invoke,gate:resolve
+npm install -g @murrmure/cli @murrmure/mcp-bridge
 ```
 
-Save the one-time token (`tok_...`) and space id (`spc_...`).
+## 2) Mint and activate a grant
 
-## 3) MCP config
+```bash
+mrmr grant mint --space spc_... --label "cursor-agent" --capabilities space:read,flow:run,flow:read,action:invoke,step:resolve,journal:read
+mrmr grant use --space spc_...
+```
+
+`grant mint` prints a one-time:
+
+```bash
+export MURRMURE_HUB_TOKEN=tok_...
+```
+
+Run that export in the shell that launches your IDE/agent.
+
+## 3) MCP config (thin shape)
+
+Use `mrmr grant mint` prompt to write this automatically, or paste manually:
 
 ```json
 {
   "mcpServers": {
     "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
+      "command": "murrmure-mcp",
       "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_...",
-        "MURRMURE_SPACE_ID": "spc_..."
+        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
       }
     }
   }
 }
 ```
 
-Reload the IDE after saving. Verify with `murrmure_space_status`.
+- Default location: `~/.cursor/mcp.json`
+- Project-only option: `mrmr grant mint --local` (writes `./.cursor/mcp.json`)
+
+Reload the IDE, then verify with `murrmure_space_status`.
 
 ## Common issues
 
 | Symptom | Fix |
 |---------|-----|
-| `TOOL_NOT_AUTHORIZED` | Fix grant capabilities; reload MCP |
-| 401/403 | Mint new token |
-| Missing tools | Correct `MURRMURE_SPACE_ID`; run `mrmr space apply` |
+| `TOOL_NOT_AUTHORIZED` | Mint with required capabilities; reload MCP |
+| 401/403 | Mint a new grant, then `mrmr grant use --space ...` |
+| Tools missing | Run `mrmr space apply --strict`, then reconnect MCP |
 
-See the installed skill's `reference/mcp.md` and [MCP tools reference](../reference/mcp-tools).
-
-## Next
-
-- [Agent skill](./agent-skill) — install the normative agent skill
-- [Quick start](./quick-start)
-- [Murrmure Desktop](./desktop)
+See [MCP tools reference](../reference/mcp-tools) and the installed skill's `reference/mcp.md`.

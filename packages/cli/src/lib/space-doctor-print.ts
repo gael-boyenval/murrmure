@@ -206,9 +206,7 @@ function renderMcpSection(result: SpaceDoctorResult): void {
       row("Config", colors.dim(configPath));
     }
     for (const server of result.mcp.servers) {
-      const env = server.env;
-      const spaceId = env.MURRMURE_SPACE_ID ?? colors.dim("missing");
-      row("Server", `${colors.cyan(server.name)} · space ${spaceId}`);
+      row("Server", colors.cyan(server.name));
     }
   } else {
     row("Config", statusWarn("missing .cursor/mcp.json"));

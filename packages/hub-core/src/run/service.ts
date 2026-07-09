@@ -10,8 +10,7 @@ import {
   resolveRunFailedNotificationRecipients,
   runFailedNotificationCopy,
 } from "../projections/notifications.js";
-import { cancelRunExecutors } from "../invoke/run-executor-cancel.js";
-import { defaultExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
+import { cancelRunExecutors, terminateRunExecutors } from "../invoke/run-executor-cancel.js";
 import { instanceStateToLifecycle, runIdToInstanceId } from "./lifecycle.js";
 import { toRunDto, refreshSessionStatus, toSessionDto } from "../session/index.js";
 import { deriveSessionStatus } from "../session/status.js";
@@ -68,9 +67,11 @@ export async function failRunWithNotification(
   }
 
   const ts = deps.clock.nowIso();
-  cancelRunExecutors(input.run_id);
-  defaultExecutorTimeoutScheduler.stopRun(input.run_id);
-  deps.executorPollStore?.cancelOfferedForRun(input.run_id, "RUN_FAILED", input.reason ?? "Run failed");
+  terminateRunExecutors({
+    run_id: input.run_id,
+    executorPollStore: deps.executorPollStore,
+    reason: input.reason ?? "Run failed",
+  });
   await deps.studio.updateRunLifecycle(runBare, "failed", ts);
 
   const spaceBare = run.space_id;
@@ -311,6 +312,11 @@ export async function cancelRun(
   }
 
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: prefixedRun(runBare),
+    executorPollStore: deps.executorPollStore,
+    reason: "cancelled",
+  });
   await deps.studio.updateRunLifecycle(runBare, "cancelled", ts);
 
   const spaceId = input.space_id ?? (run.space_id ? addSpaceId(run.space_id) : undefined);
@@ -369,6 +375,11 @@ export async function cancelSession(
 
   for (const run of runs) {
     if (run.lifecycle === "working" || run.lifecycle === "input-required") {
+      terminateRunExecutors({
+        run_id: prefixedRun(run.run_id),
+        executorPollStore: deps.executorPollStore,
+        reason: "session cancelled",
+      });
       await deps.studio.updateRunLifecycle(run.run_id, "cancelled", ts);
     }
   }
@@ -377,6 +388,11 @@ export async function cancelSession(
     const pending = await deps.studio.listRunsBySession(sessionBare);
     for (const run of pending) {
       if (run.lifecycle === "working" || run.lifecycle === "input-required") {
+        terminateRunExecutors({
+          run_id: prefixedRun(run.run_id),
+          executorPollStore: deps.executorPollStore,
+          reason: "session cancelled",
+        });
         await deps.studio.updateRunLifecycle(run.run_id, "cancelled", deps.clock.nowIso());
       }
     }
@@ -470,6 +486,11 @@ export async function maybeCompleteHeadlessRun(
   }
 
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: prefixedRun(runBare),
+    executorPollStore: deps.executorPollStore,
+    reason: "run completed",
+  });
   await deps.studio.updateRunLifecycle(runBare, "completed", ts);
 
   const session = await deps.studio.getSession(run.session_id);

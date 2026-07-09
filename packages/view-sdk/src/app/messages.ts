@@ -16,6 +16,7 @@ export function isViewHostInboundMessage(data: unknown): data is ViewHostInbound
   return (
     msg.type === "murrmure.view.ready" ||
     msg.type === "murrmure.view.cancel" ||
+    msg.type === "murrmure.view.resolved" ||
     (msg.type === "murrmure.view.submit" &&
       typeof (data as { params?: unknown }).params === "object" &&
       (data as { params?: unknown }).params !== null)

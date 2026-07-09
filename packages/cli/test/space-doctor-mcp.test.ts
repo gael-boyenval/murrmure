@@ -1,80 +1,65 @@
-import { describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { describe, expect, test, beforeEach, afterEach, vi } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildMcpConfigSnippet, scanMcpConfig } from "../src/lib/space-doctor-mcp.js";
+
+const testHomeRef = { value: "" };
+
+vi.mock("node:os", async () => {
+  const actual = await vi.importActual<typeof import("node:os")>("node:os");
+  return {
+    ...actual,
+    homedir: () => testHomeRef.value,
+  };
+});
+
+import {
+  buildMcpConfigSnippet,
+  probeMcpCatalog,
+  rewriteFatMcpConfigFiles,
+  scanMcpConfig,
+} from "../src/lib/space-doctor-mcp.js";
 
 describe("scanMcpConfig", () => {
-  test("flags missing mcp.json", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cli-mcp-scan-"));
-    const { issues } = scanMcpConfig({ projectPath: dir, cwd: dir });
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "cli-mcp-scan-"));
+    testHomeRef.value = mkdtempSync(join(tmpdir(), "cli-mcp-home-"));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(testHomeRef.value, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  });
+
+  test("flags missing mcp config", () => {
+    const { issues } = scanMcpConfig({ projectPath: projectDir, cwd: projectDir });
     expect(issues.some((issue) => issue.code === "MCP_CONFIG_MISSING")).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
   });
 
-  test("detects legacy studio MCP command and env", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cli-mcp-legacy-"));
-    const cursorDir = join(dir, ".cursor");
-    mkdirSync(cursorDir, { recursive: true });
-    writeFileSync(
-      join(cursorDir, "mcp.json"),
-      JSON.stringify(
-        {
-          mcpServers: {
-            studio: {
-              command: "studio-hub-mcp",
-              env: {
-                STUDIO_HUB_URL: "http://127.0.0.1:8787",
-                STUDIO_HUB_TOKEN: "tok_old",
-                STUDIO_SPACE_ID: "spc_old",
-              },
-            },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    const { issues, context } = scanMcpConfig({
-      projectPath: dir,
-      cwd: dir,
-      linkedSpaceId: "spc_linked",
-    });
-
-    expect(context.servers).toHaveLength(1);
-    expect(issues.some((issue) => issue.code === "MCP_LEGACY_COMMAND")).toBe(true);
-    expect(issues.some((issue) => issue.code === "MCP_LEGACY_ENV")).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test("detects space id mismatch with linked space", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cli-mcp-mismatch-"));
-    const cursorDir = join(dir, ".cursor");
+  test("accepts canonical murrmure-mcp thin config", () => {
+    const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });
     writeFileSync(
       join(cursorDir, "mcp.json"),
       buildMcpConfigSnippet({
-        hubUrl: "http://127.0.0.1:8787",
-        token: "tok_real_grant",
-        spaceId: "spc_wrong",
+        token: "${env:MURRMURE_HUB_TOKEN}",
       }),
     );
 
     const { issues } = scanMcpConfig({
-      projectPath: dir,
-      cwd: dir,
-      linkedSpaceId: "spc_linked",
-      authHubUrl: "http://127.0.0.1:8787",
+      projectPath: projectDir,
+      cwd: projectDir,
     });
 
-    expect(issues.some((issue) => issue.code === "MCP_SPACE_MISMATCH")).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
+    const blocking = issues.filter((issue) => issue.severity !== "info");
+    expect(blocking).toHaveLength(0);
   });
 
-  test("flags deprecated murrmure-mcp binary", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cli-mcp-alias-"));
-    const cursorDir = join(dir, ".cursor");
+  test("treats murrmure + args mcp as fat-shape error", () => {
+    const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });
     writeFileSync(
       join(cursorDir, "mcp.json"),
@@ -82,7 +67,8 @@ describe("scanMcpConfig", () => {
         {
           mcpServers: {
             murrmure: {
-              command: "murrmure-mcp",
+              command: "murrmure",
+              args: ["mcp"],
               env: {
                 MURRMURE_HUB_URL: "http://127.0.0.1:8787",
                 MURRMURE_HUB_TOKEN: "tok_real_grant",
@@ -97,36 +83,130 @@ describe("scanMcpConfig", () => {
     );
 
     const { issues } = scanMcpConfig({
-      projectPath: dir,
-      cwd: dir,
-      linkedSpaceId: "spc_demo",
+      projectPath: projectDir,
+      cwd: projectDir,
     });
 
-    expect(issues.some((issue) => issue.code === "MCP_LEGACY_COMMAND")).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
+    expect(issues.some((issue) => issue.code === "MCP_FAT_COMMAND_SHAPE")).toBe(true);
+    expect(issues.some((issue) => issue.code === "MCP_FAT_ENV_KEYS")).toBe(true);
   });
 
-  test("accepts canonical murrmure mcp config", () => {
-    const dir = mkdtempSync(join(tmpdir(), "cli-mcp-ok-"));
-    const cursorDir = join(dir, ".cursor");
-    mkdirSync(cursorDir, { recursive: true });
+  test("discovers global ~/.cursor/mcp.json", () => {
+    const globalCursor = join(testHomeRef.value, ".cursor");
+    mkdirSync(globalCursor, { recursive: true });
     writeFileSync(
-      join(cursorDir, "mcp.json"),
+      join(globalCursor, "mcp.json"),
       buildMcpConfigSnippet({
-        hubUrl: "http://127.0.0.1:8787",
-        token: "tok_real_grant",
-        spaceId: "spc_demo",
+        token: "${env:MURRMURE_HUB_TOKEN}",
       }),
     );
 
-    const { issues } = scanMcpConfig({
-      projectPath: dir,
-      cwd: dir,
-      linkedSpaceId: "spc_demo",
-      authHubUrl: "http://127.0.0.1:8787",
+    const { context, issues } = scanMcpConfig({
+      projectPath: projectDir,
+      cwd: projectDir,
     });
 
-    expect(issues.filter((issue) => issue.severity === "warning" && issue.code.startsWith("MCP_"))).toHaveLength(0);
-    rmSync(dir, { recursive: true, force: true });
+    expect(context.config_paths).toContain(join(globalCursor, "mcp.json"));
+    expect(issues.some((issue) => issue.code === "MCP_CONFIG_MISSING")).toBe(false);
+  });
+});
+
+describe("buildMcpConfigSnippet", () => {
+  test("emits thin bridge shape only", () => {
+    const snippet = buildMcpConfigSnippet({ token: "tok_agent" });
+    expect(snippet).toContain("\"command\": \"murrmure-mcp\"");
+    expect(snippet).not.toContain("\"args\"");
+    expect(snippet).not.toContain("MURRMURE_HUB_URL");
+    expect(snippet).not.toContain("MURRMURE_SPACE_ID");
+  });
+});
+
+describe("rewriteFatMcpConfigFiles", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "cli-mcp-rewrite-"));
+    testHomeRef.value = mkdtempSync(join(tmpdir(), "cli-mcp-rewrite-home-"));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(testHomeRef.value, { recursive: true, force: true });
+  });
+
+  test("rewrites fat murrmure command shape to thin bridge", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    const configPath = join(cursorDir, "mcp.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            murrmure: {
+              command: "murrmure",
+              args: ["mcp"],
+              env: {
+                MURRMURE_HUB_URL: "http://127.0.0.1:8787",
+                MURRMURE_SPACE_ID: "spc_demo",
+                MURRMURE_HUB_TOKEN: "tok_space",
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });
+    expect(rewrite.errors).toEqual([]);
+    expect(rewrite.rewritten).toEqual([configPath]);
+
+    const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
+      mcpServers: {
+        murrmure: { command: string; args?: unknown; env: Record<string, string> };
+      };
+    };
+    expect(parsed.mcpServers.murrmure.command).toBe("murrmure-mcp");
+    expect(parsed.mcpServers.murrmure.args).toBeUndefined();
+    expect(parsed.mcpServers.murrmure.env).toEqual({
+      MURRMURE_HUB_TOKEN: "tok_space",
+    });
+  });
+
+  test("keeps already-thin config unchanged", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    const configPath = join(cursorDir, "mcp.json");
+    const before = buildMcpConfigSnippet({ token: "${env:MURRMURE_HUB_TOKEN}" });
+    writeFileSync(configPath, before);
+
+    const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });
+    expect(rewrite.errors).toEqual([]);
+    expect(rewrite.rewritten).toEqual([]);
+    const after = readFileSync(configPath, "utf-8");
+    expect(after).toBe(before);
+  });
+});
+
+describe("probeMcpCatalog", () => {
+  test("does not send space_id query parameter", async () => {
+    const fetchSpy = vi.fn(async (input: URL | RequestInfo) => {
+      const url = typeof input === "string" ? new URL(input) : new URL(String(input));
+      expect(url.searchParams.has("space_id")).toBe(false);
+      return new Response(JSON.stringify({ tools: [{ name: "murrmure_space_status" }] }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const issues = await probeMcpCatalog({
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_probe",
+    });
+
+    expect(issues).toHaveLength(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

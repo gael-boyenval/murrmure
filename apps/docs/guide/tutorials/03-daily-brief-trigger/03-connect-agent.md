@@ -22,16 +22,20 @@ mrmr grant mint --space spc_daily_brief \
 {
   "mcpServers": {
     "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
+      "command": "murrmure-mcp",
       "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_…",
-        "MURRMURE_SPACE_ID": "spc_daily_brief"
+        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
       }
     }
   }
 }
+```
+
+Export your minted token in the agent shell:
+
+```bash
+export MURRMURE_HUB_TOKEN=tok_...
+mrmr grant use --space spc_daily_brief
 ```
 
 See [Connect your agent (MCP)](../../agents-mcp).

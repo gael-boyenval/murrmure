@@ -444,4 +444,63 @@ describe("invoke/dispatch", () => {
     expect(second.dispatch).toEqual(first.dispatch);
     expect(dispatchCount).toBe(1);
   });
+
+  test("ACTION_DISPATCHED includes resolved shell command and prompt", async () => {
+    const journalData: Record<string, unknown>[] = [];
+    const port: ExecutorPort = {
+      preflight: async () => ({ status: "reachable" }),
+      resolveDispatchAudit: async () => ({
+        command: "cursor agent -p --force",
+        prompt: "hello world",
+        cwd: "/space/root",
+      }),
+      dispatch: async () => ({ status: "dispatched" }),
+    };
+    const { deps } = mockDeps({
+      port,
+      journal: {
+        append: async (input) => {
+          journalData.push(input.data);
+        },
+      },
+    });
+    const resolved: ResolvedInvoke = {
+      action: {
+        name: "feature_write_spec",
+        executor: "shell",
+        command: "cursor agent -p --force {{prompt}}",
+        prompt: "hello world",
+        idempotency: "step",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: "/space/root",
+      delivery: "fail_fast",
+    };
+    const request: InvokeRequest = {
+      space_id: "spc_test",
+      action_name: "feature_write_spec",
+      run_id: "run_abc",
+      step_id: "write_spec",
+      delivery: "fail_fast",
+    };
+
+    let auditCaptured: unknown;
+    await orchestrateInvoke(resolved, request, actor, deps, {
+      onDispatchAudit: async (input) => {
+        auditCaptured = input.audit;
+      },
+    });
+
+    expect(journalData[0]).toMatchObject({
+      executor_type: "shell_spawn",
+      command: "cursor agent -p --force",
+      prompt: "hello world",
+      cwd: "/space/root",
+    });
+    expect(auditCaptured).toEqual({
+      command: "cursor agent -p --force",
+      prompt: "hello world",
+      cwd: "/space/root",
+    });
+  });
 });

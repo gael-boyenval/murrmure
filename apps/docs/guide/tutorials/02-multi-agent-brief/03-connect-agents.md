@@ -9,35 +9,28 @@ Each agent window gets its own MCP server entry (or env swap). Never reuse token
 ```json
 {
   "mcpServers": {
-    "murrmure-orchestrator": {
-      "command": "murrmure",
-      "args": ["mcp"],
+    "murrmure": {
+      "command": "murrmure-mcp",
       "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_orchestrator_…",
-        "MURRMURE_SPACE_ID": "spc_orchestrator"
-      }
-    },
-    "murrmure-knowledge": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_knowledge_…",
-        "MURRMURE_SPACE_ID": "spc_knowledge"
-      }
-    },
-    "murrmure-dev": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_dev_…",
-        "MURRMURE_SPACE_ID": "spc_dev"
+        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
       }
     }
   }
 }
+```
+
+Set a different `MURRMURE_HUB_TOKEN` per agent window/shell:
+
+```bash
+export MURRMURE_HUB_TOKEN=tok_orchestrator_...
+# knowledge window -> tok_knowledge_...
+# dev window -> tok_dev_...
+```
+
+Optional local switch helper:
+
+```bash
+mrmr grant use --space spc_orchestrator
 ```
 
 Reload the IDE after saving. See [Connect your agent (MCP)](../../agents-mcp).

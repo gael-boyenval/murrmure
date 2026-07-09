@@ -70,9 +70,22 @@ describe("flow-engine/step-view-ref", () => {
       entry_url: "./dist/index.html",
     };
 
-    const active = findActiveHumanStep(memos, cat);
+    const active = findActiveHumanStep(memos, cat, "spc_demo");
     expect(active?.step_id).toBe("review");
     expect(active?.view_ref?.view_id).toBe("review-view");
     expect(active?.branch_names).toContain("validated");
+  });
+
+  test("findActiveHumanStep synthesizes view_ref when catalog lacks denormalized ref", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "intake", status: "awaiting_human" },
+    ];
+    const active = findActiveHumanStep(memos, structuredClone(catalog), "spc_demo");
+    expect(active?.step_id).toBe("intake");
+    expect(active?.view_ref).toEqual({
+      view_id: "intake-view",
+      origin_space_id: "spc_demo",
+      entry_url: "./dist/index.html",
+    });
   });
 });

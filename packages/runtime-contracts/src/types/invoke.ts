@@ -15,6 +15,13 @@ export interface InvokeExpect {
 }
 
 /** Action + binding context passed to executor adapters at dispatch time. */
+/** Resolved shell command + prompt recorded at dispatch for operator debugging. */
+export interface DispatchAudit {
+  command: string;
+  prompt: string;
+  cwd: string;
+}
+
 export interface DispatchContext {
   action: {
     name: string;

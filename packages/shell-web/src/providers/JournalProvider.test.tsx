@@ -20,7 +20,53 @@ describe("JournalProvider", () => {
     vi.restoreAllMocks();
   });
 
-  it("invalidates spaces query on journal event", async () => {
+  it("invalidates run and graph queries on journal.append", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    let handler: ((payload: { event: string; data: Record<string, unknown> }) => void) | undefined;
+    const mockClient = {
+      spaces: { list: async () => [] },
+      me: { get: async () => ({ actor_id: "test" }), patch: async () => ({ actor_id: "test" }) },
+      notifications: { list: async () => ({ notifications: [], pending_count: 0 }), dismiss: async () => undefined },
+      gates: { listForRun: async () => [], resolve: async () => ({}) as never },
+      auth: { mintSseTicket: async () => ({ ticket: "tkt_test", expires_in: 60 }) },
+      journal: {
+        subscribe(onEvent: (payload: JournalSsePayload) => void) {
+          handler = onEvent;
+          return () => undefined;
+        },
+        query: async () => [],
+      },
+    } as unknown as ShellClient;
+
+    render(
+      <JournalProvider>
+        <div>child</div>
+      </JournalProvider>,
+      { wrapper: wrapper(mockClient, queryClient) },
+    );
+
+    handler?.({
+      event: "journal.append",
+      data: {
+        space_id: "spc_demo",
+        session_id: "ses_abc",
+        run_id: "run_xyz",
+        type: "mrmr.step.resolved",
+      },
+    });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["spaces"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["run", "run_xyz"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["run-graph", "run_xyz"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["session", "ses_abc"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["space-home", "spc_demo"] });
+    });
+  });
+
+  it("invalidates spaces query on space list event", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 

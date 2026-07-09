@@ -52,7 +52,7 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `setup` | First-run wizard (`mrmr setup`, `mrmr space onboard`) |
 | `skill` | Install/update the **murrmure** agent skill |
 
-**MCP:** `mrmr mcp` / `murrmure mcp` — see [Connect your agent](./agents-mcp).
+**MCP:** use `murrmure-mcp` from `@murrmure/mcp-bridge` with thin config (`command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN` env ref). See [Connect your agent](./agents-mcp).
 
 ## Doctor
 
@@ -90,12 +90,19 @@ mrmr logout
 mrmr logout --yes
 ```
 
+Activate a stored per-space grant token for local CLI auth resolution:
+
+```bash
+mrmr grant use --space spc_ui_sandbox
+```
+
 ## Environment (CI / scripts)
 
 ```bash
 export MURRMURE_HUB_URL=http://127.0.0.1:8787
 export MURRMURE_HUB_TOKEN=tok_your_grant_token
 export MURRMURE_SPACE_ID=spc_your_space_id
+mrmr grant use --space spc_your_space_id   # optional local active-pointer switch
 ```
 
 ## Indexed flows (v2)

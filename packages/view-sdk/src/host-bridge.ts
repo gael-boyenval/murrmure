@@ -23,6 +23,7 @@ export interface ViewHostBridgeHandlers {
   onReady?: () => void;
   onSubmit?: (params: Record<string, unknown>) => void;
   onCancel?: () => void;
+  onResolved?: () => void;
 }
 
 /** Attach postMessage listener for view iframe protocol. Returns cleanup. */
@@ -48,6 +49,9 @@ export function attachViewHostBridge(
         break;
       case "murrmure.view.cancel":
         handlers.onCancel?.();
+        break;
+      case "murrmure.view.resolved":
+        handlers.onResolved?.();
         break;
     }
   };

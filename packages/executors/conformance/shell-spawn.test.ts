@@ -57,7 +57,55 @@ describe("shell-spawn helpers", () => {
     expect(prompt).toContain('"topic": "mcp"');
   });
 
-  test("resolveShellCommand uses {{prompt}} from action template", () => {
+  test("resolveInvokePrompt prepends space briefing before task body", () => {
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "feature_build",
+        space_id: "spc_test",
+        run_id: "run_1",
+        space_root: "/tmp/repo",
+        params: { spec_path: "specs/current/demo.md" },
+        murrmure_bindings: {
+          spaceBriefing: "## Actions\n- feature_build",
+          spaceBriefingPath: ".mrmr.temp/briefing.md",
+        },
+      },
+      "Spec: {{spec_path}}",
+    );
+    expect(prompt).toContain("Space briefing");
+    expect(prompt).toContain("feature_build");
+    expect(prompt).toContain("Spec: specs/current/demo.md");
+    expect(prompt.indexOf("Space briefing")).toBeLessThan(prompt.indexOf("Spec:"));
+  });
+
+  test("resolveInvokePrompt separates task and Murrmure protocol", () => {
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "feature_build",
+        space_id: "spc_test",
+        run_id: "run_1",
+        session_id: "ses_1",
+        space_root: "/tmp/repo",
+        params: { spec_path: "specs/current/demo.md" },
+        murrmure_bindings: {
+          run_id: "run_1",
+          agentStepContract: "## Active step: build\nWorkdir: .mrmr.temp/.../work",
+        },
+        step_contract_path: "/tmp/repo/.mrmr.temp/runs/run_1/active-step-contract.json",
+        step_workdir: "/tmp/repo/.mrmr.temp/runs/run_1/steps/build/work",
+      },
+      "Follow `agent.md`.\nSpec: {{spec_path}}\n\n{{murrmure.agentStepContract}}\n\nRun {{run_id}}",
+    );
+    expect(prompt).toContain("<!-- MURRMURE_TASK_BEGIN -->");
+    expect(prompt).toContain("# Task");
+    expect(prompt).toContain("Follow `agent.md`.");
+    expect(prompt).toContain("Spec: specs/current/demo.md");
+    expect(prompt).not.toContain("{{murrmure.agentStepContract}}");
+    expect(prompt).toContain("<!-- MURRMURE_PROTOCOL_BEGIN -->");
+    expect(prompt).toContain("## Active step: build");
+  });
+
+  test("resolveShellCommand pipes {{prompt}} via stdin instead of argv", () => {
     const invoke: InvokeRequest = {
       space_id: "spc_test",
       action_name: "run_feedback_agent",
@@ -72,13 +120,31 @@ describe("shell-spawn helpers", () => {
       binding: { type: "shell_spawn", executor_id: "shell" },
       space_root: "/tmp/repo",
     };
-    expect(resolveShellCommand(invoke, context)).toBe(
-      "cursor agent -p --force 'Kind: failure\nDo the thing'",
-    );
+    expect(resolveShellCommand(invoke, context)).toBe("cursor agent -p --force");
     expect(resolveShellPrompt(invoke, context)).toBe("Kind: failure\nDo the thing");
   });
 
-  test("resolveShellCommand substitutes individual params in command", () => {
+  test("resolveShellCommand uses stdin for actions with prompt templates", () => {
+    const invoke: InvokeRequest = {
+      space_id: "spc_test",
+      action_name: "feature_build",
+      params: {},
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "feature_build",
+        prompt: "Follow `agent.md` and `skills/feature-build/SKILL.md`.",
+        command: "cursor agent -p --force --approve-mcps --trust",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: "/tmp/repo",
+    };
+    expect(resolveShellCommand(invoke, context)).toBe(
+      "cursor agent -p --force --approve-mcps --trust",
+    );
+  });
+
+  test("resolveShellCommand keeps small param substitution in argv", () => {
     const invoke: InvokeRequest = {
       space_id: "spc_test",
       action_name: "run_feedback_agent",

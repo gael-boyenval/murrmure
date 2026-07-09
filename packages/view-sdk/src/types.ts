@@ -43,7 +43,8 @@ export interface ViewAppContext extends ViewHostContext {
 export type ViewHostInboundMessage =
   | { type: "murrmure.view.ready" }
   | { type: "murrmure.view.submit"; params: Record<string, unknown> }
-  | { type: "murrmure.view.cancel" };
+  | { type: "murrmure.view.cancel" }
+  | { type: "murrmure.view.resolved" };
 
 /** Host → view messages. */
 export type ViewHostOutboundMessage = {

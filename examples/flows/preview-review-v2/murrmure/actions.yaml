@@ -1,31 +1,33 @@
 # Role: shell prompt actions only (no .mjs harness scripts).
 version: 1
+
+# Shared headless flags: trust workspace, auto-approve MCP, stream output to hub.
+x-agent-cmd: &agent_cmd cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output
+
 actions:
   feature_write_spec:
     executor: shell
     prompt: |
-      Follow `agent.md`. Copy the spec from the artifact path into `specs/current/{{spec_filename}}`.
-
-      Spec path: {{murrmure.step.intake.artifact.spec.path}}
-
-      Run {{run_id}} / session {{session_id}}
-    command: cursor agent -p --force "{{prompt}}"
+      Copy intake spec to `specs/current/{{spec_filename}}`.
+      Source: {{murrmure.step.intake.artifact.spec.path}}
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "write_spec", branch: "completed" })`
+    command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 300000
+    timeout_ms: 3600000
 
   feature_build:
     executor: shell
     prompt: |
-      Follow `agent.md` and `skills/feature-build/SKILL.md`.
+      Follow `skills/feature-build/SKILL.md` (build ⇄ review loop).
 
-      Spec path: {{murrmure.step.intake.artifact.spec.path}}
+      Spec: `{{spec_path}}` (repo copy — not intake temp file)
+      Dev server: `npm run dev` → http://localhost:3000
 
-      {{murrmure.agentStepContract}}
-
-      During the loop, re-read:
-        {{murrmure.space_root}}/.mrmr.temp/runs/{{murrmure.run_id}}/active-step-contract.json
-    command: cursor agent -p --force "{{prompt}}"
+      You own nested step `build.build-loop` (resolve with preview_url).
+      Human owns `build.review` — use `murrmure_wait_for_run`, never resolve review.
+      On changes_required: fix, resolve build.build-loop again.
+    command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 3600000
@@ -33,23 +35,19 @@ actions:
   feature_archive:
     executor: shell
     prompt: |
-      Follow `agent.md`. Move `specs/current/{{spec_filename}}` → `specs/archive/{{spec_filename}}`.
-      Output JSON only: {"archived_path":"specs/archive/…"}
-
-      Run {{run_id}}
-    command: cursor agent -p --force "{{prompt}}"
+      Move `specs/current/{{spec_filename}}` → `specs/archive/{{spec_filename}}`.
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "archive", branch: "completed", payload: { archived_path: "specs/archive/{{spec_filename}}" } })`
+    command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 60000
+    timeout_ms: 3600000
 
   feature_commit:
     executor: shell
     prompt: |
-      Follow `agent.md`. Git commit all changes for spec {{spec_filename}}.
-      Output JSON only: {"commit_message":"…","description":"…"}
-
-      Run {{run_id}}
-    command: cursor agent -p --force "{{prompt}}"
+      Git commit all changes for spec `{{spec_filename}}`.
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "commit", branch: "completed", payload: { commit_message: "…", description: "…" } })`
+    command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
-    timeout_ms: 120000
+    timeout_ms: 3600000

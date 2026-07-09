@@ -894,33 +894,36 @@ First successful `space link` by a user → **suggest** “Use as landing?” (b
 
 ### 10.9 MCP platform tools (normative)
 
-Agents connect via `@murrmure/cli` stdio bridge. Tool catalog = platform tools (grant-filtered) **union** space-indexed action tools (future). Implementation phases: [plan/00-doc-skill-mcp-tracker.md](./plan/00-doc-skill-mcp-tracker.md).
+Agents connect via `murrmure-mcp` from `@murrmure/mcp-bridge`. MCP config shape is thin:
 
-**Grant mint:** Humans and agents use **`mrmr grant mint`** (CLI). Configure UI grant mint is retired phase 06.
+- `command: "murrmure-mcp"`
+- `env.MURRMURE_HUB_TOKEN` only
+- no MCP `MURRMURE_SPACE_ID` pinning (space identity is token-derived)
+
+Catalog = grant-filtered platform tools. Runtime onboarding flow: `mrmr grant mint` + `mrmr grant use --space <spc_...>`.
 
 | Tool | Required capability | HTTP / behavior |
 |------|---------------------|-----------------|
-| `murrmure_get_space_state` | `space:read` | Indexed actions, flows, hooks summary |
 | `murrmure_apply_space` | `space:write` | `POST /v1/spaces/{id}/apply` |
-| `murrmure_space_status` | `space:read` | Digests + index counts |
-| `murrmure_grant_mint` | `space:write` | `POST /v1/grants` |
+| `murrmure_space_status` | `space:read` | `GET /v1/spaces/{id}/index/status` |
+| `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | `murrmure_create_session` | `flow:run` or `action:invoke` | `POST /v1/sessions` |
-| `murrmure_list_sessions` | `space:read` **or** `journal:read` (at least one; results filtered to granted resources) | `GET /v1/sessions` |
+| `murrmure_list_sessions` | `space:read` or `journal:read` | `GET /v1/sessions` |
 | `murrmure_get_session` | `space:read` | `GET /v1/sessions/{id}` |
 | `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
 | `murrmure_get_run` | `space:read` | `GET /v1/runs/{id}` |
-| `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
-| `murrmure_cancel_run` | `gate:resolve` or run owner policy | `POST /v1/runs/{id}/cancel` |
+| `murrmure_list_step_contracts` | `space:read` | `GET /v1/runs/{id}/step-contracts` |
+| `murrmure_cancel_run` | `gate:resolve` | `POST /v1/runs/{id}/cancel` |
 | `murrmure_invoke_action` | `action:invoke` | action invoke route |
-| `murrmure_wait_for_gate` | `space:read` | long-poll pending gates |
-| `murrmure_resolve_gate` | `gate:resolve` | `POST /v1/gates/{id}/resolve` |
-| `murrmure_wait_for_run` | `space:read` | long-poll until terminal lifecycle |
+| `murrmure_resolve_step` | `step:resolve` | `POST /v1/runs/{id}/steps/{step_id}/resolve` |
+| `murrmure_wait_for_run` | `space:read` | long-poll run status |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
-| `murrmure_attach_orchestration` | `flow:run` on session | `POST /v1/sessions/{id}/orchestration/attach` §6.3 |
+| `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
+| `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
 
-**v1 shim tools** (`transition`, `wait_for_state`, `emit_event`, `contract_versions`, `get_space_state` legacy shape) remain during migration with deprecation log; removed phase 16.
+Removed VS-8 MCP tools (`murrmure_complete_action`, `murrmure_wait_for_gate`, `murrmure_resolve_gate`) stay deprecated/absent; use `murrmure_resolve_step` and `murrmure_wait_for_run`.
 
-**Catalog refresh:** MCP client reload after grant change, `space apply`, or flow index update.
+Catalog refresh remains required after grant changes or `mrmr space apply`.
 
 ---
 

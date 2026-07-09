@@ -53,6 +53,7 @@ steps:
       action: feature_build
       params:
         spec_filename: "{{input.spec_filename}}"
+        spec_path: "specs/current/{{input.spec_filename}}"
     steps:
       - id: build-loop
         description: Implement site; resolve when preview URL ready.

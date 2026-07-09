@@ -2,6 +2,8 @@ import type { HubAuth } from "../auth.js";
 import { resolveHubAuth } from "../auth.js";
 import { buildAuthContext, fetchWhoami, type WhoamiResponse } from "./auth-context.js";
 import { resolveAuthSource, type AuthSource } from "./auth-source.js";
+import { probeMcpLiveHealth, scanMcpConfig } from "./space-doctor-mcp.js";
+import { discoverMurrmureProject } from "./space-doctor.js";
 import { hasScope } from "./scope.js";
 
 export interface DoctorIssue {
@@ -199,6 +201,7 @@ export async function runDoctor(options?: {
     token: options?.token,
   });
   const auth = resolveHubAuth({ hubUrl: options?.hubUrl, token: options?.token });
+  const discovered = discoverMurrmureProject(options?.cwd ?? process.cwd());
 
   if ("error" in auth) {
     return {
@@ -276,6 +279,28 @@ export async function runDoctor(options?: {
     }
   } catch (error) {
     issues.push({ code: "AUTH_CHECK_FAILED", message: String(error) });
+  }
+
+  const mcpScan = scanMcpConfig({
+    projectPath: discovered.projectPath,
+    cwd: discovered.cwd,
+    authToken: auth.token,
+  });
+  const mcpLive = await probeMcpLiveHealth({
+    projectPath: discovered.projectPath,
+    cwd: discovered.cwd,
+    linkedSpaceId: discovered.link?.space_id,
+    auth,
+    context: mcpScan.context,
+  });
+  for (const issue of [...mcpScan.issues, ...mcpLive]) {
+    if (issue.severity === "info") {
+      continue;
+    }
+    issues.push({
+      code: issue.code,
+      message: issue.message,
+    });
   }
 
   const profile: DoctorProfile = {

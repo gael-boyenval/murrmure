@@ -10,7 +10,7 @@ If you remember one thing: **humans use Murrmure Desktop, operators use the CLI,
 |-----------|-------------|-------------------|----------|
 | **Murrmure Desktop** | Humans (reviewers, leads) | Desktop app | Observer shell — sessions, gates, audit |
 | **Hub** (local sidecar in Desktop) | Shared backend | Bundled with Desktop | Stores spaces, journal events, flows, grants, and policy |
-| **`@murrmure/cli`** (MCP) | Agent operators (Cursor/Claude) | Yes | `murrmure mcp` — exposes Murrmure tools to agents |
+| **`@murrmure/mcp-bridge`** | Agent operators (Cursor/Claude) | Yes | `murrmure-mcp` stdio bridge for MCP clients |
 | **`@murrmure/cli`** (platform) | CLI operators / CI | Yes for setup | `mrmr space`, `mrmr grant mint`, `mrmr space apply`, audit, automation |
 | **`@murrmure/view-sdk`** | View authors | Optional | `createViewMount`, view dev loop — scaffold with `mrmr space view init` |
 
@@ -28,7 +28,7 @@ Human in Murrmure Desktop (observer shell)
         - grants + token auth
         - flow lifecycle
                  ^
-                 | MCP via @murrmure/cli
+                | MCP via @murrmure/mcp-bridge
                  |
 Agent in Cursor/Claude
   - create sessions/specs
@@ -57,20 +57,17 @@ Shell chrome (space home, flowchart, gate inbox) is **operator/admin mode** — 
 1. Open **Murrmure Desktop** — bootstrap auth lands you on `/spaces/new`
 2. Run **`mrmr space link --create`** and **`mrmr space apply`** to install flows
 3. Run **`mrmr grant mint`** for each agent
-4. Agent operator sets MCP env values:
-   - `MURRMURE_HUB_URL` (`http://127.0.0.1:8787` with Desktop)
-   - `MURRMURE_HUB_TOKEN`
-   - `MURRMURE_SPACE_ID`
+4. Agent operator exports `MURRMURE_HUB_TOKEN` from `mrmr grant mint` and uses thin MCP config (`command: "murrmure-mcp"`)
 5. Agent and humans collaborate on the same session through hub-mediated handoffs
 
-## Grants, tokens, and `MURRMURE_SPACE_ID`
+## Grants, tokens, and MCP targeting
 
 - A **grant** defines what one agent can do.
 - Minting a grant returns a one-time token (`tok_...`) for that agent.
-- `MURRMURE_SPACE_ID` pins the MCP connection to one space (`spc_...`).
+- Token claims define space identity and ACL for MCP tools.
 - Tool visibility is filtered by grant scopes, live flows in that space, and flow ACL restrictions.
 
-Recommended practice: one token per agent process, and separate tokens for local/CI/prod workers.
+Recommended practice: one token per agent process, use `mrmr grant use --space ...` to switch active local grant pointers, and keep separate tokens for local/CI/prod workers.
 
 ## When to use each npm package
 

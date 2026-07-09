@@ -1,0 +1,31 @@
+{
+  "name": "@murrmure/mcp-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "murrmure-mcp": "./dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

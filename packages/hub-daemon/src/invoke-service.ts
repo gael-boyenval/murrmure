@@ -1,4 +1,5 @@
 import { InvokeBodySchema, assertInlinePayloadWithinLimit } from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import {
   orchestrateInvoke,
   resolveInvokeTarget,
@@ -10,6 +11,11 @@ import {
   DEFAULT_WORKER_TTL_MS,
   registerShellProcessCancel,
   buildFlowInvokeStepContract,
+  mergeDispatchAuditIntoRun,
+  appendShellStreamToRun,
+  mergeActionResultIntoRun,
+  readSpaceBriefingExcerpt,
+  SPACE_BRIEFING_REL_PATH,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -17,6 +23,7 @@ import {
 import type { InvokeRequest } from "@murrmure/runtime-contracts";
 import type { HubHandler } from "@murrmure/hub-core";
 import { createExecutorRegistry } from "@murrmure/executors";
+import type { ShellCompleteInput, ShellStreamChunk } from "@murrmure/executors";
 import { ulid } from "ulid";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { ControlBus, ControlPrincipal } from "./control-bus.js";
@@ -34,6 +41,7 @@ export class InvokeService {
   private readonly pendingInvokes = new Map<string, QueuedInvokeItem[]>();
   private readonly registry;
   private lastActor: { actor_id: string; token_id: string } | null = null;
+  private readonly shellStreamBroadcastAt = new Map<string, number>();
 
   constructor(
     private readonly studio: StudioPersistencePort,
@@ -47,8 +55,14 @@ export class InvokeService {
     const clock = { now: () => Date.now(), nowIso: () => new Date().toISOString() };
     this.registry = createExecutorRegistry({
       shellSpawn: {
-        onProcessStart: ({ run_id, child }) => {
-          registerShellProcessCancel(run_id, child);
+        onProcessStart: ({ run_id, step_id, child }) => {
+          registerShellProcessCancel(run_id, step_id, child);
+        },
+        onOutputChunk: (chunk) => {
+          void this.handleShellOutputChunk(chunk);
+        },
+        onShellComplete: (input) => {
+          void this.handleShellComplete(input);
         },
       },
       mcpSession: {
@@ -141,49 +155,178 @@ export class InvokeService {
   private journalWriter(): InvokeJournalWriter {
     return {
       append: async (input) => {
-        const result = await this.handler.appendSpaceJournal({
-          type: input.type,
-          space_id: input.space_id,
-          session_id: input.session_id,
-          run_id: input.run_id,
-          actor_id: input.actor_id,
-          token_id: input.token_id,
-          data: {
-            ...input.data,
-            step_id: input.step_id,
-          },
-        });
-
-        await projectStepMemoFromJournal(this.ctx, {
-          run_id: input.run_id,
-          step_id: input.step_id,
-          type: input.type,
-          ts: new Date().toISOString(),
-          idempotency_key:
-            typeof input.data.idempotency_key === "string" ? input.data.idempotency_key : undefined,
-          error_code: typeof input.data.error_code === "string" ? input.data.error_code : undefined,
-          executor_type:
-            typeof input.data.executor_type === "string" ? input.data.executor_type : undefined,
-          result:
-            input.data.result && typeof input.data.result === "object"
-              ? (input.data.result as Record<string, unknown>)
-              : undefined,
-        });
-
-        broadcastSse(this.ctx, {
-          event: "journal.append",
-          data: {
-            type: input.type,
-            space_id: prefixedSpaceId(bareSpaceId(input.space_id)),
-            session_id: input.session_id,
-            run_id: input.run_id,
-            step_id: input.step_id,
-            seq: result.seq,
-            event_id: result.entry_id,
-          },
-        });
+        await this.appendJournalAndProject(input);
       },
     };
+  }
+
+  private async appendJournalAndProject(input: {
+    type: string;
+    space_id: string;
+    session_id?: string;
+    run_id?: string;
+    step_id: string;
+    action_name?: string;
+    actor_id: string;
+    token_id: string;
+    data?: Record<string, unknown>;
+  }): Promise<void> {
+    const result = await this.handler.appendSpaceJournal({
+      type: input.type,
+      space_id: input.space_id,
+      session_id: input.session_id,
+      run_id: input.run_id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      data: {
+        ...input.data,
+        step_id: input.step_id,
+        ...(input.action_name ? { action_name: input.action_name } : {}),
+      },
+    });
+
+    await projectStepMemoFromJournal(this.ctx, {
+      run_id: input.run_id,
+      step_id: input.step_id,
+      type: input.type,
+      ts: new Date().toISOString(),
+      idempotency_key:
+        typeof input.data?.idempotency_key === "string" ? input.data.idempotency_key : undefined,
+      error_code: typeof input.data?.error_code === "string" ? input.data.error_code : undefined,
+      executor_type:
+        typeof input.data?.executor_type === "string" ? input.data.executor_type : undefined,
+      result:
+        input.data?.result && typeof input.data.result === "object"
+          ? (input.data.result as Record<string, unknown>)
+          : undefined,
+    });
+
+    broadcastSse(this.ctx, {
+      event: "journal.append",
+      data: {
+        type: input.type,
+        space_id: prefixedSpaceId(bareSpaceId(input.space_id)),
+        session_id: input.session_id,
+        run_id: input.run_id,
+        step_id: input.step_id,
+        seq: result.seq,
+        event_id: result.entry_id,
+      },
+    });
+  }
+
+  private async handleShellOutputChunk(chunk: ShellStreamChunk): Promise<void> {
+    if (!chunk.run_id) return;
+    await appendShellStreamToRun(this.studio, {
+      run_id: chunk.run_id,
+      step_id: chunk.step_id,
+      stream: chunk.stream,
+      chunk: chunk.chunk,
+    });
+
+    const key = `${chunk.run_id}:${chunk.step_id}`;
+    const now = Date.now();
+    const last = this.shellStreamBroadcastAt.get(key) ?? 0;
+    if (now - last < 200) return;
+    this.shellStreamBroadcastAt.set(key, now);
+
+    const bare = chunk.run_id.startsWith("run_") ? chunk.run_id.slice(4) : chunk.run_id;
+    const run = await this.studio.getRun(bare);
+    if (!run?.space_id) return;
+
+    broadcastSse(this.ctx, {
+      event: "journal.append",
+      data: {
+        type: "mrmr.action.output",
+        space_id: prefixedSpaceId(run.space_id),
+        session_id: run.session_id ? `ses_${run.session_id}` : undefined,
+        run_id: chunk.run_id.startsWith("run_") ? chunk.run_id : `run_${chunk.run_id}`,
+        step_id: chunk.step_id,
+      },
+    });
+  }
+
+  private async handleShellComplete(input: ShellCompleteInput): Promise<void> {
+    if (!input.run_id) return;
+    const bare = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const run = await this.studio.getRun(bare);
+    if (!run?.space_id) return;
+
+    const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
+    const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
+    const actor_id = this.lastActor?.actor_id ?? "system_invoke";
+    const token_id = this.lastActor?.token_id ?? "system";
+    const outcome = input.outcome;
+
+    if (outcome.status === "completed") {
+      await this.appendJournalAndProject({
+        type: JOURNAL_EVENT_TYPES.ACTION_COMPLETED,
+        space_id,
+        session_id,
+        run_id: input.run_id,
+        step_id: input.step_id,
+        action_name: input.action_name,
+        actor_id,
+        token_id,
+        data: { result: outcome.result, action_name: input.action_name },
+      });
+      return;
+    }
+
+    if (outcome.status !== "failed") return;
+
+    const memos = await this.studio.listRunStepMemos(`run_${bare}`);
+    const memo = memos.find((m) => m.step_id === input.step_id);
+    if (memo?.status === "completed") {
+      if (outcome.result) {
+        await mergeActionResultIntoRun(this.studio, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "completed",
+          result: outcome.result,
+          completed_at: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+
+    const journalType =
+      outcome.error_code === "ACTION_TIMED_OUT"
+        ? JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
+        : JOURNAL_EVENT_TYPES.ACTION_FAILED;
+
+    await this.appendJournalAndProject({
+      type: journalType,
+      space_id,
+      session_id,
+      run_id: input.run_id,
+      step_id: input.step_id,
+      action_name: input.action_name,
+      actor_id,
+      token_id,
+      data: {
+        error_code: outcome.error_code,
+        detail: outcome.detail,
+        result: outcome.result,
+        action_name: input.action_name,
+      },
+    });
+
+    await failRunWithNotification(
+      {
+        studio: this.studio,
+        handler: this.handler,
+        ids: { ulid: () => ulid() },
+        clock: { nowIso: () => new Date().toISOString() },
+        executorPollStore: this.ctx.executorPollStore,
+      },
+      {
+        run_id: input.run_id,
+        actor_id,
+        token_id,
+        reason: outcome.error_code ?? "invoke_failed",
+      },
+    );
   }
 
   private memoPort(): InvokeMemoStore {
@@ -235,7 +378,17 @@ export class InvokeService {
             invokeQueue: this.invokeQueuePort(),
             clock: { nowIso: () => new Date().toISOString() },
           },
-          { skipMemoLookup: true },
+          {
+            skipMemoLookup: true,
+            onDispatchAudit: async ({ run_id, step_id, audit }) => {
+              await mergeDispatchAuditIntoRun(this.studio, {
+                run_id,
+                step_id,
+                audit,
+                dispatched_at: new Date().toISOString(),
+              });
+            },
+          },
         );
       }
     } catch {
@@ -395,7 +548,17 @@ export class InvokeService {
         step_id: parsed.data.step_id,
         space_root: resolved.space_root,
       });
-      if (stepContract) request.step_contract = stepContract;
+      if (stepContract) {
+        const briefing = await readSpaceBriefingExcerpt(resolved.space_root);
+        if (briefing) {
+          stepContract.prompt_bindings = {
+            ...stepContract.prompt_bindings,
+            spaceBriefing: briefing,
+            spaceBriefingPath: SPACE_BRIEFING_REL_PATH,
+          };
+        }
+        request.step_contract = stepContract;
+      }
     }
 
     this.lastActor = { actor_id: input.actor_id, token_id: input.token_id };
@@ -409,6 +572,15 @@ export class InvokeService {
       journal: this.journalWriter(),
       invokeQueue: this.invokeQueuePort(),
       clock: { nowIso: () => new Date().toISOString() },
+    }, {
+      onDispatchAudit: async ({ run_id, step_id, audit }) => {
+        await mergeDispatchAuditIntoRun(this.studio, {
+          run_id,
+          step_id,
+          audit,
+          dispatched_at: new Date().toISOString(),
+        });
+      },
     });
 
     if (response.dispatch.status === "failed" && run_id) {

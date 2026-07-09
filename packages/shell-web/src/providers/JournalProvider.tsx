@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { JOURNAL_SSE_EVENTS } from "@murrmure/shell-client";
+import { invalidateRunStateQueries } from "../lib/invalidate-run-queries.js";
 import { useShellClient } from "./ShellClientProvider.js";
 
 const INVALIDATION_EVENTS = new Set<string>([
@@ -10,6 +11,15 @@ const INVALIDATION_EVENTS = new Set<string>([
 const NOTIFICATION_INVALIDATION_EVENTS = new Set<string>([
   "gate.pending",
   "gate.resolved",
+  "notification.changed",
+  "wait.resolved",
+]);
+
+const RUN_STATE_INVALIDATION_EVENTS = new Set<string>([
+  "journal.append",
+  "gate.pending",
+  "gate.resolved",
+  "wait.resolved",
   "notification.changed",
 ]);
 
@@ -29,12 +39,16 @@ export function JournalProvider({ children }: { children: ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: ["notifications"] });
       }
 
-      const spaceId = payload.data.space_id;
-      if (typeof spaceId === "string") {
-        void queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
-        void queryClient.invalidateQueries({ queryKey: ["sessions", spaceId] });
-        void queryClient.invalidateQueries({ queryKey: ["runs", spaceId] });
-        void queryClient.invalidateQueries({ queryKey: ["journal"] });
+      if (RUN_STATE_INVALIDATION_EVENTS.has(payload.event)) {
+        invalidateRunStateQueries(queryClient, payload.data);
+      } else {
+        const spaceId = payload.data.space_id;
+        if (typeof spaceId === "string") {
+          void queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
+          void queryClient.invalidateQueries({ queryKey: ["sessions", spaceId] });
+          void queryClient.invalidateQueries({ queryKey: ["runs", spaceId] });
+          void queryClient.invalidateQueries({ queryKey: ["journal"] });
+        }
       }
     });
   }, [client, queryClient]);

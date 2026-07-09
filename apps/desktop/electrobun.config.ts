@@ -10,20 +10,18 @@ const config: ElectrobunConfig = {
   },
   build: {
     bun: {
-      entrypoint: "src/main.ts",
+      entrypoint: "src/bun/index.ts",
     },
     copy: {
-      "../../packages/studio-hub-daemon/dist": "Resources/hub",
-      "../../packages/studio-hub-daemon/src/capability-worker-entry.js": "Resources/hub/capability-worker-entry.js",
+      "../../packages/hub-daemon/dist": "Resources/hub",
       "../../packages/shell-web/dist": "Resources/shell/dist",
       "../../fixtures/hub/contracts": "Resources/hub/contracts",
-      "../../fixtures/hub/workers": "Resources/hub/workers",
     },
     buildFolder: "build",
     artifactFolder: "artifacts",
     watch: [
       "src/**",
-      "../../packages/studio-hub-daemon/dist/**",
+      "../../packages/hub-daemon/dist/**",
       "../../packages/shell-web/dist/**",
     ],
     watchIgnore: ["build/**", "artifacts/**"],

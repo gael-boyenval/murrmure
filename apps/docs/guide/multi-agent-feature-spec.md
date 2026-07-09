@@ -122,31 +122,42 @@ Each row has terminal `outcome`: `success`, `failed`, or `deduped` (not `pending
 
 Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
 
-### `~/work/orchestrator/.cursor/mcp.json`
+Install bridge once:
+
+```bash
+npm install -g @murrmure/mcp-bridge
+```
+
+Use the same thin config in each folder:
 
 ```json
 {
   "mcpServers": {
     "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
+      "command": "murrmure-mcp",
       "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR_GRANT",
-        "MURRMURE_SPACE_ID": "spc_orchestrator"
+        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
       }
     }
   }
 }
 ```
 
-Default hub URL with Desktop is `http://127.0.0.1:8787`. Add optional second MCP servers with read grants on Knowledge/Dev spaces if the orchestrator needs **`get_spec`** on those spaces.
+Then, in each agent shell/window, export the matching token for that space:
 
-Dev agent only needs its own `mrmr` server on the Dev space — wakes and cross-space reads use **`query_ask`** when query policy allows.
+```bash
+export MURRMURE_HUB_TOKEN=tok_ORCHESTRATOR_GRANT   # orchestrator window
+export MURRMURE_HUB_TOKEN=tok_KNOWLEDGE_GRANT      # knowledge window
+export MURRMURE_HUB_TOKEN=tok_DEV_GRANT            # dev window
+```
 
-### `~/work/knowledge-base/` and `~/work/dev-project/`
+Optional local pointer switch:
 
-Same shape — one `mrmr` server each, with that folder's token and `MURRMURE_SPACE_ID`.
+```bash
+mrmr grant use --space spc_orchestrator
+```
+
+Repeat per space (`spc_knowledge`, `spc_dev`) on the machine that stores those grants.
 
 Reload MCP in every window.
 
@@ -264,11 +275,11 @@ sequenceDiagram
 
 | Mistake | Fix |
 |---------|-----|
-| One token in all three IDEs | Three grants, three `MURRMURE_SPACE_ID` values |
+| One token in all three IDEs | Use three grants (one token per agent window) |
 | MCP tools missing | **`mrmr space apply --strict`**; **`mrmr grant mint`** with `flow:run` / `query:ask`; reload MCP |
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
-| Wrong space in MCP config | Match `MURRMURE_SPACE_ID` to grant's space |
+| Wrong space context | Export the token minted for that space (or run `mrmr grant use --space ...`) |
 | Dev not woken after publish | Register **Spec published → wake dev** trigger; check `mrmr space trigger deliveries` |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |

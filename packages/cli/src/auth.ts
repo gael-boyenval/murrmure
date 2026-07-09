@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readCredentials } from "./lib/auth-store.js";
+import { resolveActiveGrantToken } from "./lib/grant-store.js";
 
 export interface HubAuth {
   hubUrl: string;
@@ -49,6 +50,15 @@ function envAuth(): Partial<HubAuth> | null {
     hubUrl: normalizeHubUrl(hubUrl),
     token,
     defaultSpaceId: process.env.MURRMURE_SPACE_ID,
+  };
+}
+
+function activeGrantAuth(): Partial<HubAuth> | null {
+  const activeGrant = resolveActiveGrantToken();
+  if (!activeGrant) return null;
+  return {
+    token: activeGrant.token,
+    defaultSpaceId: activeGrant.spaceId,
   };
 }
 
@@ -106,12 +116,17 @@ export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: st
     overrides?.hubUrl || overrides?.token
       ? { hubUrl: overrides.hubUrl, token: overrides.token }
       : null;
-  const sources = [flagSource, envAuth(), credentialsAuth(), sharedJsonAuth()];
+  const env = envAuth();
+  const activeGrant = activeGrantAuth();
+  const credentials = credentialsAuth();
+  const shared = sharedJsonAuth();
+  const hubSources = [flagSource, env, credentials, shared];
+  const tokenSources = [flagSource, env, activeGrant, credentials, shared];
 
-  const hubUrl = pickField(sources, (source) => source.hubUrl);
-  const token = pickField(sources, (source) => source.token);
+  const hubUrl = pickField(hubSources, (source) => source.hubUrl);
+  const token = pickField(tokenSources, (source) => source.token);
   const defaultSpaceId = pickField(
-    [envAuth(), credentialsAuth(), sharedJsonAuth()],
+    [env, activeGrant, credentials, shared],
     (source) => source?.defaultSpaceId,
   );
 
@@ -121,7 +136,7 @@ export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: st
 
   return {
     error:
-      "Missing hub auth — run mrmr login, or set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN), or ~/.murrmure/credentials",
+      "Missing hub auth — run mrmr login, or set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN), or activate a stored grant with mrmr grant use --space <spc_…>",
   };
 }
 

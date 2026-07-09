@@ -4,10 +4,10 @@ import {
   hasCapability,
   resolveEffectiveCapabilities,
   buildEmittableEventsCatalog,
-  buildEmitEventInputSchema,
 } from "@murrmure/hub-core";
 import { bareSpaceId } from "./space-id.js";
 import type { TokenContext } from "./auth.js";
+import { buildPlatformToolInputSchema } from "./mcp-tool-schemas.js";
 
 export interface ToolDef {
   name: string;
@@ -103,7 +103,10 @@ export class McpToolRegistry {
         };
         if (tool.name === "murrmure_emit_event" && bareSpace) {
           emitCatalog ??= await buildEmittableEventsCatalog(this.studio, bareSpace);
-          def.inputSchema = buildEmitEventInputSchema(emitCatalog);
+        }
+        const inputSchema = buildPlatformToolInputSchema(tool.name, { emitCatalog });
+        if (inputSchema) {
+          def.inputSchema = inputSchema;
         }
         out.push(def);
       }

@@ -24,6 +24,7 @@ describe("space init scaffold", () => {
     });
     expect(existsSync(join(targetDir, "murrmure", "actions.yaml"))).toBe(true);
     expect(existsSync(join(targetDir, "murrmure", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".cursor", "mcp.json"))).toBe(false);
   });
 
   test("scaffolds into an existing empty murrmure/ directory", async () => {

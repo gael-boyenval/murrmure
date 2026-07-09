@@ -16,6 +16,7 @@ vi.mock("node:os", async () => {
 import { resolveHubAuth } from "../src/auth.js";
 import { validateAndSaveLogin } from "../src/commands/auth.js";
 import { writeCredentials } from "../src/lib/auth-store.js";
+import { setActiveGrantSpace, writeGrantToken } from "../src/lib/grant-store.js";
 
 describe("resolveHubAuth", () => {
   const envSnapshot = { ...process.env };
@@ -72,6 +73,24 @@ describe("resolveHubAuth", () => {
       hubUrl: "http://env.example",
       token: "tok_env",
       defaultSpaceId: "spc_cred",
+    });
+  });
+
+  test("prefers active grant token over saved credentials token", () => {
+    writeCredentials({
+      version: 1,
+      hubUrl: "http://cred.example",
+      token: "tok_cred",
+      defaultSpaceId: "spc_cred",
+      savedAt: new Date().toISOString(),
+    });
+    writeGrantToken("spc_active", "tok_active_space");
+    setActiveGrantSpace("spc_active");
+
+    expect(resolveHubAuth()).toEqual({
+      hubUrl: "http://cred.example",
+      token: "tok_active_space",
+      defaultSpaceId: "spc_active",
     });
   });
 

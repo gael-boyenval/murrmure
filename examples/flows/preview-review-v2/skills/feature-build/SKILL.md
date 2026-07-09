@@ -1,6 +1,6 @@
 # Feature build (contract-driven, nested review)
 
-Read `agent.md` first. Murrmure MCP must be connected (`action:invoke`, `step:resolve`, `space:read`).
+Read `agent.md` first. Murrmure tools must be connected (`action:invoke`, `step:resolve`, `space:read`).
 
 ## Contract file loop
 

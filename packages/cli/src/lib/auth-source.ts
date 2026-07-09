@@ -3,8 +3,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AuthOverrides } from "../auth.js";
 import { readCredentials } from "./auth-store.js";
+import { resolveActiveGrantToken } from "./grant-store.js";
 
-export type AuthSource = "flags" | "env" | "credentials" | "shared.json";
+export type AuthSource = "flags" | "env" | "active-grant" | "credentials" | "shared.json";
 
 function envAuthPresent(): boolean {
   const hubUrl = process.env.MURRMURE_HUB_URL;
@@ -17,6 +18,10 @@ function envAuthPresent(): boolean {
 
 function credentialsAuthPresent(): boolean {
   return readCredentials() !== null;
+}
+
+function activeGrantAuthPresent(): boolean {
+  return resolveActiveGrantToken() !== null;
 }
 
 function sharedJsonAuthPresent(): boolean {
@@ -36,6 +41,7 @@ function sharedJsonAuthPresent(): boolean {
 export function resolveAuthSource(overrides?: AuthOverrides): AuthSource | null {
   if (overrides?.hubUrl || overrides?.token) return "flags";
   if (envAuthPresent()) return "env";
+  if (activeGrantAuthPresent()) return "active-grant";
   if (credentialsAuthPresent()) return "credentials";
   if (sharedJsonAuthPresent()) return "shared.json";
   return null;

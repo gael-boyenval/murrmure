@@ -218,7 +218,7 @@ describe("wizard space ops", () => {
     expect(grant.token).toBe("tok_agent");
     expect(grant.mcp_snippet).toContain("MURRMURE_HUB_TOKEN");
     expect(grant.mcp_snippet).toContain("tok_agent");
-    expect(buildMcpConfigSnippet({ hubUrl: "http://127.0.0.1:8787", token: "tok_agent", spaceId: "spc_wizard" })).toContain(
+    expect(buildMcpConfigSnippet({ token: "tok_agent" })).toContain(
       "murrmure",
     );
   });

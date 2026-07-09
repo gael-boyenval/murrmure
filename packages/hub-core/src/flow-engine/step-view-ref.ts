@@ -41,18 +41,38 @@ export interface ActiveHumanStep {
   branch_names: string[];
 }
 
+function prefixedSpaceId(space_id: string): string {
+  return space_id.startsWith("spc_") ? space_id : `spc_${space_id}`;
+}
+
+/** Resolve view_ref from catalog presentation, with apply-time ref or runtime fallback. */
+export function presentationViewRef(
+  presentation: { view?: string; view_ref?: FlowViewRef } | undefined,
+  originSpaceId: string,
+): FlowViewRef | undefined {
+  if (!presentation?.view) return undefined;
+  if (presentation.view_ref) return presentation.view_ref;
+  return {
+    view_id: presentation.view,
+    origin_space_id: prefixedSpaceId(originSpaceId),
+    entry_url: "./dist/index.html",
+  };
+}
+
 /** Find the active human step from run memos + compiled catalog. */
 export function findActiveHumanStep(
   memos: RunStepMemo[],
   catalog: StepContractCatalog | null | undefined,
+  originSpaceId?: string,
 ): ActiveHumanStep | null {
   const memo = memos.find((m) => m.status === "awaiting_human");
   if (!memo || !catalog) return null;
   const entry = catalogEntryForStep(catalog, memo.step_id);
   if (!entry?.presentation?.view) return null;
+  const spaceId = originSpaceId ?? catalog.flow_id.replace(/^flw_/, "");
   return {
     step_id: memo.step_id,
-    view_ref: entry.presentation.view_ref,
+    view_ref: presentationViewRef(entry.presentation, spaceId),
     assignees: entry.presentation.assignees,
     branch_names: Object.keys(entry.branches),
   };

@@ -25,7 +25,7 @@ Everything is recorded. Every comment, handoff, and approval lands in an append-
 |----------|------------------|--------------|
 | **Desktop user** (reviewer, lead, admin UI) | [Murrmure Desktop](./desktop) | Observer shell inside Desktop — review, comment, approve gates |
 | **CLI operator** | `@murrmure/cli` (`mrmr`) | Terminal — `mrmr space`, `mrmr grant mint`, flow apply, CI scripts |
-| **Agent (MCP)** | `@murrmure/cli` (MCP binary) | Scoped grant from `mrmr grant mint` — agent calls Murrmure tools from the IDE |
+| **Agent (MCP)** | `@murrmure/mcp-bridge` (`murrmure-mcp`) | Scoped grant from `mrmr grant mint` — agent calls Murrmure tools from the IDE |
 
 You **don't clone a git repository** to use Murrmure — install Desktop and the CLI. You **don't use curl** for everyday work — people use Desktop, operators use `mrmr`, agents use MCP.
 

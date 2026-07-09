@@ -59,7 +59,9 @@ mrmr federation status
 |----------|----------|
 | `MURRMURE_HUB_URL` | Hub base (default `http://127.0.0.1:8787`) |
 | `MURRMURE_TOKEN` / `MURRMURE_HUB_TOKEN` | Bearer token |
-| `MURRMURE_SPACE_ID` | Default space in MCP/snippets |
+| `MURRMURE_SPACE_ID` | Default CLI `--space` fallback |
+
+MCP config does not require `MURRMURE_SPACE_ID`.
 
 Add `--json` for machine-readable output in scripts.
 

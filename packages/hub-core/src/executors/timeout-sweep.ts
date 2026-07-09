@@ -27,6 +27,14 @@ export async function sweepExecutorTimeouts(
     const run = await deps.studio.getRun(runBare);
     if (!run?.space_id) continue;
 
+    const memos = await deps.studio.listRunStepMemos(
+      item.run_id.startsWith("run_") ? item.run_id : `run_${item.run_id}`,
+    );
+    const memo = memos.find((m) => m.step_id === item.step_id);
+    if (memo?.status === "completed" || memo?.status === "failed") {
+      continue;
+    }
+
     const summary = formatActionTimedOutSummary({
       step_id: item.step_id,
       action_name: item.action_name,
@@ -62,7 +70,7 @@ export async function sweepExecutorTimeouts(
 
 export function startExecutorTimeoutSweep(
   deps: SessionRunDeps & { handler: HubHandler },
-  intervalMs = 5_000,
+  intervalMs = 1_000,
 ): () => void {
   const timer = setInterval(() => {
     void sweepExecutorTimeouts(deps).catch(() => undefined);

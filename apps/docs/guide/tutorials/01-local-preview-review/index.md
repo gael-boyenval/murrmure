@@ -71,7 +71,7 @@ No `preview.local.yaml` and no preview URL at intake — the agent discovers wha
 
 ## Prerequisites
 
-Node.js 20+, Murrmure Desktop, `@murrmure/cli`, Cursor with CLI (`cursor agent`), Murrmure MCP connected (`action:invoke`, `step:resolve`, `space:read`).
+Node.js 20+, Murrmure Desktop, `@murrmure/cli`, Cursor with CLI (`cursor agent`), Murrmure tools connected (`action:invoke`, `step:resolve`, `space:read`).
 
 ## Next
 

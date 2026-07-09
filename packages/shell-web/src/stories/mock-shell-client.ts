@@ -115,6 +115,7 @@ export function createMockShellClient(
       step_memos: [],
     }),
     retry: async () => ({ run: { run_id: "run_retry" } }),
+    cancel: async () => ({ run: { run_id: "run_demo", lifecycle: "cancelled" } }),
   },
   };
 }

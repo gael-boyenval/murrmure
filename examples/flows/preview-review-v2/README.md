@@ -36,3 +36,14 @@ mrmr space apply --strict
 ## Run
 
 Open the linked space in Desktop, run **preview-review**, complete intake, then review in **ViewCanvasHost** until validated. Build agent resolves **`build.build-loop`** with `preview_url`; engine opens **`build.review`**.
+
+## Connect agent (thin MCP)
+
+Use the thin MCP bridge shape only (`murrmure-mcp` + `MURRMURE_HUB_TOKEN`):
+
+```bash
+mrmr grant mint --space spc_... --label "cursor-agent"
+mrmr grant use --space spc_...
+```
+
+For repo-local setup, add `--local --write-mcp` to `mrmr grant mint`.

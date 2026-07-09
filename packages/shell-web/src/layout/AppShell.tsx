@@ -29,8 +29,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const spaces = spacesQuery.data ?? [];
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <header className="flex h-12 items-center gap-4 border-b border-border px-4">
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-border px-4">
         <Link to="/" className="text-sm font-semibold tracking-tight">
           Murrmure
         </Link>
@@ -42,8 +42,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProfileMenu />
         </div>
       </header>
-      <div className="flex flex-1">
-        <Sidebar>
+      <div className="flex min-h-0 flex-1">
+        <Sidebar className="min-h-0">
           <SidebarHeader>
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Spaces</span>
           </SidebarHeader>
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
           </SidebarFooter>
         </Sidebar>
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-6">{children}</main>
       </div>
     </div>
   );

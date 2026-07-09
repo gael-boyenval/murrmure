@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button } from "@murrmure/shell-ui";
 import { AppShell } from "../layout/AppShell.js";
 import { getStoredHubUrl, isBundledShell, setStorageItem } from "../hooks.js";
+import { buildMcpSnippet, McpSnippetCard } from "../components/McpSnippetCard.js";
 
 export function ConnectPage() {
   const bundled = isBundledShell();
@@ -10,23 +11,7 @@ export function ConnectPage() {
   const [hubUrl, setHubUrl] = useState(getStoredHubUrl());
   const [token, setToken] = useState(() => localStorage.getItem("murrmure_token") ?? "");
 
-  const mcpSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        murrmure: {
-          command: "murrmure",
-          args: ["mcp"],
-          env: {
-            MURRMURE_HUB_URL: bundled ? window.location.origin : hubUrl,
-            MURRMURE_HUB_TOKEN: token || "tok_…",
-            MURRMURE_SPACE_ID: "spc_…",
-          },
-        },
-      },
-    },
-    null,
-    2,
-  );
+  const mcpSnippet = buildMcpSnippet({ token });
 
   return (
     <AppShell>
@@ -75,17 +60,7 @@ export function ConnectPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">MCP snippet</CardTitle>
-            <CardDescription>Prefilled from your connection values.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="overflow-x-auto rounded-md border border-border bg-muted p-3 text-xs">
-              {mcpSnippet}
-            </pre>
-          </CardContent>
-        </Card>
+        <McpSnippetCard snippet={mcpSnippet} />
       </div>
     </AppShell>
   );

@@ -15,17 +15,14 @@ function getMenuAction(payload: unknown): string | null {
   return typeof candidate === "string" ? candidate : null;
 }
 
-export function buildMcpConfigSnippet(hubUrl: string): string {
+export function buildMcpConfigSnippet(): string {
   return JSON.stringify(
     {
       mcpServers: {
         murrmure: {
-          command: "murrmure",
-          args: ["mcp"],
+          command: "murrmure-mcp",
           env: {
-            MURRMURE_HUB_URL: hubUrl.replace(/\/$/, ""),
             MURRMURE_HUB_TOKEN: "tok_<replace_with_grant_token>",
-            MURRMURE_SPACE_ID: "spc_<replace_with_space_id>",
           },
         },
       },
@@ -39,7 +36,7 @@ export function installDesktopMenu(
   runtime: DesktopMenuRuntime,
   options: { hubUrl: string; dataDir: string },
 ): void {
-  const mcpSnippet = buildMcpConfigSnippet(options.hubUrl);
+  const mcpSnippet = buildMcpConfigSnippet();
 
   runtime.setApplicationMenu([
     {

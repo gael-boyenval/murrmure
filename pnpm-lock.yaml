@@ -133,9 +133,6 @@ importers:
       '@clack/prompts':
         specifier: ^1.6.0
         version: 1.6.0
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.12.1
-        version: 1.29.0(zod@3.25.76)
       '@murrmure/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -292,6 +289,28 @@ importers:
         specifier: ^4.19.3
         version: 4.22.4
 
+  packages/mcp-bridge:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jsdom@26.1.0)(lightningcss@1.32.0)
+
   packages/runtime-adapter-http:
     dependencies:
       '@hono/node-server':
@@ -446,12 +465,6 @@ importers:
         specifier: ^6.26.2
         version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@storybook/react':
-        specifier: ^8.6.14
-        version: 8.6.18(@storybook/test@8.6.15(storybook@8.6.18(prettier@2.8.8)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.6.18(prettier@2.8.8))(typescript@5.9.3)
-      '@storybook/test':
-        specifier: ^8.6.14
-        version: 8.6.15(storybook@8.6.18(prettier@2.8.8))
       '@tailwindcss/vite':
         specifier: ^4.0.9
         version: 4.3.2(vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0))

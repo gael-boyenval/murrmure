@@ -1,6 +1,6 @@
 # MCP platform tools (rev-1 §10.9)
 
-Murrmure exposes grant-filtered MCP tools via `murrmure mcp` → `POST /v1/mcp/tools/call`.
+Murrmure exposes grant-filtered MCP tools via `murrmure-mcp` (`@murrmure/mcp-bridge`) → `POST /v1/mcp/tools/call`.
 
 Platform tools are filtered by grant **capabilities** (scopes). Flow step completion uses **`murrmure_resolve_step`** — not legacy complete-action or gate-wait tools.
 

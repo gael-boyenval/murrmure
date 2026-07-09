@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import type { RunDetailPayload, ShellClient } from "@murrmure/shell-client";
 import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
@@ -14,18 +15,23 @@ export interface StepCanvasBindingInput {
   space_id: string;
   title: string;
   adminHref?: string;
+  /** Where to navigate after closing or resolving a checkpoint view. */
+  closeHref?: string;
 }
 
 export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const client = input?.client;
   const run = input?.run;
   const flowId = input?.flow_id;
   const spaceId = input?.space_id;
   const title = input?.title;
   const adminHref = input?.adminHref;
+  const closeHref = input?.closeHref;
 
   const runId = run?.run_id;
+  const sessionId = run?.session_id;
   const stepId = run?.active_human_step?.step_id;
   const showCanvas = run ? shouldShowStepCanvas(run) : false;
   const viewRef = viewRefFromActiveStep(run?.active_human_step);
@@ -46,24 +52,45 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     await queryClient.invalidateQueries({ queryKey: ["run-graph", runId] });
     await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     await queryClient.invalidateQueries({ queryKey: ["space-home"] });
-  }, [queryClient, runId]);
+    if (sessionId) {
+      await queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
+    }
+  }, [queryClient, runId, sessionId]);
+
+  const closeCheckpoint = useCallback(async () => {
+    await invalidate();
+    if (closeHref) {
+      navigate(closeHref);
+      return;
+    }
+    if (runId) {
+      navigate(`/runs/${runId}`);
+      return;
+    }
+    if (sessionId) {
+      navigate(`/sessions/${sessionId}`);
+    }
+  }, [invalidate, navigate, closeHref, runId, sessionId]);
 
   const onSubmit = useCallback(
     async (params: Record<string, unknown>) => {
       if (!client || !runId || !stepId) return;
       const body = mapViewSubmitToResolveStep(params, "submit");
       await client.runs.resolveStep(runId, stepId, body);
-      await invalidate();
+      await closeCheckpoint();
     },
-    [client, runId, stepId, invalidate],
+    [client, runId, stepId, closeCheckpoint],
   );
 
   const onCancel = useCallback(async () => {
     if (!client || !runId || !stepId) return;
     const body = mapViewSubmitToResolveStep({}, "cancel");
     await client.runs.resolveStep(runId, stepId, body);
-    await invalidate();
-  }, [client, runId, stepId, invalidate]);
+    await closeCheckpoint();
+  }, [client, runId, stepId, closeCheckpoint]);
+
+  const onResolved = closeCheckpoint;
 
   const canvas =
     showCanvas && context && title ? (
@@ -73,9 +100,12 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
         context={context}
         onSubmit={onSubmit}
         onCancel={onCancel}
+        onResolved={onResolved}
         adminHref={adminHref}
+        homeHref={closeHref ?? (runId ? `/runs/${runId}` : sessionId ? `/sessions/${sessionId}` : undefined)}
+        homeLabel="Back to flow"
       />
     ) : null;
 
-  return { showCanvas, canvas, onSubmit, onCancel, context };
+  return { showCanvas, canvas, onSubmit, onCancel, onResolved, context };
 }

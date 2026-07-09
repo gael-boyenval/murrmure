@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@murrmure/shell-ui";
+import { formatDateTime } from "../lib/format-display.js";
 
 export type SessionLaneDetail = {
   run_id: string;
@@ -68,7 +69,7 @@ export function SessionLaneDetailPanel({ lane, onRetry, retryLoading }: SessionL
           </p>
           {lane.space_label ? <p>Space: {lane.space_label}</p> : null}
           {lane.last_step ? <p>Last step: {lane.last_step}</p> : null}
-          {lane.started_at ? <p>Started: {new Date(lane.started_at).toLocaleString()}</p> : null}
+          {lane.started_at ? <p>Started: {formatDateTime(lane.started_at)}</p> : null}
         </div>
 
         {lane.error_summary ? (

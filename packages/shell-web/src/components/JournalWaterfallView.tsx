@@ -1,5 +1,7 @@
 import type { RunDetailPayload } from "@murrmure/shell-client";
 import { Badge } from "@murrmure/shell-ui";
+import { formatDateTimeCompact } from "../lib/format-display.js";
+import { DataTableView } from "./DataTableView.js";
 
 export interface JournalWaterfallViewProps {
   run: RunDetailPayload;
@@ -32,10 +34,15 @@ export function JournalWaterfallView({ run, journalEntries }: JournalWaterfallVi
           </li>
         ))}
         {(journalEntries ?? []).map((entry) => (
-          <li key={`${entry.type}-${entry.time}`} className="flex items-center gap-2 text-muted-foreground">
-            <span>[{statusIcon("working")}]</span>
-            <span>{entry.time.slice(11, 19)}</span>
-            <span>{entry.type.replace(/^mrmr\./, "")}</span>
+          <li key={`${entry.type}-${entry.time}`} className="space-y-1 text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span>[{statusIcon("working")}]</span>
+              <span title={entry.time}>{formatDateTimeCompact(entry.time)}</span>
+              <span>{entry.type.replace(/^mrmr\./, "")}</span>
+            </div>
+            {Object.keys(entry.data).length > 0 ? (
+              <DataTableView value={entry.data} className="ml-6" />
+            ) : null}
           </li>
         ))}
       </ul>

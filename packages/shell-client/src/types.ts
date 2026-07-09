@@ -247,6 +247,7 @@ export interface RunGraphNode {
   run_id?: string;
   federated?: boolean;
   remote_label?: string;
+  parent_step_id?: string;
 }
 
 export interface RunGraphPayload {
@@ -358,5 +359,6 @@ export interface ShellClient {
       },
     ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
     retry(run_id: string, body?: { from_step_id?: string; space_id?: string }): Promise<{ run: { run_id: string } }>;
+    cancel(run_id: string, body?: { space_id?: string }): Promise<{ run: { run_id: string; lifecycle: string } }>;
   };
 }

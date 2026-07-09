@@ -6,8 +6,9 @@ import {
   subscribeDesktopOutOfShellNotifications,
   shellRouteFromMurrmureDeepLink,
 } from "./notifications.js";
-import { bootstrapLaunchUrl, startHubSidecar } from "./runner.js";
+import { bootstrapLaunchUrl, connectDevHmrServices, startHubSidecar } from "./runner.js";
 import { createSessionInjectionScript } from "./session.js";
+import { isDesktopDevHmrMode } from "./paths.js";
 
 let mainWindow: BrowserWindow | null = null;
 let shutdownHub: (() => Promise<void>) | null = null;
@@ -54,13 +55,13 @@ function navigateShellRoute(route: string): void {
   mainWindow.webview.loadURL(target);
 }
 
-function createWindow(hubUrl: string, token: string): BrowserWindow {
+function createWindow(launchUrl: string, token: string, hubUrl: string): BrowserWindow {
   const window = new BrowserWindow({
     title: "Murrmure",
     frame: { x: 64, y: 64, width: 1400, height: 920 },
     renderer: "native",
     titleBarStyle: "default",
-    url: bootstrapLaunchUrl(hubUrl, token),
+    url: bootstrapLaunchUrl(launchUrl, token),
   });
 
   const injectionScript = createSessionInjectionScript(token, hubUrl);
@@ -79,7 +80,7 @@ function createWindow(hubUrl: string, token: string): BrowserWindow {
   return window;
 }
 
-export async function runDesktopApp(): Promise<void> {
+export async function bootstrapDesktopApp(): Promise<void> {
   if (app.isCarrotMode) {
     console.error(
       "Electrobun native APIs are unavailable. Use `pnpm desktop:dev` (system browser) or launch a built .app bundle.",
@@ -90,7 +91,9 @@ export async function runDesktopApp(): Promise<void> {
 
   let handle: Awaited<ReturnType<typeof startHubSidecar>>;
   try {
-    handle = await startHubSidecar({ mode: "prod" });
+    handle = isDesktopDevHmrMode()
+      ? await connectDevHmrServices()
+      : await startHubSidecar({ mode: "prod" });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("already running")) {
@@ -117,7 +120,8 @@ export async function runDesktopApp(): Promise<void> {
   process.once("SIGTERM", handleTermination);
 
   installMenus(handle.paths.hubUrl, handle.paths.dataDir);
-  mainWindow = createWindow(handle.paths.hubUrl, handle.token);
+  const launchUrl = handle.paths.shellWebUrl ?? handle.paths.hubUrl;
+  mainWindow = createWindow(launchUrl, handle.token, handle.paths.hubUrl);
 
   Electrobun.events.on("open-url", (event) => {
     const url = event.data.url;
@@ -128,16 +132,18 @@ export async function runDesktopApp(): Promise<void> {
   });
 
   try {
-    stopNotifications = await subscribeDesktopOutOfShellNotifications({
-      hubUrl: handle.paths.hubUrl,
-      token: handle.token,
-      isShellFocused: () => {
-        if (!mainWindow) return false;
-        return !mainWindow.isMinimized() && !mainWindow.hidden;
-      },
-      showNotification: (opts) => Utils.showNotification(opts),
-      navigateToDeepLink: (deepLink) => navigateShellRoute(shellRouteFromMurrmureDeepLink(deepLink)),
-    });
+    if (!isDesktopDevHmrMode()) {
+      stopNotifications = await subscribeDesktopOutOfShellNotifications({
+        hubUrl: handle.paths.hubUrl,
+        token: handle.token,
+        isShellFocused: () => {
+          if (!mainWindow) return false;
+          return !mainWindow.isMinimized() && !mainWindow.hidden;
+        },
+        showNotification: (opts) => Utils.showNotification(opts),
+        navigateToDeepLink: (deepLink) => navigateShellRoute(shellRouteFromMurrmureDeepLink(deepLink)),
+      });
+    }
   } catch (error) {
     console.warn(
       "Out-of-shell SSE notifications unavailable; desktop will continue without them.",
@@ -151,21 +157,5 @@ export async function runDesktopApp(): Promise<void> {
   });
 }
 
-if (import.meta.main) {
-  void runDesktopApp().catch(async (error) => {
-    await shutdownHub?.();
-    await reportStartupFailure("Unable to start Murrmure desktop.", {
-      cause: error,
-      showDialog: async ({ title, message, detail }) => {
-        await safeShowMessageBox({
-          type: "error",
-          title,
-          message,
-          detail,
-          buttons: ["Quit"],
-        });
-      },
-    });
-    process.exit(1);
-  });
-}
+/** @deprecated Use bootstrapDesktopApp — kept for tests. */
+export const runDesktopApp = bootstrapDesktopApp;

@@ -162,7 +162,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
           })),
         });
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     return c.json({ gates: [], timed_out: true });
@@ -345,7 +345,7 @@ export function mountJournalQueryRoutes(app: Hono, ctx: DaemonContext): void {
           terminal: true,
         });
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     const run = await murrmurePersistence.getRun(bare);

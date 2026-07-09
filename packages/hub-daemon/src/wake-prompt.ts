@@ -73,7 +73,10 @@ export function formatWakePendingWake(params: WakePendingParams): string {
     .trim();
 }
 
-export function formatControlWake(method: string, params: Record<string, unknown>): string | null {
+export function formatControlWake(
+  method: string,
+  params: Record<string, unknown>,
+): string | null {
   switch (method) {
     case "murrmure/control.invoke_action":
       return formatInvokeActionWake(params as InvokeActionParams);

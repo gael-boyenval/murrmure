@@ -8,7 +8,8 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope } from "@murrmure/hub-core";
+import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import { ContractV2Schema } from "@murrmure/contracts";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -147,6 +148,8 @@ export async function startHubDaemon(config: DaemonConfig) {
 
   const ids = { ulid: () => ulid() };
   const clock = { nowIso: () => new Date().toISOString() };
+
+  setMurrmureProtocolRenderer((ctx) => renderMurrmureProtocolEnvelope(ctx));
 
   const { kernel } = createHubKernel({ kernelPersistence, murrmurePersistence, ids, clock });
   const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);

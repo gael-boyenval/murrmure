@@ -13,13 +13,13 @@ Install npm packages when you run agents, scripts/CI, or author indexed flows.
 - **Node.js 20+**
 - Murrmure Desktop running (or hub reachable at `http://127.0.0.1:8787`)
 - A minted grant token (`tok_...`) from **`mrmr grant mint`**
-- Target space id (`spc_...`) for `MURRMURE_SPACE_ID`
 
 ## Step 2: choose your package(s)
 
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
-| `@murrmure/cli` | Everyone (agents + operators + authors) | `npm install -g @murrmure/cli` | `mrmr` / `murrmure mcp` — setup, space apply, MCP, flow run |
+| `@murrmure/cli` | Operators + authors | `npm install -g @murrmure/cli` | `mrmr` setup, space apply, grant workflows |
+| `@murrmure/mcp-bridge` | Agent MCP clients | `npm install -g @murrmure/mcp-bridge` | `murrmure-mcp` MCP stdio bridge |
 
 If you prefer no global installs:
 
@@ -32,7 +32,7 @@ npx @murrmure/cli health
 1. Install:
 
 ```bash
-npm install -g @murrmure/cli
+npm install -g @murrmure/cli @murrmure/mcp-bridge
 ```
 
 2. First-run wizard (recommended):
@@ -45,6 +45,7 @@ Or mint a grant manually:
 
 ```bash
 mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:read
+mrmr grant use --space spc_…
 ```
 
 3. Add MCP config in your agent client — see [Connect your agent](./agents-mcp).
@@ -67,7 +68,6 @@ See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creat
 ```bash
 export MURRMURE_HUB_URL=http://127.0.0.1:8787
 export MURRMURE_HUB_TOKEN=tok_your_grant_token
-export MURRMURE_SPACE_ID=spc_your_space_id
 mrmr setup --yes --json
 ```
 

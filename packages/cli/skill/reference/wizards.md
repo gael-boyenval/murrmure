@@ -57,7 +57,7 @@ Grant capabilities minted by setup (rev-1):
 | Human | Agent |
 |-------|-------|
 | `mrmr setup` grant step | Paste snippet into `.cursor/mcp.json` |
-| Desktop → Copy MCP config | Set `MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_SPACE_ID` in MCP server env |
+| Desktop / CLI snippet | Use `command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN` env ref |
 | Reload Desktop | Reload IDE after MCP config change |
 
 Agents should **never** assume curl or raw HTTP for normal workflows — use MCP tools. Humans doing workflow work use **custom views**, not shell gate forms, when a checkpoint view is specified.

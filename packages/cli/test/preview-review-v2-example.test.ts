@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,32 +69,24 @@ describe("preview-review-v2 reference example", () => {
     expect(skill).not.toContain("murrmure_complete_action");
   });
 
-  test("feature_build action uses contract injection not complete_action", () => {
+  test("feature actions use headless agent flags and hub resolve_step", () => {
     const actions = readFileSync(join(MURRMURE_ROOT, "actions.yaml"), "utf-8");
-    expect(actions).toContain("murrmure.agentStepContract");
-    expect(actions).toContain("active-step-contract.json");
+    expect(actions).toContain("--approve-mcps");
+    expect(actions).toContain("--output-format stream-json");
+    expect(actions).toContain("murrmure_resolve_step");
+    expect(actions).not.toContain("murrmure.agentStepContract");
     expect(actions).not.toContain("murrmure_complete_action");
     expect(actions).not.toContain("murrmure_wait_for_gate");
   });
 
-  test("build script sets feedback_applied only with non-empty feedback", () => {
-    const buildScript = join(MURRMURE_ROOT, "scripts/preview-review-build.mjs");
-    const runBuild = (params: Record<string, unknown>) => {
-      const out = execFileSync("node", [buildScript], {
-        env: {
-          ...process.env,
-          MURRMURE_INPUT: JSON.stringify({ preview_url: "http://localhost:5173" }),
-          MURRMURE_INVOKE_PARAMS: JSON.stringify(params),
-        },
-        encoding: "utf-8",
-      });
-      return JSON.parse(out) as { feedback_applied: boolean };
-    };
-
-    expect(runBuild({ preview_url: "http://x" }).feedback_applied).toBe(false);
-    expect(runBuild({ preview_url: "http://x", feedback: "" }).feedback_applied).toBe(false);
-    expect(runBuild({ preview_url: "http://x", feedback: "Fix header" }).feedback_applied).toBe(true);
-    expect(runBuild({ preview_url: "http://x", feedback: ["Fix header"] }).feedback_applied).toBe(true);
+  test("build-loop branch requires preview_url", () => {
+    const manifest = parseYaml(
+      readFileSync(join(MURRMURE_ROOT, "flows/preview-review/flow.manifest.yaml"), "utf-8"),
+    ) as { steps: Array<{ id: string; steps?: Array<{ id: string; branches?: Record<string, unknown> }> }> };
+    const build = manifest.steps.find((s) => s.id === "build");
+    const buildLoop = build?.steps?.find((s) => s.id === "build-loop");
+    const completed = buildLoop?.branches?.completed as { schema?: { required?: string[] } } | undefined;
+    expect(completed?.schema?.required).toContain("preview_url");
   });
 
   test("R6 — no FDK commands in workflow tree", () => {

@@ -1,0 +1,91 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, test } from "vitest";
+import { fetchCatalog, callTool, performHandshake } from "../src/hub-client.js";
+import { resolveBridgeConfig } from "../src/main.js";
+
+const tempDirs: string[] = [];
+const envSnapshot = { ...process.env };
+
+function makeTempHome(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+function writeSharedDiscovery(homePath: string, endpoint: string): void {
+  mkdirSync(join(homePath, ".murrmure", "hubs"), { recursive: true });
+  writeFileSync(
+    join(homePath, ".murrmure", "hubs", "shared.json"),
+    JSON.stringify({ hubs: [{ endpoint }] }),
+  );
+}
+
+afterEach(() => {
+  process.env = { ...envSnapshot };
+  for (const dir of tempDirs.splice(0, tempDirs.length)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("bridge error surfaces", () => {
+  test("resolveBridgeConfig requires MURRMURE_HUB_TOKEN", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-config-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    delete process.env.MURRMURE_HUB_TOKEN;
+
+    expect(() => resolveBridgeConfig({ homePath })).toThrow(/Missing MURRMURE_HUB_TOKEN/);
+  });
+
+  test("fetchCatalog reports non-JSON responses", async () => {
+    await expect(
+      fetchCatalog({
+        hubUrl: "http://127.0.0.1:8787",
+        token: "tok_test",
+        fetchImpl: async () => new Response("not-json", { status: 500 }),
+      }),
+    ).rejects.toThrow(/returned non-JSON/);
+  });
+
+  test("callTool surfaces HTTP status without leaking token", async () => {
+    const token = "tok_super_secret";
+    await expect(
+      callTool({
+        hubUrl: "http://127.0.0.1:8787",
+        token,
+        name: "murrmure_space_status",
+        arguments: {},
+        fetchImpl: async () =>
+          new Response(JSON.stringify({ code: "forbidden" }), { status: 403 }),
+      }),
+    ).rejects.toThrow(/HTTP 403/);
+
+    try {
+      await callTool({
+        hubUrl: "http://127.0.0.1:8787",
+        token,
+        name: "murrmure_space_status",
+        arguments: {},
+        fetchImpl: async () =>
+          new Response(JSON.stringify({ code: "forbidden" }), { status: 403 }),
+      });
+      expect.unreachable();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      expect(detail).not.toContain(token);
+    }
+  });
+
+  test("performHandshake surfaces non-JSON errors", async () => {
+    await expect(
+      performHandshake({
+        hubUrl: "http://127.0.0.1:8787",
+        token: "tok_test",
+        clientId: "client-1",
+        lastAckSeq: 0,
+        fetchImpl: async () => new Response("<html>offline</html>", { status: 503 }),
+      }),
+    ).rejects.toThrow(/returned non-JSON/);
+  });
+});

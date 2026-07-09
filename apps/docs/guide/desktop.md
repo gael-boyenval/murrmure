@@ -62,7 +62,7 @@ The **`/connect`** route exists for contributor debugging only. End users on Des
 
 ## App menu
 
-- **Copy MCP config** — JSON snippet wired to `http://127.0.0.1:8787`
+- **Copy MCP config** — thin `murrmure-mcp` snippet (`MURRMURE_HUB_TOKEN` placeholder)
 - **Open data folder** — opens `~/.murrmure`
 
 ## Out-of-shell notifications

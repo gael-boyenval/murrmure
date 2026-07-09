@@ -66,39 +66,46 @@ export function useViewHubClient(): ShellClient {
 }
 
 export function useViewSubmit(): {
-  submit: (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => void;
-  cancel: () => void;
+  submit: (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => Promise<void>;
+  cancel: () => Promise<void>;
 } {
   const { context, hubClient } = useViewRuntime();
   return useMemo(
     () => ({
-      submit: (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => {
+      submit: async (params: Record<string, unknown>, artifacts?: ViewSubmitArtifact[]) => {
         if (context.step?.step_id && context.run_id) {
-          const resolve = async () => {
+          try {
             const artifacts_out = artifacts?.length
               ? await uploadViewArtifacts({
                   hub_base_url: context.hub_base_url,
                   token: context.token,
-                  run_id: context.run_id!,
+                  run_id: context.run_id,
                   step_id: context.step!.step_id,
                   artifacts,
                 })
               : undefined;
             const body = mapViewSubmitToResolveStep(params, "submit", artifacts_out);
-            await hubClient.runs.resolveStep(context.run_id!, context.step!.step_id, body);
-          };
-          void resolve().catch(() => resolveViaHost(context, params, "submit"));
-          return;
+            await hubClient.runs.resolveStep(context.run_id, context.step.step_id, body);
+            postViewMessage({ type: "murrmure.view.resolved" }, context.hub_base_url);
+            return;
+          } catch (error) {
+            resolveViaHost(context, params, "submit");
+            throw error;
+          }
         }
         resolveViaHost(context, params, "submit");
       },
-      cancel: () => {
+      cancel: async () => {
         if (context.step?.step_id && context.run_id) {
-          const body = mapViewSubmitToResolveStep({}, "cancel");
-          void hubClient.runs
-            .resolveStep(context.run_id, context.step.step_id, body)
-            .catch(() => resolveViaHost(context, {}, "cancel"));
-          return;
+          try {
+            const body = mapViewSubmitToResolveStep({}, "cancel");
+            await hubClient.runs.resolveStep(context.run_id, context.step.step_id, body);
+            postViewMessage({ type: "murrmure.view.resolved" }, context.hub_base_url);
+            return;
+          } catch (error) {
+            resolveViaHost(context, {}, "cancel");
+            throw error;
+          }
         }
         resolveViaHost(context, {}, "cancel");
       },

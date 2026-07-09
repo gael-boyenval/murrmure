@@ -8,7 +8,7 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
 | Code / symptom | Fix |
 |----------------|-----|
-| Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint`; check `MURRMURE_SPACE_ID` |
+| Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint` + `mrmr grant use --space ...` |
 | `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / correct capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
 | Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
@@ -19,8 +19,8 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 ## MCP tools not showing in Cursor
 
 1. Reload Cursor after pasting MCP config
-2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH
-3. Env: **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`**
+2. Confirm `murrmure-mcp` is on PATH (`npm i -g @murrmure/mcp-bridge`)
+3. Env: **`MURRMURE_HUB_TOKEN`** exported in the same shell used to launch your IDE
 4. Check MCP logs in Cursor settings
 5. Run **`mrmr space doctor`** for drift hints
 

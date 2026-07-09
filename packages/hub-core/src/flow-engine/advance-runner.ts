@@ -4,6 +4,7 @@ import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId } from "../bridge/ids.js";
 import { createRun, type SessionRunDeps } from "../run/service.js";
+import { terminateRunExecutors } from "../invoke/run-executor-cancel.js";
 import { refreshSessionStatus } from "../session/index.js";
 import {
   isMatrixSiblingRun,
@@ -22,7 +23,7 @@ import {
   type CheckpointRunnerDeps,
 } from "./checkpoint-runner.js";
 import { flowUsesStepContracts } from "./step-catalog.js";
-import { bootstrapStepContractFlow } from "./step-resolve.js";
+import { bootstrapStepContractFlow, maybeAdvanceStepContractFlow } from "./step-resolve.js";
 
 export interface FlowAdvanceAuth {
   actor_id: string;
@@ -67,6 +68,7 @@ export async function maybeAdvanceFlow(
   if (!entry?.ir) return;
 
   if (flowUsesStepContracts(entry)) {
+    await maybeAdvanceStepContractFlow(deps, input);
     return;
   }
 
@@ -150,6 +152,11 @@ async function handleSiblingLaneComplete(
 
   const ts = deps.clock.nowIso();
   const failed = ctx.memos.some((m) => m.status === "failed");
+  terminateRunExecutors({
+    run_id: `run_${ctx.runBare}`,
+    executorPollStore: deps.executorPollStore,
+    reason: failed ? "run failed" : "run completed",
+  });
   await deps.studio.updateRunLifecycle(ctx.runBare, failed ? "failed" : "completed", ts);
   await refreshSessionStatus(deps.studio, ctx.run.session_id);
 
@@ -209,6 +216,11 @@ async function handleSiblingLaneComplete(
       return;
     }
 
+    terminateRunExecutors({
+      run_id: `run_${parentBare}`,
+      executorPollStore: deps.executorPollStore,
+      reason: "run completed",
+    });
     await deps.studio.updateRunLifecycle(parentBare, "completed", ts);
     await refreshSessionStatus(deps.studio, parent.session_id);
   }
@@ -342,6 +354,11 @@ async function tryExpandMatrixOrAdvance(
     return true;
   });
   if (complete) {
+    terminateRunExecutors({
+      run_id: `run_${ctx.runBare}`,
+      executorPollStore: deps.executorPollStore,
+      reason: "run completed",
+    });
     await deps.studio.updateRunLifecycle(ctx.runBare, "completed", ts);
     if (ctx.spaceId) {
       await deps.handler.appendSpaceJournal({

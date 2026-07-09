@@ -7,19 +7,28 @@ export interface ViewHostFrameProps {
   context: ViewAppContext;
   onSubmit: (params: Record<string, unknown>) => void;
   onCancel?: () => void;
+  onResolved?: () => void;
   className?: string;
   title?: string;
 }
 
 /** Embeds a custom view iframe and wires the murrmure view host postMessage protocol. */
-export function ViewHostFrame({ src, context, onSubmit, onCancel, className, title }: ViewHostFrameProps) {
+export function ViewHostFrame({
+  src,
+  context,
+  onSubmit,
+  onCancel,
+  onResolved,
+  className,
+  title,
+}: ViewHostFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
-    return attachViewHostBridge(iframe, context, { onSubmit, onCancel });
-  }, [src, context, onSubmit, onCancel]);
+    return attachViewHostBridge(iframe, context, { onSubmit, onCancel, onResolved });
+  }, [src, context, onSubmit, onCancel, onResolved]);
 
   return (
     <iframe

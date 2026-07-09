@@ -2,5 +2,6 @@
   "actions.yaml": "version: 1\nactions: {}\n",
   "executors.yaml": "executors: {}\n",
   "hooks.yaml": "version: 1\nhooks: {}\n",
-  "space.yaml": "# Optional — slug hint for mrmr space link\nslug: my-space\n"
+  "space.yaml": "# Optional — slug hint for mrmr space link\nslug: my-space\n",
+  "README.md": "# Murrmure space scaffold\n\nNext steps:\n\n1. `mrmr space link --path . --create`\n2. `mrmr space apply --strict`\n3. `mrmr grant mint --space spc_... --label \"cursor-agent\"`\n\nMCP config is not scaffolded automatically. Use `mrmr grant mint` to print the export command and optionally write `~/.cursor/mcp.json` (or use `--local` for project-level config).\n"
 }

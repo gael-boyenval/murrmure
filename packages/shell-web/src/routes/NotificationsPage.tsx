@@ -40,6 +40,7 @@ export function NotificationsPage() {
           flow_id: humanRunQuery.data.flow_id ?? "flw_unknown",
           space_id: humanRunQuery.data.space_id ?? humanStepNotification.space_id,
           title: humanStepNotification.title,
+          closeHref: humanStepNotification.run_id ? `/runs/${humanStepNotification.run_id}` : undefined,
         }
       : null,
   );

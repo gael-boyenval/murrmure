@@ -13,6 +13,8 @@ import {
   parseFlowManifest,
   rejectInlineScriptSteps,
   lintSpaceApplyBundle,
+  writeSpaceBriefingFile,
+  resolveSpaceRoot,
 } from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
@@ -164,6 +166,16 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
     const warnings = lintSpaceApplyBundle(parsed.data);
 
     await murrmurePersistence.replaceSpaceIndex(bare, result.next);
+
+    const bindings = await murrmurePersistence.getSpaceBindings(bare);
+    const spaceRoot = resolveSpaceRoot(bindings);
+    if (spaceRoot) {
+      try {
+        await writeSpaceBriefingFile(spaceRoot, parsed.data, originSpaceId);
+      } catch {
+        // Briefing is best-effort when hub cannot write the linked space root.
+      }
+    }
 
     broadcastSse(ctx, {
       event: JOURNAL_EVENT_TYPES.SPACE_INDEX_UPDATED,

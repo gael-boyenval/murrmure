@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -37,6 +37,23 @@ const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/03-daily-brief-trigger/04-run-and-review.md",
   "apps/docs/guide/flows-tutorial.md",
 ];
+
+function collectMarkdownFiles(root: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(root)) {
+    const path = join(root, entry);
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      if (entry === "archive" || entry === "archives") continue;
+      files.push(...collectMarkdownFiles(path));
+      continue;
+    }
+    if (entry.endsWith(".md")) {
+      files.push(path);
+    }
+  }
+  return files;
+}
 
 function ensureViewsBuilt(murrmureRoot: string, viewIds: string[]) {
   for (const viewId of viewIds) {
@@ -215,5 +232,25 @@ describe("phase 10 apps/docs FDK grep (10-U6)", () => {
     const { scanFdkHits } = await import("../../../scripts/lib/fdk-docs-scan.mjs");
     const docsRoot = join(REPO_ROOT, "apps/docs");
     expect(scanFdkHits(docsRoot, REPO_ROOT)).toEqual([]);
+  });
+});
+
+describe("phase 3 MCP docs guard", () => {
+  test("apps/docs excludes fat MCP config references", () => {
+    const docsRoot = join(REPO_ROOT, "apps/docs");
+    const files = collectMarkdownFiles(docsRoot);
+    const forbidden = /murrmure mcp|args.*\["mcp"\]|MURRMURE_SPACE_ID.*mcp|studio-hub-mcp/i;
+    for (const file of files) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const content = readFileSync(file, "utf-8");
+      expect(content, rel).not.toMatch(forbidden);
+    }
+  });
+
+  test("apps/docs MCP setup references murrmure-mcp", () => {
+    const docsRoot = join(REPO_ROOT, "apps/docs");
+    const files = collectMarkdownFiles(docsRoot);
+    const aggregate = files.map((file) => readFileSync(file, "utf-8")).join("\n");
+    expect(aggregate).toContain("murrmure-mcp");
   });
 });

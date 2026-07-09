@@ -69,6 +69,17 @@ function bare(id: string): string {
   return id.startsWith("spc_") ? id.slice(4) : id.startsWith("ses_") ? id.slice(4) : id.startsWith("run_") ? id.slice(4) : id;
 }
 
+function effectiveRunLifecycle(
+  lifecycle: Run["lifecycle"],
+  memos: { status: string }[],
+): Run["lifecycle"] {
+  if (memos.some((m) => m.status === "failed")) return "failed";
+  if (lifecycle === "input-required" && !memos.some((m) => m.status === "awaiting_human")) {
+    return "working";
+  }
+  return lifecycle;
+}
+
 function flowRow(
   entry: FlowIndexEntry,
   capabilities: Capability[],
@@ -140,22 +151,23 @@ export async function buildSpaceHome(
     const runs = await studio.listRunsBySession(session.session_id);
     for (const run of runs) {
       const dto = toRunDto(run);
+      const memos = run.flow_id ? await studio.listRunStepMemos(`run_${run.run_id}`) : [];
+      const lifecycle = effectiveRunLifecycle(dto.lifecycle, memos);
       const row: SpaceHomeRunRow = {
         run_id: dto.run_id,
         session_id: dto.session_id,
         flow_id: dto.flow_id,
-        lifecycle: dto.lifecycle,
+        lifecycle,
         started_at: dto.started_at,
         ended_at: dto.ended_at,
         title: sessionTitle.get(session.session_id),
       };
-      if (run.lifecycle === "working" || run.lifecycle === "input-required") {
+      if (lifecycle === "working" || lifecycle === "input-required") {
         active_runs.push(row);
 
         if (run.flow_id) {
           const entry = await studio.getFlowIndexEntry(run.flow_id, run.space_id);
           if (flowUsesStepContracts(entry)) {
-            const memos = await studio.listRunStepMemos(`run_${run.run_id}`);
             for (const memo of memos) {
               if (memo.status !== "awaiting_human") continue;
               needs_attention.push({
@@ -169,9 +181,9 @@ export async function buildSpaceHome(
           }
         }
       } else if (
-        run.lifecycle === "completed" ||
-        run.lifecycle === "failed" ||
-        run.lifecycle === "cancelled"
+        lifecycle === "completed" ||
+        lifecycle === "failed" ||
+        lifecycle === "cancelled"
       ) {
         recent_completed.push(row);
       }
