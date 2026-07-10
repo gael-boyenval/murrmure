@@ -1,16 +1,16 @@
-# Part 2 — Build view, hooks, apply
+# Part 2 — Build view, handlers, apply
 
-Create the checkpoint view, wire the event hook, and index the space.
+Create the presentation view, verify handlers, and index the space.
 
 ## 1) Create the view
 
 ```bash
 mrmr space view init daily-brief
-cd murrmure/views/daily-brief
+cd .mrmr/views/daily-brief
 npm install
 ```
 
-Implement `src/App.tsx` with two modes based on checkpoint step:
+Implement `src/App.tsx` with two modes based on step id:
 
 ```tsx
 import { useViewContext, useViewSubmit } from "@murrmure/view-sdk/app";
@@ -32,7 +32,6 @@ export function App() {
     );
   }
 
-  // review step — show output from agent / done step preview
   const body = ctx.steps?.agent?.output?.body ?? "(waiting for agent…)";
 
   return (
@@ -46,7 +45,7 @@ export function App() {
 }
 ```
 
-View submit on **trigger** resolves the checkpoint. The hub emits **`brief.requested`** when your flow/skill declares that event mapping (indexed via hooks below).
+View submit on **trigger** calls `murrmure_resolve_step` with branch `continue`. The hub emits **`brief.requested`** when your flow declares that event mapping (indexed via handlers below).
 
 Dev loop:
 
@@ -61,25 +60,27 @@ npm run build
 cd ../../..
 ```
 
-## 2) Hooks
+## 2) Verify handlers
 
-`murrmure/hooks.yaml`:
+Confirm `.mrmr/space/handlers.yaml` includes the event handler from Part 1:
 
 ```yaml
-version: 1
-hooks:
-  brief_requested_wake:
+  - id: brief-requested-wake
+    contract_keys: []
     on:
       event:
         type: brief.requested
-    do:
-      - invoke:
-          action: mcp_wake
-          params:
-            wake_label: handle_brief_requested
+    type: shell_spawn
+    complete: auto
+    command: echo '{"wake":"handle_brief_requested"}'
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000
 ```
 
-After apply, when the trigger checkpoint resolves and the hub emits `brief.requested`, the hook runs **`mcp_wake`** — delivering **`handle_brief_requested`** to listening agents.
+After apply, when the trigger step resolves and the hub emits `brief.requested`, the handler runs **`shell_spawn`** — delivering **`handle_brief_requested`** to listening agents.
+
+Use `murrmure_list_emittable_events` when authoring custom events.
 
 ## 3) Link and apply
 
@@ -92,8 +93,8 @@ mrmr space status --space spc_daily_brief
 Confirm:
 
 - Flow **`daily-brief`**
-- View **`daily-brief`** indexed
-- Hook **`brief_requested_wake`**
+- View **`daily-brief`** indexed with built `dist/`
+- Handlers **`daily-brief-agent`**, **`daily-brief-done`**, **`brief-requested-wake`**
 
 ## Next
 

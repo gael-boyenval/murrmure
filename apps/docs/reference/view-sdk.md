@@ -1,6 +1,6 @@
 # View SDK (`@murrmure/view-sdk`)
 
-Client package for **custom checkpoint views** in `murrmure/views/`. Published to npm as `@murrmure/view-sdk`.
+Client package for **custom checkpoint views** in `.mrmr/views/`. Published to npm as `@murrmure/view-sdk`.
 
 Views are **not hub entities** — the hub denormalizes `view_ref` onto checkpoint steps at `mrmr space apply`. At a pending checkpoint, **ViewCanvasHost** loads the view in the full primary canvas; the shell sends `ViewAppContext` via postMessage and maps submit to `{ disposition, output }` at resolve time.
 
@@ -14,7 +14,7 @@ Scaffold a view package in your space:
 
 ```bash
 mrmr space view init preview-review
-cd murrmure/views/preview-review && npm install
+cd .mrmr/views/preview-review && npm install
 ```
 
 ## Exports
@@ -22,7 +22,7 @@ cd murrmure/views/preview-review && npm install
 | Export | Consumer | Role |
 |--------|----------|------|
 | `@murrmure/view-sdk` | Shell (`shell-web`) | `ViewHostFrame`, `attachViewHostBridge`, `resolveViewEntryUrl` |
-| `@murrmure/view-sdk/app` | View apps in `murrmure/views/*/src/` | `createViewMount`, `ViewProvider`, context hooks, submit/cancel |
+| `@murrmure/view-sdk/app` | View apps in `.mrmr/views/*/src/` | `createViewMount`, `ViewProvider`, context hooks, submit/cancel |
 
 ## Author surface (`./app`)
 
@@ -142,5 +142,5 @@ If a checkpoint references a view but `dist/` is missing at apply time, apply wa
 ## Related
 
 - [Shell client](./shell-client) — read-only HTTP from views
-- [Space index](../guide/space-index) — `murrmure/views/` layout
+- [Space index](../guide/space-index) — `.mrmr/views/` layout
 - [Known gaps](../guide/known-gaps) — engine/checkpoint gaps (B1–B4)

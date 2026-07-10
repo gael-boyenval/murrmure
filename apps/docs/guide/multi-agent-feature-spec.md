@@ -2,7 +2,7 @@
 
 Three folders on your machine. Three agents in three IDEs. One feature spec that crosses all of them — with **your approval** before dev writes anything.
 
-**Path:** indexed flows in `murrmure/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/). **Example:** [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2).
+**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/). **Example:** [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2).
 
 **Desktop for humans (ViewCanvasHost at checkpoints). MCP for agents. CLI for admin.**
 
@@ -65,7 +65,7 @@ Record the space ids (`spc_orchestrator`, `spc_knowledge`, `spc_dev`) from comma
 cd ~/work/orchestrator
 mrmr space init
 mrmr space flow init feature-spec --template hello-gate
-# edit murrmure/flows/, views/, hooks.yaml
+# edit .mrmr/flows/, views/, space/handlers.yaml (event handler for spec.published)
 mrmr space link --path . --space spc_orchestrator
 mrmr space apply --strict
 ```
@@ -108,7 +108,7 @@ mrmr space trigger register --space spc_dev \
   --source-space spc_orchestrator
 ```
 
-After you **Publish**, the trigger routes through **action invoke**: the hub calls indexed action **`handle_spec_published`** on the dev space and the connected MCP session receives **`murrmure/control.invoke_action`** with mapped payload fields (no `body_ref`). The dev space must have that action indexed with a `cursor-mcp` executor (see `mrmr space apply`). Check delivery outcomes:
+After you **Publish**, the trigger routes to a dev-space **event handler** (or legacy trigger template): the hub dispatches `spec.published` and the dev agent session receives work via handler `shell_spawn` / MCP wake. The dev space must index a handler for `spec.published` (or register `spec-published-wake-dev` trigger). Check delivery outcomes:
 
 ```bash
 mrmr space trigger deliveries --space spc_dev --limit 20
@@ -216,7 +216,7 @@ Journal emits **`spec.published`** with `body_ref` and `published_by`.
 
 ### 4.5 Dev: wake, fetch, write the file
 
-When the trigger is registered, the dev Cursor window receives **`murrmure/control.invoke_action`** with `action_name: handle_spec_published` after you publish (replay on MCP reconnect if the session was offline). Prompt:
+When the trigger or event handler is registered, the dev Cursor window is woken after you publish (replay on MCP reconnect if the session was offline). Prompt:
 
 > You were woken for a published spec. Use **`query_ask`** with `target_space_id` set to the orchestrator space and `query_type: "spec_summary@1"`. If you need the full body, use **`get_spec`** with the `spec_key` from the wake payload. Write `specs/guest-checkout-v1.md` locally and commit.
 
@@ -252,7 +252,7 @@ sequenceDiagram
   Orch->>Orch: patch_spec_section merge
   User->>Shell: Publish
   Shell->>Shell: spec.published event
-  Shell->>Dev: mcp_wake (trigger)
+  Shell->>Dev: event handler / trigger wake
   Dev->>Dev: query_ask spec_summary@1
   Dev->>Dev: get_spec, write specs/*.md
 ```

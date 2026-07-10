@@ -22,6 +22,9 @@ export interface FlowProject {
 export interface SharedConfig {
   hubs?: unknown[];
   flowProjects?: FlowProject[];
+  mcp_bridge?: {
+    command?: string;
+  };
 }
 
 function sharedConfigPath(config: DaemonConfig): string {
@@ -75,7 +78,7 @@ export function writeDiscovery(config: DaemonConfig, port: number): void {
   mkdirSync(hubsDir, { recursive: true });
   const existing = readSharedConfig(config);
   const endpointHost = resolveDiscoveryHost(config);
-  const discovery = {
+  const discovery: SharedConfig = {
     ...existing,
     hubs: [
       {
@@ -86,6 +89,10 @@ export function writeDiscovery(config: DaemonConfig, port: number): void {
       },
     ],
   };
+  const mcpBridgeEntry = process.env.MURRMURE_MCP_BRIDGE_ENTRY?.trim();
+  if (mcpBridgeEntry) {
+    discovery.mcp_bridge = { command: mcpBridgeEntry };
+  }
   writeFileSync(join(hubsDir, "shared.json"), JSON.stringify(discovery, null, 2));
 }
 

@@ -1,9 +1,18 @@
 export { computeContentDigest } from "./digest.js";
-export { resolveHooksFilename, isHooksResourcePath, HOOKS_FILENAMES } from "./hooks-alias.js";
-export { parseActionsFile, type ParseResult } from "./parse-actions.js";
-export { parseExecutorsFile } from "./parse-executors.js";
-export { parseHooksFile } from "./parse-hooks.js";
+export type { ParseResult } from "./parse-result.js";
 export { parseEventsFile } from "./parse-events.js";
+export {
+  parseBindingsFile,
+  resolveBindingSource,
+  resolveBindingsFile,
+} from "./parse-bindings.js";
+export {
+  parseHandlersFile,
+  buildHandlerIndex,
+  matchStepOpenedHandlers,
+  matchEventHandlers,
+} from "./parse-handlers.js";
+export { lintHandlerCatalogCoverage } from "./handler-catalog-lint.js";
 export {
   parseFlowManifest,
   rejectInlineScriptSteps,

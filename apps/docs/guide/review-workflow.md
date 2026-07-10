@@ -15,20 +15,22 @@ Humans work in **ViewCanvasHost** at human steps (`presentation.view`). Shell ch
 ## Setup
 
 ```bash
-cd examples/flows/preview-review-v2/murrmure/views/preview-review-intake && npm install && npm run build
+cd examples/flows/preview-review-v2/.mrmr/views/preview-review-intake && npm install && npm run build
 cd ../preview-review && npm install && npm run build
 cd ../../..
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
-mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:resolve,action:invoke,space:read
+mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:resolve,space:read,journal:read
 ```
+
+Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`contract_keys`**.
 
 ## Engine-routed nested build
 
 1. Desktop **Run** on **preview-review**
 2. Intake view — attach spec file
-3. **`feature_build`** shell spawn (one session)
-4. Agent resolves **`build.build-loop`** with `preview_url`
+3. **`feature_build`** handler dispatches shell spawn (one session, `kill_on: step.resolved`)
+4. Agent resolves **`build.build-loop`** with `preview_url` via **`murrmure_resolve_step`**
 5. Engine opens **`build.review`** — human validates or sends feedback
 6. Feedback → engine reopens **`build.build-loop`** in same agent session
 
@@ -38,7 +40,7 @@ mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:re
 |----|------|
 | `ses_…` | Session — journal, notifications, Desktop title |
 | `run_…` | Single flow execution; pauses at human steps |
-| Resolve wire | `{ branch, payload, artifacts_out? }` via **`murrmure_resolve_step`** |
+| Resolve wire | `{ branch, payload, artifacts_out? }` via **`murrmure_resolve_step`** or **`mrmr step resolve`** |
 
 ## Agent tools (platform MCP)
 
@@ -47,6 +49,7 @@ mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:re
 | Complete agent step | `murrmure_resolve_step` |
 | Wait for human / run advance | `murrmure_wait_for_run` |
 | Read contract | `active-step-contract.json` or `murrmure_list_step_contracts` |
+| List handlers | `murrmure_list_handlers` |
 
 ## Tutorial
 
@@ -54,5 +57,6 @@ Full walkthrough: [Tutorial 1 — Local preview review](./tutorials/01-local-pre
 
 ## Related
 
+- [Space handlers](./space-handlers)
 - [View SDK](../reference/view-sdk)
 - [MCP tools](../reference/mcp-tools)

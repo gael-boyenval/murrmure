@@ -46,6 +46,21 @@ function resolveHandoffFlowId(projectPath: string): string | undefined {
   }
 }
 
+async function promptWithExamples(options: { yes?: boolean; json?: boolean }): Promise<boolean> {
+  if (options.json || options.yes) {
+    return false;
+  }
+  const answer = await p.confirm({
+    message: "Include example flow and starter files?",
+    initialValue: false,
+  });
+  if (p.isCancel(answer)) {
+    p.cancel("Setup cancelled — partial progress saved");
+    process.exit(0);
+  }
+  return Boolean(answer);
+}
+
 async function runSetupWizard(options: {
   projectPath: string;
   flags: ReturnType<typeof parseGlobalFlags>;
@@ -126,10 +141,11 @@ async function runSetupWizard(options: {
 
   if (json || (await confirmStep("Step 3 — Scaffold murrmure/, link, and apply?", { yes }))) {
     let initOk = true;
+    const withExamples = await promptWithExamples({ yes, json });
 
     try {
-      if (!existsSync(resolve(projectPath, "murrmure"))) {
-        const initResult = await wizardSpaceInit(projectPath, { withSkill: true });
+      if (!existsSync(resolve(projectPath, ".mrmr"))) {
+        const initResult = await wizardSpaceInit(projectPath, { withSkill: true, withExamples });
         if (!json) {
           p.log.success(`Scaffolded murrmure/ (${initResult.created.length} files)`);
           if (initResult.skill_installed && initResult.skill_path) {
@@ -139,10 +155,14 @@ async function runSetupWizard(options: {
         pushStep(steps, {
           id: "init",
           ok: true,
-          detail: { created: initResult.created.length, skill_installed: initResult.skill_installed },
+          detail: {
+            created: initResult.created.length,
+            skill_installed: initResult.skill_installed,
+            with_examples: withExamples,
+          },
         });
       } else {
-        pushStep(steps, { id: "init", ok: true, skipped: true, detail: { note: "murrmure/ exists" } });
+        pushStep(steps, { id: "init", ok: true, skipped: true, detail: { note: ".mrmr/ exists" } });
       }
     } catch (error) {
       pushStep(steps, { id: "init", ok: false, error: wizardStepError(error) });

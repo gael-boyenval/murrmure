@@ -13,9 +13,25 @@ const VALID_MANIFEST = {
   steps: [
     {
       id: "research",
-      invoke: { space: "{{origin_space}}", action: "noop", params: { api_key: "secret", count: 3 } },
+      role: "agent" as const,
+      branches: {
+        completed: {
+          schema: {
+            type: "object",
+            properties: { api_key: { type: "string" }, count: { type: "number" } },
+          },
+          next: "finish",
+        },
+      },
     },
-    { id: "finish", invoke: { space: "{{origin_space}}", action: "noop" } },
+    {
+      id: "finish",
+      presentation: { view: "done-view" },
+      branches: {
+        validated: { schema: { type: "object" }, next: null },
+        cancel: { schema: { type: "object" }, next: null, fail_run: true },
+      },
+    },
   ],
 };
 
@@ -158,7 +174,7 @@ describe("http/orchestration/attach", () => {
       preview: { steps: Array<{ param_shape?: Record<string, string> }> };
     };
     expect(body.gate_id).toMatch(/^chk_|^gate_/);
-    expect(body.preview.steps[0]?.param_shape).toEqual({ api_key: "string", count: "number" });
+    expect(body.preview.steps.map((step) => step.action)).toContain("presentation");
 
     const gatesRes = await fetch(`${baseUrl}/v1/runs/${body.run_id}/gates`, {
       headers: { Authorization: `Bearer ${agentToken}` },

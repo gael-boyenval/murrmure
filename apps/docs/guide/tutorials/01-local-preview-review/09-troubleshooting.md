@@ -1,21 +1,34 @@
 # Part 9 — Troubleshooting
 
-Common issues when running Tutorial 1 with **step contracts v2.2**.
+Common issues when running Tutorial 1 with **handlers**, **contract keys**, and **v2.2 step contracts**.
 
 ## Setup & apply
 
 | Symptom | Fix |
 |---------|-----|
-| `LEGACY_STEP_KIND` on apply | Manifest still uses `invoke:` / `checkpoint:` — migrate to `branches` + `executor` / `presentation` |
-| Strict apply fails on unknown token | Fix `{{murrmure.*}}` typo; see [step-contract bridge](../../../../studio-specs/current/bridges/step-contract.md) |
+| `LEGACY_STEP_KIND` on apply | Manifest still uses `invoke:` / `checkpoint:` — migrate to `branches` + `role` / `presentation` |
+| Strict apply fails on `executor.action` | Remove all `executor: { action: … }` blocks from flow manifests; wire execution in `.mrmr/space/handlers.yaml` |
+| `HANDLER_MISSING` / `STEP_UNCOVERED` | Agent step has no handler — add `contract_keys` matching `.mrmr/dev/contracts/contract-keys.json` |
+| Missing `contract_keys` on handler | Every `on: step.opened` handler needs at least one key; run `mrmr space doctor` |
+| `HANDLER_KEY_CONFLICT` | Two handlers claim the same key — keep one handler per key |
+| Strict apply fails on unknown token | Fix `&#123;&#123;murrmure.*&#125;&#125;` typo; see [step-contract bridge](../../../../studio-specs/current/bridges/step-contract.md) |
 | View not in index | Build view (`npm run build` in view dir) then `mrmr space apply --strict` |
+| `HANDLER_LEGACY_ACTIONS` | Delete or ignore `actions.yaml` prompt triggers; use `handlers.yaml` only |
+
+## Handler dispatch
+
+| Symptom | Fix |
+|---------|-----|
+| Agent step opens but nothing runs | Check handler `on: step.opened` and `contract_keys` match the step key |
+| Handler runs but step never completes | `complete: explicit` requires `murrmure_resolve_step` or `mrmr step resolve` |
+| `HANDLER_COMPLETE_CLI_NO_RESOLVE` | Handler uses `complete: cli` but `command` chain omits `mrmr step resolve` |
 
 ## Build loop
 
 | Symptom | Fix |
 |---------|-----|
 | Flow stuck before review | Agent must **`murrmure_resolve_step`** on **`build.build-loop`** with `preview_url` |
-| New subprocess each feedback round | Wrong pattern — build skill should **`wait_for_run`** in same session, not exit |
+| New subprocess each feedback round | Wrong pattern — build handler should **`wait_for_run`** in same session (`kill_on: step.resolved`), not exit |
 | `resolve_step` 409 | Step not active or run terminal — check step memo + `active-step-contract.json` |
 | Agent resolves review | Wrong — humans resolve **`build.review`** via view; agent only resolves **`build.build-loop`** |
 
@@ -29,14 +42,21 @@ Common issues when running Tutorial 1 with **step contracts v2.2**.
 
 ## Timeouts
 
-Parent executor **`timeout_ms`** excludes human **`awaiting_human`** time — build should not fail while humans review.
+Parent handler **`timeout_ms`** excludes human **`awaiting_human`** time — build should not fail while humans review.
 
-## MCP
+## MCP & skills
 
 | Symptom | Fix |
 |---------|-----|
 | Tool missing from catalog | Grant needs matching capability (`step:resolve`, `action:invoke`, `space:read`) |
-| Stale contract in long session | Re-read `.mrmr.temp/runs/{run_id}/active-step-contract.json` |
+| Stale contract in long session | Re-read `.mrmr/dev/runs/{run_id}/active-step-contract.json` |
+| `SKILL_AGENT_MISSING` | `mrmr skill install --variant agent` |
+| `SKILL_DEVELOPER_MISSING` | `mrmr skill install --variant developer` |
+| Legacy monolith skill | `mrmr skill install --variant all` |
+
+## Reference
+
+Compare your `.mrmr/` tree with [`examples/flows/preview-review-v2/.mrmr/`](../../../../examples/flows/preview-review-v2/.mrmr/) — it passes `mrmr space apply --strict` with full handler coverage.
 
 ## Next
 

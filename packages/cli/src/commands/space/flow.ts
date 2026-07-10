@@ -2,7 +2,7 @@ import { defineCommand } from "citty";
 import { spaceFlowInitCommand } from "./flow-init.js";
 
 export const spaceFlowCommand = defineCommand({
-  meta: { name: "flow", description: "Scaffold indexed flows under murrmure/flows/" },
+  meta: { name: "flow", description: "Scaffold indexed flows under .mrmr/flows/" },
   subCommands: {
     init: spaceFlowInitCommand,
   },

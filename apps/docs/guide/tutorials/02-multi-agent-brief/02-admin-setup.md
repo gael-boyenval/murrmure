@@ -28,7 +28,7 @@ mrmr space apply --strict
 mrmr space status --space spc_orchestrator
 ```
 
-Confirm indexed flow **`team-brief`** and hooks appear in status output.
+Confirm indexed flow **`team-brief`** and handlers appear in status output.
 
 Link the other folders:
 
@@ -44,7 +44,7 @@ Each agent needs a token scoped to its space **and** the capabilities to partici
 ```bash
 # Orchestrator — runs flow, queries knowledge
 mrmr grant mint --space spc_orchestrator \
-  --capabilities flow:run,flow:read,query:ask \
+  --capabilities flow:run,flow:read,query:ask,step:resolve,space:read \
   --label orchestrator-agent
 
 # Knowledge — answers queries (no flow:run required for passive Q&A)
@@ -52,9 +52,9 @@ mrmr grant mint --space spc_knowledge \
   --capabilities space:read,query:respond \
   --label knowledge-agent
 
-# Dev — receives wakes, runs actions, queries orchestrator
+# Dev — receives wakes, resolves steps, queries orchestrator
 mrmr grant mint --space spc_dev \
-  --capabilities flow:run,flow:read,action:invoke,query:ask \
+  --capabilities flow:run,flow:read,step:resolve,space:read,query:ask,event:emit \
   --label dev-agent
 ```
 
@@ -64,13 +64,16 @@ Configure federation / inbound allowlists so dev can receive wakes from orchestr
 
 ```bash
 mrmr space status --space spc_orchestrator
+mrmr space doctor --strict
 ```
 
 You should see:
 
 - Flow `team-brief`
-- Hook `brief_published_wake`
-- Actions `team_brief_open`, `mcp_wake`
+- Handler `brief-published-wake` (event: `brief.published`)
+- Handlers `team-brief-open`, `team-brief-done`
+
+Use `murrmure_list_handlers` from MCP to confirm handler catalog matches apply output.
 
 ## Next
 

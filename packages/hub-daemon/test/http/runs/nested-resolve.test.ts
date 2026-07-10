@@ -25,6 +25,26 @@ const NESTED_FLOW_BUNDLE = {
     },
   },
   hooks: { digest: "sha256:rs-hooks", file: { version: 1, hooks: {} } },
+  handlers: {
+    digest: "sha256:rs-handlers",
+    file: {
+      version: 1,
+      handlers: [
+        {
+          id: "build-owner",
+          contract_keys: [
+            "nested-resolve.build",
+            "nested-resolve.build.build-loop",
+            "nested-resolve.build.review",
+          ],
+          on: "step.opened",
+          kill_on: "step.resolved",
+          type: "shell_spawn",
+          complete: "explicit",
+        },
+      ],
+    },
+  },
   flows: [
     {
       flow_id: "flw_nested_resolve",
@@ -37,6 +57,7 @@ const NESTED_FLOW_BUNDLE = {
         steps: [
           {
             id: "build",
+            role: "agent",
             orchestration: "engine-routed",
             steps: [
               {

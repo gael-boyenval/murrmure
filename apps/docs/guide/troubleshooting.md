@@ -9,11 +9,14 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | Code / symptom | Fix |
 |----------------|-----|
 | Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint` + `mrmr grant use --space ...` |
-| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / correct capabilities |
+| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / `step:resolve` / correct capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
 | Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
-| `wait_for_gate` times out | Human must resolve checkpoint in **ViewCanvasHost** |
-| Trigger did not wake agent | Confirm `hooks.yaml` + apply; check delivery log |
+| `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |
+| Handler not dispatched | Check `contract_keys` in `handlers.yaml`; `mrmr space doctor` |
+| `contract_key` mismatch | Align handler keys with StepContractCatalog step ids |
+| Missing `handlers.yaml` entry | Add handler for dispatched step; re-apply |
+| Trigger did not wake agent | Confirm event handler in `handlers.yaml` + apply; check delivery log |
 | Cross-space `QUERY_POLICY_DENIED` | Fix inbound allowlist on target space |
 
 ## MCP tools not showing in Cursor
@@ -22,7 +25,7 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 2. Confirm `murrmure-mcp` is on PATH (`npm i -g @murrmure/mcp-bridge`)
 3. Env: **`MURRMURE_HUB_TOKEN`** exported in the same shell used to launch your IDE
 4. Check MCP logs in Cursor settings
-5. Run **`mrmr space doctor`** for drift hints
+5. Run **`mrmr space doctor`** for handler coverage and drift hints
 
 ## Desktop: can't see a space
 
@@ -40,13 +43,13 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
 ## Agent workflow help
 
-Install the **murrmure** skill:
+Install the split runtime skills:
 
 ```bash
-mrmr skill install
+mrmr skill install --variant all
 ```
 
-Reload Cursor. Skill reference covers `space apply`, checkpoints, hooks — not worker install.
+Worker-only spaces can install only `murrmure-agent` with `mrmr skill install --variant agent`.
 
 ## Still stuck?
 
@@ -56,4 +59,5 @@ Reload Cursor. Skill reference covers `space apply`, checkpoints, hooks — not 
 ## Related
 
 - [Known gaps](./known-gaps)
+- [Space handlers](./space-handlers)
 - [Connect your agent](./agents-mcp)

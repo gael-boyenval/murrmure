@@ -2,13 +2,13 @@
 
 The **write / build / review / archive / commit** behavior is defined here — not in the flow YAML.
 
-Murrmure **never reads** these files for configuration. Your **prompt triggers** (Part 4) tell Cursor to follow them.
+Murrmure **never reads** these files for configuration. Your **space handlers** (Part 4) tell Cursor to follow them.
 
 ## Two skill layers
 
 | | Installed by | Teaches |
 |---|--------------|---------|
-| **Platform skill** | `mrmr skill install` | Murrmure hub tools, step contracts, `resolve_step`, `wait_for_run` |
+| **Platform skills** | `mrmr skill install --variant agent\|developer` | Hub tools, step contracts, handlers authoring |
 | **Space skill** | You, in `skills/feature-build/` | This repo's build loop, preview discovery, archive rules |
 
 ## Step 1 — Create `agent.md`
@@ -20,7 +20,7 @@ At the space root:
 
 ## Spec lifecycle
 - **Intake:** human attaches markdown from their computer (not from this repo).
-- **Write spec:** `feature_write_spec` writes to `specs/current/{spec_filename}`.
+- **Write spec:** handler `feature_write_spec` writes to `specs/current/{spec_filename}`.
 - **Archive:** after review validates, `feature_archive` moves `specs/current/` → `specs/archive/`.
 - **Commit:** `feature_commit` stages and commits site changes.
 
@@ -72,11 +72,21 @@ The agent discovers preview locally:
 
 | Murrmure indexes | Murrmure ignores |
 |----------------|------------------|
-| `murrmure/actions.yaml` prompts | `agent.md` content |
-| Flow step ids | Skill prose |
+| `.mrmr/space/handlers.yaml` prompts | `agent.md` content |
+| Flow step ids + `contract_keys` | Skill prose |
 | View bundles | Preview URL, git messages |
 
-You can rewrite `agent.md` tomorrow without `mrmr space apply`. Change the flow graph only when **when** steps fire needs to change.
+You can rewrite `agent.md` tomorrow without `mrmr space apply`. Change the flow graph only when **when** steps fire needs to change; change handlers when **what runs** on each step needs to change.
+
+## Handlers vs agent layer
+
+| Layer | File | Owns |
+|-------|------|------|
+| **Protocol** | `.mrmr/flows/.../flow.manifest.yaml` | Step graph, branches, views |
+| **Execution** | `.mrmr/space/handlers.yaml` | Harness command, prompt template, `contract_keys` |
+| **Agent** | `agent.md`, `skills/feature-build/SKILL.md` | Domain behavior the prompt references |
+
+Compare handler prompts in [`preview-review-v2/.mrmr/space/handlers.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/space/handlers.yaml) with this repo's `agent.md`.
 
 ## Checkpoint
 
@@ -86,4 +96,4 @@ You can rewrite `agent.md` tomorrow without `mrmr space apply`. Change the flow 
 
 ## Next
 
-[Part 4 — Prompt triggers →](./04-prompt-triggers)
+[Part 4 — Space handlers →](./04-prompt-triggers)

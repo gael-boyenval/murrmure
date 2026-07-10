@@ -42,7 +42,7 @@ There is **no** separate `@murrmure/flow-sdk` package; ex-capability-sdk library
 | `mrmr flow dev [path] --sim [--port <n>]` | BC5b | Thin local shell + simulated state machine |
 | `mrmr flow validate\|test\|promote\|apply --space <id> --install <id>` | BC2 | Evolution HTTP parity |
 | `mrmr skill install\|update\|version [--dir path]` | BC15 | Install `murrmure-flow` Cursor skill ([15](./15-agent-skill-package.md)) |
-| `@murrmure/mcp-bridge` (`murrmure-mcp`) | BC7 | Thin stdio bridge to hub MCP (discovery, token forwarding, wake relay) |
+| `@murrmure/mcp-bridge` (`murrmure-mcp`) | BC7 | Thin stdio bridge to hub MCP (discovery, token forwarding, wake relay). **Bundled with Murrmure Desktop**; global npm install only for headless/CI |
 
 **All commands:** `--json` for agent parity (PAR-04). Default stdout is human-readable; `--json` preserves existing response shapes.
 

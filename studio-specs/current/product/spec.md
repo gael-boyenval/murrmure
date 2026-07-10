@@ -50,6 +50,8 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 
 **Does not supersede for:** v1 shipped behavior, hub kernel semantics in [hub/architecture.md](../../current/hub/architecture.md).
 
+**Post-1.0 amendment (2026-07-09 — handlers cutover):** Default spaces use **`.mrmr/`** layout and **handlers.yaml** keyed by **`contract_keys`**. Flow manifests are **protocol-only** (no `invoke:` / `executor.action`). See [bridges/handlers.md](../bridges/handlers.md).
+
 ---
 
 ## 0b. Decision summary (rev-1)
@@ -57,16 +59,15 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 | Topic | Decision |
 |-------|----------|
 | **Murrmure role** | Agentic OS **kernel** — journal, grants, invoke, artifacts, gates, audit, agent coordination. Never prompts, skills, models, agent definitions. |
-| **Primary human UX** | **Custom views** (`murrmure/views/`) in **ViewCanvasHost** — full primary-region UI; hide generic shell. **Not** narrow drawers or built-in gate forms as default. |
+| **Primary human UX** | **Custom views** (`.mrmr/views/`) in **ViewCanvasHost** — full primary-region UI; hide generic shell. **Not** narrow drawers or built-in gate forms as default. |
 | **Shell chrome** | **Admin/operator** — space home, flowchart, notifications, grants, debug. Observe and manage; not the product authors ship to end users. |
-| **Space** | User root directory + `murrmure/` config. Identity (`spc_*`) + binding (path/host). May be shared git repo. |
+| **Space** | User root directory + `.mrmr/` index. Identity (`spc_*`) + binding (path/host). May be shared git repo. |
 | **Session** | **Correlation context** — user-facing tracker spanning spaces, flows, and time. Mutable grouping only. |
 | **Run** | **Immutable execution unit** — lifecycle, step state, gates, exec context (worktree, preview URL). Parallel lanes = sibling Runs. |
-| **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only. |
-| **Hook** | Space-owned reactor in `hooks.yaml` — *when this space reacts to an event*. Renamed from ambiguous "trigger." |
-| **Action** | Named side-effect boundary in `actions.yaml` — **first-class**, indexed by hub. |
-| **Executor** | Reachability binding for an action (MCP session, shell spawn, queue poll, remote hub). **Invoke preflight** required. |
-| **View** | **Primary human interface** — full custom UI packages in `murrmure/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. Built-in forms = fallback only. |
+| **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only — **no executor refs**. |
+| **Handler** | Space-owned execution unit in `.mrmr/space/handlers.yaml` — keyed by **`contract_keys`**, dispatched on `step.opened` / events. Replaces actions + executors + hooks for default spaces. |
+| **contract_key** | Protocol address `{flow_ref}.{qualified_step_id}` — binds flow steps to space handlers at apply time. |
+| **View** | **Primary human interface** — full custom UI packages in `.mrmr/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. Built-in forms = fallback only. |
 | **Gate** | Run in `input-required`; **`gate.requires_view`** opens author's view canvas (primary). Built-in gate form = fallback when view bundle missing. |
 | **Journal** | CloudEvents-compatible append-only log. `subject` carries session/run correlation path. |
 | **Headless delivery** | Every hub trigger/hook delivery **must** create Session (if needed) + Run. No silent executions. |
@@ -107,14 +108,14 @@ Murrmure hub (protocol)
   Journal · Session · Run · Gate · Artifact · Grant
 
 Space (directory — hub indexes)
-  Space · Action · Executor · Flow · Hook
+  Space · Handler · Flow · contract_key
 
 Concepts (not stored)
   Agent = harness × task × context × space
   View  = client that reads protocol (architectural rule)
 ```
 
-**Count:** 6 hub entities + 5 space-indexed concepts. Down from ~10 fuzzy nouns in v2 draft.
+**Count:** 6 hub entities + 4 space-indexed concepts (+ legacy Action/Executor during HANDLER-CUTOVER).
 
 ### 2.2 Responsibility table — hub-owned
 
@@ -131,18 +132,18 @@ Concepts (not stored)
 
 | Noun | Owns |
 |------|------|
-| **Space** | Directory content; `murrmure/` config; team artifacts |
-| **Action** | Named callable: executor ref, timeout, response schema ref |
-| **Executor** | How action is reachable: MCP session, shell command, queue worker, remote hub |
-| **Flow** | Declarative step graph; start conditions; references actions by name |
-| **Hook** | Event/schedule → react (invoke action, start flow, extend session) |
+| **Space** | Directory content; `.mrmr/` index; team artifacts |
+| **Handler** | Step/event dispatch: `contract_keys`, `on`, `type`, `complete`, prompt/command |
+| **Flow** | Declarative step graph; start conditions; branch schemas — **protocol only** |
+| **Action** *(legacy)* | Named callable in `actions.yaml` — accepted until HANDLER-CUTOVER |
+| **Executor** *(legacy)* | Reachability binding for legacy actions |
 
 ### 2.4 Demoted / folded
 
 | Former noun | Becomes |
 |-------------|---------|
 | **View** (hub entity) | Rule: clients read `/v1/sessions`, `/v1/runs`, journal SSE |
-| **Trigger** (space) | **Hook** in `hooks.yaml` |
+| **Trigger** (space) | **Event handler** in `handlers.yaml` (`on: event: …`) |
 | **Trigger** (flow) | **Start conditions** on flow manifest |
 | **Instance** (v1) | **Run** (`instance_id` alias during migration) |
 | **Capability / FlowInstall** | Flow index row (origin space, digest, grants) |
@@ -257,12 +258,56 @@ Hub owns the deadline; executors may ack faster.
 
 ---
 
-## 4. Action, Executor, and invoke
+## 4. Handlers, contract keys, and invoke (legacy)
 
-### 4.1 Action (space-owned, hub-indexed)
+**Canonical (2026-07-09):** Spaces own execution via **handlers** in `.mrmr/space/handlers.yaml`, keyed by **`contract_keys`**. Flow manifests declare protocol shape only — steps, branches, presentation — not `invoke:` or `executor.action`. Full field reference: [bridges/handlers.md](../bridges/handlers.md).
 
 ```yaml
-# murrmure/actions.yaml
+# .mrmr/space/handlers.yaml
+version: 1
+handlers:
+  - id: write-spec
+    contract_keys:
+      - preview-review.write_spec
+    on: step.opened
+    type: shell_spawn
+    complete: explicit          # agent calls murrmure_resolve_step / mrmr step resolve
+    prompt: |
+      …
+    command: cursor agent -p --force {{prompt}}
+```
+
+| Field | Semantics |
+|-------|-----------|
+| `id` | Stable handler id; journal prefix `handler:{id}` |
+| `contract_keys` | `{flow_ref}.{qualified_step_id}` — empty for event-only handlers |
+| `on` | `step.opened` \| `step.resolved` \| `event: { type, source? }` |
+| `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` |
+| `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after dispatch |
+
+**contract_key** resolution:
+
+```text
+contract_key := {flow_ref}.{qualified_step_id}
+```
+
+- `flow_ref` = apply-time resolved flow identity.
+- `qualified_step_id` = dot path from step catalog (e.g. `build.review`).
+- Matching: exact + explicit multi-key only (no wildcards in v1).
+- Human-step keys in multi-key handlers are **scope/documentation only** — never dispatched on `step.opened`.
+
+**Completion path:** Handler dispatch → agent/shell work → `murrmure_resolve_step` (MCP) or `mrmr step resolve` (CLI, env `MURRMURE_RUN_ID`, `MURRMURE_STEP_ID`, short-lived `MURRMURE_HUB_TOKEN`).
+
+---
+
+### 4.1 Action + Executor *(legacy — HANDLER-CUTOVER)*
+
+The sections below describe the pre-cutover **Action + Executor** invoke model. Legacy `actions.yaml`, `executors.yaml`, and `hooks.yaml` remain accepted until HANDLER-CUTOVER; new spaces should use handlers only.
+
+### 4.1a Action (space-owned, hub-indexed)
+
+```yaml
+# legacy: .mrmr/space/actions.yaml (or murrmure/actions.yaml during migration)
 version: 1
 actions:
   review_url:
@@ -287,7 +332,7 @@ actions:
 - Journal lifecycle on Run
 - **Never** interpret param semantics (prompt text, task meaning)
 
-### 4.2 Executor binding
+### 4.2 Executor binding *(legacy)*
 
 | Type | Semantics | Reachability |
 |------|-----------|--------------|
@@ -309,7 +354,7 @@ actions:
 Action declares `executor` ref; hub validates reachability per type via preflight.
 
 ```yaml
-# murrmure/executors.yaml (illustrative — may merge into actions.yaml)
+# legacy: .mrmr/space/executors.yaml
 executors:
   cursor-mcp:
     type: mcp_session
@@ -395,58 +440,108 @@ In-process poll adapter permitted for **dev/tests only**. Production `queue_poll
 | Concept | Question | Where | v2 draft name |
 |---------|----------|-------|---------------|
 | **Flow start conditions** | *How may this flow be started?* | `flow.manifest.yaml` | Flow triggers |
-| **Hook** | *When does this space react?* | `murrmure/hooks.yaml` | Space triggers |
+| **Hook / event handler** | *When does this space react?* | `.mrmr/space/handlers.yaml` | Space triggers |
 
 Avoids two systems both called "trigger."
 
 ### 5.2 Flow manifest
 
 ```yaml
-# murrmure/flows/feature-delivery/flow.manifest.yaml
+# .mrmr/flows/preview-review/flow.manifest.yaml
 apiVersion: murrmure.flow/v1
-name: feature-delivery
-description: Research → spec → parallel dev lanes → finish
+name: preview-review
+description: Spec intake → write → build (review loop) → archive → commit
+
+triggers:
+  manual: true
 
 start:
   manual: true
-  events:
-    - type: mrmr.spec.published
-      source: "/spaces/spc_spec"
-  schedule: null          # cron string when set
-  requires_view: null      # optional view_id for param collection
-  idempotency: run_key     # optional
-
-grants:
-  # authoring hint only — authoritative grants in hub DB / space grant files
-  suggested: [flow:run]
 
 steps:
-  - id: research
-    invoke:
-      space: spc_research
-      action: overnight_research
-      params: { topic: "{{input.topic}}" }
+  - id: intake
+    description: Human attaches spec markdown.
+    presentation:
+      view: preview-review-intake
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec_filename, reviewer]
+        artifact_slots:
+          spec:
+            description: Attached spec markdown file
+        next: write_spec
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
-  - id: spec
-    invoke:
-      space: spc_spec
-      action: build_plan
-      artifacts_in: ["{{steps.research.artifacts.out}}"]
+  - id: write_spec
+    description: Agent writes spec to repo.
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: build
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
-  - id: parallel_dev
-    parallel:
-      matrix: "{{input.worktrees}}"    # GHA matrix-style
-      lane:
-        - id: dev
-          invoke: { space: "{{item.space}}", action: implement, … }
-        - id: review
-          gate: { form: review.v1, assignees: ["{{input.reviewer}}"] }
+  - id: build
+    description: Build site and human review loop until validated.
+    role: agent
+    orchestration: engine-routed
+    steps:
+      - id: build-loop
+        role: agent
+        branches:
+          completed:
+            schema:
+              type: object
+              required: [preview_url]
+            goto: review
+          failed:
+            schema: { type: object }
+            fail: true
+      - id: review
+        presentation:
+          view: preview-review
+          assignees: ["{{input.reviewer}}"]
+        branches:
+          validated:
+            schema: { type: object }
+            complete: parent
+          changes_required:
+            schema: { type: object }
+            continue: parent
+            goto: build-loop
+    branches:
+      completed:
+        schema: { type: object }
+        next: archive
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
 
-  - id: finish
-    invoke:
-      space: spc_orchestrator
-      action: merge_results
+  - id: archive
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: commit
+
+  - id: commit
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
 ```
+
+**Execution binding:** Space handlers map `contract_keys` such as `preview-review.write_spec`, `preview-review.build.build-loop` — see [bridges/handlers.md](../bridges/handlers.md). Flow manifest carries **no** `invoke:` blocks.
 
 **No `scope: local|global`.** Visibility = grants. File living in catalog space + `flow:run` grant to team = "global" behavior.
 
@@ -462,32 +557,32 @@ When the flow engine **enters** a `parallel.matrix` step and the matrix value is
 
 Dynamic matrix from live step output is not required for slice E v1.
 
-### 5.3 Hooks
+### 5.3 Event handlers
+
+Event-driven space reactions live in the same **`handlers.yaml`** namespace as step handlers (one id namespace; journal prefix `handler:{id}`):
 
 ```yaml
-# murrmure/hooks.yaml
+# .mrmr/space/handlers.yaml
 version: 1
-hooks:
-  on-spec-published:
+handlers:
+  - id: on-spec-published
+    contract_keys: []              # event-only
     on:
       event:
         type: mrmr.spec.published
         source: "/spaces/spc_backend"
-    do:
-      - ensure_session: { title: "Backend → frontend chain" }
-      - invoke:
-          action: wake_review
-          params: { ref: "{{event.data.artifact_ref}}" }
-      - start_flow:
-          flow_id: flw_cross_review
-          input: { diff_ref: "{{event.data.artifact_ref}}" }
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      Start downstream review for {{event.data.artifact_ref}}
+    command: cursor agent -p --force {{prompt}}
 ```
 
-**Hook delivery invariant:** Every hub-delivered hook **must**:
+**Handler delivery invariant:** Every hub-delivered event handler **must**:
 
 1. Create or attach to a **Session**
 2. Create a **Run** (even single-step — shows as one-node graph or journal replay)
-3. Journal `mrmr.hook.delivered` with hook id, event ref, session_id, run_id
+3. Journal `mrmr.handler.delivered` (alias `mrmr.hook.delivered` during migration) with handler id, event ref, session_id, run_id
 
 No "when possible" language — **mandatory**.
 
@@ -502,7 +597,7 @@ interface FlowIndexEntry {
   digest: string;            // manifest hash
   name: string;
   start: FlowStartConditions;
-  step_spaces: string[];     // for "Receiving from" space home section
+  step_spaces: string[];     // spaces with handlers for this flow's contract_keys
   grants_required: string[]; // hints for expand preview
   view_ref?: {               // when start.requires_view set — NOT a hub view entity
     view_id: string;
@@ -513,7 +608,7 @@ interface FlowIndexEntry {
 }
 ```
 
-**View resolution (closed 2026-06-30):** on `space apply`, parse `murrmure/views/{view_id}/view.manifest.yaml` from flow origin space and denormalize into `view_ref`. Shell reads flow index — **no hub view registry**. If view missing at run time → fallback to `GateFormSchema`-style param form on run create.
+**View resolution (closed 2026-06-30):** on `space apply`, parse `.mrmr/views/{view_id}/view.manifest.yaml` from flow origin space and denormalize into `view_ref`. Shell reads flow index — **no hub view registry**. If view missing at run time → fallback to `GateFormSchema`-style param form on run create.
 
 No per-space "install" UX — index refresh only.
 
@@ -839,7 +934,7 @@ Do not rely on `Authorization` header on browser `EventSource` for hosted web.
 ### 10.4 Space index
 
 ```http
-POST   /v1/spaces/{space_id}/apply             # re-index murrmure/ files
+POST   /v1/spaces/{space_id}/apply             # re-index .mrmr/ files
 GET    /v1/spaces/{space_id}/actions
 GET    /v1/spaces/{space_id}/flows
 GET    /v1/flows/{flow_id}
@@ -896,9 +991,9 @@ First successful `space link` by a user → **suggest** “Use as landing?” (b
 
 Agents connect via `murrmure-mcp` from `@murrmure/mcp-bridge`. MCP config shape is thin:
 
-- `command: "murrmure-mcp"`
+- `command` — bundled absolute path when Murrmure Desktop runs (`shared.json` → `mcp_bridge.command`), else `"murrmure-mcp"` on PATH (`npm i -g @murrmure/mcp-bridge` for headless/CI)
 - `env.MURRMURE_HUB_TOKEN` only
-- no MCP `MURRMURE_SPACE_ID` pinning (space identity is token-derived)
+- no MCP `MURRMURE_HUB_URL` or `MURRMURE_SPACE_ID` in MCP config (bridge reads hub endpoint from discovery; space identity is token-derived)
 
 Catalog = grant-filtered platform tools. Runtime onboarding flow: `mrmr grant mint` + `mrmr grant use --space <spc_...>`.
 
@@ -935,22 +1030,25 @@ my-space/
   skills/                       # USER
   .cursor/ | mcp.json           # USER harness
   src/ | docs/
-  murrmure/
-    space.yaml                  # optional: slug, tags
-    actions.yaml
-    executors.yaml              # optional if inline in actions
-    hooks.yaml                  # renamed from triggers.yaml
+  .mrmr/
+    space/
+      space.yaml                # slug, tags, link block (space_id + host)
+      handlers.yaml             # canonical — step + event handlers
+      actions.yaml              # legacy stub (HANDLER-CUTOVER)
+      executors.yaml            # legacy stub
+      hooks.yaml                # legacy stub
     flows/
-      feature-delivery/
-        flow.manifest.yaml
-        schemas/                # optional response shapes
+      preview-review/           # example — only when scaffolded with --with-examples
+        flow.manifest.yaml      # protocol only
+        schemas/                # optional branch payload shapes
     views/                      # optional client packages — not hub registry
+    dev/                        # local runtime outputs (gitignored)
   .mrmr.temp/
     inbox/
     outbox/
 ```
 
-**Migration note:** `triggers.yaml` accepted as alias for `hooks.yaml` during transition.
+**Migration note:** Legacy `murrmure/` layout and `triggers.yaml` / `hooks.yaml` accepted as aliases until HANDLER-CUTOVER. `.murrmure/link.json` is deprecated — use `space.yaml` `link:` block.
 
 ---
 
@@ -993,7 +1091,7 @@ Space: frontend
 ├── Active runs
 ├── Your flows               ← flows authored in this space (origin)
 ├── Available to run         ← flow:run grants
-├── Receiving from           ← flows whose steps invoke this space
+├── Receiving from           ← flows whose steps bind handlers in this space
 └── Recent completed
 ```
 
@@ -1107,7 +1205,7 @@ Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 ### 13.5 Move flow to shared catalog
 
 ```text
-1. Flow files live in project space murrmure/flows/feature-delivery/
+1. Flow files live in project space `.mrmr/flows/preview-review/`
 2. Team moves directory to team-catalog space (git mv)
 3. mrmr space apply
 4. Grants: flow:run to team actors on flw_feature_delivery
@@ -1196,7 +1294,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | Slice | Scope | Depends on |
 |-------|-------|------------|
 | **A** — Docs & types | philosophy update, Zod: Session, Run, Gate, Action, Journal CE shape, artifact v1 | — |
-| **B** — Space directory index | `mrmr space init/link/apply`; index actions, executors, hooks, flows | A |
+| **B** — Space directory index | `mrmr space init/link/apply`; index handlers, flows, views | A |
 | **D** — Action invoke + artifacts | invoke preflight, completion contract, `.mrmr.temp/`, exchange store | B |
 | **C** — Session + Run protocol | CRUD, journal linkage, step memo, journal replay view | D |
 | **H** — Notifications + logs | Needs you, `/notifications`, `/logs` filters, SSE | C |
@@ -1264,6 +1362,8 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 ## 21. Implementation plan status (phases 01–10)
 
 Sourced from [plan/index.md](../../plans/product/plan/index.md) rev-5 (2026-07-03). **All phases shipped** in `@murrmure/cli@1.0.0` release.
+
+**Post-1.0 normative amendment:** Handlers + contract keys + `.mrmr/` layout (2026-07-09) — see [bridges/handlers.md](../bridges/handlers.md) and §4 above.
 
 **Known gaps B1–B10:** closed — see [known-gaps.md](../../../apps/docs/guide/known-gaps.md) and [acceptance.md](../acceptance.md).
 

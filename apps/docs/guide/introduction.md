@@ -37,7 +37,7 @@ You **don't clone a git repository** to use Murrmure — install Desktop and the
 4. People work in **Desktop** — preview, comment, Finish a review, approve a gate.
 5. Agents connect via **MCP** — open sessions, draft specs, wait for human handoff.
 
-**Want custom workflows?** See the [Flows tutorial](./flows-tutorial) — author indexed flows in `murrmure/` with **`mrmr space apply`**. Checkpoint UI uses **ViewCanvasHost** and `@murrmure/view-sdk`.
+**Want custom workflows?** See [Creating flows](./creating-flows) and [Space handlers](./space-handlers) — author indexed flows in `.mrmr/` with **`mrmr space apply`**. Checkpoint UI uses **ViewCanvasHost** and `@murrmure/view-sdk`.
 
 ## A typical review afternoon
 

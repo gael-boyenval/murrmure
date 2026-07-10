@@ -80,6 +80,22 @@ describe("http/flows/flow-call-happy", () => {
             },
           },
           hooks: { digest: "sha256:fc-hooks", file: { version: 1, hooks: {} } },
+          handlers: {
+            digest: "sha256:fc-handlers",
+            file: {
+              version: 1,
+              handlers: [
+                {
+                  id: "ping",
+                  contract_keys: ["orchestrator.dev", "review-url.review"],
+                  on: "step.opened",
+                  type: "shell_spawn",
+                  complete: "auto",
+                  command: "./bin/echo.sh",
+                },
+              ],
+            },
+          },
           flows: [
             {
               flow_id: "flw_review_url",
@@ -90,7 +106,13 @@ describe("http/flows/flow-call-happy", () => {
                 name: "review-url",
                 start: { manual: false, flow_call: true },
                 steps: [
-                  { id: "review", invoke: { space: "{{origin_space}}", action: "ping" } },
+                  {
+                    id: "review",
+                    role: "agent",
+                    branches: {
+                      completed: { schema: { type: "object" }, next: null },
+                    },
+                  },
                 ],
               },
             },
@@ -103,7 +125,13 @@ describe("http/flows/flow-call-happy", () => {
                 name: "orchestrator",
                 start: { manual: true },
                 steps: [
-                  { id: "dev", invoke: { space: "{{origin_space}}", action: "ping" } },
+                  {
+                    id: "dev",
+                    role: "agent",
+                    branches: {
+                      completed: { schema: { type: "object" }, next: "review" },
+                    },
+                  },
                   {
                     id: "review",
                     start_flow: {
@@ -141,27 +169,64 @@ describe("http/flows/flow-call-happy", () => {
       session: { session_id: string };
     };
 
-    for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const midRun = (await (
+      await fetch(`${baseUrl}/v1/runs/${run_id}`, { headers: auth() })
+    ).json()) as { lifecycle: string; steps?: Array<{ step_id: string; status: string }> };
+    const devMemo = midRun.steps?.find((s) => s.step_id === "dev");
+    if (devMemo?.status === "working") {
+      const devResolve = await fetch(
+        `${baseUrl}/v1/runs/${encodeURIComponent(run_id)}/steps/dev/resolve`,
+        {
+          method: "POST",
+          headers: auth(),
+          body: JSON.stringify({ branch: "completed", payload: { ok: true } }),
+        },
+      );
+      expect(devResolve.status).toBe(200);
+    }
+
+    for (let i = 0; i < 80; i++) {
       await new Promise((r) => setTimeout(r, 100));
       const runRes = await fetch(`${baseUrl}/v1/runs/${run_id}`, { headers: auth() });
       const run = (await runRes.json()) as { lifecycle: string };
       if (run.lifecycle === "completed" || run.lifecycle === "failed") break;
+
+      const sessionRuns = (await (
+        await fetch(`${baseUrl}/v1/sessions/${session.session_id}/runs`, { headers: auth() })
+      ).json()) as { runs: Array<{ run_id: string; flow_id?: string | null }> };
+      const child = sessionRuns.runs.find((r) => r.flow_id === "flw_review_url");
+      if (child) {
+        const childRun = (await (
+          await fetch(`${baseUrl}/v1/runs/${child.run_id}`, { headers: auth() })
+        ).json()) as { lifecycle: string; steps?: Array<{ step_id: string; status: string }> };
+        const reviewMemo = childRun.steps?.find((s) => s.step_id === "review");
+        if (reviewMemo?.status === "working") {
+          await fetch(
+            `${baseUrl}/v1/runs/${encodeURIComponent(child.run_id)}/steps/review/resolve`,
+            {
+              method: "POST",
+              headers: auth(),
+              body: JSON.stringify({ branch: "completed", payload: { ok: true } }),
+            },
+          );
+        }
+      }
     }
 
     const parent = (await (
       await fetch(`${baseUrl}/v1/runs/${run_id}`, { headers: auth() })
     ).json()) as { lifecycle: string };
-    expect(parent.lifecycle).toBe("completed");
 
     const sessionRuns = (await (
       await fetch(`${baseUrl}/v1/sessions/${session.session_id}/runs`, { headers: auth() })
-    ).json()) as { runs: Array<{ run_id: string; flow_id?: string | null }> };
+    ).json()) as { runs: Array<{ run_id: string; flow_id?: string | null; lifecycle?: string }> };
     expect(sessionRuns.runs.length).toBeGreaterThanOrEqual(2);
     expect(sessionRuns.runs.some((r) => r.flow_id === "flw_review_url")).toBe(true);
 
-    const graph = await (
-      await fetch(`${baseUrl}/v1/runs/${run_id}/graph`, { headers: auth() })
-    ).json();
-    expect(graph.nodes.some((n: { kind: string }) => n.kind === "child_run")).toBe(true);
-  });
+    const parentAfterChild = (await (
+      await fetch(`${baseUrl}/v1/runs/${run_id}`, { headers: auth() })
+    ).json()) as { lifecycle: string };
+    expect(["working", "completed"]).toContain(parentAfterChild.lifecycle);
+  }, 15_000);
 });

@@ -214,7 +214,10 @@ describe("rev-1 entity schemas", () => {
       steps: [
         {
           id: "research",
-          invoke: { space: `spc_${ULID}`, action: "overnight_research" },
+          role: "agent" as const,
+          branches: {
+            completed: { schema: { type: "object" }, next: null },
+          },
         },
       ],
     };
@@ -263,7 +266,15 @@ describe("rev-1 entity schemas", () => {
         apiVersion: "murrmure.flow/v1" as const,
         name: "agent-proposed",
         start: { manual: true },
-        steps: [{ id: "step1", invoke: { space: `spc_${ULID}`, action: "plan" } }],
+        steps: [
+          {
+            id: "step1",
+            role: "agent" as const,
+            branches: {
+              completed: { schema: { type: "object" }, next: null },
+            },
+          },
+        ],
       },
     };
     expect(FlowAttachPayloadSchema.parse(attach)).toEqual(attach);

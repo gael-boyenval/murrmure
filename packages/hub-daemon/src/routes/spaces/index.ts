@@ -5,6 +5,8 @@ import {
   RemoteHubSpaceBindingSchema,
   JOURNAL_EVENT_TYPES,
   isLocalSpaceBinding,
+  type FlowIndexEntry,
+  type SpaceApplyBundle,
 } from "@murrmure/contracts";
 import {
   applyIndexDiff,
@@ -13,8 +15,7 @@ import {
   parseFlowManifest,
   rejectInlineScriptSteps,
   lintSpaceApplyBundle,
-  writeSpaceBriefingFile,
-  resolveSpaceRoot,
+  resolveBindingsFile,
 } from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
@@ -27,6 +28,119 @@ import {
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
 import { markSpaceLinkForActor } from "@murrmure/hub-core";
 import { broadcastSse } from "../../context.js";
+
+function cloneBoundFlowEntry(input: {
+  entry: FlowIndexEntry;
+  target_space_id: string;
+}): FlowIndexEntry {
+  const next: FlowIndexEntry = {
+    ...input.entry,
+    origin_space_id: input.target_space_id,
+    step_spaces: input.entry.step_spaces.map((spaceId) =>
+      spaceId === input.entry.origin_space_id ? input.target_space_id : spaceId,
+    ),
+  };
+  if (next.step_spaces.length === 0) {
+    next.step_spaces = [input.target_space_id];
+  }
+  if (next.view_ref) {
+    next.view_ref = {
+      ...next.view_ref,
+      origin_space_id: input.target_space_id,
+    };
+  }
+  return next;
+}
+
+function flowRowsFromEntries(entries: FlowIndexEntry[]): Array<FlowIndexEntry & { payload_json: string }> {
+  return entries.map((entry) => ({
+    ...entry,
+    payload_json: JSON.stringify(entry),
+  }));
+}
+
+function recomputeFlowChanges(
+  currentFlows: Array<{ flow_id: string; digest: string }>,
+  nextFlows: Array<{ flow_id: string; digest: string }>,
+): Array<{ resource: "flows"; key: string; change: "added" | "updated" | "removed" | "unchanged"; digest?: string }> {
+  const currentByKey = new Map(currentFlows.map((row) => [row.flow_id, row]));
+  const nextByKey = new Map(nextFlows.map((row) => [row.flow_id, row]));
+  const out: Array<{ resource: "flows"; key: string; change: "added" | "updated" | "removed" | "unchanged"; digest?: string }> = [];
+
+  for (const [key, row] of nextByKey) {
+    const prev = currentByKey.get(key);
+    if (!prev) {
+      out.push({ resource: "flows", key, change: "added", digest: row.digest });
+      continue;
+    }
+    if (prev.digest !== row.digest) {
+      out.push({ resource: "flows", key, change: "updated", digest: row.digest });
+      continue;
+    }
+    out.push({ resource: "flows", key, change: "unchanged", digest: row.digest });
+  }
+
+  for (const [key] of currentByKey) {
+    if (!nextByKey.has(key)) {
+      out.push({ resource: "flows", key, change: "removed" });
+    }
+  }
+
+  return out;
+}
+
+async function resolveBoundFlows(input: {
+  bundle: SpaceApplyBundle;
+  studio: DaemonContext["murrmurePersistence"];
+  target_space_id: string;
+}): Promise<{
+  flows: FlowIndexEntry[];
+  warnings: Array<{ flow_id: string; code: string; message: string }>;
+}> {
+  const out: FlowIndexEntry[] = [];
+  const warnings: Array<{ flow_id: string; code: string; message: string }> = [];
+  if (!input.bundle.bindings) {
+    return { flows: out, warnings };
+  }
+
+  const resolvedBindings = resolveBindingsFile(input.bundle.bindings.file);
+  if (!resolvedBindings.ok) {
+    warnings.push({
+      flow_id: "bindings",
+      code: resolvedBindings.code,
+      message: resolvedBindings.message,
+    });
+    return { flows: out, warnings };
+  }
+
+  for (const flowBinding of resolvedBindings.value.flows) {
+    if (flowBinding.source.kind === "local") {
+      continue;
+    }
+
+    const sourceSpace =
+      flowBinding.source.kind === "space"
+        ? flowBinding.source.space_id.replace(/^spc_/, "")
+        : undefined;
+    const entry = await input.studio.getFlowIndexEntry(flowBinding.ref, sourceSpace);
+    if (!entry) {
+      warnings.push({
+        flow_id: "bindings",
+        code: "BINDINGS_UNRESOLVED",
+        message: `Flow binding '${flowBinding.ref}' from '${flowBinding.source.kind === "space" ? `space:${flowBinding.source.space_id}` : "catalog"}' could not be resolved`,
+      });
+      continue;
+    }
+    out.push(
+      cloneBoundFlowEntry({
+        entry,
+        target_space_id: input.target_space_id,
+      }),
+    );
+  }
+
+  return { flows: out, warnings };
+}
 
 export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence } = ctx;
@@ -163,19 +277,34 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
     const originSpaceId = prefixedSpaceId(bare);
     const current = await murrmurePersistence.getSpaceIndexSnapshot(bare);
     const result = applyIndexDiff(current, parsed.data, originSpaceId);
-    const warnings = lintSpaceApplyBundle(parsed.data);
+
+    const bound = await resolveBoundFlows({
+      bundle: parsed.data,
+      studio: murrmurePersistence,
+      target_space_id: originSpaceId,
+    });
+    const mergedFlowEntries = [
+      ...result.next.flows.map((row) => {
+        const { payload_json: _payload, ...entry } = row;
+        return entry;
+      }),
+    ];
+    const seenFlowIds = new Set(mergedFlowEntries.map((entry) => entry.flow_id));
+    for (const entry of bound.flows) {
+      if (seenFlowIds.has(entry.flow_id)) continue;
+      mergedFlowEntries.push(entry);
+      seenFlowIds.add(entry.flow_id);
+    }
+    const mergedFlowRows = flowRowsFromEntries(mergedFlowEntries);
+    const flowChanges = recomputeFlowChanges(current.flows, mergedFlowRows);
+    result.next.flows = mergedFlowRows;
+    result.changes = [...result.changes.filter((change) => change.resource !== "flows"), ...flowChanges];
+    result.summary.flows = mergedFlowRows.length;
+    result.summary.changed = result.changes.filter((change) => change.change !== "unchanged").length;
+
+    const warnings = [...lintSpaceApplyBundle(parsed.data), ...bound.warnings];
 
     await murrmurePersistence.replaceSpaceIndex(bare, result.next);
-
-    const bindings = await murrmurePersistence.getSpaceBindings(bare);
-    const spaceRoot = resolveSpaceRoot(bindings);
-    if (spaceRoot) {
-      try {
-        await writeSpaceBriefingFile(spaceRoot, parsed.data, originSpaceId);
-      } catch {
-        // Briefing is best-effort when hub cannot write the linked space root.
-      }
-    }
 
     broadcastSse(ctx, {
       event: JOURNAL_EVENT_TYPES.SPACE_INDEX_UPDATED,

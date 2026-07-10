@@ -1,8 +1,0 @@
-version: 1
-actions:
-  hello_hello:
-    executor: shell
-    command: node murrmure/scripts/hello-hello.mjs
-    cwd: "{{space_root}}"
-    delivery: fail_fast
-    timeout_ms: 30000

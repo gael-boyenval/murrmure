@@ -1,6 +1,13 @@
 import type { Hono } from "hono";
 import { ulid } from "ulid";
-import { JOURNAL_EVENT_TYPES, type Capability, type Session } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  JOURNAL_EVENT_TYPES,
+  type Capability,
+  type HandlerComplete,
+  type HandlerSpec,
+  type Session,
+} from "@murrmure/contracts";
 import {
   cancelRun,
   cancelSession,
@@ -21,11 +28,13 @@ import {
   compileFlowIr,
   mergeActionResultIntoRun,
   flowStepContractCatalog,
-  requiresExplicitResolve,
-  shouldAutoResolveExecutorStep,
+  isAgentCatalogStep,
+  buildHandlerIndex,
+  matchStepOpenedHandlers,
   maybeAutoResolveExecutorStepAfterAction,
   findActiveHumanStep,
   defaultExecutorTimeoutScheduler,
+  failRunWithNotification,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -80,6 +89,29 @@ function filterSessionsByReadableSpaces(
       session.spaces_touched.length === 0 ||
       session.spaces_touched.some((spaceId) => readableSpaces.has(spaceId)),
   );
+}
+
+function resolveStepCompleteMode(input: {
+  catalog: ReturnType<typeof flowStepContractCatalog>;
+  flow_name?: string;
+  step_id: string;
+  indexed_hooks: Array<Record<string, unknown>>;
+}): HandlerComplete {
+  if (!input.catalog || !input.flow_name) return "explicit";
+  if (!isAgentCatalogStep(input.catalog, input.step_id)) return "explicit";
+
+  const handlers = input.indexed_hooks
+    .map((row) => HandlerSpecSchema.safeParse(row))
+    .filter((row): row is { success: true; data: HandlerSpec } => row.success)
+    .map((row) => row.data);
+  if (handlers.length === 0) return "explicit";
+
+  const matches = matchStepOpenedHandlers(
+    buildHandlerIndex({ version: 1, handlers }),
+    `${input.flow_name}.${input.step_id}`,
+  );
+  if (matches.length !== 1) return "explicit";
+  return matches[0]?.complete ?? "explicit";
 }
 
 export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
@@ -509,17 +541,26 @@ export async function projectStepMemoFromJournal(
       ? await ctx.murrmurePersistence.getFlowIndexEntry(run.flow_id, run.space_id)
       : null;
   const catalog = flowStepContractCatalog(flowEntry);
-  const explicitResolve = requiresExplicitResolve(catalog, input.step_id);
+  const indexedHooks = run?.space_id
+    ? await ctx.murrmurePersistence.listIndexedHooks(run.space_id)
+    : [];
+  const completeMode = resolveStepCompleteMode({
+    catalog,
+    flow_name: flowEntry?.name,
+    step_id: input.step_id,
+    indexed_hooks: indexedHooks,
+  });
+  const requiresResolveCall = isAgentCatalogStep(catalog, input.step_id);
 
   if (
     input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
-    explicitResolve &&
+    requiresResolveCall &&
+    completeMode === "auto" &&
     input.result &&
     catalog &&
     input.run_id &&
     input.step_id &&
-    run?.space_id &&
-    shouldAutoResolveExecutorStep(catalog, input.step_id)
+    run?.space_id
   ) {
     const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
     const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
@@ -537,24 +578,61 @@ export async function projectStepMemoFromJournal(
       },
     };
     const { flowAdvanceDeps } = await import("../../flow-advance.js");
-    const autoResolved = await maybeAutoResolveExecutorStepAfterAction(
-      {
-        ...sessionRunDeps(ctx),
-        registerArtifact: undefined,
-      },
-      {
-        run_id: input.run_id,
-        step_id: input.step_id,
-        result: input.result,
-        actor_id: "system_flow",
-        token_id: "system",
-        space_id,
-        session_id,
-        catalog,
-        journal,
-        advance: flowAdvanceDeps(ctx),
-      },
-    );
+    let autoResolved = false;
+    try {
+      autoResolved = await maybeAutoResolveExecutorStepAfterAction(
+        {
+          ...sessionRunDeps(ctx),
+          registerArtifact: undefined,
+        },
+        {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          result: input.result,
+          actor_id: "system_flow",
+          token_id: "system",
+          space_id,
+          session_id,
+          catalog,
+          complete_mode: completeMode,
+          journal,
+          advance: flowAdvanceDeps(ctx),
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "HANDLER_COMPLETE_AUTO_NESTED"
+      ) {
+        const failedAt = new Date().toISOString();
+        await ctx.murrmurePersistence.upsertRunStepMemo({
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "failed",
+          completed_at: failedAt,
+          error_code: "HANDLER_COMPLETE_AUTO_NESTED",
+        });
+        await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "failed",
+          completed_at: failedAt,
+        });
+        await failRunWithNotification(
+          {
+            ...sessionRunDeps(ctx),
+          },
+          {
+            run_id: input.run_id,
+            actor_id: "system_flow",
+            token_id: "system",
+            reason: "HANDLER_COMPLETE_AUTO_NESTED",
+          },
+        );
+        return;
+      }
+      throw error;
+    }
     if (autoResolved) return;
   }
 
@@ -570,7 +648,7 @@ export async function projectStepMemoFromJournal(
     view_id: input.view_id,
   });
 
-  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && explicitResolve && next) {
+  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && requiresResolveCall && next) {
     next = { ...next, status: "working", completed_at: undefined };
   }
 
@@ -664,7 +742,7 @@ export async function projectStepMemoFromJournal(
   ];
   const skipAdvance =
     input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED ||
-    (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && explicitResolve);
+    (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && requiresResolveCall);
 
   if (terminalTypes.includes(input.type) && !skipAdvance) {
     await maybeCompleteHeadlessRun(

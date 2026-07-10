@@ -1,10 +1,19 @@
 apiVersion: murrmure.flow/v1
 name: example-flow
-description: Example flow — replace steps with invoke actions
+description: Example flow — replace steps and add matching handlers
+triggers:
+  manual: true
 start:
   manual: true
 steps:
   - id: hello
-    invoke:
-      space: "{{origin_space}}"
-      action: example_action
+    description: Agent step — bind a handler with contract_keys [example-flow.hello]
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true

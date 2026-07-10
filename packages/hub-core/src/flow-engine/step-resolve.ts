@@ -1,4 +1,5 @@
 import type {
+  HandlerComplete,
   ResolveStepBody,
   RunStepMemo,
   StepCatalogRoute,
@@ -16,7 +17,7 @@ import { planLinearSteps } from "./plan.js";
 import {
   catalogEntryForStep,
   flowStepContractCatalog,
-  shouldAutoResolveExecutorStep,
+  parentHasNestedChildren,
   topLevelCatalogSteps,
 } from "./step-catalog.js";
 import { openStepContract, type StepOpenJournal } from "./step-open.js";
@@ -26,7 +27,7 @@ import {
   persistRunExecContext,
   shouldMergeCheckpointInput,
 } from "./exec-context.js";
-import { maybeCompleteFlowCallParent } from "./start-flow.js";
+import { executeStartFlowStep, maybeCompleteFlowCallParent } from "./start-flow.js";
 import type { ArtifactRegisterFn } from "./step-artifacts.js";
 import {
   mergeArtifactsIntoExecContext,
@@ -203,6 +204,42 @@ async function reopenNestedStep(
   });
 }
 
+async function openIrStepAfterResolve(
+  deps: StepResolveDeps,
+  input: {
+    run_id: string;
+    runBare: string;
+    step_id: string;
+    exec_context: Record<string, unknown>;
+    space_id: string;
+    session_id?: string;
+    actor_id: string;
+    token_id: string;
+    advance: FlowAdvanceDeps;
+  },
+): Promise<boolean> {
+  const run = await deps.studio.getRun(input.runBare);
+  if (!run?.flow_id) return false;
+  const flowEntry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
+  const irStep = flowEntry?.ir?.steps.find((step) => step.id === input.step_id);
+  if (irStep?.kind !== "start_flow") return false;
+
+  const auth = await input.advance.resolveFlowAuth(run);
+  const result = await executeStartFlowStep(input.advance, {
+    runBare: input.runBare,
+    step_id: input.step_id,
+    ir: flowEntry!.ir!,
+    spaceId: input.space_id,
+    sessionId: input.session_id ?? `ses_${run.session_id}`,
+    execContext: input.exec_context,
+    actor_id: auth.actor_id,
+    token_id: auth.token_id,
+    capabilities: auth.capabilities,
+    flow_acl: auth.flow_acl,
+  });
+  return result.ok;
+}
+
 async function applyResolvedRoutes(
   deps: StepResolveDeps,
   input: {
@@ -278,6 +315,18 @@ async function applyResolvedRoutes(
         journal: input.journal,
         skip_nested_bootstrap: true,
       });
+    } else {
+      await openIrStepAfterResolve(deps, {
+        run_id: input.run_id,
+        runBare: input.runBare,
+        step_id: gotoTarget,
+        exec_context: input.exec_context,
+        space_id: input.space_id,
+        session_id: input.session_id,
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        advance: input.advance,
+      });
     }
     return;
   }
@@ -308,6 +357,18 @@ async function applyResolvedRoutes(
         actor_id: input.actor_id,
         token_id: input.token_id,
         journal: input.journal,
+      });
+    } else {
+      await openIrStepAfterResolve(deps, {
+        run_id: input.run_id,
+        runBare: input.runBare,
+        step_id: nextStepId,
+        exec_context: input.exec_context,
+        space_id: input.space_id,
+        session_id: input.session_id,
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        advance: input.advance,
       });
     }
     return;
@@ -489,7 +550,7 @@ export async function resolveFlowStep(
     idempotency_key: input.body.idempotency_key,
   });
 
-  if (entry.executor?.action) {
+  if (entry.role === "agent") {
     cancelStepExecutor(input.run_id, input.step_id);
   }
 
@@ -627,7 +688,7 @@ async function completeRunIfFinished(
   }
 }
 
-/** After shell action succeeds, resolve headless executor steps (not nested build sessions). */
+/** Auto-resolve shell-backed handler steps when handler policy is complete:auto. */
 export async function maybeAutoResolveExecutorStepAfterAction(
   deps: StepResolveDeps,
   input: {
@@ -639,11 +700,18 @@ export async function maybeAutoResolveExecutorStepAfterAction(
     space_id: string;
     session_id?: string;
     catalog: StepContractCatalog;
+    complete_mode?: HandlerComplete;
     journal: StepResolveJournal;
     advance?: FlowAdvanceDeps;
   },
 ): Promise<boolean> {
-  if (!shouldAutoResolveExecutorStep(input.catalog, input.step_id)) return false;
+  if (input.complete_mode !== "auto") return false;
+  const entry = catalogEntryForStep(input.catalog, input.step_id);
+  if (!entry || entry.role !== "agent" || entry.presentation?.view) return false;
+  if (!entry.branches.completed) return false;
+  if (parentHasNestedChildren(input.catalog, input.step_id)) {
+    throw new Error("HANDLER_COMPLETE_AUTO_NESTED");
+  }
 
   const resolved = await resolveFlowStep(deps, {
     run_id: input.run_id,

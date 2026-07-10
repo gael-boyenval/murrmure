@@ -22,8 +22,8 @@ const NESTED_MANIFEST: FlowManifest = {
     },
     {
       id: "build",
+      role: "agent",
       orchestration: "engine-routed",
-      executor: { action: "feature_build", params: {} },
       steps: [
         {
           id: "build-loop",
@@ -56,7 +56,7 @@ const NESTED_MANIFEST: FlowManifest = {
     },
     {
       id: "archive",
-      executor: { action: "feature_archive" },
+      role: "agent",
       branches: {
         completed: { schema: { type: "object" }, next: null },
         failed: { schema: { type: "object" }, fail_run: true },
@@ -88,14 +88,42 @@ describe("flow-engine/nested-steps", () => {
     await studio.replaceSpaceIndex("demo", {
       actions: [],
       executors: [],
-      hooks: [],
+      hooks: [
+        {
+          key: "feature_build",
+          digest: "sha256:handlers-build",
+          payload_json: JSON.stringify({
+            id: "feature_build",
+            contract_keys: [
+              "preview-review-nested.build",
+              "preview-review-nested.build.build-loop",
+              "preview-review-nested.build.review",
+            ],
+            on: "step.opened",
+            kill_on: "step.resolved",
+            type: "shell_spawn",
+            complete: "explicit",
+          }),
+        },
+        {
+          key: "feature_archive",
+          digest: "sha256:handlers-archive",
+          payload_json: JSON.stringify({
+            id: "feature_archive",
+            contract_keys: ["preview-review-nested.archive"],
+            on: "step.opened",
+            type: "shell_spawn",
+            complete: "explicit",
+          }),
+        },
+      ],
       events: [],
       flows: [
         {
           flow_id: "flw_nested",
           origin_space_id: "spc_demo",
           digest: ir.digest,
-          name: "nested",
+          name: "preview-review-nested",
           start: { manual: true },
           step_spaces: ["spc_demo"],
           grants_required: [],

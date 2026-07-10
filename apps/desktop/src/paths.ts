@@ -25,6 +25,7 @@ export interface DesktopPaths {
   shellStaticDir: string;
   shellWebUrl: string | null;
   bundleRoot: string;
+  mcpBridgeEntry: string | null;
   hubUrl: string;
   healthUrl: string;
   port: number;
@@ -38,6 +39,15 @@ export interface ResolveDesktopPathsOptions {
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(moduleDir, "../../..");
+
+function resolveMcpBridgeEntry(candidates: string[]): string | null {
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 function inferRepoRootFromCwd(cwd: string): string | null {
   const marker = `${sep}apps${sep}desktop`;
@@ -78,6 +88,10 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
       shellStaticDir: "",
       shellWebUrl: `http://${DESKTOP_HOST}:${shellDevPort}`,
       bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? join(repoRoot, "fixtures"),
+      mcpBridgeEntry: resolveMcpBridgeEntry([
+        env.MURRMURE_MCP_BRIDGE_ENTRY,
+        join(repoRoot, "packages/mcp-bridge/dist/main.js"),
+      ]),
       hubUrl,
       healthUrl,
       port,
@@ -109,6 +123,10 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
       shellStaticDir: env.MURRMURE_SHELL_STATIC_DIR ?? join(repoRoot, "packages/shell-web/dist"),
       shellWebUrl: null,
       bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? join(repoRoot, "fixtures"),
+      mcpBridgeEntry: resolveMcpBridgeEntry([
+        env.MURRMURE_MCP_BRIDGE_ENTRY,
+        join(repoRoot, "packages/mcp-bridge/dist/main.js"),
+      ]),
       hubUrl,
       healthUrl,
       port,
@@ -131,6 +149,10 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
     shellStaticDir: env.MURRMURE_SHELL_STATIC_DIR ?? join(resourcesDir, "shell/dist"),
     shellWebUrl: null,
     bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? resourcesDir,
+    mcpBridgeEntry: resolveMcpBridgeEntry([
+      env.MURRMURE_MCP_BRIDGE_ENTRY,
+      join(resourcesDir, "mcp-bridge/main.js"),
+    ]),
     hubUrl,
     healthUrl,
     port,
@@ -233,6 +255,10 @@ export function buildHubSpawnEnv(paths: DesktopPaths, env: NodeJS.ProcessEnv = p
     delete spawnEnv.MURRMURE_SHELL_STATIC_DIR;
   } else if (paths.shellStaticDir) {
     spawnEnv.MURRMURE_SHELL_STATIC_DIR = paths.shellStaticDir;
+  }
+
+  if (paths.mcpBridgeEntry) {
+    spawnEnv.MURRMURE_MCP_BRIDGE_ENTRY = paths.mcpBridgeEntry;
   }
 
   return spawnEnv;

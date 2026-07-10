@@ -30,9 +30,9 @@ async function parseHubResponse(res: Response): Promise<Record<string, unknown>>
 
 export async function wizardSpaceInit(
   projectPath: string,
-  options?: { withSkill?: boolean },
+  options?: { withSkill?: boolean; withExamples?: boolean },
 ): Promise<{ created: string[]; skill_installed: boolean; skill_path?: string }> {
-  const { created } = scaffoldMurrmureDir(projectPath);
+  const { created } = scaffoldMurrmureDir(projectPath, { withExamples: options?.withExamples });
   let skill_installed = false;
   let skill_path: string | undefined;
   if (options?.withSkill) {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { HandlerSpecSchema } from "@murrmure/contracts";
 import { applyIndexDiff, validateApplyBundle } from "../../../src/index/apply-index.js";
 import type { SpaceApplyBundle, SpaceIndexSnapshot } from "@murrmure/contracts";
 
@@ -137,6 +138,98 @@ describe("index/apply-index", () => {
     const result = applyIndexDiff(indexed.next, cleared, "spc_demo");
     expect(result.next.actions).toHaveLength(0);
     expect(result.changes.some((c) => c.resource === "actions" && c.change === "removed")).toBe(true);
+  });
+
+  test("indexes handlers into hooks alongside legacy hooks", () => {
+    const bundle: SpaceApplyBundle = {
+      hooks: {
+        digest: "sha256:hooks",
+        file: {
+          version: 1,
+          hooks: {
+            on_start: {
+              on: { event: { type: "mrmr.test" } },
+              do: [{ invoke: { action: "hello" } }],
+            },
+          },
+        },
+      },
+      handlers: {
+        digest: "sha256:handlers",
+        file: {
+          version: 1,
+          handlers: [
+            {
+              id: "write-spec",
+              contract_keys: ["demo.write_spec"],
+              on: "step.opened",
+              type: "shell_spawn",
+              complete: "explicit",
+            },
+          ],
+        },
+      },
+      flows: [],
+      views: [],
+    };
+
+    const result = applyIndexDiff(EMPTY, bundle, "spc_demo");
+    expect(result.summary.hooks).toBe(2);
+    expect(result.next.hooks.map((r) => r.key).sort()).toEqual(["on_start", "write-spec"]);
+    expect(HandlerSpecSchema.safeParse(JSON.parse(result.next.hooks.find((r) => r.key === "write-spec")!.payload_json)).success).toBe(true);
+  });
+
+  test("partial bundle preserves handlers when only hooks updated", () => {
+    const fullBundle: SpaceApplyBundle = {
+      hooks: {
+        digest: "sha256:hooks",
+        file: {
+          version: 1,
+          hooks: {
+            on_start: {
+              on: { event: { type: "mrmr.test" } },
+              do: [{ invoke: { action: "hello" } }],
+            },
+          },
+        },
+      },
+      handlers: {
+        digest: "sha256:handlers",
+        file: {
+          version: 1,
+          handlers: [
+            {
+              id: "write-spec",
+              contract_keys: ["demo.write_spec"],
+              on: "step.opened",
+              type: "shell_spawn",
+              complete: "explicit",
+            },
+          ],
+        },
+      },
+      flows: [],
+      views: [],
+    };
+
+    const indexed = applyIndexDiff(EMPTY, fullBundle, "spc_demo");
+    const hooksOnly: SpaceApplyBundle = {
+      hooks: {
+        digest: "sha256:hooks2",
+        file: {
+          version: 1,
+          hooks: {
+            on_event: {
+              on: { event: { type: "mrmr.other" } },
+              do: [{ invoke: { action: "hello" } }],
+            },
+          },
+        },
+      },
+    };
+
+    const partial = applyIndexDiff(indexed.next, hooksOnly, "spc_demo");
+    expect(partial.next.hooks.map((r) => r.key).sort()).toEqual(["on_event", "write-spec"]);
   });
 
   test("validateApplyBundle rejects duplicate flow_id", () => {

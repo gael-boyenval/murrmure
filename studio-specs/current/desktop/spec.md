@@ -48,6 +48,19 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 
 ## Electrobun host (Task 4)
 
+### Bundled resources
+
+Packaged Desktop copies build artifacts into `Resources/`:
+
+| Path | Package | Role |
+|------|---------|------|
+| `Resources/hub/` | `@murrmure/hub-daemon` | Hub sidecar entry (`main.js`) |
+| `Resources/shell/dist/` | `@murrmure/shell-web` | Bundled observer shell static |
+| `Resources/mcp-bridge/` | `@murrmure/mcp-bridge` | Agent MCP stdio bridge (`main.js` → `murrmure-mcp`) |
+| `Resources/hub/contracts/` | fixtures | Seed contract bundles |
+
+Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` when present.
+
 ### Process lifecycle
 
 - Main process spawns Node hub sidecar with:
@@ -56,6 +69,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
   - `MURRMURE_DATA_DIR=~/.murrmure`
   - `MURRMURE_SHELL_STATIC_DIR=<shell dist>`
   - `MURRMURE_BUNDLE_ROOT=<bundle resources root>`
+  - `MURRMURE_MCP_BRIDGE_ENTRY=<bundled mcp-bridge/main.js>` when the bridge artifact is present
 - Startup gate: poll `GET /v1/health` until ready (timeout: 30s).
 - Quit path: send `SIGTERM` to hub, wait up to 5s, then `SIGKILL` if still alive.
 
@@ -66,7 +80,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 
 ### Menu actions
 
-- **Copy MCP config** copies local MCP JSON template wired to desktop hub URL.
+- **Copy MCP config** copies thin MCP JSON (`command` + `MURRMURE_HUB_TOKEN` only). When Desktop bundles the bridge, `command` is the absolute path to `Resources/mcp-bridge/main.js` (same value written to `shared.json` as `mcp_bridge.command`). Falls back to `"murrmure-mcp"` on PATH when no bundled entry is resolved.
 - **Open data folder** opens desktop data directory (`~/.murrmure` in v1).
 
 ## Environment
@@ -77,6 +91,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 | `MURRMURE_LISTEN_HOST` | Optional | Hub bind interface (desktop default `127.0.0.1`). |
 | `MURRMURE_BUNDLE_ROOT` | Optional | Resource root where seed contracts resolve from `<root>/hub/contracts`. |
 | `MURRMURE_DATA_DIR` | Optional | Hub data directory (desktop default `~/.murrmure`). |
+| `MURRMURE_MCP_BRIDGE_ENTRY` | Optional | Absolute path to bundled `murrmure-mcp` entry; Desktop sets this when spawning the hub. |
 | `PORT` | Optional | Hub listen port (desktop default `8787`). |
 
 ## Discovery
@@ -84,7 +99,19 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 Desktop/CLI discovery reads `~/.murrmure/hubs/shared.json`.
 Canonical shape uses `hubs[].endpoint`; legacy flat `url` shape remains accepted.
 
-Hub writes discovery only after effective port is known and preserves existing `flowProjects`.
+Hub writes discovery only after effective port is known and preserves existing `flowProjects` and `mcp_bridge`.
+
+When `MURRMURE_MCP_BRIDGE_ENTRY` is set at hub start, discovery also records:
+
+```json
+{
+  "mcp_bridge": {
+    "command": "/path/to/mcp-bridge/main.js"
+  }
+}
+```
+
+CLI grant snippets, Desktop **Copy MCP config**, and `mrmr doctor` resolve the MCP `command` from `mcp_bridge.command` when present; otherwise they fall back to `"murrmure-mcp"` on PATH (headless/CI installs `npm i -g @murrmure/mcp-bridge`).
 
 ## Hub lifecycle + lock semantics (Task 3)
 

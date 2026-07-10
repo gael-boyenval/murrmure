@@ -50,7 +50,7 @@ export function writePendingWakeFile(
   record: PendingWakeRecord,
   root: string = resolvePendingWakeRoot(process.cwd()),
 ): string {
-  const dir = join(root, ".murrmure");
+  const dir = join(root, ".mrmr", "dev");
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "pending-wake.json");
   writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, "utf8");

@@ -1,0 +1,50 @@
+---
+description: Doc and spec must stay in sync with shipped code — required in every task, plan, and review
+alwaysApply: true
+---
+
+# Murrmure — documentation sync
+
+**Principle:** Behavior shipped without matching docs is incomplete. Update docs in the **same slice/PR**, not later.
+
+**Precedence:** `studio-specs/current/` wins over plans and archives.
+
+---
+
+## Surfaces to keep in sync
+
+When product behavior changes, check every layer that might describe it:
+
+| Layer | Where (indicative) |
+|-------|-------------------|
+| Normative specs | `studio-specs/current/` |
+| Architecture decisions | `studio-specs/ADR/` |
+| User documentation | `apps/docs/` |
+| Agent & author skills | `packages/cli/skill-agent/`, `skill-developer/` |
+| Examples & scaffolds | `examples/`, `packages/cli/templates/`, repo `.mrmr/` spaces |
+| Doc enforcement | `docs-proof`, `scripts/check-*.mjs`, CI doc gates |
+| Operator changelog | relevant `CHANGELOG.md` |
+
+Gap audits (non-normative): `studio-specs/plans/doc-updates/`.
+
+**Update order when unsure:** spec → bridge → reference → tutorial → example → skill.
+
+---
+
+## Required in tasks, plans, and reviews
+
+**Plans:** each slice states doc impact, allowed doc paths, and doc done-gates alongside code.
+
+**Reviews:** drift between code and `current/` or `apps/docs` is a blocking finding.
+
+**Tasks:** before done — update every affected layer above; extend enforcement if new legacy patterns must not return; changelog when operator-visible.
+
+**Not done** while normative specs, tutorials, or examples still describe removed behavior.
+
+---
+
+## Anti-patterns
+
+- “Docs later” after a cutover or API change.
+- User docs updated but `studio-specs/current/` left stale (or the reverse).
+- Binding architectural decisions only in chat — record in ADR when they constrain future work.

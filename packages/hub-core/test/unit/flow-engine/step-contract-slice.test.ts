@@ -94,7 +94,7 @@ describe("flow-engine/step-contract-slice", () => {
 
     expect(slice.step_id).toBe("intake");
     expect(slice.role).toBe("human");
-    expect(slice.workdir).toBe(".mrmr.temp/runs/run_01TEST/steps/intake/work");
+    expect(slice.workdir).toBe(".mrmr/dev/runs/run_01TEST/steps/intake/work");
     expect(slice.branches.continue?.then).toBe("engine opens write_spec");
     expect(slice.branches.cancel?.then).toBe("fail run");
     expect(slice.inputs_from_run).toEqual({ spec_filename: "demo.md" });
@@ -141,7 +141,7 @@ describe("flow-engine/step-contract-slice", () => {
         intake: {
           spec: {
             slot: "spec",
-            path: ".mrmr.temp/runs/run_01TEST/steps/intake/spec/x.md",
+            path: ".mrmr/dev/runs/run_01TEST/steps/intake/spec/x.md",
             name: "x.md",
             transfer_id: "xfr_01",
           },
@@ -181,8 +181,8 @@ describe("flow-engine/step-contract-slice", () => {
       space_root: "/tmp/space",
       run_id: "run_01TEST",
     });
-    expect(ctx.contract_path).toBe("/tmp/space/.mrmr.temp/runs/run_01TEST/active-step-contract.json");
-    expect(ctx.workdir).toBe("/tmp/space/.mrmr.temp/runs/run_01TEST/steps/build/work");
+    expect(ctx.contract_path).toBe("/tmp/space/.mrmr/dev/runs/run_01TEST/active-step-contract.json");
+    expect(ctx.workdir).toBe("/tmp/space/.mrmr/dev/runs/run_01TEST/steps/build/work");
     expect(JSON.parse(ctx.slice_json).step_id).toBe("build");
     expect(ctx.prompt_bindings.agentStepContract).toContain("build");
   });

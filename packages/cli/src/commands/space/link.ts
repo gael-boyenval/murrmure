@@ -14,13 +14,13 @@ export const spaceLinkCommand = defineCommand({
   meta: {
     name: "link",
     description:
-      "Register local murrmure/ path binding with hub (Requires: space:write; --create also requires space:admin bootstrap token)",
+      "Register local .mrmr/ path binding with hub (Requires: space:write; --create also requires space:admin bootstrap token)",
   },
   args: {
     ...globalArgs,
     path: {
       type: "string",
-      description: "Project root containing murrmure/ (default: .)",
+      description: "Project root containing .mrmr/ (default: .)",
     },
     host: {
       type: "string",
@@ -41,7 +41,7 @@ export const spaceLinkCommand = defineCommand({
     },
     create: {
       type: "boolean",
-      description: "Create hub space from murrmure/space.yaml slug when --space omitted",
+      description: "Create hub space from .mrmr/space/space.yaml slug when --space omitted",
       default: false,
     },
   },
@@ -54,21 +54,21 @@ export const spaceLinkCommand = defineCommand({
     if (!discovered.murrmurePresent) {
       const hint =
         discovered.cwd !== projectPath
-          ? `murrmure/ not found under ${discovered.cwd} — try: cd ${projectPath} && mrmr space init`
+          ? `.mrmr/ not found under ${discovered.cwd} — try: cd ${projectPath} && mrmr space init`
           : "First time: mrmr space init && mrmr space link --path . --create";
-      printErr("NO_MURRMURE_DIR", `No murrmure/ directory in ${projectPath}`, { tip: hint });
+      printErr("NO_MURRMURE_DIR", `No .mrmr/ directory in ${projectPath}`, { tip: hint });
     }
 
     if (discovered.cwd !== projectPath) {
       console.warn(
-        `Using project root ${projectPath} (murrmure/ found above cwd ${discovered.cwd})`,
+        `Using project root ${projectPath} (.mrmr/ found above cwd ${discovered.cwd})`,
       );
     }
 
     try {
       resolveMurrmureRoot(projectPath);
     } catch (error) {
-      printErr("NO_MURRMURE_DIR", error instanceof Error ? error.message : "murrmure/ not found");
+      printErr("NO_MURRMURE_DIR", error instanceof Error ? error.message : ".mrmr/ not found");
     }
 
     let spaceId = flags.space;
@@ -90,7 +90,7 @@ export const spaceLinkCommand = defineCommand({
       if (!spaceId) {
         printErr(
           "USAGE",
-          "Missing --space — pass an existing space id, or use --create to mint one from murrmure/space.yaml",
+          "Missing --space — pass an existing space id, or use --create to mint one from .mrmr/space/space.yaml",
           { tip: "First time: mrmr space link --path . --create" },
         );
       }

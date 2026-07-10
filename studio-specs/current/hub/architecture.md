@@ -228,17 +228,23 @@ Deployables (later):
 | Projections | `projection.audit`, `gate_queue`, `grants`, `integration_health`, `drift`, `federation` | admin / read |
 | Auth | `auth.whoami`, `auth.evaluate` | any / admin |
 
-### MCP platform tools (6)
+### MCP platform tools (rev-1)
 
-| Tool | Maps to |
-|------|---------|
-| `get_space_state` | instance + state + contract.live |
-| `transition` | `state.transition` |
-| `emit_event` | `event.append` |
-| `wait_for_state` | `wait.register` + `wait.poll` |
-| `blob_read` / `blob_write` | blob get/write |
+Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Agents connect via `murrmure-mcp` with `MURRMURE_HUB_TOKEN` only (no env space pinning). When Murrmure Desktop hosts the hub, discovery records the bundled bridge path at `mcp_bridge.command` (see Part 13).
 
-Capability tools registered at install; filtered by grant + contract. **Config-scoped `space_id` in env — no override in tool args.**
+| Tool | Required capability | HTTP / behavior |
+|------|---------------------|-----------------|
+| `murrmure_apply_space` | `space:write` | `POST /v1/spaces/{id}/apply` |
+| `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
+| `murrmure_get_run` | `space:read` | `GET /v1/runs/{id}` |
+| `murrmure_list_step_contracts` | `space:read` | `GET /v1/runs/{id}/step-contracts` |
+| `murrmure_resolve_step` | `step:resolve` | `POST /v1/runs/{id}/steps/{step_id}/resolve` |
+| `murrmure_wait_for_run` | `space:read` | long-poll run status |
+| `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
+
+**Deprecated (v1 mount / instance model):** `get_space_state`, `transition`, `emit_event`, `wait_for_state`, `wait_for_gate`, `blob_read`, `blob_write`, `murrmure_complete_action`, `murrmure_resolve_gate`. Do not document for new integrations.
+
+Grant-filtered catalog refresh required after grant changes or `mrmr space apply`.
 
 ---
 
@@ -583,24 +589,32 @@ Forward-compat · test coverage · N-1 client sim · query breadth · event payl
 
 ## Part 13 — Bootstrap & discovery
 
-### File: `~/.studio/hubs/shared.json` (mode 0600)
+### File: `~/.murrmure/hubs/shared.json` (mode 0600)
+
+Canonical discovery shape (hub-daemon `writeDiscovery`):
 
 ```json
 {
-  "hubId": "hub-a1b2c3d4",
-  "protocolVersion": "1",
-  "coreVersion": "0.2.0",
-  "authToken": "<64-char hex>",
-  "host": "127.0.0.1",
-  "port": 8787,
-  "url": "http://127.0.0.1:8787",
-  "pid": 12345,
-  "startedAt": "2026-06-20T10:00:00.000Z",
-  "deploymentProfile": "loopback",
-  "federationMode": "local_only",
-  "relayUrl": null
+  "hubs": [
+    {
+      "endpoint": "http://127.0.0.1:8787",
+      "database_path": "/Users/me/.murrmure/murrmure.db",
+      "pid": 12345,
+      "started_at": "2026-06-20T10:00:00.000Z"
+    }
+  ],
+  "flowProjects": [],
+  "mcp_bridge": {
+    "command": "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js"
+  }
 }
 ```
+
+- `hubs[].endpoint` — hub HTTP base URL (bridge and CLI read this)
+- `flowProjects` — optional BC6b project registry (preserved across discovery writes)
+- `mcp_bridge.command` — present when hub starts with `MURRMURE_MCP_BRIDGE_ENTRY` (Murrmure Desktop bundled bridge). Omitted for headless hubs; MCP clients use `"murrmure-mcp"` on PATH.
+
+Legacy flat `url` / `~/.studio/hubs/shared.json` shapes remain accepted on read paths during migration.
 
 **Startup lock:** `<path>.lock/owner.json` — stale after 30s if pid dead.
 

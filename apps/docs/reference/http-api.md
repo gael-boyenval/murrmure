@@ -36,6 +36,8 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `POST` | `/v1/sessions` | Create session |
 | `GET` | `/v1/sessions/{id}` | Get session |
 | `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
+| `GET` | `/v1/runs/{id}/step-contracts` | `space:read` | Active step-contract slice + `graph_digest` |
+| `POST` | `/v1/runs/{id}/steps/{step_id}/resolve` | `step:resolve` | Resolve step `{ branch, payload, artifacts_out? }` |
 | `GET` | `/v1/runs/{id}/graph` | Run flowchart graph (manifest overlay + step memo) |
 | `POST` | `/v1/runs/{id}/cancel` | Cancel run |
 | `POST` | `/v1/runs/{id}/retry` | Retry failed run from step |
@@ -67,7 +69,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
 | `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `murrmure/` bundle |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle |
 | `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
 
 ::: warning Retired routes
@@ -232,14 +234,14 @@ SSE events include: `journal.append`, `gate.pending`, `gate.resolved`, `notifica
 
 ## Space index {#space-index}
 
-Indexed from local `murrmure/` via apply. See [Space index guide](../guide/space-index).
+Indexed from local `.mrmr/` via apply. See [Space index guide](../guide/space-index).
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
 | `POST` | `/v1/spaces/{id}/link` | `space:write` | Local binding `{ host, path, primary }` |
 | `POST` | `/v1/spaces/{id}/link/remote` | `space:write` | Remote hub binding `{ peer_hub_id, remote_space_id }` |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index apply bundle (flows, actions, executors, hooks) |
-| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Digests, counts, bindings |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index apply bundle (flows, handlers, views) |
+| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Digests, counts, bindings, handler coverage |
 | `GET` | `/v1/spaces/{id}/index/flows` | `space:read` | Indexed flow entries |
 | `GET` | `/v1/flows/{flow_id}` | `space:read` | Single flow index entry |
 | `GET` | `/v1/spaces/{id}/actions` | `space:read` | Indexed actions |
@@ -296,7 +298,7 @@ CLI: `mrmr federation peer add --id hub_b --url http://…`, `mrmr federation st
 
 ## Views {#views}
 
-Static assets for custom flow start UI (`murrmure/views/`).
+Static assets for custom flow start UI (`.mrmr/views/`).
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|

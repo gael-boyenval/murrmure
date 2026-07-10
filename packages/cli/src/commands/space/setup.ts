@@ -103,8 +103,21 @@ export const spaceSetupCommand = defineCommand({
 
     if (await confirmStep("Step 3 — Scaffold murrmure/, link, and apply?", { yes })) {
       try {
-        if (!existsSync(resolve(projectPath, "murrmure"))) {
-          const initResult = await wizardSpaceInit(projectPath, { withSkill: false });
+        let withExamples = false;
+        if (!yes) {
+          const answer = await p.confirm({
+            message: "Include example flow and starter files?",
+            initialValue: false,
+          });
+          if (p.isCancel(answer)) {
+            p.cancel("Setup cancelled — partial progress saved");
+            process.exit(0);
+          }
+          withExamples = Boolean(answer);
+        }
+
+        if (!existsSync(resolve(projectPath, ".mrmr"))) {
+          const initResult = await wizardSpaceInit(projectPath, { withSkill: false, withExamples });
           p.log.success(`Scaffolded murrmure/ (${initResult.created.length} files)`);
         }
 

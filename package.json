@@ -33,7 +33,7 @@
     "check:known-gaps": "node scripts/check-known-gaps.mjs",
     "check:fdk-docs": "node scripts/check-fdk-docs.mjs",
     "check:docs-proof": "pnpm --filter @murrmure/cli build && pnpm check:known-gaps && pnpm check:fdk-docs && pnpm --filter @murrmure/cli test docs-proof",
-    "examples:build": "pnpm --filter @murrmure/cli build && node examples/flows/preview-review-v2/murrmure/scripts/preview-review-build.mjs",
+    "examples:build": "pnpm --filter @murrmure/cli build && node examples/flows/preview-review-v2/.mrmr/space/scripts/preview-review-build.mjs",
     "sources:fetch": "node scripts/fetch-sources.mjs",
     "sources:list": "OPENSRC_HOME=.opensrc pnpm exec opensrc list",
     "sources:path": "OPENSRC_HOME=.opensrc pnpm exec opensrc path",

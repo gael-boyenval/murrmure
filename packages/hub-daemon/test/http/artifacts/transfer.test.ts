@@ -32,7 +32,7 @@ describe("http/artifacts/transfer", () => {
     const script = join(binB, "read-diff.sh");
     writeFileSync(
       script,
-      '#!/bin/sh\nfile=$(find .mrmr.temp/inbox -name openapi.diff 2>/dev/null | head -1)\nif [ -z "$file" ] || [ ! -f "$file" ]; then echo \'{"ok":false}\'; exit 1; fi\nnode -e "const fs=require(\'fs\');const p=process.argv[1];console.log(JSON.stringify({ok:true,content:fs.readFileSync(p,\'utf8\')}))" "$file"\n',
+      '#!/bin/sh\nfile=$(find .mrmr/dev/inbox -name openapi.diff 2>/dev/null | head -1)\nif [ -z "$file" ] || [ ! -f "$file" ]; then echo \'{"ok":false}\'; exit 1; fi\nnode -e "const fs=require(\'fs\');const p=process.argv[1];console.log(JSON.stringify({ok:true,content:fs.readFileSync(p,\'utf8\')}))" "$file"\n',
     );
     chmodSync(script, 0o755);
 
@@ -307,7 +307,8 @@ describe("http/artifacts/transfer", () => {
 
       const stable = join(
         project,
-        ".mrmr.temp",
+        ".mrmr",
+        "dev",
         "runs",
         run_id,
         "steps",

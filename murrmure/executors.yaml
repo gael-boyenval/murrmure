@@ -1,9 +1,0 @@
-executors:
-  cursor-mcp:
-    binding:
-      type: mcp_session
-      executor_id: cursor-mcp
-  shell:
-    binding:
-      type: shell_spawn
-      executor_id: shell

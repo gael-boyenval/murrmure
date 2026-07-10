@@ -10,7 +10,7 @@ describe("flow-engine/conformance/manifest", () => {
     steps: [
       {
         id: "research",
-        executor: { action: "overnight_research", params: { topic: "{{input.topic}}" } },
+        role: "agent",
         branches: {
           completed: { schema: { type: "object" }, next: "approve" },
           failed: { schema: { type: "object" }, next: null, fail_run: true },

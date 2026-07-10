@@ -1,6 +1,6 @@
 # Part 2 — Setup wizard
 
-Connect the CLI, scaffold `murrmure/`, install the **platform skill**, and wire **MCP** so Cursor can talk to the hub.
+Connect the CLI, scaffold `.mrmr/`, install **split platform skills**, and wire **MCP** so Cursor can talk to the hub.
 
 Murrmure Desktop must be running (hub at `http://127.0.0.1:8787`).
 
@@ -23,10 +23,10 @@ The wizard runs steps in order. Here is **why each exists**:
 |------|--------------|-----------------|
 | **Connect** | `mrmr login` — hub URL + token | CLI and Desktop share the same hub |
 | **Spaces** | Create or pick `spc_…` | Every run belongs to one space |
-| **Init** | Creates `murrmure/` skeleton | Home for flows, actions, views |
+| **Init** | Creates `.mrmr/` skeleton | Home for flows, handlers, views |
 | **Link** | Binds this folder → space id | Hub knows which disk path is this space |
-| **Apply** | Indexes `murrmure/` (empty flows OK for now) | Desktop **Run** appears after you add a flow |
-| **Skill** | `mrmr skill install` | **Platform** skill — Murrmure tools, gates, runs |
+| **Apply** | Indexes `.mrmr/` (empty flows OK for now) | Desktop **Run** appears after you add a flow |
+| **Skill** | `mrmr skill install` | Platform skills — Murrmure tools, gates, runs |
 | **Grant** | Mints agent token + MCP JSON snippet | Cursor gets hub access |
 
 ### MCP snippet — purpose
@@ -38,50 +38,60 @@ Paste into `.cursor/mcp.json`:
 | `command: "murrmure-mcp"` | Launches the MCP bridge |
 | `MURRMURE_HUB_TOKEN` | Agent identity (space and ACL come from token claims) |
 
-Reload Cursor. Test: *“Call murrmure_space_status.”*
+Reload Cursor. Test: *"Call murrmure_space_status."*
 
-Grant must include **`action:invoke`**, **`step:resolve`**, and **`space:read`**.
+Grant must include **`action:invoke`**, **`step:resolve`**, **`space:read`**, and **`journal:read`**. Add **`event:emit`** if your space will emit cross-space events later.
 
-### Platform skill — purpose
+### Split platform skills — purpose
 
-Teaches Cursor **protocol** behavior:
+Murrmure ships two skills instead of one monolith:
 
-- How to read run / session ids
-- **`murrmure_resolve_step`** for flow step completion
-- **`murrmure_wait_for_run`** while humans review
-- **`active-step-contract.json`** contract file loop
+| Variant | Skill | Teaches |
+|---------|-------|---------|
+| **agent** | `murrmure-agent` | Runtime loop: `murrmure_resolve_step`, `murrmure_wait_for_run`, step contracts |
+| **developer** | `murrmure-developer` | Authoring: `.mrmr/` layout, `handlers.yaml`, `contract_keys`, apply + doctor |
 
-It does **not** define your feature build loop — that comes in Part 3 (`agent.md` + **feature-build** space skill).
+Install both for this tutorial:
+
+```bash
+mrmr skill install --variant agent
+mrmr skill install --variant developer
+```
+
+Or `mrmr skill install --variant all`. The **agent** skill does **not** define your feature build loop — that comes in Part 3 (`agent.md` + **feature-build** space skill).
 
 ## Step 3 — Prepare flow folder
 
 Remove the placeholder flow from init:
 
 ```bash
-rm -rf murrmure/flows/example
-mkdir -p murrmure/flows/preview-review
+rm -rf .mrmr/flows/example
+mkdir -p .mrmr/flows/preview-review
 ```
 
-Edit `murrmure/space.yaml`:
+Edit `.mrmr/space/space.yaml`:
 
 ```yaml
+apiVersion: murrmure.space/v1
 slug: my-feature-site
 ```
+
+Compare layout with [`examples/flows/preview-review-v2/.mrmr/space/space.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/space/space.yaml).
 
 ## Already onboarded?
 
 ```bash
 mrmr space onboard
-mrmr skill install
-mrmr grant mint --space spc_… --capabilities flow:run,flow:read,action:invoke,gate:resolve,journal:read,space:read --label cursor
+mrmr skill install --variant all
+mrmr grant mint --space spc_… --capabilities flow:run,flow:read,action:invoke,step:resolve,gate:resolve,journal:read,space:read --label cursor
 ```
 
 ## Checkpoint
 
-- [ ] `murrmure/` exists
+- [ ] `.mrmr/` exists with `space/`, `flows/`, `views/`
 - [ ] Space linked — `mrmr space status` shows `spc_…`
 - [ ] MCP works in Cursor (`murrmure_space_status`)
-- [ ] Platform skill installed
+- [ ] `murrmure-agent` and `murrmure-developer` skills installed
 
 ## Next
 

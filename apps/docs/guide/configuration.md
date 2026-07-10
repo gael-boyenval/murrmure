@@ -12,8 +12,8 @@ Requires a token with **`space:admin`** scope. Desktop bootstrap token works for
 | Initialize workspace | `mrmr space init` |
 | Create hub space + link path | `mrmr space link --create` |
 | Apply space index | `mrmr space apply` |
-| Index a flow from `murrmure/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
-| Mint agent grant | `mrmr grant mint --space spc_… --label "…" --flow-acl review-loop` |
+| Index a flow from `.mrmr/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
+| Mint agent grant | `mrmr grant mint --space spc_… --label "…" --capabilities flow:run,step:resolve,space:read` |
 
 See [Quick start](./quick-start) for the full first-review path.
 
@@ -27,6 +27,7 @@ mrmr space link --path . --space spc_my_space
 mrmr space update spc_… --install-policy authorized_agents
 mrmr space archive spc_…
 mrmr space status --space spc_…
+mrmr space doctor --strict
 ```
 
 | Field | Notes |
@@ -36,7 +37,7 @@ mrmr space status --space spc_…
 
 ## Flows
 
-**v2 indexed flows** live in `murrmure/flows/*/flow.manifest.yaml`:
+**v2 indexed flows** live in `.mrmr/flows/*/flow.manifest.yaml`:
 
 ```bash
 mrmr space apply --strict
@@ -44,9 +45,9 @@ mrmr space status
 mrmr flow run flw_flows_{name} --input '{}' --space spc_…
 ```
 
-Triggers and event hooks: edit **`murrmure/hooks.yaml`**, then re-apply.
+**Execution** lives in `.mrmr/space/handlers.yaml` — edit handlers, then re-apply. Event triggers use `on: event:` handlers or optional `mrmr space trigger register` templates.
 
-See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
+See [Space handlers](./space-handlers) and [Creating flows](./creating-flows).
 
 ## Agent grants
 
@@ -55,7 +56,7 @@ mrmr grant list --space spc_ui_sandbox
 mrmr grant mint --space spc_ui_sandbox \
   --label "Dev Cursor — ui-sandbox worker" \
   --harness cursor-local \
-  --flow-acl review-loop \
+  --capabilities flow:run,step:resolve,space:read,journal:read \
   --expires-days 90
 mrmr grant revoke --space spc_ui_sandbox grt_…
 ```
@@ -64,7 +65,7 @@ mrmr grant revoke --space spc_ui_sandbox grt_…
 |-------|-------|
 | Label | Who this token is for |
 | Harness | `cursor-local`, `ci`, … |
-| `flow_acl` | Package ids the grant may use (e.g. `review-loop`) |
+| Capabilities | Include `step:resolve` for agent-owned steps; `event:emit` for emit tools |
 
 Export the **one-time token** as `MURRMURE_HUB_TOKEN` and run `mrmr grant use --space ...` to set your local active pointer.
 Never commit live grant tokens (`tok_...`) to git; keep MCP config on env-variable references only.
@@ -95,7 +96,7 @@ mrmr space trigger templates --space spc_dev
 mrmr space trigger event-catalog --space spc_dev
 ```
 
-Bundled templates: `spec-published-wake-dev`, `work-ready-wake-frontend`.
+Bundled templates complement event handlers in `handlers.yaml`. Prefer handlers for space-local event → agent dispatch.
 
 ## Hub operator commands
 

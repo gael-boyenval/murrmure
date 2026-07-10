@@ -1,0 +1,18 @@
+# Role: CI demo space — single agent step indexed by mrmr space apply --strict.
+apiVersion: murrmure.flow/v1
+name: demo
+description: Demo indexed flow for CI strict apply (phase 10)
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: hello
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null

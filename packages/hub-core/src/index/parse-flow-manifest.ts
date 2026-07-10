@@ -1,5 +1,5 @@
 import { FlowManifestSchema, type FlowManifest, type FlowStep } from "@murrmure/contracts";
-import type { ParseResult } from "./parse-actions.js";
+import type { ParseResult } from "./parse-result.js";
 import { findLegacyStepKinds, rejectLegacyStepKinds } from "../flow-engine/step-contract-compile.js";
 
 export { findLegacyStepKinds as detectLegacyStepKinds, rejectLegacyStepKinds };
@@ -71,7 +71,6 @@ export function collectStepSpaces(manifest: FlowManifest, originSpaceId: string)
   const spaces = new Set<string>([originSpaceId]);
   const walk = (steps: FlowStep[]) => {
     for (const step of steps) {
-      if (step.executor?.space) spaces.add(step.executor.space);
       if (step.parallel?.lane) walk(step.parallel.lane as FlowStep[]);
       if (step.steps) walk(step.steps as FlowStep[]);
     }

@@ -4,7 +4,7 @@
 
 ## Active
 
-_No active implementation plans._
+_No active implementation plans._ New work should start here only when a slice needs a tracked plan before landing in `current/`.
 
 ## Shipped (archived 2026-07-09)
 
@@ -12,6 +12,7 @@ All completed plans live under [`archives/plans/shipped-2026-07/`](../archives/p
 
 | Archive folder / file | What shipped |
 |-----------------------|--------------|
+| `space-handlers/` | Handlers + contract keys; `.mrmr/` layout cutover; split skills; docs/spec remediation |
 | `product-plan/` | Rev-5 phases 01–10 — v2 core B1–B10 |
 | `mcp-reliability/` | MCP reliability Phases 0–4, 6 — `@murrmure/mcp-bridge`, hub input schemas, MCP-CUTOVER, doctor live probes, docs/skills sweep |
 | `2026-07-07-step-contracts-unified-state-machine.md` | Step contracts v2.2 normative spec (VS-8) |
@@ -34,4 +35,6 @@ All completed plans live under [`archives/plans/shipped-2026-07/`](../archives/p
 
 v2 core B1–B10: **closed** — see [known-gaps](../../apps/docs/guide/known-gaps.md).
 
-Remaining manual sign-off (Tutorial E2E, feedback closure) is tracked in the archived [MCP reliability orchestration log](../archives/plans/shipped-2026-07/mcp-reliability/2026-07-09-mcp-reliability-orchestration.md).
+Handlers cutover VS-0–VS-6: **closed** — see [space-handlers archive](../archives/plans/shipped-2026-07/space-handlers/README.md).
+
+Remaining manual sign-off (Tutorial E2E, federation E2E, feedback closure) is tracked in archived orchestration logs under `space-handlers/` and `mcp-reliability/`.

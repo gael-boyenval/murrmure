@@ -5,11 +5,13 @@ import {
   resolveInvokePrompt,
 } from "../src/invoke-shell-prompt.js";
 import {
+  createShellSpawnExecutor,
   resolveShellCommand,
   resolveShellPrompt,
   shellQuote,
 } from "../src/shell-spawn.js";
 import type { DispatchContext, InvokeRequest } from "@murrmure/runtime-contracts";
+import { EventEmitter } from "node:events";
 
 describe("shell-spawn helpers", () => {
   test("shellQuote escapes single quotes", () => {
@@ -57,7 +59,7 @@ describe("shell-spawn helpers", () => {
     expect(prompt).toContain('"topic": "mcp"');
   });
 
-  test("resolveInvokePrompt prepends space briefing before task body", () => {
+  test("resolveInvokePrompt ignores legacy space briefing bindings", () => {
     const prompt = resolveInvokePrompt(
       {
         action_name: "feature_build",
@@ -67,15 +69,13 @@ describe("shell-spawn helpers", () => {
         params: { spec_path: "specs/current/demo.md" },
         murrmure_bindings: {
           spaceBriefing: "## Actions\n- feature_build",
-          spaceBriefingPath: ".mrmr.temp/briefing.md",
+          spaceBriefingPath: ".mrmr/dev/briefing.md",
         },
       },
       "Spec: {{spec_path}}",
     );
-    expect(prompt).toContain("Space briefing");
-    expect(prompt).toContain("feature_build");
     expect(prompt).toContain("Spec: specs/current/demo.md");
-    expect(prompt.indexOf("Space briefing")).toBeLessThan(prompt.indexOf("Spec:"));
+    expect(prompt).not.toContain("Space briefing");
   });
 
   test("resolveInvokePrompt separates task and Murrmure protocol", () => {
@@ -89,10 +89,10 @@ describe("shell-spawn helpers", () => {
         params: { spec_path: "specs/current/demo.md" },
         murrmure_bindings: {
           run_id: "run_1",
-          agentStepContract: "## Active step: build\nWorkdir: .mrmr.temp/.../work",
+          agentStepContract: "## Active step: build\nWorkdir: .mrmr/dev/.../work",
         },
-        step_contract_path: "/tmp/repo/.mrmr.temp/runs/run_1/active-step-contract.json",
-        step_workdir: "/tmp/repo/.mrmr.temp/runs/run_1/steps/build/work",
+        step_contract_path: "/tmp/repo/.mrmr/dev/runs/run_1/active-step-contract.json",
+        step_workdir: "/tmp/repo/.mrmr/dev/runs/run_1/steps/build/work",
       },
       "Follow `agent.md`.\nSpec: {{spec_path}}\n\n{{murrmure.agentStepContract}}\n\nRun {{run_id}}",
     );
@@ -161,5 +161,58 @@ describe("shell-spawn helpers", () => {
     expect(resolveShellCommand(invoke, context)).toBe(
       "cursor agent -p --force 'Do the thing'",
     );
+  });
+
+  test("injects resolve token and hub url into shell env", async () => {
+    let capturedEnv: NodeJS.ProcessEnv | undefined;
+    const spawnStub = ((command: string, options: { env?: NodeJS.ProcessEnv }) => {
+      capturedEnv = options.env;
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from('{"ok":true}'));
+        child.emit("close", 0);
+      });
+      void command;
+      return child as never;
+    }) as unknown as typeof import("node:child_process").spawn;
+
+    const executor = createShellSpawnExecutor({ spawn: spawnStub });
+    const invoke: InvokeRequest = {
+      space_id: "spc_demo",
+      action_name: "build-owner",
+      run_id: "run_demo",
+      session_id: "ses_demo",
+      step_id: "build.build-loop",
+      params: {},
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "build-owner",
+        command: "node -e \"process.stdout.write('{}')\"",
+        prompt: "hello",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: "/tmp/repo",
+      step_contract: {
+        slice_json: "{}",
+        contract_path: "/tmp/repo/.mrmr/dev/runs/run_demo/active-step-contract.json",
+        workdir: "/tmp/repo/.mrmr/dev/runs/run_demo/steps/build.build-loop/work",
+        prompt_bindings: { run_id: "run_demo" },
+        hub_token: "tok_run_scoped",
+        hub_url: "http://127.0.0.1:8787",
+      },
+    };
+
+    const outcome = await executor.dispatch(invoke, context);
+    expect(outcome.status).toBe("dispatched");
+    expect(capturedEnv?.MURRMURE_HUB_TOKEN).toBe("tok_run_scoped");
+    expect(capturedEnv?.MURRMURE_HUB_URL).toBe("http://127.0.0.1:8787");
+    expect(capturedEnv?.MURRMURE_RUN_ID).toBe("run_demo");
+    expect(capturedEnv?.MURRMURE_STEP_ID).toBe("build.build-loop");
   });
 });

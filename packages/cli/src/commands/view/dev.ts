@@ -20,7 +20,7 @@ export const viewDevCommand = defineCommand({
     ...globalArgs,
     id: {
       type: "positional",
-      description: "View id under murrmure/views/",
+      description: "View id under .mrmr/views/",
       required: true,
     },
     fixture: {
@@ -29,7 +29,7 @@ export const viewDevCommand = defineCommand({
     },
     "space-root": {
       type: "string",
-      description: "Space root containing murrmure/ (default: cwd)",
+      description: "Space root containing .mrmr/ (default: cwd)",
     },
   },
   async run({ args }) {

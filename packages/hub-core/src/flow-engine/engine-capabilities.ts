@@ -8,6 +8,7 @@ import type {
 } from "@murrmure/contracts";
 import { compileFlowIr } from "./compile.js";
 import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractManifest } from "./step-contract-compile.js";
+import { lintHandlerCatalogCoverage } from "../index/handler-catalog-lint.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
 export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint", "step_contract"] as const;
@@ -229,6 +230,24 @@ export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWar
         manifestRaw: raw,
       }),
     );
+  }
+  const handlers = bundle.handlers?.file;
+  if (handlers) {
+    const handlerWarnings = lintHandlerCatalogCoverage({
+      handlers,
+      flows: (bundle.flows ?? []).map((flow) => ({
+        flow_id: flow.flow_id,
+        manifest: flow.manifest,
+      })),
+    });
+    for (const warning of handlerWarnings) {
+      warnings.push({
+        flow_id: warning.flow_id ?? "handlers",
+        step_id: warning.step_id,
+        code: warning.code,
+        message: warning.message,
+      });
+    }
   }
   return warnings;
 }

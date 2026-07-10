@@ -28,7 +28,7 @@ Maps rev-1 flow manifest semantics to hub runtime behavior. See [product/spec.md
 | `templates.ts` | `{{input.*}}`, `{{steps.*}}`, `{{event.*}}` resolution |
 | `step-contract-compile.ts` | YAML → `StepContractCatalog`; nested flatten |
 | `step-resolve.ts` | Unified `resolve_step` handler; nested goto / complete:parent |
-| `step-open.ts` | Open step + executor dispatch + first nested child bootstrap |
+| `step-open.ts` | Open step + handler dispatch + first nested child bootstrap |
 | `step-catalog.ts` | Catalog lookups; nested children ordering |
 | `step-contract-slice.ts` | Runtime injection slice + `active-step-contract.json` |
 
@@ -49,17 +49,17 @@ Flows authored with unified **`step`** blocks compile a **`StepContractCatalog`*
 | **Top-level step** | Linear `next:` routes; engine opens next step |
 | **Nested step** | Qualified id `parent.child`; routes use `goto`, `complete: parent`, `continue: parent` |
 | **engine-routed** | Engine opens siblings (e.g. `build.review` after `build.build-loop` completes); agent waits |
-| **Parent with executor** | One shell spawn on parent open; nested children loop without re-invoke |
+| **Parent with agent role** | One handler dispatch on parent open (`kill_on: step.resolved`); nested children loop without re-dispatch |
 
-Normative detail: [step-contract.md](./step-contract.md).
+Normative detail: [step-contract.md](./step-contract.md). Execution binding: [handlers.md](./handlers.md).
 
 ### Nested runtime (preview-review)
 
-1. Engine opens **build** → starts `feature_build` → opens **build.build-loop**
+1. Engine opens **build** → dispatches handler `feature_build` (`contract_keys: preview-review.build, …`) → opens **build.build-loop**
 2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`)
 3. Engine opens **build.review** (view, `awaiting_human`)
 4. Human validates → `complete: parent` → **build** completed → **archive**
-5. Feedback → `continue: parent` + `goto: build-loop` → same shell session
+5. Feedback → `continue: parent` + `goto: build-loop` → same shell session (owner handler not re-dispatched)
 
 Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_catalog` is present.
 

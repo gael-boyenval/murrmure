@@ -33,24 +33,58 @@ describe("runSpaceDoctor", () => {
     delete process.env.MURRMURE_SPACE_ID;
     testHomeRef.value = mkdtempSync(join(tmpdir(), "cli-space-doctor-home-"));
     projectDir = mkdtempSync(join(tmpdir(), "cli-space-doctor-"));
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "demo"), { recursive: true });
     writeFileSync(
-      join(root, "actions.yaml"),
-      "version: 1\nactions:\n  hello:\n    executor: shell\n    command: echo hello\n    cwd: \"{{space_root}}\"\n    delivery: fail_fast\n    timeout_ms: 30000\n",
+      join(root, "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "name: Demo",
+        "link:",
+        "  space_id: spc_demo",
+        "  host: local",
+        "",
+      ].join("\n"),
     );
     writeFileSync(
-      join(root, "executors.yaml"),
-      "executors:\n  shell:\n    binding:\n      type: shell_spawn\n      executor_id: shell\n",
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [demo.hello]",
+        "    on: step.opened",
+        "    type: shell_spawn",
+        "    command: echo hello",
+        "    cwd: \"{{space_root}}\"",
+        "    complete: explicit",
+        "",
+      ].join("\n"),
     );
     writeFileSync(
       join(root, "flows", "demo", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: demo\ntriggers:\n  manual: true\nstart:\n  manual: true\nsteps:\n  - id: hello\n    executor:\n      action: hello\n    branches:\n      completed:\n        schema: { type: object }\n        next: null\n      failed:\n        schema: { type: object }\n        next: null\n        fail_run: true\n",
-    );
-    mkdirSync(join(projectDir, ".murrmure"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".murrmure", "link.json"),
-      JSON.stringify({ space_id: "spc_demo", path: projectDir, host: "local" }),
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: demo",
+        "triggers:",
+        "  manual: true",
+        "start:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    role: agent",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "      failed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "        fail_run: true",
+        "",
+      ].join("\n"),
     );
   });
 
@@ -207,7 +241,7 @@ describe("runSpaceDoctor", () => {
 
   test("warns about legacy triggers.yaml alias", async () => {
     writeFileSync(
-      join(projectDir, "murrmure", "triggers.yaml"),
+      join(projectDir, ".mrmr", "triggers.yaml"),
       "version: 1\nhooks:\n  on_event:\n    on:\n      event:\n        type: mrmr.spec.published\n    do:\n      - invoke:\n          action: hello\n",
     );
 
@@ -259,7 +293,11 @@ describe("runSpaceDoctor", () => {
 
   test("formats legacy migration output without internal codes", async () => {
     const legacyDir = mkdtempSync(join(tmpdir(), "cli-space-legacy-fmt-"));
-    mkdirSync(join(legacyDir, "murrmure"), { recursive: true });
+    mkdirSync(join(legacyDir, ".mrmr", "space"), { recursive: true });
+    writeFileSync(
+      join(legacyDir, ".mrmr", "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: legacy\nname: Legacy\n",
+    );
     writeFileSync(
       join(legacyDir, "package.json"),
       JSON.stringify({ devDependencies: { "@studio/capability-sdk": "1.0.0" } }),

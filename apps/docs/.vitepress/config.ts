@@ -57,7 +57,17 @@ export default defineConfig({
           items: [
             { text: "Overview", link: "/guide/tutorials/" },
             {
-              text: "1 — Local preview review",
+              text: "1a — First flow (v3)",
+              link: "/guide/tutorials/01-local-preview-review-v3/",
+              items: [
+                { text: "Overview", link: "/guide/tutorials/01-local-preview-review-v3/" },
+                { text: "1 — Launch & space", link: "/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space" },
+                { text: "2 — Minimal flow", link: "/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow" },
+                { text: "3 — Run & understand", link: "/guide/tutorials/01-local-preview-review-v3/03-run-and-understand" },
+              ],
+            },
+            {
+              text: "1b — Local preview review (full)",
               link: "/guide/tutorials/01-local-preview-review/",
               items: [
                 { text: "Overview", link: "/guide/tutorials/01-local-preview-review/" },
@@ -108,7 +118,8 @@ export default defineConfig({
         {
           text: "Flows",
           items: [
-            { text: "Tutorial (complete)", link: "/guide/flows-tutorial" },
+            { text: "Space index", link: "/guide/space-index" },
+            { text: "Space handlers", link: "/guide/space-handlers" },
             { text: "Overview", link: "/guide/creating-flows" },
             { text: "Agent skill", link: "/guide/agent-skill" },
             { text: "Admin commands (CLI)", link: "/guide/configuration" },

@@ -1,4 +1,9 @@
-import { InvokeBodySchema, assertInlinePayloadWithinLimit } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  InvokeBodySchema,
+  assertInlinePayloadWithinLimit,
+  type HandlerSpec,
+} from "@murrmure/contracts";
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import {
   orchestrateInvoke,
@@ -14,8 +19,6 @@ import {
   mergeDispatchAuditIntoRun,
   appendShellStreamToRun,
   mergeActionResultIntoRun,
-  readSpaceBriefingExcerpt,
-  SPACE_BRIEFING_REL_PATH,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -152,6 +155,43 @@ export class InvokeService {
     return ((run.exec_context.input ?? {}) as Record<string, unknown>) ?? {};
   }
 
+  private async loadIndexedHandler(
+    space_id: string,
+    action_name: string,
+  ): Promise<HandlerSpec | undefined> {
+    const rows = await this.studio.listIndexedHooks(space_id);
+    for (const row of rows) {
+      const parsedHandler = HandlerSpecSchema.safeParse(row);
+      if (!parsedHandler.success) continue;
+      if (parsedHandler.data.id === action_name) {
+        return parsedHandler.data;
+      }
+    }
+    return undefined;
+  }
+
+  private async mintRunResolveToken(input: {
+    run_id: string;
+    space_id: string;
+    actor_id: string;
+  }): Promise<string> {
+    const token_id = ulid();
+    const ts = new Date().toISOString();
+    await this.studio.insertToken(
+      {
+        token_id,
+        actor_id: input.actor_id,
+        space_id: bareSpaceId(input.space_id),
+        scopes: ["step:resolve"],
+        capabilities: ["step:resolve"],
+        harness_id: `run:${input.run_id}`,
+        status: "active",
+      },
+      ts,
+    );
+    return `tok_${token_id}`;
+  }
+
   private journalWriter(): InvokeJournalWriter {
     return {
       append: async (input) => {
@@ -165,7 +205,7 @@ export class InvokeService {
     space_id: string;
     session_id?: string;
     run_id?: string;
-    step_id: string;
+    step_id?: string;
     action_name?: string;
     actor_id: string;
     token_id: string;
@@ -543,20 +583,21 @@ export class InvokeService {
     };
 
     if (run_id && parsed.data.step_id && resolved.space_root) {
+      const matchedHandler = await this.loadIndexedHandler(bare, input.action_name);
+      const resolveToken = await this.mintRunResolveToken({
+        run_id,
+        space_id: bare,
+        actor_id: input.actor_id,
+      });
       const stepContract = await buildFlowInvokeStepContract(this.studio, {
         run_id,
         step_id: parsed.data.step_id,
         space_root: resolved.space_root,
+        contract_keys: matchedHandler?.contract_keys,
+        hub_token: resolveToken,
+        hub_url: `http://127.0.0.1:${this.ctx.config.port}`,
       });
       if (stepContract) {
-        const briefing = await readSpaceBriefingExcerpt(resolved.space_root);
-        if (briefing) {
-          stepContract.prompt_bindings = {
-            ...stepContract.prompt_bindings,
-            spaceBriefing: briefing,
-            spaceBriefingPath: SPACE_BRIEFING_REL_PATH,
-          };
-        }
         request.step_contract = stepContract;
       }
     }

@@ -21,7 +21,7 @@ Legacy **`/configure`** and **`/setup`** redirect to **`/spaces/new`**.
 
 ## ViewCanvasHost (primary human UX)
 
-When a run pauses at a **checkpoint** step with `view_ref`, Desktop embeds the custom view from `murrmure/views/` in the **primary region** — not a side drawer or built-in gate form.
+When a run pauses at a **checkpoint** step with `presentation.view`, Desktop embeds the custom view from `.mrmr/views/` in the **primary region** — not a side drawer or built-in gate form.
 
 - View submits `{ disposition, output }` via the shell adapter
 - See [View SDK](../reference/view-sdk) and [Review workflow](./review-workflow)

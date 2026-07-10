@@ -10,16 +10,19 @@ const PLATFORM_TOOL_NAMES = [
   "query_ask",
   "murrmure_apply_space",
   "murrmure_space_status",
+  "murrmure_space_health",
   "murrmure_grant_mint",
   "murrmure_invoke_action",
   "murrmure_resolve_step",
   "murrmure_list_emittable_events",
+  "murrmure_list_handlers",
   "murrmure_emit_event",
   "murrmure_create_session",
   "murrmure_list_sessions",
   "murrmure_get_session",
   "murrmure_create_run",
   "murrmure_get_run",
+  "murrmure_get_run_context",
   "murrmure_list_step_contracts",
   "murrmure_get_run_graph",
   "murrmure_attach_orchestration",
@@ -31,6 +34,7 @@ const PLATFORM_TOOL_NAMES = [
 const P0_REQUIRED: Record<string, string[]> = {
   murrmure_resolve_step: ["run_id", "step_id", "branch"],
   murrmure_get_run: ["run_id"],
+  murrmure_get_run_context: ["run_id"],
   murrmure_wait_for_run: ["run_id"],
   murrmure_list_step_contracts: ["run_id"],
   murrmure_get_session: ["session_id"],
@@ -38,6 +42,8 @@ const P0_REQUIRED: Record<string, string[]> = {
   murrmure_invoke_action: ["action_name"],
   murrmure_journal_query: [],
   murrmure_space_status: [],
+  murrmure_space_health: [],
+  murrmure_list_handlers: [],
 };
 
 const ALL_PLATFORM_CAPABILITIES = [

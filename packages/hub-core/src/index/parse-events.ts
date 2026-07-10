@@ -1,5 +1,5 @@
 import { EventsFileSchema, type EventsFile } from "@murrmure/contracts";
-import type { ParseResult } from "../index/parse-actions.js";
+import type { ParseResult } from "./parse-result.js";
 
 export function parseEventsFile(raw: unknown): ParseResult<EventsFile> {
   const parsed = EventsFileSchema.safeParse(raw);

@@ -69,12 +69,13 @@ export function resolveActionTemplate(
 export function stripMurrmureProtocolPlaceholders(template: string): string {
   return template
     .replace(/\{\{murrmure\.agentStepContract\}\}\s*/g, "")
+    .replace(/\{\{murrmure\.handlerScopeContract\}\}\s*/g, "")
     .replace(
-      /During the loop, re-read:\s*\n\s*\{\{murrmure\.space_root\}\}\/\.mrmr\.temp\/runs\/\{\{murrmure\.run_id\}\}\/active-step-contract\.json\s*/g,
+      /During the loop, re-read:\s*\n\s*\{\{murrmure\.space_root\}\}\/\.mrmr\/dev\/runs\/\{\{murrmure\.run_id\}\}\/active-step-contract\.json\s*/g,
       "",
     )
     .replace(
-      /Re-read contract after each transition:\s*\n\s*\{\{murrmure\.space_root\}\}\/\.mrmr\.temp\/runs\/\{\{murrmure\.run_id\}\}\/active-step-contract\.json\s*/g,
+      /Re-read contract after each transition:\s*\n\s*\{\{murrmure\.space_root\}\}\/\.mrmr\/dev\/runs\/\{\{murrmure\.run_id\}\}\/active-step-contract\.json\s*/g,
       "",
     )
     .trim();
@@ -160,7 +161,14 @@ export function resolveInvokePrompt(
   promptTemplate?: string,
 ): string {
   const bindings = buildInvokeTemplateBindings(context);
-  const contractMarkdown = context.murrmure_bindings?.agentStepContract?.trim();
+  const activeContractMarkdown = context.murrmure_bindings?.agentStepContract?.trim();
+  const scopeContractMarkdown = context.murrmure_bindings?.handlerScopeContract?.trim();
+  const contractMarkdown =
+    activeContractMarkdown && scopeContractMarkdown
+      ? activeContractMarkdown.includes(scopeContractMarkdown)
+        ? activeContractMarkdown
+        : `${scopeContractMarkdown}\n\n${activeContractMarkdown}`
+      : activeContractMarkdown ?? scopeContractMarkdown;
 
   let taskBody: string;
   if (promptTemplate?.trim()) {
@@ -171,22 +179,6 @@ export function resolveInvokePrompt(
       run_id: context.run_id,
       session_id: context.session_id,
     });
-  }
-
-  const briefing = context.murrmure_bindings?.spaceBriefing?.trim();
-  const briefingPath = context.murrmure_bindings?.spaceBriefingPath ?? ".mrmr.temp/briefing.md";
-  if (briefing) {
-    taskBody = [
-      "## Space briefing (from `mrmr space apply` — read before exploring)",
-      "",
-      `Full file: \`${briefingPath}\``,
-      "",
-      briefing,
-      "",
-      "---",
-      "",
-      taskBody,
-    ].join("\n");
   }
 
   if (!contractMarkdown || !context.run_id) {

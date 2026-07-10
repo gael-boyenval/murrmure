@@ -13,6 +13,8 @@ export * from "./entities/gate.js";
 export * from "./entities/flow.js";
 export * from "./entities/flow-index.js";
 export * from "./entities/action.js";
+export * from "./entities/handler.js";
+export * from "./entities/bindings.js";
 export * from "./entities/executor.js";
 export * from "./entities/artifact.js";
 export * from "./entities/artifact-record.js";

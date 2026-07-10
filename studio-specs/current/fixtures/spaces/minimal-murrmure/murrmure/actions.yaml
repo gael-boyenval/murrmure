@@ -1,5 +1,0 @@
-version: 1
-actions:
-  hello:
-    executor: shell
-    timeout_ms: 30000

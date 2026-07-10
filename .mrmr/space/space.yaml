@@ -1,0 +1,6 @@
+# Worker space: event handlers in handlers.yaml react to feedback events from spc_my_space.
+apiVersion: murrmure.space/v1
+slug: murrmure
+link:
+  space_id: spc_murrmure
+  host: gaelboyenval.home

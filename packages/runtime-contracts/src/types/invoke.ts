@@ -7,6 +7,8 @@ export interface InvokeStepContractContext {
   workdir: string;
   prompt_bindings: Record<string, string>;
   run_artifacts_json?: string;
+  hub_token?: string;
+  hub_url?: string;
 }
 
 /** Shared invoke wire types (rev-1 §4.4). */

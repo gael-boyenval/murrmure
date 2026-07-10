@@ -15,7 +15,7 @@ export interface ResolvedStepArtifact {
 export type RunArtifactsBag = Record<string, Record<string, ResolvedStepArtifact>>;
 
 export function stepStableDirRelPath(run_id: string, step_id: string): string {
-  return join(".mrmr.temp", "runs", prefixedRunId(run_id), "steps", step_id);
+  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "steps", step_id);
 }
 
 export function stepStableDirPath(space_root: string, run_id: string, step_id: string): string {

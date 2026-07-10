@@ -146,18 +146,18 @@ export function scaffoldFlowPackage(
   const templateDir = cliResourcePath("templates", "space", "flows", template);
   const created: string[] = [];
 
-  const actionsPath = join(murrmureRoot, "actions.yaml");
+  const actionsPath = join(murrmureRoot, "space", "actions.yaml");
   if (mergeYamlSection(actionsPath, "actions", parseTemplateActions(templateDir, flowId), { version: 1 })) {
     created.push(actionsPath);
   }
 
-  const executorsPath = join(murrmureRoot, "executors.yaml");
+  const executorsPath = join(murrmureRoot, "space", "executors.yaml");
   if (mergeYamlSection(executorsPath, "executors", parseTemplateExecutors(templateDir))) {
     created.push(executorsPath);
   }
 
   const hooksTemplate = join(templateDir, "hooks.yaml");
-  const hooksDest = join(murrmureRoot, "hooks.yaml");
+  const hooksDest = join(murrmureRoot, "space", "hooks.yaml");
   if (!existsSync(hooksDest) && existsSync(hooksTemplate)) {
     writeFileSync(hooksDest, readFileSync(hooksTemplate, "utf-8"), "utf-8");
     created.push(hooksDest);
@@ -175,7 +175,7 @@ export function scaffoldFlowPackage(
 
   const scriptsDir = join(templateDir, "scripts");
   if (existsSync(scriptsDir)) {
-    created.push(...copyTemplateTree(scriptsDir, join(murrmureRoot, "scripts"), flowId));
+    created.push(...copyTemplateTree(scriptsDir, join(murrmureRoot, "space", "scripts"), flowId));
   }
 
   if (template === "hello-gate") {

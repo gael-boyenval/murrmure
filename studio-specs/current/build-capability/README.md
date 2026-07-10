@@ -26,14 +26,15 @@ Supersedes bundled-catalog install for new work — see [archives/superseded/bun
 
 Historical execution plans and reviews moved to [archives/execution/](../../archives/execution/) and [archives/reviews/](../../archives/reviews/).
 
-**User-facing tutorial:** [`apps/docs/guide/capabilities-tutorial.md`](../../../apps/docs/guide/capabilities-tutorial.md) (VitePress site: `/guide/capabilities-tutorial`).
+**User-facing tutorials:** [Tutorial 1](../../../apps/docs/guide/tutorials/01-local-preview-review/) (indexed flows + handlers). Legacy FDK tutorial archived.
 
 ## One-line goal
 
-A builder scaffolds a flow in **their project**, indexes it via **`murrmure/` + `mrmr space apply`**, and Murrmure Desktop renders **observer chrome** — workflow UI comes from indexed flows, views, or FDK iframe bundles when live.
+A builder scaffolds a flow in **their project**, indexes it via **`.mrmr/` + `mrmr space apply`**, and Murrmure Desktop renders **observer chrome** — workflow UI comes from indexed flows and custom views in ViewCanvasHost.
 
 ## Non-goals
 
 - Bundled / marketplace capability catalog in the platform repo
-- Shipping reference workflow UI as part of `@murrmure/shell-web` (use CDK bundles in iframe)
+- FDK iframe install HTTP as primary authoring path ([ADR-004](../../ADR/ADR-004-handlers-mrmr-cutover.md))
+- Shipping reference workflow UI as part of `@murrmure/shell-web`
 - Visual contract graph editor (future; not v2)

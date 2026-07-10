@@ -33,15 +33,42 @@ describe("space onboard --yes --json", () => {
     });
 
     projectDir = mkdtempSync(join(tmpdir(), "cli-onboard-"));
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "example"), { recursive: true });
-    writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
-    writeFileSync(join(root, "executors.yaml"), "executors: {}\n");
-    writeFileSync(join(root, "hooks.yaml"), "version: 1\nhooks: {}\n");
-    writeFileSync(join(root, "space.yaml"), "slug: onboard-smoke\nname: Onboard Smoke\n");
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [example.hello]",
+        "    on: step.opened",
+        "    type: shell_spawn",
+        "    complete: explicit",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: onboard-smoke\nname: Onboard Smoke\n",
+    );
     writeFileSync(
       join(root, "flows", "example", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: example\nstart:\n  manual: true\nsteps: []\n",
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: example",
+        "start:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    role: agent",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "",
+      ].join("\n"),
     );
 
     vi.stubGlobal(

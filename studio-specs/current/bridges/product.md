@@ -2,29 +2,31 @@
 topic: Studio product — bridge (HTTP, SSE, review, MCP)
 date: 2026-06-20
 status: active
-reference: agentStudio/kernelspecs/hub/studio-kernel-bridge.md
+reference: studio-specs/current/hub/contracts.md
 ---
 
 # Studio product bridge
 
-Maps product edges → hub-core. Read after hub [studio-kernel-bridge.md](https://github.com/n/a) (`agentStudio/kernelspecs/hub/studio-kernel-bridge.md`).
+Maps product edges → hub-core. Read after [hub/contracts.md](../hub/contracts.md).
 
 ## Space directory index (v2)
+
+Layout: `.mrmr/space/` (handlers, events), `.mrmr/flows/`, `.mrmr/views/`. Legacy `murrmure/` paths still apply for unmigrated repos.
 
 | HTTP | Purpose |
 |------|---------|
 | `POST /v1/spaces/{id}/link` | Register `{ host, path, primary }` binding |
-| `POST /v1/spaces/{id}/apply` | Re-index `murrmure/` bundle from CLI |
-| `GET /v1/spaces/{id}/actions` | Indexed actions registry |
-| `GET /v1/spaces/{id}/executors` | Indexed executors |
-| `GET /v1/spaces/{id}/hooks` | Indexed hooks |
-| `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes denormalized `view_ref`) |
+| `POST /v1/spaces/{id}/apply` | Re-index `.mrmr/` bundle from CLI |
 | `GET /v1/spaces/{id}/index/status` | Counts + digests for MCP `murrmure_space_status` |
+| `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes `step_contract_catalog`) |
+| `GET /v1/spaces/{id}/hooks` | Indexed handlers + legacy hooks (handlers stored in hooks index) |
+| `GET /v1/spaces/{id}/actions` | **Legacy** — indexed `actions.yaml` entries |
+| `GET /v1/spaces/{id}/executors` | **Legacy** — indexed `executors.yaml` |
 | `GET /v1/flows/{flow_id}` | Single flow index row |
 
-CLI: `mrmr space init` → `link` → `apply` → `status`. See `packages/cli/skill/reference/space-directory.md`.
+MCP: `murrmure_list_handlers` (filter handler rows from hooks index), `murrmure_space_health` (handler coverage warnings).
 
-MCP v2 stubs: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_grant_mint`.
+CLI: `mrmr space init` → `link` → `apply` → `status`. See `packages/cli/skill-developer/reference/space-directory.md` and [handlers.md](./handlers.md).
 
 ## Auth middleware (all routes)
 

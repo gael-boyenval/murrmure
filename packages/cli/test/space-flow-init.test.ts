@@ -16,7 +16,7 @@ describe("space flow init scaffold", () => {
 
   beforeEach(() => {
     targetDir = mkdtempSync(join(tmpdir(), "cli-space-flow-init-"));
-    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
+    mkdirSync(join(targetDir, ".mrmr"), { recursive: true });
   });
 
   afterEach(() => {
@@ -24,17 +24,17 @@ describe("space flow init scaffold", () => {
   });
 
   test("hello-gate creates preview-review tree with role comments", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
     const expected = [
-      "actions.yaml",
-      "executors.yaml",
+      "space/actions.yaml",
+      "space/executors.yaml",
       "flows/preview-review/flow.manifest.yaml",
-      "scripts/preview-review-build.mjs",
+      "space/scripts/preview-review-build.mjs",
       "views/preview-review/package.json",
       "views/preview-review-intake/package.json",
-      "hooks.yaml",
+      "space/hooks.yaml",
     ];
 
     for (const rel of expected) {
@@ -79,17 +79,17 @@ describe("space flow init scaffold", () => {
       "utf-8",
     );
     expect(flowManifestRaw.startsWith("# Role:")).toBe(true);
-    expect(readFileSync(join(murrmureRoot, "scripts/preview-review-build.mjs"), "utf-8")).toMatch(
+    expect(readFileSync(join(murrmureRoot, "space/scripts/preview-review-build.mjs"), "utf-8")).toMatch(
       /MURRMURE_INPUT/,
     );
   });
 
   test("hello-gate merges flow-scoped actions for multiple flows", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
     scaffoldFlowPackage(murrmureRoot, "content-review", "hello-gate");
 
-    const actions = parseYaml(readFileSync(join(murrmureRoot, "actions.yaml"), "utf-8")) as {
+    const actions = parseYaml(readFileSync(join(murrmureRoot, "space/actions.yaml"), "utf-8")) as {
       actions: Record<string, { command: string }>;
     };
 
@@ -107,17 +107,17 @@ describe("space flow init scaffold", () => {
     expect(() => assertSafeFlowId("preview\nreview")).toThrow(/control characters/);
     expect(() => assertSafeFlowId("preview\rreview")).toThrow(/control characters/);
     expect(() => assertSafeFlowId("preview\x00review")).toThrow(/control characters/);
-    expect(() => scaffoldFlowPackage(join(targetDir, "murrmure"), "bad\ttab", "hello-gate")).toThrow(
+    expect(() => scaffoldFlowPackage(join(targetDir, ".mrmr"), "bad\ttab", "hello-gate")).toThrow(
       /control characters/,
     );
   });
 
   test("hello-invoke scaffolds invoke-only flow", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "demo", "hello-invoke");
 
     expect(existsSync(join(murrmureRoot, "flows/demo/flow.manifest.yaml"))).toBe(true);
-    expect(existsSync(join(murrmureRoot, "scripts/demo-hello.mjs"))).toBe(true);
+    expect(existsSync(join(murrmureRoot, "space/scripts/demo-hello.mjs"))).toBe(true);
     expect(existsSync(join(murrmureRoot, "views"))).toBe(false);
 
     const manifest = parseYaml(
@@ -127,7 +127,7 @@ describe("space flow init scaffold", () => {
   });
 
   test("rejects duplicate flow id", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
     expect(() => scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate")).toThrow(
       /already exists/,
@@ -140,28 +140,23 @@ describe("space flow init scaffold", () => {
       rawArgs: [],
     });
 
-    expect(existsSync(join(targetDir, "murrmure/flows/preview-review/flow.manifest.yaml"))).toBe(
+    expect(existsSync(join(targetDir, ".mrmr/flows/preview-review/flow.manifest.yaml"))).toBe(
       true,
     );
   });
 
   test("space apply strict fails on legacy scaffold until VS-8 migration", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
     writeMinimalViewDist(join(murrmureRoot, "views/preview-review"));
     writeMinimalViewDist(join(murrmureRoot, "views/preview-review-intake"));
 
-    const bundle = readSpaceApplyBundle(targetDir);
-    const warnings = lintSpaceApplyBundle(bundle);
-    const strictFailures = strictLintFailures(warnings);
-    expect(strictFailures.every((w) => w.code === "LEGACY_STEP_KIND")).toBe(true);
-    expect(strictFailures.length).toBeGreaterThan(0);
-    expect(bundle.flows?.some((f) => f.flow_id === "flw_flows_preview_review")).toBe(true);
+    expect(() => readSpaceApplyBundle(targetDir)).toThrow(/LEGACY_STEP_KIND/);
   });
 
   test("scaffolded view package.json declares vite build script", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
     const viewDir = join(murrmureRoot, "views/preview-review");
     const pkg = JSON.parse(readFileSync(join(viewDir, "package.json"), "utf-8")) as {
@@ -178,19 +173,19 @@ describe("space flow init snapshot paths", () => {
   test("hello-gate relative tree matches fixture manifest", () => {
     const murrmureRoot = mkdtempSync(join(tmpdir(), "cli-flow-snapshot-"));
     try {
-      mkdirSync(join(murrmureRoot, "murrmure"), { recursive: true });
-      scaffoldFlowPackage(join(murrmureRoot, "murrmure"), "preview-review", "hello-gate");
+      mkdirSync(join(murrmureRoot, ".mrmr"), { recursive: true });
+      scaffoldFlowPackage(join(murrmureRoot, ".mrmr"), "preview-review", "hello-gate");
 
-      const root = join(murrmureRoot, "murrmure");
+      const root = join(murrmureRoot, ".mrmr");
       const relFiles: string[] = [];
       const walk = (dir: string) => {
-        for (const entry of ["actions.yaml", "executors.yaml", "hooks.yaml"]) {
+        for (const entry of ["space/actions.yaml", "space/executors.yaml", "space/hooks.yaml"]) {
           const p = join(root, entry);
           if (existsSync(p)) relFiles.push(entry);
         }
         for (const sub of [
           "flows/preview-review/flow.manifest.yaml",
-          "scripts/preview-review-build.mjs",
+          "space/scripts/preview-review-build.mjs",
           "views/preview-review/view.manifest.yaml",
           "views/preview-review-intake/view.manifest.yaml",
         ]) {
@@ -200,11 +195,11 @@ describe("space flow init snapshot paths", () => {
       walk(root);
       relFiles.sort();
       expect(relFiles).toEqual([
-        "actions.yaml",
-        "executors.yaml",
         "flows/preview-review/flow.manifest.yaml",
-        "hooks.yaml",
-        "scripts/preview-review-build.mjs",
+        "space/actions.yaml",
+        "space/executors.yaml",
+        "space/hooks.yaml",
+        "space/scripts/preview-review-build.mjs",
         "views/preview-review-intake/view.manifest.yaml",
         "views/preview-review/view.manifest.yaml",
       ]);

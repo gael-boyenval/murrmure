@@ -1,0 +1,61 @@
+# Role: Tutorial 3 — trigger view, agent wake, review view, submit output.
+apiVersion: murrmure.flow/v1
+name: daily-brief
+description: Daily brief trigger + review loop (handlers + step contracts)
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: trigger
+    description: Human clicks Run daily brief in view.
+    presentation:
+      view: daily-brief
+    branches:
+      continue:
+        schema: { type: object }
+        next: agent
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: agent
+    description: Agent gathers data after brief.requested wake.
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: review
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: review
+    description: Human reviews agent output in same view.
+    presentation:
+      view: daily-brief
+    branches:
+      approved:
+        schema: { type: object }
+        next: done
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: done
+    description: Record final brief output artifact.
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true

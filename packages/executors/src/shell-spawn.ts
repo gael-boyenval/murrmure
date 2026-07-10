@@ -85,7 +85,7 @@ async function materializePromptArtifacts(input: {
   const runBare = bareRunId(input.run_id);
   if (!runBare) return { env };
 
-  const relDir = join(".mrmr.temp", "runs", runBare);
+  const relDir = join(".mrmr", "dev", "runs", runBare);
   const fileName = `${sanitizeStepId(input.step_id)}-invoke-prompt.md`;
   const prompt_path = join(input.space_root, relDir, fileName);
   await mkdir(dirname(prompt_path), { recursive: true });
@@ -484,6 +484,12 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           invokeEnv.MURRMURE_STEP_CONTRACT = context.step_contract.slice_json;
           invokeEnv.MURRMURE_ACTIVE_STEP_CONTRACT_PATH = context.step_contract.contract_path;
           invokeEnv.MURRMURE_STEP_WORKDIR = context.step_contract.workdir;
+          if (context.step_contract.hub_token) {
+            invokeEnv.MURRMURE_HUB_TOKEN = context.step_contract.hub_token;
+          }
+          if (context.step_contract.hub_url) {
+            invokeEnv.MURRMURE_HUB_URL = context.step_contract.hub_url;
+          }
           if (context.step_contract.run_artifacts_json) {
             invokeEnv.MURRMURE_RUN_ARTIFACTS = context.step_contract.run_artifacts_json;
           }

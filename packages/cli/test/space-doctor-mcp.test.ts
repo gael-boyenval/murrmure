@@ -16,6 +16,7 @@ vi.mock("node:os", async () => {
 import {
   buildMcpConfigSnippet,
   probeMcpCatalog,
+  resolveMcpBridgeCommand,
   rewriteFatMcpConfigFiles,
   scanMcpConfig,
 } from "../src/lib/space-doctor-mcp.js";
@@ -118,6 +119,29 @@ describe("buildMcpConfigSnippet", () => {
     expect(snippet).not.toContain("\"args\"");
     expect(snippet).not.toContain("MURRMURE_HUB_URL");
     expect(snippet).not.toContain("MURRMURE_SPACE_ID");
+  });
+
+  test("resolveMcpBridgeCommand prefers Desktop-bundled path from shared.json", () => {
+    const homePath = mkdtempSync(join(tmpdir(), "cli-mcp-bridge-home-"));
+    testHomeRef.value = homePath;
+    const hubsDir = join(homePath, ".murrmure", "hubs");
+    mkdirSync(hubsDir, { recursive: true });
+    writeFileSync(
+      join(hubsDir, "shared.json"),
+      JSON.stringify({
+        hubs: [{ endpoint: "http://127.0.0.1:8787" }],
+        mcp_bridge: { command: "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js" },
+      }),
+    );
+
+    expect(resolveMcpBridgeCommand()).toBe(
+      "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js",
+    );
+    expect(buildMcpConfigSnippet({ token: "tok_agent" })).toContain(
+      "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js",
+    );
+
+    rmSync(homePath, { recursive: true, force: true });
   });
 });
 

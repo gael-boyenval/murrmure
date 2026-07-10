@@ -45,23 +45,10 @@ export function flowUsesStepContracts(entry: FlowIndexEntry | null | undefined):
   return Boolean(entry?.step_contract_catalog?.entries.length);
 }
 
-export function requiresExplicitResolve(
+export function isAgentCatalogStep(
   catalog: StepContractCatalog | null | undefined,
   step_id: string,
 ): boolean {
   const entry = catalogEntryForStep(catalog, step_id);
-  if (!entry) return false;
-  return entry.role === "agent" && Boolean(entry.executor?.action);
-}
-
-/** Headless executor steps (write_spec, archive, commit) auto-advance when shell action succeeds. */
-export function shouldAutoResolveExecutorStep(
-  catalog: StepContractCatalog | null | undefined,
-  step_id: string,
-): boolean {
-  const entry = catalogEntryForStep(catalog, step_id);
-  if (!entry?.executor?.action) return false;
-  if (entry.presentation?.view) return false;
-  if (parentHasNestedChildren(catalog!, entry.step_id)) return false;
-  return Boolean(entry.branches.completed);
+  return entry?.role === "agent";
 }

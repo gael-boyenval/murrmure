@@ -1,0 +1,47 @@
+# Role: Tutorial 2 orchestrator — open brief, human publish, done wake.
+apiVersion: murrmure.flow/v1
+name: team-brief
+description: Multi-agent brief orchestrator (handlers + step contracts)
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: open
+    description: Orchestrator initializes brief state.
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: publish
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: publish
+    description: Human publishes brief — hub emits brief.published.
+    role: human
+    branches:
+      published:
+        schema: { type: object }
+        next: done
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: done
+    description: Orchestrator signals publish complete (dev wake via event handler).
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true

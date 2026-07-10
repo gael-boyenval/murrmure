@@ -1,0 +1,112 @@
+# Role: mixed orchestration — write_spec (shell) → build (shell + nested review loop) → archive → commit.
+# v2.2 nested manifest — review lives under build; engine-routed goto opens build.review.
+apiVersion: murrmure.flow/v1
+name: preview-review
+description: Spec intake → write → build (agent loop + review) → archive → commit
+
+triggers:
+  manual: true
+
+start:
+  manual: true
+
+steps:
+  - id: intake
+    description: Human attaches spec markdown.
+    presentation:
+      view: preview-review-intake
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec_filename, reviewer]
+        artifact_slots:
+          spec:
+            description: Attached spec markdown file
+            max_bytes: 1048576
+        next: write_spec
+      cancel:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: write_spec
+    description: Agent writes spec to repo.
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: build
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: build
+    description: Build site and human review loop until validated.
+    role: agent
+    orchestration: engine-routed
+    steps:
+      - id: build-loop
+        description: Implement site; resolve when preview URL ready.
+        role: agent
+        branches:
+          completed:
+            schema:
+              type: object
+              required: [preview_url]
+              properties:
+                preview_url: { type: string }
+            goto: review
+          failed:
+            schema: { type: object }
+            fail: true
+      - id: review
+        description: Human validates preview — wait; do not resolve yourself.
+        presentation:
+          view: preview-review
+          assignees: ["{{input.reviewer}}"]
+        branches:
+          validated:
+            schema: { type: object }
+            complete: parent
+          changes_required:
+            schema:
+              type: object
+              properties:
+                comments: { type: array }
+            continue: parent
+            goto: build-loop
+          cancel:
+            schema: { type: object }
+            fail: true
+    branches:
+      completed:
+        schema: { type: object }
+        next: archive
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: archive
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: commit
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true
+
+  - id: commit
+    role: agent
+    branches:
+      completed:
+        schema: { type: object }
+        next: null
+      failed:
+        schema: { type: object }
+        next: null
+        fail_run: true

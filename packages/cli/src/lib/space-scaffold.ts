@@ -37,33 +37,30 @@ export function isMurrmureDirEmpty(murrmureRoot: string): boolean {
   return listFilesRecursive(murrmureRoot).length === 0;
 }
 
-export function scaffoldMurrmureDir(targetDir: string): {
+export function scaffoldMurrmureDir(
+  targetDir: string,
+  options?: { withExamples?: boolean },
+): {
   created: string[];
   filledEmptyMurrmure: boolean;
 } {
-  const root = join(targetDir, "murrmure");
+  const withExamples = options?.withExamples ?? false;
+  const root = join(targetDir, ".mrmr");
   let filledEmptyMurrmure = false;
 
   if (existsSync(root)) {
     if (!isMurrmureDirEmpty(root)) {
-      throw new Error(`murrmure/ already exists at ${root} — remove it or use a fresh directory`);
+      throw new Error(`.mrmr/ already exists at ${root} — remove it or use a fresh directory`);
     }
     filledEmptyMurrmure = true;
   } else {
     mkdirSync(root, { recursive: true });
   }
 
-  const tempRoot = join(targetDir, ".mrmr.temp");
-  if (!existsSync(tempRoot)) {
-    mkdirSync(join(tempRoot, "inbox"), { recursive: true });
-    mkdirSync(join(tempRoot, "outbox"), { recursive: true });
-  }
-  const gitignorePath = join(tempRoot, ".gitignore");
-  if (!existsSync(gitignorePath)) {
-    writeFileSync(gitignorePath, "*\n!.gitignore\n", "utf-8");
-  }
-
   const created: string[] = [];
+  const devRoot = join(root, "dev");
+  mkdirSync(devRoot, { recursive: true });
+  const gitignorePath = join(devRoot, ".gitignore");
   if (!existsSync(gitignorePath)) {
     writeFileSync(gitignorePath, "*\n!.gitignore\n", "utf-8");
     created.push(gitignorePath);
@@ -71,18 +68,23 @@ export function scaffoldMurrmureDir(targetDir: string): {
 
   const manifest = loadManifest();
   for (const [rel, content] of Object.entries(manifest)) {
+    if (rel === "README.md" && !withExamples) {
+      continue;
+    }
     const dest = join(root, rel);
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, content, "utf-8");
     created.push(dest);
   }
 
-  const exampleFlow = cliResourcePath("templates", "space", "flows", "example", "flow.manifest.yaml");
-  const flowDestDir = join(root, "flows", "example");
-  mkdirSync(flowDestDir, { recursive: true });
-  const flowDest = join(flowDestDir, "flow.manifest.yaml");
-  writeFileSync(flowDest, readFileSync(exampleFlow, "utf-8"), "utf-8");
-  created.push(flowDest);
+  if (withExamples) {
+    const exampleFlow = cliResourcePath("templates", "space", "flows", "example", "flow.manifest.yaml");
+    const flowDestDir = join(root, "flows", "example");
+    mkdirSync(flowDestDir, { recursive: true });
+    const flowDest = join(flowDestDir, "flow.manifest.yaml");
+    writeFileSync(flowDest, readFileSync(exampleFlow, "utf-8"), "utf-8");
+    created.push(flowDest);
+  }
 
   return { created, filledEmptyMurrmure };
 }

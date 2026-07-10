@@ -22,3 +22,7 @@ Full pre-promotion drafts archived at [archives/plans/product/](../archives/plan
 - v1 clients migrate to session/run API and `murrmure_*` MCP tools.
 - FDK worker install via public evolution HTTP removed; v2 indexed flows via `mrmr space apply`.
 - Remaining work tracked in [plans/product/plan/index.md](../plans/product/plan/index.md) (backlog B1–B6).
+
+## Amendment (2026-07-09)
+
+Space execution relocated to **`handlers.yaml`** + **`.mrmr/` layout** — see [ADR-004](./ADR-004-handlers-mrmr-cutover.md). Flow manifests no longer carry `executor.action`; handlers bind via `contract_keys`.

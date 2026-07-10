@@ -129,8 +129,8 @@ describe("executor conformance", () => {
         space_root: "/tmp/project",
         step_contract: {
           slice_json: "{}",
-          contract_path: "/tmp/project/.mrmr.temp/runs/run_1/active-step-contract.json",
-          workdir: "/tmp/project/.mrmr.temp/runs/run_1/steps/write_spec/work",
+          contract_path: "/tmp/project/.mrmr/dev/runs/run_1/active-step-contract.json",
+          workdir: "/tmp/project/.mrmr/dev/runs/run_1/steps/write_spec/work",
           prompt_bindings: {},
         },
       },

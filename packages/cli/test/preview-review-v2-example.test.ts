@@ -1,20 +1,31 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { lintSpaceApplyBundle, strictLintFailures } from "@murrmure/hub-core";
+import { HandlerSpecSchema } from "@murrmure/contracts";
+import { parseHandlersFile } from "@murrmure/hub-core";
+import {
+  applyIndexDiff,
+  compileStepContractCatalog,
+  lintHandlerCatalogCoverage,
+  lintSpaceApplyBundle,
+  openStepContract,
+  parseFlowManifest,
+  strictLintFailures,
+  catalogEntryForStep,
+} from "@murrmure/hub-core";
 import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const EXAMPLE_ROOT = join(REPO_ROOT, "examples/flows/preview-review-v2");
-const MURRMURE_ROOT = join(EXAMPLE_ROOT, "murrmure");
-
+const MURRMURE_ROOT = join(EXAMPLE_ROOT, ".mrmr");
 const NESTED_STEP_IDS = ["intake", "write_spec", "build", "archive", "commit"];
+const PREVIEW_REVIEW_FLOW_ID = "flw_flows_preview_review";
 
 describe("preview-review-v2 reference example", () => {
-  test("murrmure tree matches v2.2 nested step contract manifest", () => {
+  test(".mrmr tree matches v2.2 nested step contract manifest", () => {
     const manifestPath = join(MURRMURE_ROOT, "flows/preview-review/flow.manifest.yaml");
     expect(existsSync(manifestPath)).toBe(true);
 
@@ -26,6 +37,7 @@ describe("preview-review-v2 reference example", () => {
     expect(manifest.triggers).toEqual({ manual: true });
     expect(manifest.steps.map((s) => s.id)).toEqual(NESTED_STEP_IDS);
     expect(manifest.steps.some((s) => s.id === "review")).toBe(false);
+    expect(manifest.steps.some((s) => "executor" in s)).toBe(false);
 
     const intake = manifest.steps[0] as {
       presentation?: { view: string };
@@ -35,12 +47,12 @@ describe("preview-review-v2 reference example", () => {
     expect(intake.branches?.continue).toBeDefined();
 
     const build = manifest.steps[2] as {
+      role?: string;
       orchestration?: string;
-      executor?: { action: string };
       steps?: Array<{ id: string; branches?: Record<string, unknown> }>;
     };
+    expect(build.role).toBe("agent");
     expect(build.orchestration).toBe("engine-routed");
-    expect(build.executor?.action).toBe("feature_build");
     expect(build.steps?.map((s) => s.id)).toEqual(["build-loop", "review"]);
 
     const buildLoop = build.steps?.[0];
@@ -69,14 +81,94 @@ describe("preview-review-v2 reference example", () => {
     expect(skill).not.toContain("murrmure_complete_action");
   });
 
-  test("feature actions use headless agent flags and hub resolve_step", () => {
-    const actions = readFileSync(join(MURRMURE_ROOT, "actions.yaml"), "utf-8");
-    expect(actions).toContain("--approve-mcps");
-    expect(actions).toContain("--output-format stream-json");
-    expect(actions).toContain("murrmure_resolve_step");
-    expect(actions).not.toContain("murrmure.agentStepContract");
-    expect(actions).not.toContain("murrmure_complete_action");
-    expect(actions).not.toContain("murrmure_wait_for_gate");
+  test("feature handlers use contract_keys and headless agent flags", () => {
+    const handlersRaw = parseYaml(
+      readFileSync(join(MURRMURE_ROOT, "space", "handlers.yaml"), "utf-8"),
+    );
+    const parsed = parseHandlersFile(handlersRaw);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const ids = parsed.value.handlers.map((h) => h.id);
+    expect(ids).toEqual([
+      "feature_write_spec",
+      "feature_build",
+      "feature_archive",
+      "feature_commit",
+    ]);
+    expect(parsed.value.handlers.every((h) => (h.contract_keys ?? []).length > 0)).toBe(true);
+    expect(parsed.value.handlers.every((h) => h.on === "step.opened")).toBe(true);
+
+    const handlersText = readFileSync(join(MURRMURE_ROOT, "space", "handlers.yaml"), "utf-8");
+    expect(handlersText).toContain("--approve-mcps");
+    expect(handlersText).toContain("--output-format stream-json");
+    expect(handlersText).toContain("murrmure_resolve_step");
+    expect(handlersText).not.toContain("murrmure_complete_action");
+    expect(handlersText).not.toContain("murrmure_wait_for_gate");
+  });
+
+  test("write_spec handler catalog coverage for preview-review manifest", () => {
+    const manifestPath = join(MURRMURE_ROOT, "flows/preview-review/flow.manifest.yaml");
+    const parsed = parseFlowManifest(parseYaml(readFileSync(manifestPath, "utf-8")));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const manifest = parsed.value;
+    const { catalog } = compileStepContractCatalog(manifest, PREVIEW_REVIEW_FLOW_ID);
+    expect(catalog).not.toBeNull();
+
+    const contractKey = (stepId: string) => `${manifest.name}.${stepId}`;
+
+    const writeSpec = catalog!.entries.find((entry) => entry.step_id === "write_spec");
+    expect(writeSpec?.role).toBe("agent");
+    expect(contractKey("write_spec")).toBe("preview-review.write_spec");
+
+    const buildReview = catalog!.entries.find((entry) => entry.step_id === "build.review");
+    expect(buildReview?.role).toBe("human");
+    expect(contractKey("build.review")).toBe("preview-review.build.review");
+
+    const writeSpecOnlyWarnings = lintHandlerCatalogCoverage({
+      handlers: {
+        version: 1,
+        handlers: [
+          {
+            id: "write-spec",
+            contract_keys: ["preview-review.write_spec"],
+            on: "step.opened",
+            type: "shell_spawn",
+            complete: "explicit",
+          },
+        ],
+      },
+      flows: [{ flow_id: PREVIEW_REVIEW_FLOW_ID, manifest }],
+    });
+    expect(
+      writeSpecOnlyWarnings.some(
+        (warning) => warning.code === "STEP_UNCOVERED" && warning.contract_key === "preview-review.write_spec",
+      ),
+    ).toBe(false);
+    expect(writeSpecOnlyWarnings.some((warning) => warning.code === "HANDLER_ORPHAN_KEY")).toBe(false);
+
+    const scopedWarnings = lintHandlerCatalogCoverage({
+      handlers: {
+        version: 1,
+        handlers: [
+          {
+            id: "build-handoff",
+            contract_keys: ["preview-review.write_spec", "preview-review.build.review"],
+            on: "step.opened",
+            type: "shell_spawn",
+            complete: "explicit",
+          },
+        ],
+      },
+      flows: [{ flow_id: PREVIEW_REVIEW_FLOW_ID, manifest }],
+    });
+    expect(
+      scopedWarnings.some(
+        (warning) => warning.code === "HANDLER_ORPHAN_KEY" && warning.contract_key === "preview-review.build.review",
+      ),
+    ).toBe(false);
+    expect(scopedWarnings.some((warning) => warning.code === "HANDLER_ORPHAN_KEY")).toBe(false);
   });
 
   test("build-loop branch requires preview_url", () => {
@@ -110,12 +202,92 @@ describe("preview-review-v2 reference example", () => {
     };
 
     const scanPaths = collectTextFiles(MURRMURE_ROOT);
+    expect(scanPaths.some((p) => p.includes("handlers.yaml"))).toBe(true);
     expect(scanPaths.some((p) => p.includes("executors.yaml"))).toBe(true);
     expect(scanPaths.some((p) => p.includes("hooks.yaml"))).toBe(true);
     expect(scanPaths.some((p) => p.endsWith("App.tsx"))).toBe(true);
     for (const path of scanPaths) {
       expect(readFileSync(path, "utf-8")).not.toMatch(fdkPattern);
     }
+  });
+
+  test("handlers.yaml flows through apply index to step dispatch", async () => {
+    const bundle = readSpaceApplyBundle(EXAMPLE_ROOT);
+    expect(bundle.handlers?.file.handlers.length).toBeGreaterThan(0);
+
+    const indexed = applyIndexDiff(
+      { actions: [], executors: [], hooks: [], events: [], flows: [] },
+      bundle,
+      "spc_preview_review",
+    );
+    const handlerRows = indexed.next.hooks.filter((row) =>
+      HandlerSpecSchema.safeParse(JSON.parse(row.payload_json)).success,
+    );
+    expect(handlerRows.map((row) => row.key)).toEqual([
+      "feature_write_spec",
+      "feature_build",
+      "feature_archive",
+      "feature_commit",
+    ]);
+
+    const flow = bundle.flows?.find((f) => f.flow_id === PREVIEW_REVIEW_FLOW_ID);
+    expect(flow).toBeDefined();
+    if (!flow) return;
+    const { catalog } = compileStepContractCatalog(flow.manifest, flow.flow_id);
+    expect(catalog).not.toBeNull();
+    if (!catalog) return;
+
+    const studio = {
+      getRun: vi.fn(async () => ({
+        flow_id: flow.flow_id,
+        space_id: "preview",
+        lifecycle: "working",
+      })),
+      getFlowIndexEntry: vi.fn(async () => ({
+        name: flow.manifest.name,
+        step_contract_catalog: catalog,
+      })),
+      listIndexedHooks: vi.fn(async () =>
+        handlerRows.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>),
+      ),
+      listRunStepMemos: vi.fn(async () => []),
+      getSpaceBindings: vi.fn(async () => []),
+      upsertRunStepMemo: vi.fn(async () => undefined),
+      updateRunLifecycle: vi.fn(async () => undefined),
+      getSpace: vi.fn(async () => ({ name: "Preview", slug: "preview" })),
+      listGrants: vi.fn(async () => []),
+      insertNotification: vi.fn(async () => undefined),
+    };
+    const dispatchSteps = vi.fn(async () => undefined);
+    const clock = { nowIso: () => "2026-07-09T10:00:00.000Z" };
+
+    const writeSpecEntry = catalogEntryForStep(catalog, "write_spec");
+    expect(writeSpecEntry).toBeDefined();
+    if (!writeSpecEntry) return;
+
+    await openStepContract(
+      {
+        studio: studio as never,
+        dispatchSteps,
+        clock,
+        ids: { ulid: () => "evt_pr" },
+        handler: { appendSpaceJournal: vi.fn() } as never,
+        resolveFlowAuth: vi.fn(),
+      } as never,
+      {
+        run_id: "run_run_pr",
+        session_id: "ses_ses_pr",
+        space_id: "spc_preview_review",
+        step_id: "write_spec",
+        entry: writeSpecEntry,
+        exec_context: {},
+        actor_id: "actor_alice",
+        token_id: "tok_1",
+      },
+    );
+
+    expect(dispatchSteps).toHaveBeenCalledTimes(1);
+    expect(dispatchSteps.mock.calls[0]?.[0]?.dispatch?.[0]?.action_name).toBe("feature_write_spec");
   });
 
   test("v2.2 manifest passes strict apply lint", () => {

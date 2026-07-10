@@ -1,6 +1,6 @@
 # Part 7 — Index and apply
 
-Publish your local `murrmure/` tree to the hub so Desktop and Cursor see the flow, actions, and views.
+Publish your local `.mrmr/` tree to the hub so Desktop and Cursor see the flow, handlers, and views.
 
 ## Step 1 — Link (if not done in setup)
 
@@ -20,12 +20,30 @@ mrmr space apply --strict
 Strict mode fails on:
 
 - Missing view `dist/` for referenced views
-- Unknown action names in the manifest
-- Invalid `on_resolve` routing
+- **`HANDLER_MISSING`** / **`STEP_UNCOVERED`** — agent step with no matching handler `contract_keys`
+- Invalid branch routing in the manifest
+- **`executor.action`** in flow manifests (banned — use handlers instead)
 
 Fix errors, rebuild views if needed, re-run apply.
 
-## Step 3 — Verify status
+Apply also writes **`.mrmr/dev/contracts/contract-keys.json`** — use it to verify handler coverage (Part 4).
+
+## Step 3 — Doctor (handler coverage)
+
+```bash
+mrmr space doctor
+```
+
+| Code | Severity | Fix |
+|------|----------|-----|
+| `HANDLER_MISSING` / `STEP_UNCOVERED` | warning (error in strict) | Add handler with matching `contract_keys` from `contract-keys.json` |
+| `HANDLER_ORPHAN_KEY` | warning | Remove unused key or add a manifest step |
+| `HANDLER_KEY_CONFLICT` | error | Two handlers claim the same key — dedupe |
+| `HANDLER_LEGACY_ACTIONS` | warning | Migrate `actions.yaml` triggers to `handlers.yaml` |
+
+Compare your bundle against the [preview-review-v2 example](../../../../examples/flows/preview-review-v2/) — it passes strict apply with zero handler warnings.
+
+## Step 4 — Verify status
 
 ```bash
 mrmr space status
@@ -37,34 +55,35 @@ Expect:
 |------|------|
 | Flow | `preview-review` |
 | Views | `preview-review-intake`, `preview-review` |
-| Actions | `feature_write_spec`, `feature_build`, `feature_archive`, `feature_commit` |
+| Handlers | `feature_write_spec`, `feature_build`, `feature_archive`, `feature_commit` |
 
-## Step 4 — Desktop smoke check
+## Step 5 — Desktop smoke check
 
 1. Open Murrmure Desktop → your space
 2. Confirm **preview-review** appears with **Run**
 3. Do not run yet — Part 8 walks through the full loop
 
-## Step 5 — Agent smoke check
+## Step 6 — Agent smoke check
 
 In Cursor:
 
 > Call murrmure_space_status and list indexed flows.
 
-Confirm **`murrmure_resolve_step`** appears in the MCP catalog (requires `step:resolve` grant).
+Confirm **`murrmure_resolve_step`** appears in the MCP catalog (requires `step:resolve` grant). Optional: **`murrmure_list_handlers`** to see indexed handlers.
 
 ## What apply does not index
 
 | Not indexed | Why |
 |-------------|-----|
-| `agent.md` | User-owned; read by agent via prompts |
+| `agent.md` | User-owned; read by agent via handler prompts |
 | `skills/` | Same |
 | `specs/current/`, `specs/archive/` | Runtime artifacts; created during runs |
 
 ## Checkpoint
 
 - [ ] `mrmr space apply --strict` succeeds
-- [ ] Status lists flow, four actions, two views
+- [ ] `mrmr space doctor` shows no handler coverage errors
+- [ ] Status lists flow, four handlers, two views
 - [ ] Desktop shows **Run**
 
 ## Next

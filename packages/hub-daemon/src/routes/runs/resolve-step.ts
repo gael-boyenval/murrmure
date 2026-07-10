@@ -32,6 +32,17 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "RUN_NOT_FOUND", message: "Run not found" }, 404);
     }
 
+    const token = await murrmurePersistence.getToken(auth.token_id.replace(/^tok_/, ""));
+    const tokenRunScope = token?.harness_id?.startsWith("run:")
+      ? token.harness_id.slice("run:".length)
+      : undefined;
+    if (tokenRunScope && tokenRunScope !== run_id && tokenRunScope !== bare) {
+      return c.json(
+        { code: "TOKEN_RUN_SCOPE_MISMATCH", message: "Token is not scoped to this run" },
+        403,
+      );
+    }
+
     const space_id = run.space_id
       ? prefixedSpaceId(run.space_id)
       : prefixedSpaceId(bareSpaceId(auth.space_id));

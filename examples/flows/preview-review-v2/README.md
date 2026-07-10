@@ -14,12 +14,11 @@ intake → write_spec → build (build-loop ⇄ build.review) → archive → co
 ```text
 agent.md
 skills/feature-build/SKILL.md
-murrmure/
+.mrmr/
   flows/preview-review/flow.manifest.yaml
   views/preview-review/          # review canvas (iframe + comments)
   views/preview-review-intake/   # spec intake (no preview URL)
-  actions.yaml                   # shell prompt triggers only
-  executors.yaml
+  space/handlers.yaml            # step.opened handlers (contract_keys)
 ```
 
 ## Apply
@@ -27,7 +26,7 @@ murrmure/
 From this directory (space root):
 
 ```bash
-cd murrmure/views/preview-review && npm install && npm run build
+cd .mrmr/views/preview-review && npm install && npm run build
 cd ../preview-review-intake && npm install && npm run build
 cd ../../..
 mrmr space apply --strict

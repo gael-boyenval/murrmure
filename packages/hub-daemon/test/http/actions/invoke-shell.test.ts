@@ -106,7 +106,8 @@ describe("http/actions/invoke-shell", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.dispatch.status).toBe("completed");
-    expect(body.body).toEqual({ task: "done" });
+    expect(body.body).toMatchObject({ task: "done" });
+    expect(body.body.stdout).toContain('{"task":"done"}');
     expect(body.dispatch.step_id).toBe("action:daily_checkin");
   });
 });

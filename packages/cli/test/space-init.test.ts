@@ -17,32 +17,48 @@ describe("space init scaffold", () => {
     rmSync(targetDir, { recursive: true, force: true });
   });
 
-  test("creates murrmure/ template tree", async () => {
+  test("creates empty .mrmr/ template tree by default", async () => {
     await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
       args: { path: targetDir, json: true, "no-skill": true },
       rawArgs: [],
     });
-    expect(existsSync(join(targetDir, "murrmure", "actions.yaml"))).toBe(true);
-    expect(existsSync(join(targetDir, "murrmure", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".mrmr", "space", "handlers.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".mrmr", "space", "actions.yaml"))).toBe(false);
+    expect(existsSync(join(targetDir, ".mrmr", "flows", "example", "flow.manifest.yaml"))).toBe(false);
+    expect(existsSync(join(targetDir, ".mrmr", "README.md"))).toBe(false);
     expect(existsSync(join(targetDir, ".cursor", "mcp.json"))).toBe(false);
   });
 
-  test("scaffolds into an existing empty murrmure/ directory", async () => {
-    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
-    expect(isMurrmureDirEmpty(join(targetDir, "murrmure"))).toBe(true);
+  test("creates example flow when --with-examples is passed", async () => {
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: targetDir, json: true, "no-skill": true, "with-examples": true },
+      rawArgs: [],
+    });
+    expect(existsSync(join(targetDir, ".mrmr", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".mrmr", "README.md"))).toBe(true);
+  });
+
+  test("scaffolds into an existing empty .mrmr/ directory", async () => {
+    mkdirSync(join(targetDir, ".mrmr"), { recursive: true });
+    expect(isMurrmureDirEmpty(join(targetDir, ".mrmr"))).toBe(true);
 
     await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
       args: { path: targetDir, json: true, "no-skill": true },
       rawArgs: [],
     });
 
-    expect(existsSync(join(targetDir, "murrmure", "space.yaml"))).toBe(true);
-    expect(existsSync(join(targetDir, "murrmure", "flows", "example", "flow.manifest.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".mrmr", "space", "space.yaml"))).toBe(true);
+    expect(existsSync(join(targetDir, ".mrmr", "flows", "example", "flow.manifest.yaml"))).toBe(false);
   });
 
-  test("rejects murrmure/ that already has files", () => {
-    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
-    writeFileSync(join(targetDir, "murrmure", "actions.yaml"), "version: 1\nactions: {}\n");
+  test("scaffoldMurrmureDir can include example flow", () => {
+    const { created } = scaffoldMurrmureDir(targetDir, { withExamples: true });
+    expect(created.some((path) => path.endsWith("flows/example/flow.manifest.yaml"))).toBe(true);
+  });
+
+  test("scaffoldMurrmureDir rejects .mrmr/ that already has files", () => {
+    mkdirSync(join(targetDir, ".mrmr", "space"), { recursive: true });
+    writeFileSync(join(targetDir, ".mrmr", "space", "handlers.yaml"), "version: 1\nhandlers: []\n");
 
     expect(() => scaffoldMurrmureDir(targetDir)).toThrow(/already exists/);
   });

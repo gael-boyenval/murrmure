@@ -50,7 +50,8 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `flow` | Indexed `flow run` + local validate helpers |
 | `view` | Scaffold custom view packages |
 | `setup` | First-run wizard (`mrmr setup`, `mrmr space onboard`) |
-| `skill` | Install/update the **murrmure** agent skill |
+| `step` | Step-level runtime (`mrmr step resolve`) |
+| `skill` | Install/update split **murrmure-agent** / **murrmure-developer** skills |
 
 **MCP:** use `murrmure-mcp` from `@murrmure/mcp-bridge` with thin config (`command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN` env ref). See [Connect your agent](./agents-mcp).
 
@@ -107,24 +108,24 @@ mrmr grant use --space spc_your_space_id   # optional local active-pointer switc
 
 ## Indexed flows (v2)
 
-Scaffold and index workflows in `murrmure/`:
+Scaffold and index workflows in `.mrmr/`:
 
 ```bash
 mrmr space init
-# Author murrmure/flows/preview-review/flow.manifest.yaml + actions — see Tutorial 1
+# Author .mrmr/flows/preview-review/flow.manifest.yaml + .mrmr/space/handlers.yaml — see Tutorial 1
 mrmr space apply --strict
 mrmr flow run flw_flows_preview_review --input '{}' --space spc_ui_sandbox
 ```
 
 `--strict` fails on lint errors including **`LEGACY_STEP_KIND`** — manifests with `invoke:` / `checkpoint:` / `gate:` top-level steps are rejected. Migrate to unified step contracts ([bridge](../../studio-specs/current/bridges/step-contract.md)).
 
-See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
+See [Space handlers](./space-handlers), [Space index](./space-index), and [Creating flows](./creating-flows).
 
-**Agent skill** (optional):
+**Agent skills** (optional):
 
 ```bash
-mrmr skill install
-mrmr skill update
+mrmr skill install --variant all
+mrmr skill update --variant agent
 ```
 
 See [Agent skill](./agent-skill).
@@ -199,9 +200,10 @@ mrmr space archive spc_ui_sandbox
 
 | Command | Requires | HTTP |
 |---------|----------|------|
-| `init` | none (local) | Scaffolds `murrmure/` (actions, executors, hooks, example flow) |
+| `init` | none (local) | Scaffolds `.mrmr/` (empty handlers by default; `--with-examples` adds starter flow) |
 | `link` | `space:write` | `POST /v1/spaces/:id/link` — use `--create` to mint space from `space.yaml` slug |
-| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `murrmure/` and index |
+| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `.mrmr/` and index |
+| `doctor` | `space:read` | Handler coverage, bindings, MCP hints |
 | `status` | `space:read` | `GET /v1/spaces/:id/index/status` |
 | `list` | `space:enter` | `GET /v1/spaces` |
 | `show <space_id>` | valid token for space | `GET /v1/spaces/:id` |
@@ -215,13 +217,28 @@ mrmr space archive spc_ui_sandbox
 
 Add `--json` for scripting. See [Admin commands (CLI)](./configuration.md) and [Space index](./space-index.md).
 
-### `mrmr action invoke`
+### `mrmr action invoke` (legacy / headless)
 
 ```bash
 mrmr action invoke my_action --params '{"key":"value"}' --space spc_ui_sandbox
 ```
 
-Invoke an indexed action from `murrmure/actions.yaml`. Requires **`action:invoke`**. HTTP: `POST /v1/spaces/{id}/actions/{name}/invoke`.
+Invoke a legacy indexed action. Requires **`action:invoke`**. Flow steps use **handlers + `murrmure_resolve_step`** instead. HTTP: `POST /v1/spaces/{id}/actions/{name}/invoke`.
+
+### `mrmr step resolve`
+
+Resolve the current run step from shell env bindings. Used by handlers with `complete: cli` and shell scripts.
+
+```bash
+# Requires MURRMURE_RUN_ID, MURRMURE_STEP_ID, MURRMURE_HUB_URL, MURRMURE_HUB_TOKEN
+mrmr step resolve --branch completed --payload-json '{"preview_url":"http://localhost:3000"}'
+mrmr step resolve --branch failed --payload-stdin   # read JSON object from stdin
+mrmr step resolve --branch completed --artifact-out report=out/report.json
+```
+
+Requires **`step:resolve`**. HTTP: `POST /v1/runs/{id}/steps/{step_id}/resolve`.
+
+See [Space handlers](./space-handlers).
 
 ### `mrmr me set-landing`
 
@@ -237,7 +254,7 @@ Set per-user landing space. Requires **`space:enter`**. HTTP: `PATCH /v1/me`.
 mrmr view init review-params
 ```
 
-Scaffold `murrmure/views/{id}/` locally. See [View SDK](../reference/view-sdk).
+Scaffold `.mrmr/views/{id}/` locally. See [View SDK](../reference/view-sdk).
 
 ### `mrmr worker poll`
 

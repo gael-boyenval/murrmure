@@ -10,7 +10,7 @@ import type {
   StepRole,
 } from "@murrmure/contracts";
 import { computeContentDigest } from "../index/digest.js";
-import type { ParseResult } from "../index/parse-actions.js";
+import type { ParseResult } from "../index/parse-result.js";
 
 export const STEP_CONTRACT_MIGRATION_DOC =
   "studio-specs/current/bridges/step-contract.md";
@@ -121,11 +121,12 @@ export function findLegacyStepKinds(
   return hits;
 }
 
-function deriveRole(step: StepContractManifestStep, parentHasExecutor = false): StepRole {
+function deriveRole(step: StepContractManifestStep, parentRole?: StepRole): StepRole {
+  if (step.role) return step.role;
   if (step.presentation?.view) return "human";
-  if (step.executor?.action) return "agent";
-  if (parentHasExecutor) return "agent";
-  return "system";
+  if (parentRole === "agent") return "agent";
+  if (parentRole === "human") return "human";
+  return "agent";
 }
 
 function schemaRefForBranch(branchName: string, branch: StepBranchDefinition): string | undefined {
@@ -253,7 +254,6 @@ function lintMurrmureTokens(
   for (const row of flat) {
     if (row.step.description) scanString(row.step.description, row.qualifiedId);
     walkJsonValues(row.step.branches, (text) => scanString(text, row.qualifiedId));
-    if (row.step.executor) walkJsonValues(row.step.executor, (text) => scanString(text, row.qualifiedId));
     if (row.step.presentation) walkJsonValues(row.step.presentation, (text) => scanString(text, row.qualifiedId));
   }
 }
@@ -416,7 +416,7 @@ function compileCatalogEntries(
   return flat.map((row) => {
     const childIds = childIdsByParent.get(row.qualifiedId) ?? new Set<string>();
     const parentRow = row.parentId ? flat.find((r) => r.qualifiedId === row.parentId) : undefined;
-    const parentHasExecutor = Boolean(parentRow?.step.executor?.action);
+    const parentRole = parentRow ? deriveRole(parentRow.step) : undefined;
     const branches: Record<string, StepCatalogBranch> = {};
     for (const [name, def] of Object.entries(row.step.branches)) {
       branches[name] = {
@@ -429,13 +429,12 @@ function compileCatalogEntries(
       step_id: row.qualifiedId,
       parent_id: row.parentId,
       description: row.step.description,
-      role: deriveRole(row.step, parentHasExecutor),
+      role: deriveRole(row.step, parentRole),
       branches,
       artifact_slots: Object.values(row.step.branches).reduce(
         (acc, branch) => ({ ...acc, ...branch.artifact_slots }),
         {} as Record<string, { description?: string; max_bytes?: number }>,
       ),
-      executor: row.step.executor ?? null,
       presentation: row.step.presentation,
     };
   });

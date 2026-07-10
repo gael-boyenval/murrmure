@@ -22,7 +22,7 @@ export const spaceFlowInitCommand = defineCommand({
   meta: {
     name: "init",
     description:
-      "Scaffold murrmure flow stack (manifest, actions, scripts, views) (Requires: murrmure/)",
+      "Scaffold .mrmr flow stack (manifest, actions, scripts, views) (Requires: .mrmr/)",
   },
   args: {
     ...globalArgs,
@@ -38,7 +38,7 @@ export const spaceFlowInitCommand = defineCommand({
     },
     "space-root": {
       type: "string",
-      description: "Space root containing murrmure/ (default: cwd)",
+      description: "Space root containing .mrmr/ (default: cwd)",
     },
   },
   async run({ args }) {
@@ -65,7 +65,7 @@ export const spaceFlowInitCommand = defineCommand({
       printOk({}, `✓ Created flow '${flowId}' (${template}, ${created.length} files touched)`);
       console.log("Next:");
       if (template === "hello-gate") {
-        console.log(`  cd murrmure/views/${flowId} && npm install && npm run build`);
+        console.log(`  cd .mrmr/views/${flowId} && npm install && npm run build`);
         console.log(`  cd ../${flowId}-intake && npm install && npm run build`);
       }
       console.log("  mrmr space apply --strict");

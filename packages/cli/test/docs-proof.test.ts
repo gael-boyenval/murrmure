@@ -35,8 +35,16 @@ const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/03-daily-brief-trigger/02-push-and-trigger.md",
   "apps/docs/guide/tutorials/03-daily-brief-trigger/03-connect-agent.md",
   "apps/docs/guide/tutorials/03-daily-brief-trigger/04-run-and-review.md",
-  "apps/docs/guide/flows-tutorial.md",
 ];
+
+const LEGACY_RUNTIME_PATTERN =
+  /murrmure_complete_action|murrmure_wait_for_gate|murrmure_resolve_gate|wait_for_gate|\.mrmr\.temp\/runs|\.murrmure\/link\.json|briefing\.md/i;
+
+/** Canonical legacy space paths — allowed only when line mentions "legacy". */
+const LEGACY_MURRMURE_LAYOUT =
+  /murrmure\/(flows|views|actions\.yaml|hooks\.yaml|executors\.yaml|space\.yaml)/;
+
+const EXECUTOR_ACTION_PATTERN = /executor:\s*[\r\n]+\s*action:/;
 
 function collectMarkdownFiles(root: string): string[] {
   const files: string[] = [];
@@ -55,6 +63,23 @@ function collectMarkdownFiles(root: string): string[] {
   return files;
 }
 
+function collectFiles(root: string, predicate: (name: string) => boolean): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(root)) {
+    const path = join(root, entry);
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      if (entry === "archive" || entry === "archives" || entry === "node_modules" || entry === "dist") continue;
+      files.push(...collectFiles(path, predicate));
+      continue;
+    }
+    if (predicate(entry)) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
 function ensureViewsBuilt(murrmureRoot: string, viewIds: string[]) {
   for (const viewId of viewIds) {
     const viewDir = join(murrmureRoot, "views", viewId);
@@ -67,11 +92,17 @@ function ensureViewsBuilt(murrmureRoot: string, viewIds: string[]) {
 }
 
 function assertStrictApply(spaceRoot: string, viewIds: string[] = []) {
-  const murrmureRoot = join(spaceRoot, "murrmure");
+  const murrmureRoot = join(spaceRoot, ".mrmr");
   if (viewIds.length > 0) ensureViewsBuilt(murrmureRoot, viewIds);
   const bundle = readSpaceApplyBundle(spaceRoot);
   const warnings = lintSpaceApplyBundle(bundle);
   expect(strictLintFailures(warnings)).toEqual([]);
+}
+
+function expectLegacyParseFailure(spacePath: string): void {
+  expect(() => readSpaceApplyBundle(spacePath)).toThrow(
+    /LEGACY_STEP_KIND|No \.mrmr\/ directory/,
+  );
 }
 
 describe("phase 10 docs proof (10-T*)", () => {
@@ -94,7 +125,7 @@ describe("phase 10 docs proof (10-T*)", () => {
   test("10-T1b — preview-review manifest uses nested build + resolve_step", () => {
     const manifestPath = join(
       REPO_ROOT,
-      "examples/flows/preview-review-v2/murrmure/flows/preview-review/flow.manifest.yaml",
+      "examples/flows/preview-review-v2/.mrmr/flows/preview-review/flow.manifest.yaml",
     );
     const readme = readFileSync(
       join(REPO_ROOT, "examples/flows/preview-review-v2/README.md"),
@@ -110,25 +141,29 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(manifest.steps.some((s) => s.id === "review")).toBe(false);
   });
 
-  test("10-T2 — team-brief-v2 example fails parse on legacy invoke (strict)", () => {
-    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/team-brief-v2"))).toThrow(
-      /LEGACY_STEP_KIND/,
-    );
+  test("10-T2 — team-brief-v2 example passes apply lint (handlers + step contracts)", () => {
+    assertStrictApply(join(REPO_ROOT, "examples/flows/team-brief-v2"));
   });
 
-  test("10-T3 — daily-brief-v2 example fails parse on legacy checkpoint (strict)", () => {
-    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/daily-brief-v2"))).toThrow(
-      /LEGACY_STEP_KIND/,
-    );
+  test("10-T3 — daily-brief-v2 example passes apply lint (handlers + step contracts)", () => {
+    assertStrictApply(join(REPO_ROOT, "examples/flows/daily-brief-v2"), ["daily-brief"]);
   });
 
-  test("10-U5 — demo-space fails parse on legacy invoke (strict)", () => {
-    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "demo-space"))).toThrow(/LEGACY_STEP_KIND/);
+  test("10-U5 — demo-space passes apply lint (handlers + protocol-only flow)", () => {
+    assertStrictApply(join(REPO_ROOT, "demo-space"));
   });
 
-  test("flows-tutorial example hello-authoring fails parse on legacy invoke (strict)", () => {
-    expect(() => readSpaceApplyBundle(join(REPO_ROOT, "examples/flows/hello-authoring"))).toThrow(
-      /LEGACY_STEP_KIND/,
+  test("10-U5b — root .mrmr/space passes apply lint (feedback event handlers)", () => {
+    assertStrictApply(REPO_ROOT);
+  });
+
+  test("flows-tutorial example hello-authoring passes apply lint (handlers + step contracts)", () => {
+    assertStrictApply(join(REPO_ROOT, "examples/flows/hello-authoring"));
+  });
+
+  test("minimal-mrmr fixture passes apply lint (handlers-only space)", () => {
+    assertStrictApply(
+      join(REPO_ROOT, "studio-specs/current/fixtures/spaces/minimal-mrmr"),
     );
   });
 
@@ -140,7 +175,7 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(content).toMatch(/StepContractCatalog/);
   });
 
-  test("VS-1 — v2 step contract manifest passes strict apply lint", () => {
+  test("VS-1 — v2 step contract manifest passes strict apply lint (handlers model)", () => {
     const manifest = {
       apiVersion: "murrmure.flow/v1",
       name: "strict-v2",
@@ -156,7 +191,7 @@ describe("phase 10 docs proof (10-T*)", () => {
         },
         {
           id: "work",
-          executor: { action: "feature_write_spec" },
+          role: "agent",
           branches: {
             completed: { schema: { type: "object" }, next: null },
           },
@@ -164,22 +199,21 @@ describe("phase 10 docs proof (10-T*)", () => {
       ],
     };
     const bundle = {
-      actions: {
-        digest: "sha256:actions",
+      handlers: {
+        digest: "sha256:handlers",
         file: {
           version: 1,
-          actions: {
-            feature_write_spec: { executor: "shell" },
-          },
-        },
-      },
-      executors: {
-        digest: "sha256:exec",
-        file: {
-          version: 1,
-          executors: {
-            shell: { binding: { type: "shell_spawn", executor_id: "shell" } },
-          },
+          handlers: [
+            {
+              id: "strict-v2-work",
+              contract_keys: ["strict-v2.work"],
+              on: "step.opened",
+              type: "shell_spawn",
+              complete: "explicit",
+              command: "echo done",
+              cwd: "{{space_root}}",
+            },
+          ],
         },
       },
       flows: [
@@ -205,13 +239,66 @@ describe("phase 10 docs proof (10-T*)", () => {
     const mcpDoc = readFileSync(join(REPO_ROOT, "apps/docs/reference/mcp-tools.md"), "utf-8");
     expect(mcpDoc).not.toMatch(/murrmure_complete_action|murrmure_wait_for_gate|murrmure_resolve_gate/);
   });
+
+  test("VS-6 — docs exclude legacy runtime path/tool patterns", () => {
+    const docsRoot = join(REPO_ROOT, "apps/docs");
+    const files = collectMarkdownFiles(docsRoot);
+    for (const file of files) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const content = readFileSync(file, "utf-8");
+      expect(content, rel).not.toMatch(LEGACY_RUNTIME_PATTERN);
+    }
+  });
+
+  test("VS-6 — examples flow manifests ban executor.action", () => {
+    const examplesRoot = join(REPO_ROOT, "examples/flows");
+    const flowManifests = collectFiles(
+      examplesRoot,
+      (entry) => entry.endsWith("flow.manifest.yaml") || entry.endsWith("flow.manifest.yml"),
+    );
+    for (const file of flowManifests) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const content = readFileSync(file, "utf-8");
+      expect(content, rel).not.toMatch(/executor:\s*[\r\n]+\s*action:/);
+      expect(content, rel).not.toContain("executor.action");
+    }
+  });
+
+  test("DOC-LAYOUT-01 — guide docs use .mrmr/ not murrmure/ as canonical layout", () => {
+    const guideRoot = join(REPO_ROOT, "apps/docs/guide");
+    const files = collectMarkdownFiles(guideRoot);
+    for (const file of files) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const lines = readFileSync(file, "utf-8").split("\n");
+      for (const line of lines) {
+        if (!LEGACY_MURRMURE_LAYOUT.test(line)) continue;
+        expect(line, `${rel}: ${line.trim()}`).toMatch(/legacy/i);
+      }
+    }
+  });
+
+  test("DOC-EXEC-01 — apps/docs markdown bans executor.action", () => {
+    const docsRoot = join(REPO_ROOT, "apps/docs");
+    const files = collectMarkdownFiles(docsRoot);
+    for (const file of files) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const content = readFileSync(file, "utf-8");
+      expect(content, rel).not.toMatch(EXECUTOR_ACTION_PATTERN);
+    }
+  });
+
+  test("SPACE-ROOT-01 — repo root .mrmr/space/handlers.yaml exists and passes strict apply", () => {
+    const handlersPath = join(REPO_ROOT, ".mrmr/space/handlers.yaml");
+    expect(existsSync(handlersPath)).toBe(true);
+    assertStrictApply(REPO_ROOT);
+  });
 });
 
 describe("phase 10 known-gaps sync (10-U4)", () => {
-  test("human and skill known-gaps What works sections match", () => {
+  test("human and skill-agent known-gaps What works sections match", () => {
     const human = readFileSync(join(REPO_ROOT, "apps/docs/guide/known-gaps.md"), "utf-8");
     const skill = readFileSync(
-      join(REPO_ROOT, "packages/cli/skill/reference/known-gaps.md"),
+      join(REPO_ROOT, "packages/cli/skill-agent/reference/known-gaps.md"),
       "utf-8",
     );
     const humanSection = human.match(/## What works today[\s\S]*/)?.[0]?.trim() ?? "";
@@ -220,7 +307,7 @@ describe("phase 10 known-gaps sync (10-U4)", () => {
         .match(/## What works today[\s\S]*/)?.[0]
         ?.trim()
         .replace(
-          /See \[flow-authoring\.md\][^\n]+/,
+          /See \[Creating flows\]\(\.\/creating-flows\)[^\n]+/,
           "See [Creating flows](./creating-flows) and [Quick start](./quick-start).",
         ) ?? "";
     expect(humanSection).toBe(skillSection);

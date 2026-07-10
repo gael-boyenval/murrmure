@@ -28,7 +28,7 @@ export function prefixedRunId(run_id: string): string {
 }
 
 export function activeStepContractRelPath(run_id: string): string {
-  return join(".mrmr.temp", "runs", prefixedRunId(run_id), "active-step-contract.json");
+  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "active-step-contract.json");
 }
 
 export function activeStepContractPath(space_root: string, run_id: string): string {
@@ -36,7 +36,7 @@ export function activeStepContractPath(space_root: string, run_id: string): stri
 }
 
 export function stepWorkdirRelPath(run_id: string, step_id: string): string {
-  return join(".mrmr.temp", "runs", prefixedRunId(run_id), "steps", step_id, "work");
+  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "steps", step_id, "work");
 }
 
 export function stepWorkdirPath(space_root: string, run_id: string, step_id: string): string {
@@ -208,18 +208,91 @@ export function renderAgentStepContractMarkdown(slice: StepContractSlice): strin
   return lines.join("\n").trim();
 }
 
+function contractStepIdFromKey(flow_name: string, contract_key: string): string | null {
+  const prefix = `${flow_name}.`;
+  if (!contract_key.startsWith(prefix)) return null;
+  const stepId = contract_key.slice(prefix.length).trim();
+  return stepId.length > 0 ? stepId : null;
+}
+
+function renderScopeEntryMarkdown(input: {
+  entry: StepContractCatalogEntry;
+  exec_context: Record<string, unknown>;
+  run_id: string;
+  space_root: string;
+}): string {
+  const slice = buildStepContractSlice({
+    entry: input.entry,
+    exec_context: input.exec_context,
+    run_id: input.run_id,
+    space_root: input.space_root,
+  });
+  const lines: string[] = [`### Scoped step: ${slice.step_id}`];
+  if (slice.parent_id) lines.push(`Parent: ${slice.parent_id}`);
+  if (slice.description) lines.push(slice.description);
+  for (const [branchName, branch] of Object.entries(slice.branches)) {
+    const required =
+      branch.schema &&
+      typeof branch.schema === "object" &&
+      Array.isArray((branch.schema as { required?: unknown }).required)
+        ? ((branch.schema as { required: string[] }).required ?? [])
+        : [];
+    lines.push(`- Branch \`${branchName}\`: ${branch.then}`);
+    if (required.length > 0) {
+      lines.push(`  Required payload: ${required.join(", ")}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+export function renderHandlerScopeMarkdown(input: {
+  catalog: StepContractCatalog;
+  flow_name: string;
+  contract_keys: string[];
+  exec_context: Record<string, unknown>;
+  run_id: string;
+  space_root: string;
+}): string | undefined {
+  if (input.contract_keys.length <= 1) return undefined;
+  const blocks: string[] = [];
+  for (const key of input.contract_keys) {
+    const stepId = contractStepIdFromKey(input.flow_name, key);
+    if (!stepId) continue;
+    const entry = catalogEntryForStep(input.catalog, stepId);
+    if (!entry) continue;
+    blocks.push(
+      renderScopeEntryMarkdown({
+        entry,
+        exec_context: input.exec_context,
+        run_id: input.run_id,
+        space_root: input.space_root,
+      }),
+    );
+  }
+  if (blocks.length === 0) return undefined;
+  return ["## Handler scope", ...blocks].join("\n\n");
+}
+
 export function buildMurrmurePromptBindings(input: {
   slice: StepContractSlice;
   space_root: string;
   run_id: string;
   exec_context?: Record<string, unknown>;
+  handler_scope_contract?: string;
 }): Record<string, string> {
+  const activeStepContract = renderAgentStepContractMarkdown(input.slice);
+  const combinedContract = input.handler_scope_contract?.trim()
+    ? `${input.handler_scope_contract.trim()}\n\n${activeStepContract}`
+    : activeStepContract;
   const bindings: Record<string, string> = {
     run_id: prefixedRunId(input.run_id),
     space_root: input.space_root,
-    agentStepContract: renderAgentStepContractMarkdown(input.slice),
+    agentStepContract: combinedContract,
     "inputs.json": JSON.stringify(input.slice.inputs_from_run ?? {}, null, 2),
   };
+  if (input.handler_scope_contract?.trim()) {
+    bindings.handlerScopeContract = input.handler_scope_contract.trim();
+  }
   if (input.slice.description) {
     bindings[`step.${input.slice.step_id}.description`] = input.slice.description;
   }
@@ -240,6 +313,9 @@ export function buildInvokeStepContractContext(input: {
   space_root: string;
   run_id: string;
   exec_context?: Record<string, unknown>;
+  handler_scope_contract?: string;
+  hub_token?: string;
+  hub_url?: string;
 }): InvokeStepContractContext {
   const prompt_bindings = buildMurrmurePromptBindings(input);
   const artifacts = input.exec_context ? runArtifactsFromExecContext(input.exec_context) : {};
@@ -249,6 +325,8 @@ export function buildInvokeStepContractContext(input: {
     workdir: stepWorkdirPath(input.space_root, input.run_id, input.slice.step_id),
     prompt_bindings,
     run_artifacts_json: Object.keys(artifacts).length > 0 ? JSON.stringify(artifacts) : undefined,
+    hub_token: input.hub_token,
+    hub_url: input.hub_url,
   };
 }
 
@@ -273,7 +351,14 @@ export function resolveInvokeContractStepId(
 
 export async function buildFlowInvokeStepContract(
   studio: StudioPersistencePort,
-  input: { run_id: string; step_id: string; space_root: string },
+  input: {
+    run_id: string;
+    step_id: string;
+    space_root: string;
+    contract_keys?: string[];
+    hub_token?: string;
+    hub_url?: string;
+  },
 ): Promise<InvokeStepContractContext | undefined> {
   const bare = bareRunId(input.run_id);
   const run = await studio.getRun(bare);
@@ -291,11 +376,25 @@ export async function buildFlowInvokeStepContract(
     run_id: prefixedRunId(input.run_id),
     space_root: input.space_root,
   });
+  const handlerScopeContract =
+    flowEntry?.name && input.contract_keys?.length
+      ? renderHandlerScopeMarkdown({
+          catalog,
+          flow_name: flowEntry.name,
+          contract_keys: input.contract_keys,
+          exec_context: run.exec_context,
+          run_id: prefixedRunId(input.run_id),
+          space_root: input.space_root,
+        })
+      : undefined;
   return buildInvokeStepContractContext({
     slice,
     space_root: input.space_root,
     run_id: input.run_id,
     exec_context: run.exec_context,
+    handler_scope_contract: handlerScopeContract,
+    hub_token: input.hub_token,
+    hub_url: input.hub_url,
   });
 }
 

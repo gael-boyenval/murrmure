@@ -113,7 +113,7 @@ async function relayWakePrompt(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.error(
-      `murrmure-mcp wake relay failed (${detail}) — pending wake saved to .murrmure/pending-wake.json`,
+      `murrmure-mcp wake relay failed (${detail}) — pending wake saved to .mrmr/dev/pending-wake.json`,
     );
   }
 

@@ -11,7 +11,7 @@ import type {
   FlowIndexRow,
   IndexedResourceRow,
 } from "@murrmure/contracts";
-import { CapabilitySchema } from "@murrmure/contracts";
+import { CapabilitySchema, HandlerSpecSchema } from "@murrmure/contracts";
 import { computeContentDigest } from "./digest.js";
 import { collectStepSpaces } from "./parse-flow-manifest.js";
 import { compileFlowIr } from "../flow-engine/compile.js";
@@ -102,6 +102,46 @@ export function buildIndexedActions(
   }));
 }
 
+function isHandlerRow(row: IndexedResourceRow): boolean {
+  try {
+    const payload = JSON.parse(row.payload_json) as unknown;
+    return HandlerSpecSchema.safeParse(payload).success;
+  } catch {
+    return false;
+  }
+}
+
+function splitHookIndexRows(rows: IndexedResourceRow[]): {
+  legacyHooks: IndexedResourceRow[];
+  handlers: IndexedResourceRow[];
+} {
+  const legacyHooks: IndexedResourceRow[] = [];
+  const handlers: IndexedResourceRow[] = [];
+  for (const row of rows) {
+    if (isHandlerRow(row)) handlers.push(row);
+    else legacyHooks.push(row);
+  }
+  return { legacyHooks, handlers };
+}
+
+function buildLegacyHookRows(bundle: SpaceApplyBundle): IndexedResourceRow[] {
+  if (!bundle.hooks) return [];
+  return Object.entries(bundle.hooks.file.hooks).map(([name, hook]) => ({
+    key: name,
+    digest: bundle.hooks!.digest,
+    payload_json: JSON.stringify({ name, ...hook }),
+  }));
+}
+
+function buildHandlerRows(bundle: SpaceApplyBundle): IndexedResourceRow[] {
+  if (!bundle.handlers) return [];
+  return bundle.handlers.file.handlers.map((handler) => ({
+    key: handler.id,
+    digest: bundle.handlers!.digest,
+    payload_json: JSON.stringify(handler),
+  }));
+}
+
 export function applyIndexDiff(
   current: SpaceIndexSnapshot,
   bundle: SpaceApplyBundle,
@@ -165,12 +205,13 @@ export function applyIndexDiff(
     next.executors = current.executors;
   }
 
-  if (bundle.hooks) {
-    const rows = Object.entries(bundle.hooks.file.hooks).map(([name, hook]) => ({
-      key: name,
-      digest: bundle.hooks!.digest,
-      payload_json: JSON.stringify({ name, ...hook }),
-    }));
+  if (bundle.hooks !== undefined || bundle.handlers !== undefined) {
+    const currentSplit = splitHookIndexRows(current.hooks);
+    const legacyHookRows =
+      bundle.hooks !== undefined ? buildLegacyHookRows(bundle) : currentSplit.legacyHooks;
+    const handlerRows =
+      bundle.handlers !== undefined ? buildHandlerRows(bundle) : currentSplit.handlers;
+    const rows = [...legacyHookRows, ...handlerRows];
     next.hooks = diffResource("hooks", current.hooks, rows, (r) => r.key);
   } else {
     next.hooks = current.hooks;

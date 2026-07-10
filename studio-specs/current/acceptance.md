@@ -19,7 +19,7 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 | B4 | ViewCanvasHost at checkpoints | 05 | `fixtures/flow-engine/gate-requires-view.json` | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
 | B5 | Apply lint capabilities | 01 | `fixtures/space-apply/unsupported-step-kind.json` | `packages/cli/test/space-apply.test.ts` |
 | B6 | `space flow init` scaffold | 04 | `fixtures/space-flow-init-hello-gate.json` | `packages/cli/test/space-flow-init.test.ts` |
-| B7 | Unified murrmure skill | 07 | skill tree in `packages/cli/skill/` | `packages/cli/test/skill-install.test.ts` |
+| B7 | Split murrmure skills | 07 | `skill-agent/` + `skill-developer/` | `packages/cli/test/skill-install-variants.test.ts` |
 | B8 | Setup wizard | 08 | `fixtures/cli/wizard-onboard-smoke.json` | `packages/cli/test/wizard/setup.test.ts` |
 
 Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing.json`.

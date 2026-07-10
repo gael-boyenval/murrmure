@@ -120,7 +120,7 @@ Views are **full custom UI** in the **primary content region** (sandboxed iframe
 
 Hub denormalizes `view_ref` at apply onto flow IR checkpoint steps. Assets: `GET /v1/spaces/{id}/views/{view_id}/*`.
 
-See `packages/cli/skill/reference/views.md` and `packages/view-sdk/README.md`.
+See `packages/cli/skill-developer/reference/flow-authoring.md` and `packages/view-sdk/README.md`.
 
 ---
 

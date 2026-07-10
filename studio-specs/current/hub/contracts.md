@@ -134,7 +134,7 @@ packages/hub-core/               @murrmure/hub-core
 packages/hub-persistence/        @murrmure/hub-persistence
 packages/hub-daemon/             @murrmure/hub-daemon
 packages/cli/                    @murrmure/cli (setup, grants, skill, flow tooling)
-packages/mcp-bridge/             @murrmure/mcp-bridge (murrmure-mcp stdio bridge)
+packages/mcp-bridge/             @murrmure/mcp-bridge (murrmure-mcp stdio bridge; bundled in Murrmure Desktop)
 packages/flow-dev-kit/           @murrmure/flow-dev-kit
 packages/skill/                  @murrmure/skill (private)
 packages/contracts/              @murrmure/contracts

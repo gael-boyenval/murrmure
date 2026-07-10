@@ -1,21 +1,21 @@
 # Tutorial 2 — Multi-agent brief
 
-Three folders, three hub spaces, three agents — coordinated through indexed flows, grants, and hooks. You build the orchestrator flow from `mrmr space init`; knowledge and dev spaces need grants and hook handlers, not full custom flows.
+Three folders, three hub spaces, three agents — coordinated through indexed flows, grants, and event handlers. You build the orchestrator flow from `mrmr space init`; knowledge and dev spaces need grants and handler wake labels, not full custom flows.
 
 ## Topology
 
 | Folder | Space | Agent | Responsibility |
 |--------|-------|-------|----------------|
-| `~/work/orchestrator/` | `spc_orchestrator` | Orchestrator | `team-brief` flow — open brief, human publish checkpoint |
+| `~/work/orchestrator/` | `spc_orchestrator` | Orchestrator | `team-brief` flow — open brief, human publish step |
 | `~/work/knowledge-base/` | `spc_knowledge` | Knowledge | Answers `query_ask` from orchestrator |
-| `~/work/dev-project/` | `spc_dev` | Dev | Receives hook wake on `brief.published`, cross-space fetch |
+| `~/work/dev-project/` | `spc_dev` | Dev | Receives handler wake on `brief.published`, cross-space fetch |
 
 ```text
 Orchestrator space                    Knowledge space
   team-brief flow                       query handler
-  hooks.yaml ──brief.published──►     (answers questions)
+  handlers.yaml ──brief.published──►  (answers questions)
        │                                      ▲
-       │ mcp_wake                             │ query_ask
+       │ shell_spawn wake                     │ query_ask
        ▼                                      │
   Dev space ◄─────────────────────────────────┘
   handle_brief_published wake
@@ -25,16 +25,15 @@ Orchestrator space                    Knowledge space
 
 | Piece | Role |
 |-------|------|
-| `flows/team-brief/flow.manifest.yaml` | open → publish checkpoint → done wake |
-| `actions.yaml` | `team_brief_open`, `mcp_wake` |
-| `hooks.yaml` | `brief.published` event → wake dev agent |
-| Grants | Cross-space query + flow run on each space |
+| `.mrmr/flows/team-brief/flow.manifest.yaml` | open → publish (human) → done |
+| `.mrmr/space/handlers.yaml` | Step handlers + `brief.published` event wake |
+| Grants | Cross-space query + step resolve on each space |
 
-Compare when stuck: [`examples/flows/team-brief-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2) — diff only, do not clone as the tutorial path.
+Compare when stuck: [`examples/flows/team-brief-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2/.mrmr) — diff only, do not clone as the tutorial path.
 
 ## Pages
 
-1. [Build orchestrator flow](./01-build-orchestrator-flow) — init space, write manifest, actions, hooks
+1. [Build orchestrator flow](./01-build-orchestrator-flow) — init space, write manifest and handlers
 2. [Admin setup](./02-admin-setup) — three spaces, link, apply, cross-space grants
 3. [Connect agents](./03-connect-agents) — MCP per space, wake labels
 4. [Run workflow](./04-run-workflow) — end-to-end publish → wake → fetch
@@ -42,7 +41,7 @@ Compare when stuck: [`examples/flows/team-brief-v2/`](https://github.com/gael-bo
 
 ## Prerequisites
 
-- Completed [Tutorial 1](../01-local-preview-review/) (space layout, apply, grants)
+- Completed [Tutorial 1](../01-local-preview-review/) (`.mrmr/` layout, handlers, apply, grants)
 - Murrmure Desktop or hub at `http://127.0.0.1:8787`
 - Three local folders and three agent sessions (or sequential testing)
 

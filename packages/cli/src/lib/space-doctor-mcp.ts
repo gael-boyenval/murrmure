@@ -80,14 +80,35 @@ function pushIssue(issues: SpaceDoctorIssue[], issue: SpaceDoctorIssue): void {
   issues.push(issue);
 }
 
+export function resolveMcpBridgeCommand(options?: { homePath?: string }): string {
+  const sharedPath = join(options?.homePath ?? homedir(), SHARED_DISCOVERY_RELATIVE_PATH);
+  if (!existsSync(sharedPath)) {
+    return "murrmure-mcp";
+  }
+  try {
+    const parsed = JSON.parse(readFileSync(sharedPath, "utf-8")) as {
+      mcp_bridge?: { command?: unknown };
+    };
+    const command = parsed.mcp_bridge?.command;
+    if (typeof command === "string" && command.trim()) {
+      return command.trim();
+    }
+  } catch {
+    // Fall back to PATH lookup name.
+  }
+  return "murrmure-mcp";
+}
+
 export function buildMcpConfigSnippet(options?: {
   token?: string;
+  command?: string;
 }): string {
+  const command = options?.command ?? resolveMcpBridgeCommand();
   return JSON.stringify(
     {
       mcpServers: {
         murrmure: {
-          command: "murrmure-mcp",
+          command,
           env: {
             MURRMURE_HUB_TOKEN: options?.token ?? "${env:MURRMURE_HUB_TOKEN}",
           },
@@ -751,8 +772,8 @@ export async function probeMcpLiveHealth(
         code: "MCP_TOKEN_SPACE_MATCH",
         severity: "warning",
         message:
-          "Cannot verify token space against .murrmure/link.json because hub auth is not configured",
-        path: relative(options.projectPath, join(options.projectPath, ".murrmure", "link.json")),
+          "Cannot verify token space against .mrmr/space/space.yaml because hub auth is not configured",
+        path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
         fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
       });
     } else {
@@ -762,7 +783,7 @@ export async function probeMcpLiveHealth(
           code: "MCP_TOKEN_SPACE_MATCH",
           severity: "warning",
           message: `Could not verify token space for ISSUE-07 check — ${whoami.error}`,
-          path: relative(options.projectPath, join(options.projectPath, ".murrmure", "link.json")),
+          path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
           fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
         });
       } else {
@@ -776,7 +797,7 @@ export async function probeMcpLiveHealth(
             code: "MCP_TOKEN_SPACE_MATCH",
             severity: "warning",
             message: "Could not read token space list from /v1/auth/whoami for ISSUE-07 check",
-            path: relative(options.projectPath, join(options.projectPath, ".murrmure", "link.json")),
+            path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
             fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
           });
         } else if (!tokenSpaces.includes(options.linkedSpaceId)) {
@@ -784,7 +805,7 @@ export async function probeMcpLiveHealth(
             code: "MCP_TOKEN_SPACE_MATCH",
             severity: "warning",
             message: `Token grants ${tokenSpaces.join(", ")} but workspace is linked to ${options.linkedSpaceId} (ISSUE-07)`,
-            path: relative(options.projectPath, join(options.projectPath, ".murrmure", "link.json")),
+            path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
             fix: `Run mrmr grant use --space ${options.linkedSpaceId} (or mint a grant for that space)`,
           });
         }

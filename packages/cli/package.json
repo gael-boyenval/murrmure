@@ -13,7 +13,8 @@
   "files": [
     "dist",
     "templates",
-    "skill",
+    "skill-agent",
+    "skill-developer",
     "VERSION"
   ],
   "scripts": {

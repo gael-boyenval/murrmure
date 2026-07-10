@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { parse as parseYaml } from "yaml";
 import { spaceLinkCommand } from "../src/commands/space/link.js";
 import { clearAuthContextCache } from "../src/lib/auth-context.js";
 
@@ -16,9 +17,9 @@ describe("space link --create", () => {
     delete process.env.MURRMURE_SPACE_ID;
     clearAuthContextCache();
     projectDir = mkdtempSync(join(tmpdir(), "cli-space-link-"));
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr", "space");
     mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "space.yaml"), "slug: my-link-space\n");
+    writeFileSync(join(root, "space.yaml"), "apiVersion: murrmure.space/v1\nslug: my-link-space\n");
     writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
   });
 
@@ -84,7 +85,12 @@ describe("space link --create", () => {
       "http://127.0.0.1:8787/v1/spaces/spc_my_link_space/link",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(existsSync(join(projectDir, ".murrmure", "link.json"))).toBe(true);
+    const linkedSpaceYaml = join(projectDir, ".mrmr", "space", "space.yaml");
+    expect(existsSync(linkedSpaceYaml)).toBe(true);
+    const doc = parseYaml(readFileSync(linkedSpaceYaml, "utf-8")) as {
+      link?: { space_id?: string };
+    };
+    expect(doc.link?.space_id).toBe("spc_my_link_space");
   });
 
   test("link --create rejects scoped token without space:admin", async () => {

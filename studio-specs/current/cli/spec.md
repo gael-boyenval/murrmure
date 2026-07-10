@@ -85,10 +85,10 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `me set-landing` | impl | requireScope · space:enter |
 | `worker poll` | impl | grant · executor:poll (hub enforces) |
 | `space view init` | impl | none (local scaffold) |
-| `space flow init` | impl | none (local scaffold; requires murrmure/) |
+| `space flow init` | impl | none (local scaffold; requires `.mrmr/`) |
 | `view dev` | impl | none (local dev loop) |
 | `view init` | deprecated | stderr redirect → `space view init`; exit 1 |
-| `flow init` | deprecated in murrmure/ | stderr redirect → `space flow init`; exit 1 |
+| `flow init` | deprecated in `.mrmr/` | stderr redirect → `space flow init`; exit 1 |
 | `runtime events` | impl | requireTokenForSpace |
 | `runtime gates` | impl | requireTokenForSpace |
 | `runtime transition` | **removed** | Calls 404 instance route — use MCP mount tools or session/run APIs |
@@ -109,8 +109,18 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `skill install` | impl | none |
 | `skill update` | impl | none |
 | `skill version` | impl | none |
+| `step resolve` | impl | env bindings (see below) |
 
-**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using the thin config shape (`command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN`).
+**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using the thin config shape (`command` + `MURRMURE_HUB_TOKEN` only).
+
+**Install / command resolution:**
+
+| Context | `command` value |
+|---------|-----------------|
+| Murrmure Desktop running | Absolute path from `~/.murrmure/hubs/shared.json` → `mcp_bridge.command` (bundled `Resources/mcp-bridge/main.js`) |
+| Headless hub / CI / agents without Desktop | `"murrmure-mcp"` on PATH via `npm i -g @murrmure/mcp-bridge` |
+
+`buildMcpConfigSnippet()` and `grant mint` MCP output call `resolveMcpBridgeCommand()` — read `mcp_bridge.command` from shared discovery, else `"murrmure-mcp"`. Legacy `mrmr mcp` / fat 3-env MCP config is removed.
 
 ## Auth resolution order
 
@@ -216,25 +226,25 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 | `update <space_id>` | PATCH `/v1/spaces/:id` | requireScope · space:admin |
 | `archive <space_id>` | POST `/v1/spaces/:id/archive` | requireScope · space:admin |
 
-**`space init`:** Scaffolds `murrmure/` (actions, executors, hooks, example flow). Does not require hub auth.
+**`space init`:** Scaffolds `.mrmr/` — `space/space.yaml`, `space/handlers.yaml` (required), legacy empty `actions.yaml` / `executors.yaml` / `hooks.yaml` stubs, and `dev/.gitignore`. **Default:** empty handlers only (no example flow, no `.mrmr/README.md`). **`--with-examples`** (or interactive confirm / `mrmr setup` prompt) adds `flows/example/flow.manifest.yaml` and `.mrmr/README.md`. Flags: `--with-examples`, `--no-examples`. Does not require hub auth.
 
-**`space link`:** Registers `{ host, path, primary }` binding; writes `.murrmure/link.json` locally. Use `--create` to create hub space from `space.yaml` slug.
+**`space link`:** Registers `{ host, path, primary }` binding with hub; persists **`link.space_id`** and machine-local **`link.host`** in `.mrmr/space/space.yaml` (not `.murrmure/link.json`). Use `--create` to create hub space from `space.yaml` slug.
 
 **`space apply`:** Validates local YAML with rev-1 schemas, lints flows against `ENGINE_DISPATCH_KINDS` and checkpoint view/`on_resolve` rules, POSTs bundle to hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings except `DEPRECATED_START_KEY` and `CHECKPOINT_LOOPBACK_HINT`. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [flow-engine bridge](../bridges/flow-engine.md) dispatch table and [plan/01-apply-validation.md](../../plans/product/plan/01-apply-validation.md).
 
 **Apply lint (phase 01):** unsupported step kinds (`gate`/`checkpoint` pre phase 03), missing actions/executors, checkpoint view missing or `dist/` not built, legacy `start.requires_view`, deprecated `start:` without `triggers:`, missing `on_resolve.default`/`cancel`, invalid `goto` targets.
 
-**`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `murrmure/` — manifest (`triggers` + checkpoint steps per decision 05), actions, executors, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `murrmure/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `murrmure/` repo redirects with exit 1.
+**`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `.mrmr/` — manifest (`triggers` + checkpoint steps per decision 05), handlers, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `.mrmr/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `.mrmr/` repo redirects with exit 1.
 
 **`space setup`:** Interactive hub setup — connect, create spaces, **execute** init/link/apply (not print-only), optional grant mint with rev-1 capabilities + MCP snippet.
 
-**`space onboard`:** Short path for existing `murrmure/` — link → apply → status. Doctor suggests this when link is missing.
+**`space onboard`:** Short path for existing `.mrmr/` — link → apply → status. Doctor suggests this when link is missing.
 
 ## Setup wizards (§5.3)
 
 | Command | Human (Clack) | Agent (`--json`) |
 |---------|---------------|------------------|
-| `mrmr setup` | connect → spaces → init → link → apply → skill → grant + MCP | `--json` = step plan; `--json --yes` = non-interactive run |
+| `mrmr setup` | connect → spaces → init (optional examples prompt) → link → apply → skill → grant + MCP | `--json` = step plan; `--json --yes` = non-interactive run (init skips examples) |
 | `mrmr space onboard` | link → apply → status | same flags |
 | `mrmr space setup` | hub admin subset of setup | use `mrmr setup --json` instead |
 
@@ -333,7 +343,7 @@ Flags: `--params` JSON, optional `--run-id`, `--session-id`, `--step-id`, `--del
 
 | Command | Preflight | Notes |
 |---------|-----------|-------|
-| `space view init <id>` | none | Scaffold Vite+React tree under `murrmure/views/{id}/` |
+| `space view init <id>` | none | Scaffold Vite+React tree under `.mrmr/views/{id}/` |
 | `view dev <id>` | none | Start author's `scripts.dev`; fixture tabs (Desktop dev route phase 05/06) |
 | `view init <id>` | none | **Deprecated** — stderr redirect to `space view init`; exit 1 |
 | `view build [id]` | none | Optional convenience — `npm run build` in view dir (planned) |
@@ -341,7 +351,7 @@ Flags: `--params` JSON, optional `--run-id`, `--session-id`, `--step-id`, `--del
 ### `space view init` output tree
 
 ```text
-murrmure/views/{id}/
+.mrmr/views/{id}/
   view.manifest.yaml
   package.json             # scripts.dev + scripts.build
   vite.config.ts
@@ -370,13 +380,47 @@ After scaffold: `npm install` in view dir, then `mrmr view dev {id}` or `npm run
 | `federation status` | GET `/v1/ops/federation/status` | requireScope · space:admin |
 | `federation peer add --id --url` | POST `/v1/ops/federation/peers` | requireScope · space:admin |
 
+## Step commands
+
+### `mrmr step resolve --branch <branch>`
+
+Resolves the current run step from a **shell handler** context. Used when handler `complete: cli` or when the handler command finishes and must call resolve explicitly.
+
+**Requires env (injected on `shell_spawn` dispatch):**
+
+| Variable | Purpose |
+|----------|---------|
+| `MURRMURE_RUN_ID` | Target run |
+| `MURRMURE_STEP_ID` | Target step |
+| `MURRMURE_HUB_TOKEN` | Short-lived, run-scoped resolve grant |
+| `MURRMURE_HUB_URL` | Hub base URL |
+
+**HTTP:** `POST /v1/runs/{run_id}/steps/{step_id}/resolve`
+
+**Flags:** `--branch` (required); payload via `--payload-json`, `--payload-stdin`, or `--payload-file`; repeatable `--artifact-out slot=relative/path`.
+
+**Preflight:** none at CLI layer — hub enforces `step:resolve` on token.
+
+**Human output:** `✓ Resolved step '{step_id}' on branch '{branch}'`  
+**JSON:** hub resolve response body
+
 ## Skill commands (§5.11)
 
 | Command | Requires | Action |
 |---------|----------|--------|
-| `install` | none | Copy to `.cursor/skills/murrmure/` |
-| `update` | none | Overwrite skill tree |
-| `version` | none | Print bundled VERSION |
+| `install [--variant agent\|developer\|all]` | none | Copy bundled skill(s) to `.cursor/skills/` |
+| `update [--variant …]` | none | Overwrite skill tree(s) |
+| `version [--variant …]` | none | Print bundled VERSION |
+
+**Variants:**
+
+| Variant | Install path | When |
+|---------|--------------|------|
+| `agent` (default) | `.cursor/skills/murrmure-agent/` | Runtime agent spaces — MCP + step resolve |
+| `developer` | `.cursor/skills/murrmure-developer/` | Authoring spaces with local flows/views |
+| `all` | both paths above | Auto-selected when cwd has `.mrmr/flows/` or `.mrmr/views/` manifests |
+
+Legacy monolith `.cursor/skills/murrmure/` and `.cursor/skills/murrmure-flow/` are removed on install.
 
 ## References
 

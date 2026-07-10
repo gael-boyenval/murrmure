@@ -9,7 +9,7 @@ import { readCredentials } from "./auth-store.js";
 import { resolveAuthSource } from "./auth-source.js";
 import { resolveSpaceId } from "./space-id.js";
 import type { GlobalFlags } from "./flags.js";
-import { validateApplyBundle } from "@murrmure/hub-core";
+import { lintSpaceApplyBundle, resolveBindingsFile, validateApplyBundle } from "@murrmure/hub-core";
 import {
   readSpaceApplyBundle,
   resolveMurrmureRoot,
@@ -17,6 +17,10 @@ import {
 } from "./space-directory.js";
 import { readSpaceLink } from "./space-link-file.js";
 import { probeMcpLiveHealth, scanMcpConfig, type SpaceDoctorMcpContext } from "./space-doctor-mcp.js";
+import {
+  scanSpaceDoctorSkills,
+  type SpaceDoctorSkillsContext,
+} from "./space-doctor-skills.js";
 
 export type SpaceDoctorSeverity = "error" | "warning" | "info";
 
@@ -78,6 +82,7 @@ export interface SpaceDoctorResult {
   hub?: SpaceDoctorSnapshot & { reachable: boolean };
   tests?: SpaceDoctorTestResult;
   mcp?: SpaceDoctorMcpContext;
+  skills?: SpaceDoctorSkillsContext;
 }
 
 interface HubIndexStatusResponse {
@@ -89,6 +94,22 @@ interface HubIndexStatusResponse {
     flows?: Array<{ flow_id: string; digest: string }>;
   };
   bindings?: Array<{ host: string; path: string; primary?: boolean }>;
+}
+
+function applyLintSeverity(code: string): SpaceDoctorSeverity {
+  if (code === "HANDLER_KEY_CONFLICT") return "error";
+  if (code === "HANDLER_COMPLETE_AUTO_NESTED") return "error";
+  if (code === "BINDINGS_UNRESOLVED") return "error";
+  if (code === "HANDLER_MISSING") return "warning";
+  if (code === "STEP_UNCOVERED") return "warning";
+  if (code === "HANDLER_ORPHAN_KEY") return "warning";
+  if (code === "HANDLER_COMPLETE_CLI_NO_RESOLVE") return "warning";
+  return "info";
+}
+
+function normalizeApplyLintCode(code: string): string {
+  if (code === "STEP_UNCOVERED") return "HANDLER_MISSING";
+  return code;
 }
 
 function pushIssue(
@@ -119,7 +140,7 @@ export function discoverMurrmureProject(startPath: string): {
   const cwd = resolve(startPath);
   let current = cwd;
   for (let depth = 0; depth < 6; depth += 1) {
-    const murrmurePath = join(current, "murrmure");
+    const murrmurePath = join(current, ".mrmr");
     const link = readSpaceLink(current);
     if (existsSync(murrmurePath) && statSync(murrmurePath).isDirectory()) {
       return { cwd, projectPath: current, murrmurePresent: true, link };
@@ -457,6 +478,30 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
     }
   }
 
+  const skillCodes = new Set(
+    result.issues
+      .filter((issue) => issue.code.startsWith("SKILL_"))
+      .map((issue) => issue.code),
+  );
+  if (skillCodes.has("SKILL_AGENT_MISSING") || skillCodes.has("SKILL_AGENT_OUTDATED")) {
+    steps.push({
+      command: "mrmr skill install --variant agent",
+      why: "install/update runtime agent skill",
+    });
+  }
+  if (skillCodes.has("SKILL_DEVELOPER_MISSING") || skillCodes.has("SKILL_DEVELOPER_OUTDATED")) {
+    steps.push({
+      command: "mrmr skill install --variant developer",
+      why: "install/update authoring skill for local flows/views",
+    });
+  }
+  if (skillCodes.has("SKILL_LEGACY_MONOLITH") || skillCodes.has("SKILL_LEGACY_FDK")) {
+    steps.push({
+      command: "mrmr skill install --variant all",
+      why: "replace legacy skill directories with split variants",
+    });
+  }
+
   return steps;
 }
 
@@ -568,6 +613,98 @@ function scanDeprecatedConfig(murrmureRoot: string): SpaceDoctorIssue[] {
       message: "flow.manifest.json is a legacy FDK format — use flow.manifest.yaml for v2 indexed flows",
       path: `murrmure/${rel}`,
     });
+  }
+
+  return issues;
+}
+
+function scanLegacyLayout(projectPath: string): SpaceDoctorIssue[] {
+  const issues: SpaceDoctorIssue[] = [];
+  const hasModernRoot = existsSync(join(projectPath, ".mrmr"));
+  const legacyRoots = ["murrmure", ".murrmure", ".mrmr.temp"].filter((name) =>
+    existsSync(join(projectPath, name)),
+  );
+  if (!hasModernRoot || legacyRoots.length === 0) {
+    return issues;
+  }
+  pushIssue(issues, {
+    code: "LEGACY_LAYOUT",
+    severity: "error",
+    message: `Legacy layout still present (${legacyRoots.join(", ")})`,
+    fix: "Use only .mrmr/{space,flows,views,dev} and remove legacy roots",
+  });
+  return issues;
+}
+
+function lintBindingsInWorkspace(input: {
+  murrmureRoot: string;
+  bundle: Awaited<ReturnType<typeof readSpaceApplyBundle>>;
+}): SpaceDoctorIssue[] {
+  const issues: SpaceDoctorIssue[] = [];
+  const bindings = input.bundle.bindings?.file;
+  if (!bindings) return issues;
+
+  const resolved = resolveBindingsFile(bindings);
+  if (!resolved.ok) {
+    pushIssue(issues, {
+      code: "BINDINGS_UNRESOLVED",
+      severity: "error",
+      message: resolved.message,
+      path: ".mrmr/space/bindings.yaml",
+    });
+    return issues;
+  }
+
+  for (const flow of resolved.value.flows) {
+    if (flow.source.kind === "local") {
+      const localPath = join(input.murrmureRoot, flow.source.path);
+      if (!existsSync(localPath)) {
+        pushIssue(issues, {
+          code: "BINDINGS_UNRESOLVED",
+          severity: "error",
+          message: `Flow binding '${flow.ref}' points to missing local path '${flow.source.path}'`,
+          path: `.mrmr/${flow.source.path}`,
+        });
+      }
+      if (
+        (input.bundle.flows ?? []).some(
+          (entry) => entry.flow_id === flow.ref || entry.manifest.name === flow.ref,
+        )
+      ) {
+        pushIssue(issues, {
+          code: "BINDINGS_REDUNDANT",
+          severity: "info",
+          message: `Flow binding '${flow.ref}' duplicates a locally indexed flow`,
+          path: ".mrmr/space/bindings.yaml",
+        });
+      }
+    }
+  }
+
+  for (const view of resolved.value.views) {
+    if (view.source.kind === "local") {
+      const localPath = join(input.murrmureRoot, view.source.path);
+      if (!existsSync(localPath)) {
+        pushIssue(issues, {
+          code: "BINDINGS_UNRESOLVED",
+          severity: "error",
+          message: `View binding '${view.ref}' points to missing local path '${view.source.path}'`,
+          path: `.mrmr/${view.source.path}`,
+        });
+      }
+      if (
+        (input.bundle.views ?? []).some(
+          (entry) => entry.view_id === view.ref || entry.manifest.id === view.ref,
+        )
+      ) {
+        pushIssue(issues, {
+          code: "BINDINGS_REDUNDANT",
+          severity: "info",
+          message: `View binding '${view.ref}' duplicates a locally indexed view`,
+          path: ".mrmr/space/bindings.yaml",
+        });
+      }
+    }
   }
 
   return issues;
@@ -733,12 +870,13 @@ export async function runSpaceDoctor(options: {
 
   const legacyIssues = scanLegacyWorkspace(projectPath, { walkUp: !discovered.murrmurePresent });
   issues.push(...legacyIssues);
+  issues.push(...scanLegacyLayout(projectPath));
   const legacyStudioDetected = legacyIssues.some((issue) => issue.code.startsWith("LEGACY_"));
 
   const workspace: SpaceDoctorWorkspaceContext = {
     cwd: discovered.cwd,
     project_path: projectPath,
-    murrmure_present: discovered.murrmurePresent || existsSync(join(projectPath, "murrmure")),
+    murrmure_present: discovered.murrmurePresent || existsSync(join(projectPath, ".mrmr")),
     link_present: Boolean(discovered.link ?? readSpaceLink(projectPath)),
     linked_space_id: discovered.link?.space_id ?? readSpaceLink(projectPath)?.space_id,
     auth_source: authInfo.authSource,
@@ -747,12 +885,14 @@ export async function runSpaceDoctor(options: {
     default_space_id: authInfo.defaultSpaceId,
     legacy_studio_detected: legacyStudioDetected,
   };
+  const skillsScan = scanSpaceDoctorSkills(projectPath);
+  issues.push(...skillsScan.issues);
 
   if (discovered.cwd !== projectPath) {
     pushIssue(issues, {
       code: "SUBDIRECTORY_CWD",
       severity: "info",
-      message: `murrmure/ or .murrmure/link.json found at ${projectPath} (cwd: ${discovered.cwd})`,
+      message: `.mrmr/ found at ${projectPath} (cwd: ${discovered.cwd})`,
       fix: `cd ${projectPath}`,
     });
   }
@@ -836,6 +976,7 @@ export async function runSpaceDoctor(options: {
       issues,
       suggestions: [],
       mcp: mcpScan.context,
+      skills: skillsScan.context,
     };
     partial.suggestions = buildSpaceDoctorSuggestions(partial);
     return partial;
@@ -856,6 +997,38 @@ export async function runSpaceDoctor(options: {
       });
     }
     local = localSnapshotFromBundle(bundle);
+    for (const warning of lintSpaceApplyBundle(bundle)) {
+      const code = normalizeApplyLintCode(warning.code);
+      pushIssue(issues, {
+        code,
+        severity: applyLintSeverity(code),
+        message: warning.message,
+        path: warning.code.startsWith("HANDLER_") || warning.code === "STEP_UNCOVERED"
+          ? ".mrmr/space/handlers.yaml"
+          : undefined,
+      });
+    }
+    issues.push(...lintBindingsInWorkspace({ murrmureRoot, bundle }));
+    if (
+      (bundle.flows?.length ?? 0) === 0 &&
+      (bundle.handlers?.file.handlers.length ?? 0) > 0 &&
+      ((bundle.bindings?.file.flows.length ?? 0) + (bundle.bindings?.file.views.length ?? 0) === 0)
+    ) {
+      pushIssue(issues, {
+        code: "WORKER_NO_BINDINGS",
+        severity: "warning",
+        message: "Worker-style space has handlers but no local flows and no bindings.yaml refs",
+        path: ".mrmr/space/bindings.yaml",
+      });
+    }
+    if ((bundle.handlers?.file.handlers.length ?? 0) > 0 && Object.keys(bundle.actions?.file.actions ?? {}).length > 0) {
+      pushIssue(issues, {
+        code: "HANDLER_LEGACY_ACTIONS",
+        severity: "warning",
+        message: "Both handlers and legacy actions are present; prefer handlers.yaml for dispatch",
+        path: ".mrmr/space/actions.yaml",
+      });
+    }
     if (local.counts.flows === 0 && workspace.murrmure_present) {
       pushIssue(issues, {
         code: "NO_INDEXED_FLOWS",
@@ -938,7 +1111,7 @@ export async function runSpaceDoctor(options: {
           pushIssue(issues, {
             code: "BINDING_MISSING",
             severity: "warning",
-            message: "Local link.json exists but hub has no path bindings — run `mrmr space link`",
+            message: "Local .mrmr/space/space.yaml link exists but hub has no path bindings — run `mrmr space link`",
             fix: `cd ${projectPath} && mrmr space link --path . --space ${spaceId}`,
           });
         }
@@ -988,6 +1161,7 @@ export async function runSpaceDoctor(options: {
     hub,
     tests,
     mcp: mcpScan.context,
+    skills: skillsScan.context,
   };
   result.suggestions = buildSpaceDoctorSuggestions(result);
   return result;

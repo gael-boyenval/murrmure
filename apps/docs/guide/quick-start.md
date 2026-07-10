@@ -26,11 +26,11 @@ The wizard walks through:
 
 1. **Connect** — hub URL + token (Desktop bootstrap works: `mrmr login --hub-url http://127.0.0.1:8787`)
 2. **Spaces** — create `ui-sandbox` / `ui-production` (optional)
-3. **Scaffold** — `murrmure/` init, link, apply (indexes the starter **example** flow)
-4. **Skill** — install `murrmure` Cursor skill in the repo
+3. **Scaffold** — `.mrmr/` init, link, apply (optional example flow — say **No** if you are authoring your own)
+4. **Skill** — install split Cursor skills (`murrmure-agent` + `murrmure-developer` when authoring)
 5. **Grant** — mint agent token + paste-ready `.cursor/mcp.json` snippet
 
-**Already have `murrmure/`?** Use the shorter path:
+**Already have `.mrmr/`?** Use the shorter path:
 
 ```bash
 mrmr space onboard
@@ -40,15 +40,15 @@ mrmr space onboard
 
 ```bash
 mrmr setup --yes --json          # full first-run
-mrmr space onboard --yes --json  # existing murrmure/
+mrmr space onboard --yes --json  # existing .mrmr/
 ```
 
 ## 3) Run your flow
 
 In **Murrmure Desktop** → space home → **Run** on the indexed flow (e.g. **example**).
 
-- Indexed flows come from `murrmure/flows/` via `mrmr space apply`
-- Checkpoint steps with `view_ref` open in **ViewCanvasHost** (full canvas custom view)
+- Indexed flows come from `.mrmr/flows/` via `mrmr space apply`
+- Checkpoint steps with `presentation.view` open in **ViewCanvasHost** (full canvas custom view)
 - Shell chrome (flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a view is specified
 
 CLI alternative:
@@ -62,7 +62,7 @@ mrmr flow run flw_flows_example --input '{}' --space spc_ui_sandbox
 ```bash
 mrmr space status        # flows ≥ 1
 mrmr doctor              # hub + auth smoke
-mrmr space doctor        # murrmure/ drift + MCP hints
+mrmr space doctor        # .mrmr/ drift + handler coverage + MCP hints
 ```
 
 Ask your connected agent:
@@ -71,8 +71,9 @@ Ask your connected agent:
 
 ## Next steps
 
-- Build a real workflow from scratch: [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/)
-- [Creating flows](./creating-flows) · [All tutorials](./tutorials/)
+- Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (3 parts)
+- Build the full workflow: [Tutorial 1b — Local preview review](./tutorials/01-local-preview-review/)
+- [Creating flows](./creating-flows) · [Space handlers](./space-handlers) · [All tutorials](./tutorials/)
 - [Murrmure Desktop](./desktop) · [Connect your agent](./agents-mcp)
 
 ## Done

@@ -71,6 +71,9 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
   murrmure_space_status: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
+  murrmure_space_health: objectSchema({
+    space_id: stringSchema("Optional target space id override"),
+  }),
   murrmure_grant_mint: objectSchema({
     space_id: stringSchema("Optional target space id override"),
     label: stringSchema("Grant label"),
@@ -135,6 +138,9 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
   murrmure_list_emittable_events: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
+  murrmure_list_handlers: objectSchema({
+    space_id: stringSchema("Optional target space id override"),
+  }),
   murrmure_create_session: objectSchema({
     title: stringSchema("Session title"),
     subject: {
@@ -176,6 +182,13 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     { required: ["session_id"] },
   ),
   murrmure_get_run: objectSchema(
+    {
+      run_id: stringSchema("Run identifier"),
+      instance_id: stringSchema("Legacy alias for run_id"),
+    },
+    { required: ["run_id"] },
+  ),
+  murrmure_get_run_context: objectSchema(
     {
       run_id: stringSchema("Run identifier"),
       instance_id: stringSchema("Legacy alias for run_id"),

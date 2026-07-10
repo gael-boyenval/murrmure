@@ -1,9 +1,0 @@
-apiVersion: murrmure.flow/v1
-name: minimal-flow
-start:
-  manual: true
-steps:
-  - id: hello
-    invoke:
-      space: spc_minimal
-      action: hello

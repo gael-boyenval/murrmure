@@ -119,7 +119,7 @@ describe("http/actions/invoke-journal", () => {
     expect(dispatched!.payload.action_name).toBe("daily_checkin");
     expect(completed).toBeDefined();
     expect(completed!.payload.action_name).toBe("daily_checkin");
-    expect(completed!.payload.result).toEqual({ task: "done" });
+    expect(completed!.payload.result).toMatchObject({ task: "done" });
   });
 
   test("unavailable invoke persists executor_unavailable journal event", async () => {

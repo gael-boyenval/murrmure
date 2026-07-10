@@ -72,9 +72,11 @@ You will attach this file at **intake** in Part 8.
 
 | Not in repo yet | Added in |
 |-----------------|----------|
-| `murrmure/` | Part 2 (setup wizard) |
+| `.mrmr/space/` | Part 2 (setup wizard) |
 | `agent.md`, `skills/` | Part 3 |
 | `specs/current/`, `specs/archive/` | Created by agent during a run |
+
+Part 2 scaffolds `.mrmr/space/space.yaml`, `.mrmr/flows/`, and `.mrmr/views/`. Compare with the [preview-review-v2 `.mrmr/` tree](../../../../examples/flows/preview-review-v2/.mrmr/) when you reach Part 2.
 
 ## Checkpoint
 

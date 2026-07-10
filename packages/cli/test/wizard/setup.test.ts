@@ -75,27 +75,42 @@ describe("wizard space ops", () => {
     process.env.MURRMURE_HUB_TOKEN = "tok_admin";
     clearAuthContextCache();
     projectDir = mkdtempSync(join(tmpdir(), "cli-wizard-"));
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "example"), { recursive: true });
     writeFileSync(
-      join(root, "actions.yaml"),
-      "version: 1\nactions:\n  hello:\n    executor: shell\n",
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [example.hello]",
+        "    on: step.opened",
+        "    type: shell_spawn",
+        "    complete: explicit",
+        "",
+      ].join("\n"),
     );
     writeFileSync(
-      join(root, "executors.yaml"),
-      "executors: {}\n",
-    );
-    writeFileSync(
-      join(root, "hooks.yaml"),
-      "version: 1\nhooks: {}\n",
-    );
-    writeFileSync(
-      join(root, "space.yaml"),
-      "slug: wizard-smoke\nname: Wizard Smoke\n",
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: wizard-smoke\nname: Wizard Smoke\n",
     );
     writeFileSync(
       join(root, "flows", "example", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: example\nstart:\n  manual: true\nsteps: []\n",
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: example",
+        "start:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    role: agent",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "",
+      ].join("\n"),
     );
   });
 
@@ -106,7 +121,7 @@ describe("wizard space ops", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  test("wizardSpaceInit scaffolds murrmure/ in empty directory", async () => {
+  test("wizardSpaceInit scaffolds .mrmr/ in empty directory", async () => {
     const emptyDir = mkdtempSync(join(tmpdir(), "cli-wizard-empty-"));
     try {
       const result = await wizardSpaceInit(emptyDir, { withSkill: false });
@@ -326,16 +341,43 @@ describe("setup --yes --json", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  test("desktop_handoff uses indexed flow id from murrmure/", async () => {
-    const root = join(projectDir, "murrmure");
+  test("desktop_handoff uses indexed flow id from .mrmr/", async () => {
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "example"), { recursive: true });
-    writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
-    writeFileSync(join(root, "executors.yaml"), "executors: {}\n");
-    writeFileSync(join(root, "hooks.yaml"), "version: 1\nhooks: {}\n");
-    writeFileSync(join(root, "space.yaml"), "slug: setup-smoke\nname: Setup Smoke\n");
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [example.hello]",
+        "    on: step.opened",
+        "    type: shell_spawn",
+        "    complete: explicit",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: setup-smoke\nname: Setup Smoke\n",
+    );
     writeFileSync(
       join(root, "flows", "example", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: example\nstart:\n  manual: true\nsteps: []\n",
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: example",
+        "start:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    role: agent",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "",
+      ].join("\n"),
     );
 
     await (setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
@@ -353,12 +395,16 @@ describe("setup --yes --json", () => {
   });
 
   test("desktop_handoff omits flow_id when no flows indexed", async () => {
-    const root = join(projectDir, "murrmure");
-    mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
-    writeFileSync(join(root, "executors.yaml"), "executors: {}\n");
-    writeFileSync(join(root, "hooks.yaml"), "version: 1\nhooks: {}\n");
-    writeFileSync(join(root, "space.yaml"), "slug: setup-smoke\nname: Setup Smoke\n");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      "version: 1\nhandlers: []\n",
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: setup-smoke\nname: Setup Smoke\n",
+    );
 
     await (setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
       args: { path: projectDir, yes: true, json: true, space: "spc_linked" },
@@ -490,15 +536,42 @@ describe("setup --yes --json", () => {
   });
 
   test("records apply failure on apply step", async () => {
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "example"), { recursive: true });
-    writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
-    writeFileSync(join(root, "executors.yaml"), "executors: {}\n");
-    writeFileSync(join(root, "hooks.yaml"), "version: 1\nhooks: {}\n");
-    writeFileSync(join(root, "space.yaml"), "slug: setup-smoke\nname: Setup Smoke\n");
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [example.hello]",
+        "    on: step.opened",
+        "    type: shell_spawn",
+        "    complete: explicit",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: setup-smoke\nname: Setup Smoke\n",
+    );
     writeFileSync(
       join(root, "flows", "example", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: example\nstart:\n  manual: true\nsteps: []\n",
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: example",
+        "start:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    role: agent",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        next: null",
+        "",
+      ].join("\n"),
     );
 
     const applySpy = vi
@@ -537,12 +610,16 @@ describe("space setup grant mint", () => {
     grantSpaceId = undefined;
 
     projectDir = mkdtempSync(join(tmpdir(), "cli-space-setup-grant-"));
-    const root = join(projectDir, "murrmure");
-    mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
-    writeFileSync(join(root, "executors.yaml"), "executors: {}\n");
-    writeFileSync(join(root, "hooks.yaml"), "version: 1\nhooks: {}\n");
-    writeFileSync(join(root, "space.yaml"), "slug: grant-smoke\nname: Grant Smoke\n");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      "version: 1\nhandlers: []\n",
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      "apiVersion: murrmure.space/v1\nslug: grant-smoke\nname: Grant Smoke\n",
+    );
 
     vi.stubGlobal(
       "fetch",

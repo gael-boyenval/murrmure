@@ -3,7 +3,7 @@ import { resolveCheckpointViewRef } from "../../../src/gates/checkpoint-view.js"
 import { compileFlowIr } from "../../../src/flow-engine/compile.js";
 
 describe("gates/checkpoint-view", () => {
-  test("resolveCheckpointViewRef reads view_ref from flow IR step", () => {
+  test("resolveCheckpointViewRef returns undefined for step_contract presentation steps", () => {
     const ir = compileFlowIr(
       {
         apiVersion: "murrmure.flow/v1",
@@ -12,26 +12,17 @@ describe("gates/checkpoint-view", () => {
         steps: [
           {
             id: "review",
-            checkpoint: {
-              view: "preview-review",
-              on_resolve: { default: { goto: "done" }, cancel: { fail: true } },
+            presentation: { view: "preview-review" },
+            branches: {
+              continue: { schema: { type: "object" }, next: null },
             },
           },
         ],
       },
       "flw_test",
     );
-    ir.steps[0]!.gate!.view_ref = {
-      view_id: "preview-review",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
-    };
 
-    expect(resolveCheckpointViewRef(ir, "review")).toEqual({
-      view_id: "preview-review",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
-    });
+    expect(resolveCheckpointViewRef(ir, "review")).toBeUndefined();
     expect(resolveCheckpointViewRef(ir, "missing")).toBeUndefined();
   });
 });

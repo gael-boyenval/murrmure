@@ -1,0 +1,88 @@
+version: 1
+
+x-feedback-prompt: &feedback_prompt |
+  You are the Murrmure feedback receiver agent for spc_murrmure.
+
+  ## Task
+  {{instruction}}
+
+  ## Source
+  - Kind: {{kind}}
+  - Repo: {{repo}}
+  - Reported at: {{reported_at}}
+  - Run: {{run_id}}
+  - Session: {{session_id}}
+
+  ## Payload
+  Summary: {{summary}}
+  Topic: {{topic}}
+  Failure type: {{failure_type}}
+  Suggestion: {{suggestion}}
+  Logs: {{logs}}
+  Docs: {{docs}}
+
+  ## Context
+  {{context}}
+
+  ## Rules
+  - Write one Markdown file under `feedbacks/` following `feedbacks/README.md`.
+  - Use the naming pattern from the task above (failure vs improvement slug).
+  - You write the file; confirm the path when done.
+  - Workspace root: {{space_root}}
+
+handlers:
+  - id: on-dev-failure
+    contract_keys: []
+    on:
+      event:
+        type: murrmure.feedback.failure
+        source:
+          - "/spaces/spc_my_space"
+    type: shell_spawn
+    complete: auto
+    params:
+      kind: failure
+      instruction: >-
+        Write a failure report as Markdown under feedbacks/ named
+        YYYY-MM-DD-failure-<slug>.md. Use sections from feedbacks/README.md:
+        Summary, Context, Evidence, Murrmure improvement, Source.
+      repo: "{{event.source}}"
+      failure_type: "{{event.data.failure_type}}"
+      summary: "{{event.data.summary}}"
+      logs: "{{event.data.logs}}"
+      docs: "{{event.data.docs}}"
+      context: "{{event.data.context}}"
+      reported_at: "{{event.data.reported_at}}"
+    prompt: *feedback_prompt
+    command: cursor agent -p --force {{prompt}}
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 600000
+
+  - id: on-dev-improvement
+    contract_keys: []
+    on:
+      event:
+        type: murrmure.feedback.requestImprovement
+        source:
+          - "/spaces/spc_my_space"
+    type: shell_spawn
+    complete: auto
+    params:
+      kind: improvement
+      instruction: >-
+        Write an improvement request as Markdown under feedbacks/ named
+        YYYY-MM-DD-improvement-<slug>.md. Use sections from feedbacks/README.md:
+        Topic, Summary, Suggestion, Context, Source.
+      repo: "{{event.source}}"
+      topic: "{{event.data.topic}}"
+      summary: "{{event.data.summary}}"
+      suggestion: "{{event.data.suggestion}}"
+      docs: "{{event.data.docs}}"
+      context: "{{event.data.context}}"
+      reported_at: "{{event.data.reported_at}}"
+    prompt: *feedback_prompt
+    command: cursor agent -p --force {{prompt}}
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 600000

@@ -4,6 +4,7 @@ import {
   buildEmittableEventsCatalog,
   validateEmitPayload,
 } from "@murrmure/hub-core";
+import { HandlerSpecSchema } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
@@ -46,6 +47,34 @@ export function registerPlatformMcpHandlers(
     };
   });
 
+  registry.registerHandler("murrmure_space_health", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const snapshot = await studio.getSpaceIndexSnapshot(bare);
+    const bindings = await studio.getSpaceBindings(bare);
+    const hooks = await studio.listIndexedHooks(bare);
+    const handlers = hooks
+      .map((row) => HandlerSpecSchema.safeParse(row))
+      .filter((parsed): parsed is { success: true; data: import("@murrmure/contracts").HandlerSpec } => parsed.success)
+      .map((parsed) => parsed.data);
+    const index = buildIndexStatus(snapshot);
+    const warnings: string[] = [];
+    if (index.counts.flows === 0) warnings.push("No indexed flows");
+    if (handlers.length === 0) warnings.push("No indexed handlers");
+
+    return {
+      space_id: prefixedSpaceId(bare),
+      index,
+      handlers: {
+        count: handlers.length,
+        contract_key_count: handlers.reduce((count, handler) => count + (handler.contract_keys?.length ?? 0), 0),
+      },
+      bindings,
+      healthy: warnings.length === 0,
+      warnings,
+    };
+  });
+
   registry.registerHandler("murrmure_apply_space", async (args, ctx) => {
     const spaceId = resolveTargetSpaceId(ctx, config, args.space_id);
     const res = await fetch(`${hubUrl()}/v1/spaces/${prefixedSpaceId(bareSpaceId(spaceId))}/apply`, {
@@ -80,6 +109,26 @@ export function registerPlatformMcpHandlers(
   registry.registerHandler("murrmure_list_emittable_events", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     return buildEmittableEventsCatalog(studio, bareSpaceId(spaceId));
+  });
+
+  registry.registerHandler("murrmure_list_handlers", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const rows = await studio.listIndexedHooks(bare);
+    const handlers: Array<{ id: string; contract_keys: string[]; type: string }> = [];
+    for (const row of rows) {
+      const parsed = HandlerSpecSchema.safeParse(row);
+      if (!parsed.success) continue;
+      handlers.push({
+        id: parsed.data.id,
+        contract_keys: parsed.data.contract_keys ?? [],
+        type: parsed.data.type,
+      });
+    }
+    return {
+      space_id: prefixedSpaceId(bare),
+      handlers,
+    };
   });
 
   registry.registerHandler("murrmure_emit_event", async (args, authCtx) => {
@@ -240,6 +289,32 @@ export function registerPlatformMcpHandlers(
       headers: mcpHeaders(_authCtx),
     });
     return assertHttpOk(res, "Get run");
+  });
+
+  registry.registerHandler("murrmure_get_run_context", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? args.instance_id ?? "");
+    if (!run_id) throw new Error("run_id is required");
+
+    const runRes = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}`, {
+      headers: mcpHeaders(authCtx),
+    });
+    const run = await assertHttpOk(runRes, "Get run context");
+
+    const contractsRes = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/step-contracts`, {
+      headers: mcpHeaders(authCtx),
+    });
+    let step_contracts: Record<string, unknown> | null = null;
+    if (contractsRes.ok) {
+      step_contracts = await parseHttpJson(contractsRes);
+    } else if (contractsRes.status !== 404 && contractsRes.status !== 409) {
+      const body = await parseHttpJson(contractsRes);
+      throw httpProxyError(contractsRes, body, "Get run context contracts");
+    }
+
+    return {
+      run,
+      step_contracts,
+    };
   });
 
   registry.registerHandler("murrmure_get_run_graph", async (args, authCtx) => {

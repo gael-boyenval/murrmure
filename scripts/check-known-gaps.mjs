@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const HUMAN = join(REPO_ROOT, "apps/docs/guide/known-gaps.md");
-const SKILL = join(REPO_ROOT, "packages/cli/skill/reference/known-gaps.md");
+const SKILL = join(REPO_ROOT, "packages/cli/skill-agent/reference/known-gaps.md");
 
 function normalizeBody(content, stripPrefix) {
   const idx = content.indexOf("---");

@@ -26,6 +26,15 @@ MCP clients use thin config:
 - No MCP `MURRMURE_SPACE_ID`
 - No MCP `MURRMURE_HUB_URL` (bridge discovery file drives endpoint)
 
+### Bridge command resolution
+
+| Runtime | `command` in MCP config |
+|---------|-------------------------|
+| Murrmure Desktop | Absolute path from `~/.murrmure/hubs/shared.json` → `mcp_bridge.command` (Desktop bundles `@murrmure/mcp-bridge` and passes `MURRMURE_MCP_BRIDGE_ENTRY` to the hub at start) |
+| Headless / CI | `"murrmure-mcp"` on PATH after `npm i -g @murrmure/mcp-bridge` |
+
+Grant mint, `mrmr doctor`, and Desktop **Copy MCP config** all emit the resolved `command` — users do not hand-edit the bridge path when Desktop is the hub host.
+
 ---
 
 ## Tool visibility

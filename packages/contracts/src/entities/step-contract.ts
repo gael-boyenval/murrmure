@@ -46,15 +46,6 @@ export const StepBranchDefinitionSchema = z.object({
 
 export type StepBranchDefinition = z.infer<typeof StepBranchDefinitionSchema>;
 
-export const StepExecutorSchema = z.object({
-  action: z.string(),
-  space: z.string().optional(),
-  params: z.record(z.unknown()).optional(),
-  artifacts_in: z.array(z.string()).optional(),
-});
-
-export type StepExecutor = z.infer<typeof StepExecutorSchema>;
-
 export const StepPresentationSchema = z.object({
   view: z.string(),
   view_ref: FlowViewRefSchema.optional(),
@@ -67,8 +58,8 @@ export type StepPresentation = z.infer<typeof StepPresentationSchema>;
 export type StepContractManifestStep = {
   id: string;
   description?: string;
+  role?: StepRole;
   orchestration?: StepOrchestration;
-  executor?: StepExecutor;
   presentation?: StepPresentation;
   branches: Record<string, StepBranchDefinition>;
   steps?: StepContractManifestStep[];
@@ -78,8 +69,8 @@ export const StepContractManifestStepSchema: z.ZodType<StepContractManifestStep>
   z.object({
     id: z.string().min(1),
     description: z.string().optional(),
+    role: StepRoleSchema.optional(),
     orchestration: StepOrchestrationSchema.optional(),
-    executor: StepExecutorSchema.optional(),
     presentation: StepPresentationSchema.optional(),
     branches: z.record(StepBranchDefinitionSchema),
     steps: z.array(StepContractManifestStepSchema).optional(),
@@ -112,7 +103,6 @@ export const StepContractCatalogEntrySchema = z.object({
   role: StepRoleSchema,
   branches: z.record(StepCatalogBranchSchema),
   artifact_slots: z.record(StepArtifactSlotSchema).optional(),
-  executor: StepExecutorSchema.nullable().optional(),
   presentation: StepPresentationSchema.optional(),
 });
 

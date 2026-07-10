@@ -26,6 +26,7 @@ Configure UI and `/setup` wizard are **retired** — archived at [archives/super
 | Kernel | [kernel/spec.md](./kernel/spec.md) | [kernel/packages.md](./kernel/packages.md) | [fixtures/kernel/](./fixtures/kernel/) |
 | Hub core | [hub/architecture.md](./hub/architecture.md) | [hub/contracts.md](./hub/contracts.md) | [fixtures/hub/](./fixtures/hub/) |
 | Product + review chrome | [product/spec.md](./product/spec.md) · [product/architecture.md](./product/architecture.md) · [philosophy](./product/philosophy.md) | [bridges/product.md](./bridges/product.md) | [fixtures/product/](./fixtures/product/) |
+| Space execution (handlers) | [bridges/handlers.md](./bridges/handlers.md) | [step-contract.md](./bridges/step-contract.md) | — |
 
 ## Flow platform (Murrmure FDK)
 
@@ -36,10 +37,10 @@ Configure UI and `/setup` wizard are **retired** — archived at [archives/super
 | Cross-space (XS0) | [cross-space/spec.md](./cross-space/spec.md) | [bridges/cross-space.md](./bridges/cross-space.md) · [bridges/federation.md](./bridges/federation.md) | [fixtures/cross-space/](./fixtures/cross-space/) |
 | Feature-spec (reference flow) | [capabilities/feature-spec.md](./capabilities/feature-spec.md) | [bridges/feature-spec.md](./bridges/feature-spec.md) | [fixtures/feature-spec/](./fixtures/feature-spec/) |
 
-## Flow Dev Kit (FDK)
+## Flow Dev Kit (FDK) — historical
 
-How users author, build, and index flows — see
-[build-capability/README.md](./build-capability/README.md). Published packages:
+How users **formerly** authored FDK iframe bundles and install HTTP — see
+[build-capability/README.md](./build-capability/README.md). **Current path:** `.mrmr/` + `mrmr space apply` ([ADR-004](../ADR/ADR-004-handlers-mrmr-cutover.md)). Published packages:
 `@murrmure/cli` + `@murrmure/flow-dev-kit` ([ADR-001](../ADR/ADR-001-murrmure-publish.md)).
 
 Key normative docs:

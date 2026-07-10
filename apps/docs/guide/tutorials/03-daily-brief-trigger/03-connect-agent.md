@@ -6,15 +6,16 @@ Mint a grant and configure MCP so an agent responds to **`handle_brief_requested
 
 ```bash
 mrmr grant mint --space spc_daily_brief \
-  --capabilities flow:run,flow:read,action:invoke \
+  --capabilities flow:run,flow:read,step:resolve,space:read \
   --label daily-brief-agent
 ```
 
 | Capability | Why |
 |------------|-----|
 | `flow:run` | Observe run state while flow advances |
-| `action:invoke` | Call `submit_brief_output` with gathered content |
+| `step:resolve` | Resolve **agent** and **done** steps via handler contract |
 | `flow:read` | Read step outputs for review context |
+| `space:read` | Inspect handler catalog and journal |
 
 ## 2) MCP config
 
@@ -42,14 +43,14 @@ See [Connect your agent (MCP)](../../agents-mcp).
 
 ## 3) Agent handler responsibilities
 
-When the hook fires after trigger resolve:
+When the event handler fires after trigger resolve:
 
 1. **Detect wake** — MCP control channel delivers `handle_brief_requested`, or poll `murrmure_wait_for_run` on the active run
 2. **Gather** — email, calendar, todos from local tools (your agent logic)
-3. **Submit** — `murrmure_invoke_action` → `submit_brief_output` with `{ format: "markdown", body: "…" }`
-4. **Yield** — flow advances to **review** checkpoint; human marks done in view
+3. **Resolve agent step** — `murrmure_resolve_step` on **agent** with branch `completed` and output payload
+4. **Yield** — flow advances to **review** presentation; human marks done in view
 
-Install the murrmure skill for normative hook/wake patterns: [Agent skill](../../agent-skill).
+Install the murrmure agent skill for normative handler/wake patterns: [Agent skill](../../agent-skill).
 
 ## Next
 

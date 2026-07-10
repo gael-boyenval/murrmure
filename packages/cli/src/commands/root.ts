@@ -11,6 +11,7 @@ import { hubCommand } from "./hub.js";
 import { runtimeCommand } from "./runtime.js";
 import { skillCommand } from "./skill.js";
 import { spaceCommand } from "./space/index.js";
+import { stepCommand } from "./step.js";
 import { actionCommand } from "./action/index.js";
 import { meCommand } from "./me/index.js";
 import { workerCommand } from "./worker/index.js";
@@ -47,6 +48,7 @@ export const rootCommand = defineCommand({
     setup: setupCommand,
     doctor: doctorCommand,
     health: healthCommand,
+    step: stepCommand,
     space: spaceCommand,
     action: actionCommand,
     me: meCommand,

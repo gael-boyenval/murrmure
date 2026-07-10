@@ -81,7 +81,7 @@ export function parseViteDevUrl(line: string): string | undefined {
 }
 
 export function writeViewDevSession(spaceRoot: string, session: ViewDevSession): string {
-  const dir = join(spaceRoot, ".murrmure");
+  const dir = join(spaceRoot, ".mrmr", "dev");
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "view-dev.json");
   writeFileSync(path, `${JSON.stringify(session, null, 2)}\n`, "utf-8");

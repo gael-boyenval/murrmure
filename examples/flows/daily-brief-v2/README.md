@@ -1,9 +1,9 @@
 # Daily brief v2 (Tutorial 3 example)
 
-Event-driven daily brief: **checkpoint view** in **ViewCanvasHost** → hook wake → agent output → human review.
+Event-driven daily brief: **presentation view** in **ViewCanvasHost** → event handler wake → agent output → human review.
 
 ```bash
-cd murrmure/views/daily-brief && npm install && npm run build
+cd .mrmr/views/daily-brief && npm install && npm run build
 cd ../../..
 mrmr space apply --strict
 ```

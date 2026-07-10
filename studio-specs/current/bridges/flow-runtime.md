@@ -2,7 +2,7 @@
 
 Maps [spec.md](../flow-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
 
-MCP transport assumption: `murrmure-mcp` bridge with token-only MCP env (`MURRMURE_HUB_TOKEN`).
+MCP transport assumption: `murrmure-mcp` bridge (`@murrmure/mcp-bridge`) with token-only MCP env (`MURRMURE_HUB_TOKEN`). Desktop bundles the bridge and publishes `mcp_bridge.command` in shared discovery; headless installs use PATH.
 
 ## HTTP additions
 

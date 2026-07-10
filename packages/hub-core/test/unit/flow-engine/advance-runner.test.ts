@@ -24,7 +24,7 @@ function linearManifest(): FlowManifest {
       },
       {
         id: "work",
-        executor: { action: "do_work", params: { topic: "{{input.topic}}" } },
+        role: "agent",
         branches: {
           completed: { schema: { type: "object" }, next: null },
           failed: { schema: { type: "object" }, fail_run: true },
@@ -43,14 +43,26 @@ async function seedCatalogRun(studio: MemoryStudioPersistence) {
   await studio.replaceSpaceIndex("demo", {
     actions: [],
     executors: [],
-    hooks: [],
+    hooks: [
+      {
+        key: "do_work",
+        digest: "sha256:handlers",
+        payload_json: JSON.stringify({
+          id: "do_work",
+          contract_keys: ["linear-resolve.work"],
+          on: "step.opened",
+          type: "shell_spawn",
+          complete: "explicit",
+        }),
+      },
+    ],
     events: [],
     flows: [
       {
         flow_id: "flw_linear",
         origin_space_id: "spc_demo",
         digest: ir.digest,
-        name: "linear",
+        name: "linear-resolve",
         start: { manual: true },
         step_spaces: ["spc_demo"],
         grants_required: [],

@@ -4,9 +4,9 @@ import { GateFormSchema } from "../entities/gate.js";
 import {
   StepBranchDefinitionSchema,
   StepContractManifestStepSchema,
-  StepExecutorSchema,
   StepOrchestrationSchema,
   StepPresentationSchema,
+  StepRoleSchema,
   type StepContractManifestStep,
 } from "../entities/step-contract.js";
 
@@ -89,8 +89,8 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
   z.object({
     id: z.string(),
     description: z.string().optional(),
+    role: StepRoleSchema.optional(),
     orchestration: StepOrchestrationSchema.optional(),
-    executor: StepExecutorSchema.optional(),
     presentation: StepPresentationSchema.optional(),
     branches: z.record(StepBranchDefinitionSchema).optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
@@ -102,8 +102,8 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
 export type FlowStep = {
   id: string;
   description?: string;
+  role?: z.infer<typeof StepRoleSchema>;
   orchestration?: z.infer<typeof StepOrchestrationSchema>;
-  executor?: z.infer<typeof StepExecutorSchema>;
   presentation?: z.infer<typeof StepPresentationSchema>;
   branches?: Record<string, z.infer<typeof StepBranchDefinitionSchema>>;
   steps?: StepContractManifestStep[];

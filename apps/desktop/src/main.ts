@@ -25,7 +25,7 @@ async function safeShowMessageBox(options: Parameters<typeof Utils.showMessageBo
   }
 }
 
-function installMenus(hubUrl: string, dataDir: string): void {
+function installMenus(hubUrl: string, dataDir: string, mcpBridgeCommand?: string | null): void {
   installDesktopMenu(
     {
       setApplicationMenu: ApplicationMenu.setApplicationMenu,
@@ -44,7 +44,7 @@ function installMenus(hubUrl: string, dataDir: string): void {
         }
       },
     },
-    { hubUrl, dataDir },
+    { hubUrl, dataDir, mcpBridgeCommand },
   );
 }
 
@@ -119,7 +119,7 @@ export async function bootstrapDesktopApp(): Promise<void> {
   process.once("SIGINT", handleTermination);
   process.once("SIGTERM", handleTermination);
 
-  installMenus(handle.paths.hubUrl, handle.paths.dataDir);
+  installMenus(handle.paths.hubUrl, handle.paths.dataDir, handle.paths.mcpBridgeEntry);
   const launchUrl = handle.paths.shellWebUrl ?? handle.paths.hubUrl;
   mainWindow = createWindow(launchUrl, handle.token, handle.paths.hubUrl);
 

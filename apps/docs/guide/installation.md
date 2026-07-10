@@ -19,7 +19,7 @@ Install npm packages when you run agents, scripts/CI, or author indexed flows.
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
 | `@murrmure/cli` | Operators + authors | `npm install -g @murrmure/cli` | `mrmr` setup, space apply, grant workflows |
-| `@murrmure/mcp-bridge` | Agent MCP clients | `npm install -g @murrmure/mcp-bridge` | `murrmure-mcp` MCP stdio bridge |
+| `@murrmure/mcp-bridge` | Agent MCP clients | Bundled with **Murrmure Desktop**; `npm install -g` only for headless/CI without Desktop | `murrmure-mcp` MCP stdio bridge |
 
 If you prefer no global installs:
 
@@ -29,10 +29,10 @@ npx @murrmure/cli health
 
 ## Step 3: standard agent setup
 
-1. Install:
+1. Install CLI (MCP bridge ships inside Murrmure Desktop — no extra install when Desktop is running):
 
 ```bash
-npm install -g @murrmure/cli @murrmure/mcp-bridge
+npm install -g @murrmure/cli
 ```
 
 2. First-run wizard (recommended):
@@ -44,7 +44,7 @@ mrmr setup
 Or mint a grant manually:
 
 ```bash
-mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:read
+mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,step:resolve,space:read
 mrmr grant use --space spc_…
 ```
 
@@ -56,12 +56,13 @@ mrmr grant use --space spc_…
 
 ```bash
 mrmr space init
-# Write murrmure/flows/{name}/flow.manifest.yaml, actions.yaml, executors.yaml — see Tutorial 1
+# Write .mrmr/flows/{name}/flow.manifest.yaml + .mrmr/space/handlers.yaml — see Tutorial 1
 mrmr space link --path . --create
 mrmr space apply --strict
+mrmr skill install --variant all
 ```
 
-See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creating-flows), and [Flows tutorial](./flows-tutorial).
+See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creating-flows), and [Space handlers](./space-handlers).
 
 ## CI / headless environment
 

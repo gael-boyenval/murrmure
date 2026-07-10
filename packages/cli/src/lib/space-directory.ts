@@ -3,25 +3,34 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
+  ActionsFileSchema,
+  ExecutorsFileSchema,
+  HooksFileSchema,
+  EventsFileSchema,
   SpaceApplyBundleSchema,
   type SpaceApplyBundle,
 } from "@murrmure/contracts";
 import {
   computeContentDigest,
   detectFlowCallCycles,
-  parseActionsFile,
-  parseExecutorsFile,
+  parseBindingsFile,
   parseFlowManifest,
-  parseHooksFile,
-  parseEventsFile,
+  parseHandlersFile,
   parseViewManifest,
-  resolveHooksFilename,
 } from "@murrmure/hub-core";
 
 const EMPTY_ACTIONS_FILE = { version: 1 as const, actions: {} };
 const EMPTY_EXECUTORS_FILE = { executors: {} };
 const EMPTY_HOOKS_FILE = { version: 1 as const, hooks: {} };
+const EMPTY_HANDLERS_FILE = { version: 1 as const, handlers: [] };
 const EMPTY_EVENTS_FILE = { version: 1 as const, events: {} };
+const EMPTY_BINDINGS_FILE = { version: 1 as const, flows: [], views: [] };
+const HOOKS_FILENAMES = ["hooks.yaml", "triggers.yaml"] as const;
+
+function resolveHooksFilename(filename: string): (typeof HOOKS_FILENAMES)[number] | null {
+  if (filename === "hooks.yaml" || filename === "triggers.yaml") return filename;
+  return null;
+}
 
 function stableFlowId(relPath: string): string {
   const withoutManifest = relPath.replace(/\/flow\.manifest\.yaml$/, "");
@@ -31,6 +40,38 @@ function stableFlowId(relPath: string): string {
 
 function readYamlFile(path: string): unknown {
   return parseYaml(readFileSync(path, "utf-8"));
+}
+
+function parseActionsFile(raw: unknown) {
+  const parsed = ActionsFileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("INVALID_ACTIONS: actions.yaml failed validation");
+  }
+  return parsed.data;
+}
+
+function parseExecutorsFile(raw: unknown) {
+  const parsed = ExecutorsFileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("INVALID_EXECUTORS: executors.yaml failed validation");
+  }
+  return parsed.data;
+}
+
+function parseHooksFile(raw: unknown) {
+  const parsed = HooksFileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("INVALID_HOOKS: hooks.yaml failed validation");
+  }
+  return parsed.data;
+}
+
+function parseEventsFile(raw: unknown) {
+  const parsed = EventsFileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("INVALID_EVENTS: events.yaml failed validation");
+  }
+  return parsed.data;
 }
 
 function fileDigest(path: string): string {
@@ -51,21 +92,21 @@ function asManifestRaw(raw: unknown): Record<string, unknown> | undefined {
 }
 
 export function resolveMurrmureRoot(cwd: string): string {
-  const direct = join(cwd, "murrmure");
+  const direct = join(cwd, ".mrmr");
   if (existsSync(direct) && statSync(direct).isDirectory()) return direct;
-  throw new Error(`No murrmure/ directory in ${cwd}`);
+  throw new Error(`No .mrmr/ directory in ${cwd}`);
 }
 
 export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
   const root = resolveMurrmureRoot(cwd);
+  const spaceDir = join(root, "space");
   const bundle: SpaceApplyBundle = { flows: [], views: [] };
   const seenFlowIds = new Set<string>();
 
-  const actionsPath = join(root, "actions.yaml");
+  const actionsPath = join(spaceDir, "actions.yaml");
   if (existsSync(actionsPath)) {
     const file = parseActionsFile(readYamlFile(actionsPath));
-    if (!file.ok) throw new Error(`${file.code}: ${file.message}`);
-    bundle.actions = { digest: fileDigest(actionsPath), file: file.value };
+    bundle.actions = { digest: fileDigest(actionsPath), file };
   } else {
     bundle.actions = {
       digest: computeContentDigest(EMPTY_ACTIONS_FILE),
@@ -73,11 +114,10 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
     };
   }
 
-  const executorsPath = join(root, "executors.yaml");
+  const executorsPath = join(spaceDir, "executors.yaml");
   if (existsSync(executorsPath)) {
     const file = parseExecutorsFile(readYamlFile(executorsPath));
-    if (!file.ok) throw new Error(`${file.code}: ${file.message}`);
-    bundle.executors = { digest: fileDigest(executorsPath), file: file.value };
+    bundle.executors = { digest: fileDigest(executorsPath), file };
   } else {
     bundle.executors = {
       digest: computeContentDigest(EMPTY_EXECUTORS_FILE),
@@ -85,14 +125,13 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
     };
   }
 
-  const hooksCandidates = ["hooks.yaml", "triggers.yaml"] as const;
+  const hooksCandidates = HOOKS_FILENAMES;
   const hooksPath = hooksCandidates
-    .map((name) => join(root, name))
+    .map((name) => join(spaceDir, name))
     .find((path) => existsSync(path));
   if (hooksPath) {
     const file = parseHooksFile(readYamlFile(hooksPath));
-    if (!file.ok) throw new Error(`${file.code}: ${file.message}`);
-    bundle.hooks = { digest: fileDigest(hooksPath), file: file.value };
+    bundle.hooks = { digest: fileDigest(hooksPath), file };
   } else {
     bundle.hooks = {
       digest: computeContentDigest(EMPTY_HOOKS_FILE),
@@ -100,15 +139,40 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
     };
   }
 
-  const eventsPath = join(root, "events.yaml");
+  const handlersPath = join(spaceDir, "handlers.yaml");
+  if (existsSync(handlersPath)) {
+    const raw = readYamlFile(handlersPath);
+    const parsed = parseHandlersFile(raw);
+    if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+    bundle.handlers = { digest: fileDigest(handlersPath), file: parsed.value };
+  } else {
+    bundle.handlers = {
+      digest: computeContentDigest(EMPTY_HANDLERS_FILE),
+      file: EMPTY_HANDLERS_FILE,
+    };
+  }
+
+  const eventsPath = join(spaceDir, "events.yaml");
   if (existsSync(eventsPath)) {
     const file = parseEventsFile(readYamlFile(eventsPath));
-    if (!file.ok) throw new Error(`${file.code}: ${file.message}`);
-    bundle.events = { digest: fileDigest(eventsPath), file: file.value };
+    bundle.events = { digest: fileDigest(eventsPath), file };
   } else {
     bundle.events = {
       digest: computeContentDigest(EMPTY_EVENTS_FILE),
       file: EMPTY_EVENTS_FILE,
+    };
+  }
+
+  const bindingsPath = join(spaceDir, "bindings.yaml");
+  if (existsSync(bindingsPath)) {
+    const raw = readYamlFile(bindingsPath);
+    const parsed = parseBindingsFile(raw);
+    if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+    bundle.bindings = { digest: fileDigest(bindingsPath), file: parsed.value };
+  } else {
+    bundle.bindings = {
+      digest: computeContentDigest(EMPTY_BINDINGS_FILE),
+      file: EMPTY_BINDINGS_FILE,
     };
   }
 
@@ -171,7 +235,7 @@ export function validateSpaceBundleCycles(bundle: SpaceApplyBundle): void {
 }
 
 export function readSpaceSlug(cwd: string): string | undefined {
-  const path = join(resolveMurrmureRoot(cwd), "space.yaml");
+  const path = join(resolveMurrmureRoot(cwd), "space", "space.yaml");
   if (!existsSync(path)) return undefined;
   const raw = readYamlFile(path) as { slug?: string };
   return typeof raw.slug === "string" ? raw.slug : undefined;

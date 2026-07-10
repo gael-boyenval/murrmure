@@ -25,6 +25,21 @@ const LINEAR_FLOW_BUNDLE = {
     },
   },
   hooks: { digest: "sha256:rs-hooks", file: { version: 1, hooks: {} } },
+  handlers: {
+    digest: "sha256:rs-handlers",
+    file: {
+      version: 1,
+      handlers: [
+        {
+          id: "do_work",
+          contract_keys: ["linear-resolve.work"],
+          on: "step.opened",
+          type: "shell_spawn",
+          complete: "explicit",
+        },
+      ],
+    },
+  },
   flows: [
     {
       flow_id: "flw_linear_resolve",
@@ -45,7 +60,7 @@ const LINEAR_FLOW_BUNDLE = {
           },
           {
             id: "work",
-            executor: { action: "do_work" },
+            role: "agent",
             branches: {
               completed: { schema: { type: "object" }, next: null },
               failed: { schema: { type: "object" }, fail_run: true },

@@ -1,5 +1,5 @@
 import { ViewManifestSchema, type ViewManifest } from "@murrmure/contracts";
-import type { ParseResult } from "./parse-actions.js";
+import type { ParseResult } from "./parse-result.js";
 
 export function parseViewManifest(raw: unknown): ParseResult<ViewManifest> {
   const parsed = ViewManifestSchema.safeParse(raw);

@@ -1,13 +1,13 @@
 # Hello authoring (flows tutorial example)
 
-Minimal v2 space directory for the [flows tutorial](../../../apps/docs/guide/flows-tutorial.md): one indexed flow with actions, executors, and hooks — no views.
+Minimal v2 space directory for the [space handlers guide](../../../apps/docs/guide/space-handlers.md): one indexed flow with handlers — no views.
 
 ```bash
-cd demo-space  # or this directory's parent as space root
+cd examples/flows/hello-authoring  # or use this directory as space root
 mrmr space apply --strict
 ```
 
-Layout mirrors what `mrmr space flow init hello --template hello-invoke` scaffolds.
+Layout mirrors what `mrmr space init` scaffolds plus a flow under `.mrmr/flows/`.
 
 ## Connect agent (thin MCP)
 
