@@ -32,7 +32,7 @@ handlers:
 | `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch |
 | `kill_on` | Optional — cancel in-flight handler when step resolves (long-lived subgraph owners) |
 
-**Worked example:** [`examples/flows/preview-review-v2/.mrmr/space/handlers.yaml`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2).
+**Full walkthrough:** [Tutorial 1b — handlers](./tutorials/01-local-preview-review/04-prompt-triggers.md) includes a complete `handlers.yaml` for the preview-review flow.
 
 ## Contract keys
 

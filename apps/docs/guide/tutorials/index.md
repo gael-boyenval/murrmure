@@ -4,13 +4,13 @@ Hands-on walkthroughs that teach **v2 indexed flows** from an empty folder. You 
 
 Each tutorial ends with a working workflow in **ViewCanvasHost** (custom views in the primary canvas), agent MCP grants, and `mrmr space apply`.
 
-Reference implementations live under `examples/flows/*-v2/` in the Murrmure repo — use them **only to compare** after you finish a part, not as a shortcut.
+Follow each part in order — build every file yourself from the steps and snippets in the tutorial.
 
 ## Choose a tutorial
 
 | | Tutorial | You learn |
 |---|----------|-----------|
-| **1a** | [First flow (v3) — start here](./01-local-preview-review-v3/) | Desktop + space · two-step flow · runs & journal (3 parts) |
+| **1a** | [First flow (v3) — start here](./01-local-preview-review-v3/) | Desktop + space · flow · view · runs · build · cleanup (6 parts) |
 | **1b** | [Local preview review — full](./01-local-preview-review/) | Spec from disk · nested build/review · `resolve_step` · archive/commit (9 parts) |
 | **2** | [Multi-agent brief](./02-multi-agent-brief/) | Three spaces · event handlers · cross-space query |
 | **3** | [Daily brief trigger](./03-daily-brief-trigger/) | Canvas action · event · agent wake · human review |

@@ -63,7 +63,10 @@ export default defineConfig({
                 { text: "Overview", link: "/guide/tutorials/01-local-preview-review-v3/" },
                 { text: "1 — Launch & space", link: "/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space" },
                 { text: "2 — Minimal flow", link: "/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow" },
-                { text: "3 — Run & understand", link: "/guide/tutorials/01-local-preview-review-v3/03-run-and-understand" },
+                { text: "3 — Intake view", link: "/guide/tutorials/01-local-preview-review-v3/03-build-intake-view" },
+                { text: "4 — Run & understand", link: "/guide/tutorials/01-local-preview-review-v3/04-run-and-understand" },
+                { text: "5 — Copy & build", link: "/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers" },
+                { text: "6 — Cleanup", link: "/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit" },
               ],
             },
             {

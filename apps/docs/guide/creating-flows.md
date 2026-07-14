@@ -3,7 +3,7 @@
 ::: tip Start here
 **New workflows** use a **`.mrmr/`** directory indexed with **`mrmr space apply`**.
 
-→ **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, two-step flow (`intake` → `write_spec`), understand runs and the journal (3 parts).
+→ **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, intake flow, view, runs, command + agent handlers (6 parts).
 
 → **[Tutorial 1b — Full preview review](./tutorials/01-local-preview-review/)** — nested build/review loop, archive, commit (9 parts).
 
@@ -62,7 +62,7 @@ Checkpoint steps with `presentation.view` open in **ViewCanvasHost** — see [Vi
 
 ## Related
 
-- [Tutorial 1a: first flow](./tutorials/01-local-preview-review-v3/) — **start here (3 parts)**
+- [Tutorial 1a: first flow](./tutorials/01-local-preview-review-v3/) — **start here (6 parts)**
 - [Tutorial 1b: local preview-review](./tutorials/01-local-preview-review/) — **full guide**
 - [Space handlers & contract keys](./space-handlers) — execution authoring
 - [Space index](./space-index) — layout reference

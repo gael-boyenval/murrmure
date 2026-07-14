@@ -1,0 +1,89 @@
+# 00 — Freeze contracts and build the tutorial harness
+
+**Status:** Ready  
+**Build order:** 00  
+**Depends on:** none  
+**Source work packages:** T00, T01
+
+## Goal
+
+Turn the settled refinement decisions into durable architectural records and an executable, progressive Tutorial v3 fixture so every later task can ship against one contract and one manual acceptance path.
+
+This is the only intentionally enabling task. It must not implement speculative product behavior or preserve current APIs that the clean target removes.
+
+## User stories
+
+- As an implementer, I can import or reference one canonical contract instead of interpreting prose independently.
+- As a reviewer, I can evaluate later slices against approved decisions and explicit ownership.
+- As a tutorial reader, every behavior-defining snippet is checked against an executable fixture.
+- As a release operator, I can run one progressive suite and identify the first failing tutorial beat.
+
+## Contracts
+
+- Freeze the clean-slate decisions in the coordinating plan as accepted inputs; remove the stale “architecture gate open” status.
+- Name one owner and canonical package for each shared contract:
+  - normalized flow/step/branch contract;
+  - `BranchResolveContract`;
+  - handler alias and canonical identity;
+  - run/open-step/resolver projection;
+  - View host protocol;
+  - upload intent and artifact reference;
+  - connection descriptor and local credential lookup;
+  - run scratch path API;
+  - agent prompt protocol.
+- Define stable tutorial fence IDs and extraction rules:
+  - YAML/JSON compare structurally after canonical normalization;
+  - shell, TypeScript, and executable text compare byte-for-byte;
+  - missing or duplicate IDs fail.
+- Define the manual acceptance record schema: task, tutorial chapters, environment, product build, commands, run IDs, evidence, result, and blockers.
+- Preserve the rule that focused plans provide detail but this task backlog owns execution scope and order.
+
+## Implementation
+
+- Create `test-utils/spaces/tutorial-v3/` with progressive snapshots for Parts 2, 3, 5, and 6.
+- Add shared temporary Hub, user-data, space, Git repository, fake-agent, and packaged-app helpers.
+- Register all Tutorial v3 pages in docs-proof.
+- Add skeleton test suites for contract, HTTP, MCP, CLI, View, handler, repository, shell UI, and packaged execution. Assertions activate with their owning task; do not merge expected failures.
+- Use the real MCP bridge for tutorial agent E2E. Keep exhaustive branch/validation cases at the canonical domain service and cover HTTP separately.
+- Record hot-file ownership and merge dependencies in this backlog and the coordinating plan.
+
+## Testing
+
+### Automated
+
+- Fence extraction rejects missing IDs, duplicate IDs, missing fixture targets, and drift.
+- Fixture stages strict-parse with the currently declared target schema; tests not yet implemented remain structurally present but skipped with an owning task ID, never expected-failing.
+- Helpers prove isolation between temporary user data, space roots, run roots, repositories, and credentials.
+- Architecture consistency tests fail when consumers redefine shared branch or resolver projection types.
+
+### Manual
+
+- Walk Parts 1–6 as a document review and map every command/result to a fixture or a named packaged-only check.
+- Confirm the tutorial contains no unstated setup, hidden file, or unexplained placeholder.
+- Threat-model View mutation, upload, shell interpolation, connection credentials, and repository mutation with the named owning tasks.
+
+## Documentation, skills, specs, and ADRs
+
+- **ADRs required:** create an ADR index/decision packet that links the owning ADRs required by Tasks 01–12. It may summarize decisions but must not duplicate their normative contracts.
+- **Normative specs:** update `studio-specs/current/acceptance.md` with progressive tutorial and manual-evidence requirements.
+- **Plans:** mark the coordinating plan ready for task execution and link this directory from `studio-specs/plans/README.md`.
+- **Tutorial:** add stable IDs without changing the intended prose or behavior.
+- **Skills:** no semantic change; point test-author guidance at canonical fixture paths where useful.
+- **Enforcement:** extend `packages/cli/test/docs-proof.test.ts` and add tutorial-v3 suite registration.
+- **Changelog:** none for harness-only work.
+
+## References
+
+- [Coordinating plan](../2026-07-13-tutorial-v3-full-alignment.md), especially T00–T01 and refinement decisions.
+- [Tutorial v3](../../../apps/docs/guide/tutorials/01-local-preview-review-v3/)
+- [Plans index](../README.md)
+- [Current acceptance spec](../../current/acceptance.md)
+
+## Done gate
+
+- The coordinating plan no longer presents settled architecture as open.
+- Every shared contract has one owner and canonical location.
+- Every tutorial beat maps to an executable assertion or a named manual-only packaged check.
+- Docs-proof detects snippet drift.
+- Later tasks can activate focused assertions without creating another fixture or redefining a contract.
+

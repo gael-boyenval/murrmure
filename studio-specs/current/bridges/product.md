@@ -156,7 +156,7 @@ Update capability bundle `contract/` schemas to match contract states (drop `col
 | Finish review (round 2) | `finish_review` | `changes_made` → `converged` |
 | Request production | `request_production` | `converged` → gate → `production_approved` |
 
-Contract fixture: `fixtures/hub/contracts/review-loop-v2.json`, pin id `cref_review_loop`.
+Contract fixture: `studio-specs/current/fixtures/product/hub/contracts/review-loop-v2.json`, pin id `cref_review_loop`.
 
 ### wait_for_review / review-cycle
 

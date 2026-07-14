@@ -1,290 +1,138 @@
-# Part 2 — Build a minimal two-step flow
+# Part 2 — Build the flow manifest
 
-**Concept:** Murrmure splits **orchestration** (the flow manifest) from **execution** (space handlers) and **human UI** (views). Three files, three jobs.
+**Concept:** A **flow** is nothing more than a **description** — a shared way to say how work should unfold: an event succession, a loop, or a process. The file does not run code, spawn agents, or open UI. **A flow by itself does nothing.** Humans, the hub, handlers, and views do the work when something else starts a run against that description.
 
-You write the smallest useful graph: human **intake** → agent **write_spec** → done.
+The manifest lives at `.mrmr/flows/my-dev-flow/flow.manifest.yaml`. Execution (handlers) and human UI (views) are space-owned and come later. The manifest stays **protocol only** — no shell commands, no view code, no `executor.action`.
 
-The [full 9-part tutorial](../01-local-preview-review/) adds build, review, archive, and commit on top of this same pattern.
+We build **`my-dev-flow`** in two passes: first the flow shell, then a single **intake** step.
 
-## The three layers (one sentence each)
+The [full 9-part tutorial](../01-local-preview-review/) adds handlers, views, agent steps, and strict apply on top of this same manifest shape.
 
-| Layer | File | Owns |
-|-------|------|------|
-| **Flow** | `.mrmr/flows/preview-review-mini/flow.manifest.yaml` | Step order, branches, who pauses (human vs agent) |
-| **Handler** | `.mrmr/space/handlers.yaml` | What runs when an agent step opens |
-| **View** | `.mrmr/views/spec-intake/` | How the human submits at the intake step |
+## Step 1 — Flow shell
 
-The hub reads the flow. The space runs handlers. The view calls `resolve_step` when the human is done.
+Create the flow file:
 
-## Step 1 — Flow manifest (protocol only)
+```text
+.mrmr/flows/my-dev-flow/flow.manifest.yaml
+```
 
-Create `.mrmr/flows/preview-review-mini/flow.manifest.yaml`:
+Start with the header only — no `steps` yet:
 
 ```yaml
 apiVersion: murrmure.flow/v1
-name: preview-review-mini
-description: Attach a spec file; agent copies it into the repo.
+name: my-dev-flow
+description: My first dev workflow
 
 triggers:
   manual: true
-
-start:
-  manual: true
-
-steps:
-  - id: intake
-    description: Human attaches a spec markdown file.
-    presentation:
-      view: spec-intake
-    branches:
-      continue:
-        schema:
-          type: object
-          required: [spec_filename]
-        artifact_slots:
-          spec:
-            description: Attached spec markdown file
-            max_bytes: 1048576
-        next: write_spec
-      cancel:
-        schema: { type: object }
-        next: null
-        fail_run: true
-
-  - id: write_spec
-    description: Agent copies the intake artifact into the repo.
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: null
-      failed:
-        schema: { type: object }
-        next: null
-        fail_run: true
 ```
 
-### Read the manifest like the engine does
+### What is a flow?
 
-**`intake`** — human step
+A flow manifest is **communication** — the contract everyone reads (humans, agents, the hub) to stay aligned on what should happen and in what order.
 
-- `presentation.view: spec-intake` → Desktop opens your view in **ViewCanvasHost**; run status becomes `input-required`
-- `continue` branch requires `spec_filename` in the payload and a **`spec` artifact** (file bytes, not inline markdown)
-- `next: write_spec` → engine opens the next step when intake resolves
+It describes:
 
-**`write_spec`** — agent step
+- **Start conditions** — what kinds of requests may begin a run (`triggers`)
+- **Steps** — the sequence (and later, loops and branches) of work
+- **Outcomes** — what each step may resolve to and where the run goes next
 
-- `role: agent` → no view; hub dispatches a handler on `step.opened`
-- `completed` with `next: null` → run ends successfully
-- No `executor.action` in the manifest — execution is **never** declared here (portable flows)
+Writing the YAML does not start a run, index the space, or dispatch a handler. **`mrmr space apply`** publishes the description to the hub; **Run** in Desktop, an event, or `mrmr flow run` starts an actual run. Until then, the file is inert documentation in your repo.
 
-Compare with the full flow's intake + write_spec in [Part 5 of the original tutorial](../01-local-preview-review/05-flow-manifest).
+`apiVersion: murrmure.flow/v1` pins the manifest shape the compiler expects.
 
-## Step 2 — Handler (space execution)
+### Triggers — start conditions in the description
 
-Add to `.mrmr/space/handlers.yaml` (create the file if missing):
+`triggers` is part of the same description. It records **which kinds of starts are allowed** for this flow — not an active listener. Something else (you clicking **Run**, a schedule job, another flow) must still act; the manifest only says whether that action is valid.
 
-```yaml
-version: 1
+| Key | Type | Meaning |
+|-----|------|---------|
+| `manual` | boolean | A human or CLI may request a run (Desktop **Run**, `mrmr flow run`). `true` for this tutorial. |
+| `flow_call` | boolean | Another flow may start this one as a sub-flow (`start_flow` step). |
+| `events` | list | Event types that may start the flow, e.g. `{ type: "spec.published", source: "webhook" }`. |
+| `schedule` | string or `null` | Cron expression for scheduled starts (e.g. `0 9 * * *`). `null` = not schedulable. |
+| `idempotency` | string | Optional dedup key template for event/schedule starts. |
 
-x-agent-cmd: &agent_cmd cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output
+For this tutorial, **`manual: true`** is enough.
 
-handlers:
-  - id: mini_write_spec
-    contract_keys: [preview-review-mini.write_spec]
-    on: step.opened
-    type: shell_spawn
-    complete: explicit
-    params:
-      spec_path: "{{murrmure.step.intake.artifact.spec.path}}"
-      spec_filename: "{{input.spec_filename}}"
-    prompt: |
-      Copy the intake spec into the repo.
+Human UI does **not** belong under `triggers`. Views attach to **steps** via `presentation.view` ([Part 3](./03-build-intake-view)).
 
-      Source (step artifact): {{spec_path}}
-      Destination: specs/current/{{spec_filename}}
+### Default branches (linear steps)
 
-      Create `specs/current/` if needed. Then resolve the step:
-      `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "write_spec", branch: "completed" })`
-    command: *agent_cmd
-    cwd: "{{space_root}}"
-    delivery: fail_fast
-    timeout_ms: 3600000
+For a normal pipeline step, you only need **`id`** and **`description`**. The compiler adds two branches:
+
+| Branch | Meaning |
+|--------|---------|
+| **`completed`** | Success — opens the **next step** in the `steps` list (last step ends the run) |
+| **`failed`** | Failure — ends the run (`fail_run: true` by default) |
+
+You will use default branches for **`write_spec`** and **`cleanup`** in [Part 5](./05-extend-flow-and-handlers) and [Part 6](./06-cleanup-and-commit). **`build`** declares explicit **`branches`** because its **`completed`** resolve must carry **`commit_message`** and **`description`** in the payload.
+
+**Intake is different** — it is a human checkpoint with **Submit** / **Cancel** and a file upload, so you declare **`continue`** and **`cancel`** explicitly (not `completed` / `failed`).
+
+Human steps with custom outcomes still declare **`branches`** explicitly (intake uses **`continue`** / **`cancel`** in [Part 2](./02-build-minimal-flow)).
+
+## Step 2 — One step: intake only
+
+Open the file from Step 1 and append the `steps` block:
+
+```diff
+ triggers:
+   manual: true
++
++steps:
++  - id: intake
++    description: Human attaches one spec markdown file.
++    branches:
++      continue:
++        schema:
++          type: object
++          required: [spec]
++        artifact_slots:
++          spec:
++            description: The spec markdown file
++            max_bytes: 1048576
++        next: null
++      cancel:
++        schema: { type: object }
++        fail_run: true
 ```
 
-The `command` line is one example — it spawns a Cursor agent session. Use whatever launches an agent in your tool; the prompt and `murrmure_resolve_step` call are what matter.
+Save the file. Do not run `mrmr space apply` yet — add the intake view in [Part 3](./03-build-intake-view) first.
 
-### Contract keys — the wire between flow and space
+### What you added
 
-When apply indexes your manifest, the hub builds keys like:
+| Key | In this step |
+|-----|----------------|
+| `id` | Step name — `intake`. Used when resolving the step and in the journal. |
+| `description` | What happens here, for humans reading the manifest. |
+| `branches` | **Explicit** — human intake uses `continue` / `cancel`, not the default `completed` / `failed`. |
 
-```text
-preview-review-mini.intake        (human — no handler)
-preview-review-mini.write_spec    (agent — needs handler)
-```
+### Branches on `intake`
 
-The handler's `contract_keys: [preview-review-mini.write_spec]` is the binding. Same flow manifest can run in different spaces with different handlers — that is **portability**.
+Each key under `branches` is an **outcome name** — what gets passed to `resolve_step` as `branch: "continue"` or `branch: "cancel"`.
 
-`on: step.opened` + `complete: explicit` means: spawn the agent, then wait until something calls **`murrmure_resolve_step`** (or `mrmr step resolve`).
+**`continue`** — success path:
 
-See [Space handlers](../../space-handlers) and [Part 4 of the full tutorial](../01-local-preview-review/04-prompt-triggers) for the long-form reference.
+- `schema.required: [spec]` — resolve **must** include the `spec` artifact. Names in `required` that match `artifact_slots` are **file slots**, not payload fields — there is no `spec_filename` (or other form data) on this branch.
+- `artifact_slots.spec` — the markdown file (max 1 MiB). The original filename travels with the upload in `artifacts_out`.
+- `next: null` — no further step; the run ends after intake (this tutorial has only one step).
 
-## Step 3 — Intake view (human UI)
+**`cancel`** — abort:
 
-Scaffold and install:
+- `fail_run: true` — run ends as failed.
+- `schema: { type: object }` — no extra fields required.
 
-```bash
-cd ~/work/my-first-space
-mrmr space view init spec-intake
-cd .mrmr/views/spec-intake
-npm install
-```
-
-Replace `src/App.tsx` with a minimal file picker (no reviewer field — this mini flow does not need it):
-
-```tsx
-import { useRef, useState } from "react";
-import { useViewSubmit } from "@murrmure/view-sdk/app";
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("Failed to read file"));
-        return;
-      }
-      const base64 = result.includes(",") ? result.split(",")[1]! : result;
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
-export function App() {
-  const { submit, cancel } = useViewSubmit();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [specFilename, setSpecFilename] = useState("feature-spec.md");
-  const [specFile, setSpecFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const canSubmit = Boolean(specFilename.trim() && specFile);
-
-  return (
-    <main style={{ fontFamily: "system-ui", padding: "1.5rem", maxWidth: 480 }}>
-      <h1>Attach a spec</h1>
-      <p>Choose a markdown file from your computer. Murrmure stores it as a step artifact.</p>
-      <label style={{ display: "block", marginBottom: "1rem" }}>
-        <span style={{ fontWeight: 600 }}>Filename in repo</span>
-        <input
-          type="text"
-          value={specFilename}
-          onChange={(e) => setSpecFilename(e.target.value)}
-          style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box" }}
-        />
-      </label>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".md,.markdown,.txt,text/markdown,text/plain"
-        onChange={(e) => {
-          const file = e.target.files?.[0] ?? null;
-          setSpecFile(file);
-          if (file?.name) setSpecFilename(file.name);
-          setError(null);
-        }}
-      />
-      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-        <button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={async () => {
-            if (!specFile) return;
-            setSubmitting(true);
-            setError(null);
-            try {
-              const content_base64 = await fileToBase64(specFile);
-              await submit(
-                { spec_filename: specFilename.trim() },
-                [{ slot: "spec", filename: specFilename.trim(), content_base64 }],
-              );
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Submit failed");
-              setSubmitting(false);
-            }
-          }}
-        >
-          {submitting ? "Uploading…" : "Continue"}
-        </button>
-        <button type="button" onClick={() => cancel()} disabled={submitting}>
-          Cancel
-        </button>
-      </div>
-    </main>
-  );
-}
-```
-
-Build the view bundle (required before apply):
-
-```bash
-npm run build
-cd ../../..
-```
-
-`useViewSubmit().submit(payload, artifacts)` → view SDK calls hub **resolve_step** for you. The human never touches MCP.
-
-## Step 4 — Prepare a spec file (outside the repo)
-
-Save anywhere on disk, e.g. `~/Documents/feature-spec.md`:
-
-```markdown
-# Hero section
-
-Add a hero block above the heading:
-
-- Headline: "Ship features with confidence"
-- Subtext: one short sentence
-```
-
-You attach this at intake in Part 3 — it is **not** in the repo beforehand.
-
-## Step 5 — Index to the hub
-
-```bash
-mrmr space apply --strict
-mrmr space doctor
-mrmr space status
-```
-
-Strict apply fails fast if:
-
-- View `dist/` is missing → run `npm run build` in the view folder
-- **`HANDLER_MISSING`** → agent step has no matching `contract_keys`
-- Legacy manifest shapes → use `branches` + `role` / `presentation` (v2.2)
-
-After success, `mrmr space status` should list:
-
-| Item | Expected |
-|------|----------|
-| Flow | `preview-review-mini` |
-| View | `spec-intake` |
-| Handler | `mini_write_spec` |
-
-Apply also writes `.mrmr/dev/contracts/contract-keys.json` — open it to see the keys your handler must cover.
+That is all you need for this step. Loops and richer routing are in the [full tutorial manifest](../01-local-preview-review/05-flow-manifest).
 
 ## Checkpoint
 
-- [ ] Two-step manifest: `intake` → `write_spec` (terminal on `completed`)
-- [ ] Handler `mini_write_spec` covers `preview-review-mini.write_spec`
-- [ ] `spec-intake` view built to `dist/`
-- [ ] `mrmr space apply --strict` succeeds
-- [ ] Spec `.md` saved outside the repo for Part 3
+- [ ] `.mrmr/flows/my-dev-flow/flow.manifest.yaml` exists with flow shell + single `intake` step
+- [ ] Flow name is **`my-dev-flow`**
+- [ ] `triggers.manual: true`
+- [ ] `intake` has explicit `branches.continue` + `branches.cancel`, **no** `presentation.view` yet
+- [ ] `continue` is **file-only**: `schema.required: [spec]` + `artifact_slots.spec` — no payload fields like `spec_filename`
 
 ## Next
 
-[Part 3 — Run it and read what Murrmure did →](./03-run-and-understand)
+[Part 3 — Build the intake view →](./03-build-intake-view)

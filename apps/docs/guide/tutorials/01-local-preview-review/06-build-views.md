@@ -2,7 +2,7 @@
 
 Checkpoint steps need **custom views** — React apps built to `dist/` and indexed on apply. Shell built-in forms are operator fallback only.
 
-Views live under **`.mrmr/views/{view-id}/`**. Compare with the [canonical views tree](../../../../examples/flows/preview-review-v2/.mrmr/views/).
+Views live under **`.mrmr/views/{view-id}/`**. Each view is a small Vite + React package scaffolded in the steps below.
 
 ## Intake view
 
@@ -19,7 +19,7 @@ npm install
 
 Large specs must not go inline in the resolve payload. Upload via **`artifact_slots`** (see flow manifest `continue` branch).
 
-Replace `src/App.tsx` (based on [preview-review-v2 intake view](../../../../examples/flows/preview-review-v2/.mrmr/views/preview-review-intake/src/App.tsx)):
+Replace `src/App.tsx` with the intake form below:
 
 ```tsx
 import { useRef, useState } from "react";
@@ -254,7 +254,7 @@ export function App() {
 }
 ```
 
-See the full [canonical review view](../../../../examples/flows/preview-review-v2/.mrmr/views/preview-review/src/App.tsx) for comment normalization and layout polish.
+The review view can add comment normalization and layout polish on top of this baseline.
 
 ### Step 3 — Build
 

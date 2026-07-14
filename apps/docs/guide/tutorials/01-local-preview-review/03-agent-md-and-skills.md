@@ -51,14 +51,7 @@ Separate agent steps after parent **build** completes — resolve when prompted 
 mkdir -p skills/feature-build
 ```
 
-Copy from the reference example or write `skills/feature-build/SKILL.md` documenting:
-
-- Contract file loop (`active-step-contract.json`, `MURRMURE_STEP_CONTRACT`)
-- **`murrmure_resolve_step`** on **`build.build-loop`**
-- **`murrmure_wait_for_run`** during human review
-- Never resolve **`build.review`** yourself
-
-See [preview-review-v2 example](../../../../examples/flows/preview-review-v2/skills/feature-build/SKILL.md).
+Write `skills/feature-build/SKILL.md` documenting the bullets in Step 2 above — same resolve/wait rules as `agent.md`.
 
 ## Step 3 — Preview URL discovery (no hub config file)
 
@@ -86,7 +79,7 @@ You can rewrite `agent.md` tomorrow without `mrmr space apply`. Change the flow 
 | **Execution** | `.mrmr/space/handlers.yaml` | Harness command, prompt template, `contract_keys` |
 | **Agent** | `agent.md`, `skills/feature-build/SKILL.md` | Domain behavior the prompt references |
 
-Compare handler prompts in [`preview-review-v2/.mrmr/space/handlers.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/space/handlers.yaml) with this repo's `agent.md`.
+Handler `prompt:` templates in Part 4 should echo the same rules as `agent.md`.
 
 ## Checkpoint
 

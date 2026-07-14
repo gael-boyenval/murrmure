@@ -13,16 +13,20 @@ Murrmure agents connect through the `murrmure-mcp` bridge. Humans work in Deskto
 
 ## Before you start
 
-1. Desktop is running (hub discovery is written to `~/.murrmure/hubs/shared.json`)
+1. **Murrmure Desktop** is running (hub discovery is written to `~/.murrmure/hubs/shared.json`, including the bundled bridge path)
 2. A target space exists (`spc_...`)
-3. Node.js 20+ and `@murrmure/cli` installed
+3. **`@murrmure/cli`** installed (`npm install -g @murrmure/cli`) — for setup, grants, and apply
 4. Optional but recommended: `mrmr skill install --variant agent`
 
-## 1) Install CLI and MCP bridge
+You do **not** install `@murrmure/mcp-bridge` separately when Desktop is running — the app ships `murrmure-mcp` and publishes its path in discovery. Use `npm install -g @murrmure/mcp-bridge` only for **headless/CI** setups without Desktop.
+
+## 1) CLI only (bridge comes from Desktop)
 
 ```bash
-npm install -g @murrmure/cli @murrmure/mcp-bridge
+npm install -g @murrmure/cli
 ```
+
+When Desktop starts the hub, `shared.json` includes `mcp_bridge.command` (absolute path to the bundled bridge). `mrmr grant mint`, **Copy MCP config** in Desktop, and `mrmr doctor` all use that path in the MCP snippet — so your agent IDE does not need the bridge on global PATH.
 
 ## 2) Mint and activate a grant
 
@@ -44,13 +48,13 @@ Run that export in the shell that launches your IDE/agent.
 
 ## 3) MCP config (thin shape)
 
-Use `mrmr grant mint` prompt to write this automatically, or paste manually:
+Use `mrmr grant mint` (or Desktop **Copy MCP config**) to write this automatically, or paste manually. With Desktop running, `command` is typically an **absolute path** to the bundled bridge, not the string `"murrmure-mcp"`:
 
 ```json
 {
   "mcpServers": {
     "murrmure": {
-      "command": "murrmure-mcp",
+      "command": "/path/to/Murrmure.app/.../Resources/mcp-bridge/main.js",
       "env": {
         "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
       }
@@ -58,6 +62,8 @@ Use `mrmr grant mint` prompt to write this automatically, or paste manually:
   }
 }
 ```
+
+Headless hubs (no Desktop) use `"command": "murrmure-mcp"` with `@murrmure/mcp-bridge` on PATH instead.
 
 - Default location: `~/.cursor/mcp.json`
 - Project-only option: `mrmr grant mint --local` (writes `./.cursor/mcp.json`)

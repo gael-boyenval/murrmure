@@ -135,7 +135,7 @@ Inside a `.mrmr/` repo, legacy `mrmr flow init` redirects to `mrmr space flow in
 
 ## Preview-review handlers walkthrough
 
-Reference: `examples/flows/preview-review-v2/.mrmr/space/handlers.yaml`.
+Reference: [Tutorial 1b handlers](../../apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md) — full `handlers.yaml` snippet.
 
 | Handler | contract_keys | Role |
 |---------|---------------|------|

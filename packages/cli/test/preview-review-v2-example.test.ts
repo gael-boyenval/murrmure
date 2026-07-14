@@ -19,7 +19,7 @@ import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-const EXAMPLE_ROOT = join(REPO_ROOT, "examples/flows/preview-review-v2");
+const EXAMPLE_ROOT = join(REPO_ROOT, "test-utils/spaces/preview-review-v2");
 const MURRMURE_ROOT = join(EXAMPLE_ROOT, ".mrmr");
 const NESTED_STEP_IDS = ["intake", "write_spec", "build", "archive", "commit"];
 const PREVIEW_REVIEW_FLOW_ID = "flw_flows_preview_review";

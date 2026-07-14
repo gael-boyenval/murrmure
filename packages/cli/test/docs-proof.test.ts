@@ -116,7 +116,7 @@ describe("phase 10 docs proof (10-T*)", () => {
   });
 
   test("10-T1 — preview-review-v2 example passes apply lint (v2.2 step contracts)", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/preview-review-v2"), [
+    assertStrictApply(join(REPO_ROOT, "test-utils/spaces/preview-review-v2"), [
       "preview-review",
       "preview-review-intake",
     ]);
@@ -125,14 +125,8 @@ describe("phase 10 docs proof (10-T*)", () => {
   test("10-T1b — preview-review manifest uses nested build + resolve_step", () => {
     const manifestPath = join(
       REPO_ROOT,
-      "examples/flows/preview-review-v2/.mrmr/flows/preview-review/flow.manifest.yaml",
+      "test-utils/spaces/preview-review-v2/.mrmr/flows/preview-review/flow.manifest.yaml",
     );
-    const readme = readFileSync(
-      join(REPO_ROOT, "examples/flows/preview-review-v2/README.md"),
-      "utf-8",
-    );
-    expect(readme).toMatch(/resolve_step|build\.build-loop/i);
-    expect(readme).not.toMatch(/murrmure_complete_action|murrmure_wait_for_gate/i);
     const manifest = parseYaml(readFileSync(manifestPath, "utf-8")) as {
       steps: Array<{ id: string; steps?: Array<{ id: string }> }>;
     };
@@ -142,15 +136,11 @@ describe("phase 10 docs proof (10-T*)", () => {
   });
 
   test("10-T2 — team-brief-v2 example passes apply lint (handlers + step contracts)", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/team-brief-v2"));
+    assertStrictApply(join(REPO_ROOT, "test-utils/spaces/team-brief-v2"));
   });
 
   test("10-T3 — daily-brief-v2 example passes apply lint (handlers + step contracts)", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/daily-brief-v2"), ["daily-brief"]);
-  });
-
-  test("10-U5 — demo-space passes apply lint (handlers + protocol-only flow)", () => {
-    assertStrictApply(join(REPO_ROOT, "demo-space"));
+    assertStrictApply(join(REPO_ROOT, "test-utils/spaces/daily-brief-v2"), ["daily-brief"]);
   });
 
   test("10-U5b — root .mrmr/space passes apply lint (feedback event handlers)", () => {
@@ -158,10 +148,10 @@ describe("phase 10 docs proof (10-T*)", () => {
   });
 
   test("flows-tutorial example hello-authoring passes apply lint (handlers + step contracts)", () => {
-    assertStrictApply(join(REPO_ROOT, "examples/flows/hello-authoring"));
+    assertStrictApply(join(REPO_ROOT, "test-utils/spaces/hello-authoring"));
   });
 
-  test("minimal-mrmr fixture passes apply lint (handlers-only space)", () => {
+  test("10-U5 — minimal-mrmr fixture passes apply lint (handlers-only space)", () => {
     assertStrictApply(
       join(REPO_ROOT, "studio-specs/current/fixtures/spaces/minimal-mrmr"),
     );
@@ -250,8 +240,8 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
-  test("VS-6 — examples flow manifests ban executor.action", () => {
-    const examplesRoot = join(REPO_ROOT, "examples/flows");
+  test("VS-6 — test-utils flow manifests ban executor.action", () => {
+    const examplesRoot = join(REPO_ROOT, "test-utils/spaces");
     const flowManifests = collectFiles(
       examplesRoot,
       (entry) => entry.endsWith("flow.manifest.yaml") || entry.endsWith("flow.manifest.yml"),
@@ -274,6 +264,16 @@ describe("phase 10 docs proof (10-T*)", () => {
         if (!LEGACY_MURRMURE_LAYOUT.test(line)) continue;
         expect(line, `${rel}: ${line.trim()}`).toMatch(/legacy/i);
       }
+    }
+  });
+
+  test("DOC-EXAMPLES-01 — apps/docs must not reference examples/", () => {
+    const docsRoot = join(REPO_ROOT, "apps/docs");
+    const files = collectMarkdownFiles(docsRoot);
+    for (const file of files) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const content = readFileSync(file, "utf-8");
+      expect(content, rel).not.toMatch(/examples\/(flows|workers|capabilities)/);
     }
   });
 
@@ -310,7 +310,9 @@ describe("phase 10 known-gaps sync (10-U4)", () => {
           /See \[Creating flows\]\(\.\/creating-flows\)[^\n]+/,
           "See [Creating flows](./creating-flows) and [Quick start](./quick-start).",
         ) ?? "";
-    expect(humanSection).toBe(skillSection);
+    const normalizeEntities = (text: string) =>
+      text.replace(/&#123;/g, "{").replace(/&#125;/g, "}");
+    expect(normalizeEntities(humanSection)).toBe(normalizeEntities(skillSection));
   });
 });
 

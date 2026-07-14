@@ -71,7 +71,7 @@ Ask your connected agent:
 
 ## Next steps
 
-- Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (3 parts)
+- Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (6 parts)
 - Build the full workflow: [Tutorial 1b — Local preview review](./tutorials/01-local-preview-review/)
 - [Creating flows](./creating-flows) · [Space handlers](./space-handlers) · [All tutorials](./tutorials/)
 - [Murrmure Desktop](./desktop) · [Connect your agent](./agents-mcp)

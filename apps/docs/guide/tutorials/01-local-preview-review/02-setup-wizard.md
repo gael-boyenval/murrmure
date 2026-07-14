@@ -76,7 +76,7 @@ apiVersion: murrmure.space/v1
 slug: my-feature-site
 ```
 
-Compare layout with [`examples/flows/preview-review-v2/.mrmr/space/space.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/space/space.yaml).
+Your `space.yaml` should declare the slug and optional `link:` block once the space is linked — see Part 2 for the full file.
 
 ## Already onboarded?
 

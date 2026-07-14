@@ -41,7 +41,7 @@ mrmr space doctor
 | `HANDLER_KEY_CONFLICT` | error | Two handlers claim the same key — dedupe |
 | `HANDLER_LEGACY_ACTIONS` | warning | Migrate `actions.yaml` triggers to `handlers.yaml` |
 
-Compare your bundle against the [preview-review-v2 example](../../../../examples/flows/preview-review-v2/) — it passes strict apply with zero handler warnings.
+When strict apply passes with zero handler warnings, your bundle matches the tutorial shape.
 
 ## Step 4 — Verify status
 

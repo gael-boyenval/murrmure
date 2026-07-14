@@ -1,9 +1,0 @@
-{
-  "scenario": "bc-min-push-apply",
-  "steps": [
-    "studio capability init demo-flow --dir /tmp/demo-flow",
-    "studio capability validate /tmp/demo-flow",
-    "studio capability build /tmp/demo-flow",
-    "studio capability push --space spc_ui_sandbox"
-  ]
-}

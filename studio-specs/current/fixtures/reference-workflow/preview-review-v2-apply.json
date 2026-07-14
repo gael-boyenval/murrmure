@@ -1,6 +1,6 @@
 {
   "description": "Phase 06 — preview-review-v2 reference example passes space apply --strict (R1)",
-  "example_root": "examples/flows/preview-review-v2",
+  "example_root": "test-utils/spaces/preview-review-v2",
   "command": "mrmr space apply --strict",
   "tree": [
     ".mrmr/space/handlers.yaml",

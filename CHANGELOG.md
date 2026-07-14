@@ -27,7 +27,7 @@
 
 - **Removed FDK worker runtime** — no `FlowWorkerPool`, `MountRegistry`, live apply, or capability worker bundles in `@murrmure/hub-daemon`.
 - **Removed `@murrmure/flow-dev-kit` / `@murrmure/flow-kit`** package and all CLI FDK commands (`mrmr flow init`, `validate`, `build`, `push`, `dev --sim`, evolution subcommands).
-- **Removed** `examples/capabilities/` CDK reference trees. Use `examples/flows/preview-review-v2/` and `mrmr space apply` instead.
+- **Removed** `examples/capabilities/` CDK reference trees. Strict-apply test spaces live under `test-utils/spaces/`.
 - **`mrmr flow status` / `mrmr flow list`** now read **indexed** flows via `/v1/spaces/:id/index/flows` (no `.flow-push-state.json`).
 - Deleted human docs: `flow-evolution`, `reference/flow-dev-kit`.
 

@@ -3,10 +3,10 @@
 Build a real workflow on a static site repo with **Cursor** as the agent. One human attaches a **spec from their computer**; the agent writes it into the repo, implements, loops on **live review in one long agent session**, then **archives** the spec and **commits**.
 
 ::: tip New to Murrmure?
-Start with **[Tutorial 1a — First flow (v3)](../01-local-preview-review-v3/)** (3 parts: Desktop + space, two-step flow, run internals). Return here for the full build/review/archive/commit loop.
+Start with **[Tutorial 1a — First flow (v3)](../01-local-preview-review-v3/)** (6 parts: Desktop + space, flow, view, runs, build, cleanup). Return here for the full build/review/archive/commit loop.
 :::
 
-**Canonical reference:** [`examples/flows/preview-review-v2/.mrmr/`](../../../../examples/flows/preview-review-v2/.mrmr/) — compare your tree to this layout throughout the tutorial.
+Follow each part in order — every manifest, handler, and view is built step by step in this tutorial.
 
 ## What you will learn
 

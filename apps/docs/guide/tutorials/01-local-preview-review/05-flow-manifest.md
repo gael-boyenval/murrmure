@@ -2,8 +2,6 @@
 
 The flow manifest is **protocol-only orchestration**: step ids, branches, param wiring, nested review under **build**. No build logic and **no `executor.action`** — execution lives in `.mrmr/space/handlers.yaml`.
 
-**Reference:** [`examples/flows/preview-review-v2/.mrmr/flows/preview-review/flow.manifest.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/flows/preview-review/flow.manifest.yaml)
-
 ## Step 1 — Create the file
 
 `.mrmr/flows/preview-review/flow.manifest.yaml`:

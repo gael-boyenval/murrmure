@@ -55,7 +55,7 @@ Key normative docs:
 - [build-capability/acceptance.md](./build-capability/acceptance.md) — FDK definition of done
 
 Runnable reference flows live in the repo at
-[`examples/flows/`](../../examples/flows/) (or legacy `examples/capabilities/` during migration), not in `packages/`.
+[`test-utils/spaces/`](../../test-utils/spaces/) — strict-apply fixtures for CI and manual smoke; not linked from `apps/docs/`.
 
 ## Doc types
 

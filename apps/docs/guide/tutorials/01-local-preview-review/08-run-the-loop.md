@@ -4,8 +4,6 @@ Walk through one full run: intake → write_spec → build (nested loop) → (op
 
 Open the space in Cursor (`cursor .`). Keep `agent.md` and **`skills/feature-build/SKILL.md`** in mind — the build agent should follow them for the whole session.
 
-**Reference run:** [`examples/flows/preview-review-v2/`](../../../../examples/flows/preview-review-v2/)
-
 ## Step 1 — Start dev server (optional)
 
 ```bash
@@ -133,8 +131,6 @@ Run status: **completed**.
 | Product | HTML site |
 
 Murrmure coordinated **when**; handlers defined **what runs**; you defined **how**.
-
-Canonical tree: [`examples/flows/preview-review-v2/.mrmr/`](../../../../examples/flows/preview-review-v2/.mrmr/)
 
 ## Next
 

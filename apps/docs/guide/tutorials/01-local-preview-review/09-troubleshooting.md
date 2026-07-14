@@ -56,7 +56,7 @@ Parent handler **`timeout_ms`** excludes human **`awaiting_human`** time — bui
 
 ## Reference
 
-Compare your `.mrmr/` tree with [`examples/flows/preview-review-v2/.mrmr/`](../../../../examples/flows/preview-review-v2/.mrmr/) — it passes `mrmr space apply --strict` with full handler coverage.
+Re-run `mrmr space doctor` and `mrmr space apply --strict` — both should pass when your tree matches the tutorial parts.
 
 ## Next
 

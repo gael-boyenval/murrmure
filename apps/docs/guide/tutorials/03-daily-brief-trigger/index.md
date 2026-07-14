@@ -23,8 +23,6 @@ Human clicks "Run daily brief" in view
   → human marks done → run completes
 ```
 
-Compare when stuck: [`examples/flows/daily-brief-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/daily-brief-v2/.mrmr).
-
 ## Pages
 
 1. [Initialize and write the flow](./01-scaffold-daily-brief)

@@ -77,7 +77,7 @@ Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id
 @murrmure/shell-web            observer shell (Desktop webview)
 @murrmure/shell-client         typed shell HTTP client
 @murrmure/view-sdk             custom view iframe protocol
-examples/flows/                reference flows (preview-review-v2, …)
+test-utils/spaces/             CI/manual test spaces (preview-review-v2, …)
 ```
 
 See per-domain specs under `studio-specs/current/` for route tables, wire formats, and acceptance criteria.

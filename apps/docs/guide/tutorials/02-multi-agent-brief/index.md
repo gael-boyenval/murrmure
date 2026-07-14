@@ -29,8 +29,6 @@ Orchestrator space                    Knowledge space
 | `.mrmr/space/handlers.yaml` | Step handlers + `brief.published` event wake |
 | Grants | Cross-space query + step resolve on each space |
 
-Compare when stuck: [`examples/flows/team-brief-v2/`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2/.mrmr) — diff only, do not clone as the tutorial path.
-
 ## Pages
 
 1. [Build orchestrator flow](./01-build-orchestrator-flow) — init space, write manifest and handlers

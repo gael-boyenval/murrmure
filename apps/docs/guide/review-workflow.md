@@ -1,6 +1,6 @@
 # Review workflow (v2.2 step contracts)
 
-Canonical human/agent preview review on **indexed flows** — example: [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2).
+Canonical human/agent preview review on **indexed flows**. Walkthrough: [Tutorial 1b — Local preview review](./tutorials/01-local-preview-review/).
 
 Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md).
 
@@ -15,9 +15,9 @@ Humans work in **ViewCanvasHost** at human steps (`presentation.view`). Shell ch
 ## Setup
 
 ```bash
-cd examples/flows/preview-review-v2/.mrmr/views/preview-review-intake && npm install && npm run build
+cd .mrmr/views/preview-review-intake && npm install && npm run build
 cd ../preview-review && npm install && npm run build
-cd ../../..
+cd ../..
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
 mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:resolve,space:read,journal:read

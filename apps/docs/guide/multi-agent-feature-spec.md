@@ -2,7 +2,7 @@
 
 Three folders on your machine. Three agents in three IDEs. One feature spec that crosses all of them — with **your approval** before dev writes anything.
 
-**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/). **Example:** [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2).
+**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/).
 
 **Desktop for humans (ViewCanvasHost at checkpoints). MCP for agents. CLI for admin.**
 

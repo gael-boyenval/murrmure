@@ -33,9 +33,7 @@ covered by [current/acceptance.md](./current/acceptance.md) and
 flow runtime (install → validate → test → apply → live worker), triggers,
 same-hub cross-space queries (XS0), and the feature-spec reference flow.
 
-Reference flows `feature-spec` and `review-loop` live under
-[`../examples/capabilities/`](../examples/capabilities/). Platform packages
-(`packages/`) contain no bundled workflow flows.
+Strict-apply test spaces live under [`../test-utils/spaces/`](../test-utils/spaces/). Platform packages (`packages/`) contain no bundled workflow flows.
 
 ## What is deferred
 

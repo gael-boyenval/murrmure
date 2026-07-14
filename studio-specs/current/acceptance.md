@@ -28,11 +28,11 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 
 | Artifact | Proves | Test |
 |----------|--------|------|
-| `demo-space/murrmure/` | CI strict apply on linked demo tree | `.github/workflows/ci.yml` demo-space step |
-| `examples/flows/preview-review-v2/` | Tutorial 1 + R1–R6 | `packages/cli/test/preview-review-v2-example.test.ts` |
-| `examples/flows/team-brief-v2/` | Tutorial 2 tree | `packages/cli/test/docs-proof.test.ts` |
-| `examples/flows/daily-brief-v2/` | Tutorial 3 tree | `packages/cli/test/docs-proof.test.ts` |
-| `examples/flows/hello-authoring/` | Flows tutorial tree | `packages/cli/test/docs-proof.test.ts` |
+| `studio-specs/current/fixtures/spaces/minimal-mrmr/` | CI strict apply on minimal handlers tree | `packages/cli/test/docs-proof.test.ts` (10-U5) |
+| `test-utils/spaces/preview-review-v2/` | Reference workflow R1–R6 | `packages/cli/test/preview-review-v2-example.test.ts` |
+| `test-utils/spaces/team-brief-v2/` | Tutorial 2 tree (CI) | `packages/cli/test/docs-proof.test.ts` |
+| `test-utils/spaces/daily-brief-v2/` | Tutorial 3 tree (CI) | `packages/cli/test/docs-proof.test.ts` |
+| `test-utils/spaces/hello-authoring/` | Minimal handlers space (CI) | `packages/cli/test/docs-proof.test.ts` |
 | Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
 | Zero FDK in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
 | Tutorial pages (16) | 10-T4 | `packages/cli/test/docs-proof.test.ts` |
@@ -105,11 +105,11 @@ See [build-capability/acceptance.md](./build-capability/acceptance.md). Conforma
 ## Reference workflow — preview-review-v2 (RW)
 
 Layered verification per [decision 10](../plans/product/plan/decisions/10-reference-workflow-verification-layered.md).
-Example tree: [`examples/flows/preview-review-v2/`](../../examples/flows/preview-review-v2/).
+Test tree: `test-utils/spaces/preview-review-v2/`.
 
 | ID | Fixture / artifact | Proves | Layer | Test |
 |----|-------------------|--------|-------|------|
-| R1 | `examples/flows/preview-review-v2/` + `fixtures/reference-workflow/preview-review-v2-apply.json` | Normative tree passes `space apply --strict` | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
+| R1 | `test-utils/spaces/preview-review-v2/` + `fixtures/reference-workflow/preview-review-v2-apply.json` | Normative tree passes `space apply --strict` | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
 | R3 | shell ViewCanvasHost | Checkpoint view in primary region (not drawer) | CI | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
 | R4 | `fixtures/flow-engine/gate-loop-on-resolve.json` | Request changes → build reruns (engine half) | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
 | R5 | `fixtures/flow-engine/declarative-gate-chain.json` | Validated → terminal completed | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |

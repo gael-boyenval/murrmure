@@ -4,7 +4,23 @@
 
 ## Active
 
-_No active implementation plans._ New work should start here only when a slice needs a tracked plan before landing in `current/`.
+| Plan | Goal |
+|------|------|
+| [2026-07-13-tutorial-v3-full-alignment.md](./2026-07-13-tutorial-v3-full-alignment.md) | **Coordinating delivery plan** — make Tutorial 1 v3 true end to end across code, security, tests, specs, docs, skills, scaffolds, and packaged Desktop; defines parallel workstreams, path ownership, merge waves, and full-completion gates |
+| [2026-07-14-tutorial-v3-build-tasks/](./2026-07-14-tutorial-v3-build-tasks/) | **Ordered implementation backlog** — 15 dependency-ordered, mostly vertical tasks with user stories, contracts, automated/manual tutorial testing, docs/skills/spec surfaces, ADR gates, and done criteria |
+| [2026-07-10-hub-clean-slate-boot.md](./2026-07-10-hub-clean-slate-boot.md) | Hub and Desktop start with **no seed contracts**; remove `PACKAGE_CATALOG` and FDK stubs; move `linear-demo-v2` to `test-utils/`; audit hardcoded production stub data |
+| [2026-07-10-desktop-mcp-bridge-exposure.md](./2026-07-10-desktop-mcp-bridge-exposure.md) | Verify bundled MCP bridge is exposed via `shared.json` → `mcp_bridge.command`; no separate npm install when Desktop is installed |
+| [2026-07-10-agent-grant-onboarding.md](./2026-07-10-agent-grant-onboarding.md) | **Participant connection onboarding** — connection create/activate CLI, least-privilege profile, credential storage, and harness-agnostic MCP/skills integration adapters |
+| [2026-07-10-flow-branch-api-simplify.md](./2026-07-10-flow-branch-api-simplify.md) | **Phase 0 research** → unify branch routing; cleanly remove flow `role`/`presentation` so steps remain resolver-agnostic |
+| [2026-07-10-step-default-branches.md](./2026-07-10-step-default-branches.md) | **Default `completed` / `failed`** branches from step order; remove resolver modality from authored/compiled steps |
+| [2026-07-10-handler-authoring-simplify.md](./2026-07-10-handler-authoring-simplify.md) | `on: step.opened::{key}`, `view_resolver`, default `cwd`/`delivery`, and space-owned resolver binding |
+| [2026-07-10-agent-prompt-protocol-simplify.md](./2026-07-10-agent-prompt-protocol-simplify.md) | Slim agent prompt protocol — Task = workflow; protocol = contracts + MCP tools; Discovery/Resolve API only when `contract_keys.length > 1` |
+| [2026-07-10-branch-schema-artifact-validation.md](./2026-07-10-branch-schema-artifact-validation.md) | Branch `schema.required` + View SDK enforce **artifact uploads** as part of resolve validation (file-only intake) |
+| [2026-07-10-view-sdk-contracts-and-upload.md](./2026-07-10-view-sdk-contracts-and-upload.md) | Space-owned `view_resolver`, branch contracts in View context, safe file submission, and complete removal of built-in resolver forms |
+| [2026-07-10-run-scratch-path-normalize.md](./2026-07-10-run-scratch-path-normalize.md) | **One canonical path** for run step workdirs/artifacts — `.mrmr.temp/runs` vs `.mrmr/dev/runs` drift |
+| [2026-07-13-shell-space-home-and-flow-viz.md](./2026-07-13-shell-space-home-and-flow-viz.md) | Shell UI: **unified Flows card** + scrollable Recent completed; flow detail = flowchart view with **Run in header**, branch/gate fan-out, **fail terminal block**, and per-step **meta** (branches/contracts/handlers) |
+
+New work should start here only when a slice needs a tracked plan before landing in `current/`.
 
 ## Shipped (archived 2026-07-09)
 

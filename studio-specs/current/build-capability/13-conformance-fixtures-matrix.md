@@ -1,7 +1,7 @@
 # Conformance fixtures matrix
 
 **Status:** normative index (2026-06-21)  
-**Fixtures root:** `../fixtures/build-capability/` (to be implemented)
+**Fixtures root:** `../fixtures/build-capability/` — **removed** (never wired to tests; matrix retained as planned CDK scenarios).
 
 ---
 

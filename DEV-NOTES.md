@@ -55,4 +55,4 @@ pnpm --filter @murrmure/cli test docs-proof preview-review-v2
 
 ## Known gaps
 
-- Other example flows (`team-brief-v2`, `daily-brief-v2`, `hello-authoring`, `demo-space`) still use legacy manifests — strict apply throws until migrated (out of VS-8 scope).
+- See [apps/docs/guide/known-gaps.md](./apps/docs/guide/known-gaps.md) for current operator-visible gaps.

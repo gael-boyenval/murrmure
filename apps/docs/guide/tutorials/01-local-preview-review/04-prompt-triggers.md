@@ -4,8 +4,6 @@
 
 The space owns *what runs* when Murrmure opens an agent step — not the flow manifest.
 
-**Reference:** [`examples/flows/preview-review-v2/.mrmr/space/handlers.yaml`](../../../../examples/flows/preview-review-v2/.mrmr/space/handlers.yaml)
-
 ## Step 1 — Contract keys index
 
 After your first `mrmr space apply`, the CLI writes `.mrmr/dev/contracts/contract-keys.json` — a flat list of keys your handlers must cover:
@@ -109,8 +107,6 @@ handlers:
     delivery: fail_fast
     timeout_ms: 3600000
 ```
-
-Copy the full file from the [canonical example](../../../../examples/flows/preview-review-v2/.mrmr/space/handlers.yaml) if you prefer not to type it.
 
 ## Step 3 — Read each handler
 

@@ -1,6 +1,6 @@
 # Build capability — acceptance
 
-Fixtures: [13-conformance-fixtures-matrix.md](./13-conformance-fixtures-matrix.md) · root `../fixtures/build-capability/`
+Fixtures: [13-conformance-fixtures-matrix.md](./13-conformance-fixtures-matrix.md) (planned — root `fixtures/build-capability/` removed; not implemented)
 
 ---
 
