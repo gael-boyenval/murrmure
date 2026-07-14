@@ -30,7 +30,7 @@
         "manifest": {
           "apiVersion": "murrmure.flow/v1",
           "name": "checkpoint-incomplete",
-          "start": { "manual": true },
+          "triggers": { "manual": true },
           "steps": [
             {
               "id": "intake",
@@ -48,7 +48,7 @@
         "raw": {
           "apiVersion": "murrmure.flow/v1",
           "name": "checkpoint-incomplete",
-          "start": { "manual": true },
+          "triggers": { "manual": true },
           "steps": [
             { "id": "intake", "checkpoint": { "view": "intake-form", "on_resolve": {} } },
             { "id": "build", "invoke": { "space": "spc_demo", "action": "build" } }

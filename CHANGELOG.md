@@ -1,5 +1,52 @@
 # Changelog
 
+## Tutorial v3 Task 03 — resolver-agnostic step contracts and trigger-only start (2026-07-14)
+
+### Breaking
+
+- Flow manifests are **resolver-agnostic**: steps carry only `id`, optional
+  `description`, optional `branches`, and optional nested `steps`. Removed
+  fields `role`, `presentation`, `deriveRole`, and legacy step kinds are
+  rejected by the strict schema with no fallback.
+- `triggers` is the **only** start-condition field. The removed `start`
+  (including dual `start` + `triggers`) and flow-level `requires_view` are
+  rejected; `requires_view` is not an alias inside `triggers` either.
+- Branch authoring is **flat**. Wrapper shapes (`payload:`, `outcome:`) and
+  superseded routing keys (`next`, `fail_run`, `goto`, `fail`, `complete`,
+  `continue`) are rejected. Routing uses `route: { step }`,
+  `route: { run: completed | failed }`, or `resume: <ancestor>`.
+- Open steps are exposed generically as `open_steps[]` with
+  `resolver: string | null`. `awaiting_human` and `active_human_step` are
+  removed; flow steps create no gate rows.
+- `apiVersion: murrmure.flow/v1` is the sole clean target — no dual parser or
+  v2 reader.
+
+### Added
+
+- Compiler injects `completed` / `failed` **default branches** for steps that
+  omit `branches`; explicit and injected defaults are semantically identical.
+  Explicit `branches: {}` is rejected and custom top-level branches require an
+  explicit `route`.
+- Single canonical owner for `BranchResolveContract` and
+  `OpenStepResolverProjection` in `@murrmure/contracts`.
+- New strict-apply linter codes: `LEGACY_START_KEY`, `LEGACY_REQUIRES_VIEW`,
+  `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`,
+  `EMPTY_BRANCHES`, `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`,
+  `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`.
+- ADR-007 records the resolver-agnostic step contract and trigger-only clean
+  cutover.
+
+### Migration
+
+- Move start conditions from `start:` to `triggers:`. Remove `requires_view`;
+  bind Views through `.mrmr/space/handlers.yaml` (`contract_keys`), not the flow.
+- Replace `role` / `presentation` / `deriveRole` with resolver-agnostic steps;
+  bind execution and human UI in the space.
+- Rewrite branches flat: `schema` + optional `artifact_slots` + `route`/`resume`.
+  Use `route: { run: completed | failed }` for terminal outcomes; `next: null`
+  and `fail_run: true` are gone.
+- Read open steps from `open_steps[]`; gate rows no longer exist for flow steps.
+
 ## Tutorial v3 clean-state setup (2026-07-14)
 
 ### Breaking

@@ -10,7 +10,7 @@ Read this before assuming declarative flows fully work. Normative backlog: [stud
 
 ---
 
-Murrmure v2 core (`.mrmr/` space directory, session/run, **handlers + contract_keys**, unified step contracts v2.2, step outputs, flow scaffold, **ViewCanvasHost** at human steps) is **shipped**. Remaining items are **user-visible symptoms** — not the same numbering as backlog phases 01–08.
+Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + contract_keys**, resolver-agnostic step contracts, `triggers`-only start, `open_steps[]` lifecycle, step outputs, flow scaffold, **ViewCanvasHost** at open steps) is **shipped**. Remaining items are **user-visible symptoms** — not the same numbering as backlog phases 01–08.
 
 ## What works today
 
@@ -20,8 +20,8 @@ Murrmure v2 core (`.mrmr/` space directory, session/run, **handlers + contract_k
 | Scaffold flows | `mrmr space flow init <id> --template hello-gate\|hello-invoke` |
 | Scaffold views | `mrmr space view init <id>` |
 | Run flows (step contracts) | Shell **Run**, `mrmr flow run` |
-| Human steps | `presentation:` + **`murrmure_resolve_step`** via ViewCanvasHost |
-| Custom view canvas | **ViewCanvasHost** at `awaiting_human` steps |
+| Open steps | Resolver-agnostic steps + **`murrmure_resolve_step`** (no bound handler ⇒ `resolver: null`, external resolve) |
+| Custom view canvas | **ViewCanvasHost** at `open_steps[]` (Views bound by the space, not the portable flow) |
 | View dev loop | `mrmr view dev <id>` → Desktop dev route + fixture tabs |
 | Step output templates | `steps.*` template syntax in handler params |
 | `shell_spawn` env | `MURRMURE_INPUT`, `MURRMURE_PROMPT`, `MURRMURE_STEP_CONTRACT`, run/session/step ids |

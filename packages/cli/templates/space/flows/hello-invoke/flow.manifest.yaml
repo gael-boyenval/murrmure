@@ -1,16 +1,18 @@
-# Role: minimal invoke-only flow — manual trigger and one shell_spawn step.
+# Role: minimal handler-backed flow — manual trigger and one step bound to a handler.
 apiVersion: murrmure.flow/v1
 name: {{FLOW_ID}}
-description: Hello invoke flow — single action step
+description: Hello flow — single step bound to a handler
 
 triggers:
   manual: true
 
-start:
-  manual: true
-
 steps:
   - id: hello
-    invoke:
-      space: "{{origin_space}}"
-      action: {{FLOW_ID}}_hello
+    description: Run hello via handler.
+    branches:
+      completed:
+        schema: { type: object }
+        route: { run: completed }
+      failed:
+        schema: { type: object }
+        route: { run: failed }

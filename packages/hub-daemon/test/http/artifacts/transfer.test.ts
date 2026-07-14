@@ -244,16 +244,15 @@ describe("http/artifacts/transfer", () => {
             manifest: {
               apiVersion: "murrmure.flow/v1",
               name: "artifact-intake",
-              start: { manual: true },
+              triggers: { manual: true },
               steps: [
                 {
                   id: "intake",
-                  presentation: { view: "intake" },
                   branches: {
                     continue: {
                       schema: { type: "object", required: ["topic"] },
                       artifact_slots: { spec: { max_bytes: 65536 } },
-                      next: null,
+                      route: { run: "completed" },
                     },
                   },
                 },

@@ -4,6 +4,14 @@
 
 ### Breaking Changes
 
+- Flow manifests use `triggers` as the only start-condition field. The legacy
+  `start` (including dual `start` + `triggers`), `requires_view`, `role`,
+  `presentation`, `deriveRole`, and superseded routing keys (`next`, `fail_run`,
+  `goto`, `fail`, `complete`, `continue`) are rejected by the strict schema with
+  no fallback. Step contracts are resolver-agnostic; branches use flat
+  `route`/`resume` semantics and receive injected `completed`/`failed` defaults
+  when omitted. `mrmr space flow init` templates and docs-proof fixtures are
+  migrated to the clean shape.
 - `mrmr setup` creates one user-named space instead of fixed development spaces
   and stops before local-tool credential creation.
 - `mrmr space init` derives its name/slug from the target folder, remains

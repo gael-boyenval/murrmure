@@ -181,21 +181,19 @@ describe("phase 10 docs proof (10-T*)", () => {
     const manifest = {
       apiVersion: "murrmure.flow/v1",
       name: "strict-v2",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [
         {
           id: "intake",
-          presentation: { view: "preview-review-intake" },
           branches: {
-            continue: { schema: { type: "object" }, next: "work" },
-            cancel: { schema: { type: "object" }, next: null, fail_run: true },
+            continue: { schema: { type: "object" }, route: { step: "work" } },
+            cancel: { schema: { type: "object" }, route: { run: "failed" } },
           },
         },
         {
           id: "work",
-          role: "agent",
           branches: {
-            completed: { schema: { type: "object" }, next: null },
+            completed: { schema: { type: "object" } },
           },
         },
       ],

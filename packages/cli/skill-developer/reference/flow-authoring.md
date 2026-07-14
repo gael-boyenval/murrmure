@@ -1,10 +1,10 @@
-# Flow authoring (v2.2 step contracts)
+# Flow authoring (v3, resolver-agnostic step contracts)
 
-Flows live in `.mrmr/flows/{name}/flow.manifest.yaml` — indexed via `mrmr space apply`. Execution is wired separately in `.mrmr/space/handlers.yaml` via `contract_keys`.
+Flows live in `.mrmr/flows/{name}/flow.manifest.yaml` — indexed via `mrmr space apply`. A flow is **protocol only**: it describes what happens, not how. Execution and human UI are wired separately in `.mrmr/space/handlers.yaml` via `contract_keys`.
 
 ## Triggers (when a run may start)
 
-Normative key: **`triggers:`**. Legacy `start:` accepted with deprecation warning.
+`triggers:` is the **only** start-condition field. The removed `start:` and `requires_view` are rejected by the parser with no fallback.
 
 ```yaml
 triggers:
@@ -19,88 +19,94 @@ triggers:
 | Trigger | Behavior |
 |---------|----------|
 | `manual: true` | Shell **Run** + `mrmr flow run` |
-| `events` | Hub creates run when journal event matches |
+| `events` | Hub creates a run when a journal event matches |
 | `schedule` | Hub scheduler tick |
-| `flow_call: true` | Callable via parent flow composition |
+| `flow_call: true` | Callable via parent flow composition (`start_flow`) |
 
-**No human UI on triggers.** Put intake/review on steps with `presentation:`.
+`triggers: {}` means **invoke-only**: no independent CLI / Desktop / schedule / external-event start, but authorized orchestration invocation stays valid. **No human UI on triggers.** Spaces bind Views to steps through `handlers.yaml`, not through the portable flow.
 
-## Step contracts
+## Step contracts (resolver-agnostic)
 
-Steps declare **branches** (resolve wire), optional **presentation** (human UI), and optional nested **steps** (engine-routed subgraph).
+A step is `id`, optional `description`, optional `branches`, and optional nested `steps` — no `role`, `presentation`, `deriveRole`, or resolver modality. A step with no bound handler is valid and externally resolvable (`resolver: null`).
 
 ```yaml
 steps:
   - id: intake
-    presentation:
-      view: preview-review-intake
+    description: Human attaches one spec markdown file.
     branches:
       continue:
         schema:
           type: object
-          required: [spec_filename, reviewer]
+          required: [spec]
         artifact_slots:
           spec:
-            description: Attached spec markdown
-        next: write_spec
+            description: The spec markdown file
+            max_bytes: 1048576
+        route: { run: completed }
       cancel:
         schema: { type: object }
-        next: null
-        fail_run: true
+        route: { run: failed }
 
   - id: write_spec
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: build
-      failed:
-        schema: { type: object }
-        fail_run: true
+    description: Agent writes spec to repo.
 ```
 
-Agent steps (`role: agent`) require a handler with matching `contract_key` (`{flow_ref}.write_spec`). Human steps use `presentation:` — resolved via ViewCanvasHost, not handler dispatch on open.
+### Branch authoring (flat)
+
+Each key under `branches` is an **outcome name** — the `branch` value passed to `murrmure_resolve_step`. A branch is flat: `schema`, `schema_ref`, `artifact_slots`, and optional `route` / `resume` are sibling fields. Wrapper shapes (`payload:`, `outcome:`) and superseded routing keys (`next`, `fail_run`, `goto`, `fail`, `complete`, `continue`) are **rejected**.
+
+| Field | Effect |
+|-------|--------|
+| `route: { step: <id> }` | Open the target step (top-level or qualified nested id) |
+| `route: { run: completed }` | Run ends successfully (canonical terminal success) |
+| `route: { run: failed }` | Run fails |
+| `resume: <ancestor_id>` | Yield control back to an already-open ancestor (nested loops) |
+
+### Default branches
+
+Omit `branches` for a linear step — the compiler injects `completed` (open next sibling; last step ends the run) and `failed` (fail the run). Injected defaults are semantically identical to explicit `completed` / `failed` branches. Explicit branch maps are exact: `branches: {}` is rejected, and custom top-level branch names require an explicit `route`.
 
 ## Nested orchestration
 
 ```yaml
   - id: build
-    role: agent
-    orchestration: engine-routed
+    description: Build and review loop.
     steps:
       - id: build-loop
-        role: agent
+        description: Implement; resolve when preview URL ready.
         branches:
           completed:
             schema:
               type: object
               required: [preview_url]
-            goto: review
+            route: { step: build.review }
+          failed:
+            schema: { type: object }
+            route: { run: failed }
       - id: review
-        presentation:
-          view: preview-review
+        description: Human validates preview.
         branches:
           validated:
             schema: { type: object }
-            complete: parent
+            resume: build
           changes_required:
-            goto: build-loop
-    branches:
-      completed:
-        next: archive
+            schema: { type: object }
+            route: { step: build.build-loop }
 ```
 
-Qualified step ids: `build.build-loop`, `build.review`. Handlers may list multiple keys for subgraph ownership.
+Qualified step ids: `build.build-loop`, `build.review`. Contract keys use `{flow_ref}.{qualified_step_id}`. Handlers may list multiple keys for subgraph ownership.
 
-## Resolve wire
+## Open-step lifecycle and resolve wire
 
-Agents and views call **`murrmure_resolve_step`**:
+A step is **open** while its memo status is `working`. Run detail exposes a generic `open_steps[]` projection with `resolver: string | null`. There is no `awaiting_human` status and no `active_human_step` projection.
+
+Agents, views, and authorized protocol clients call **`murrmure_resolve_step`**:
 
 ```json
-{ "run_id": "run_…", "step_id": "write_spec", "branch": "completed", "payload": {} }
+{ "run_id": "run_…", "step_id": "intake", "branch": "continue", "payload": {}, "artifacts_out": [{ "slot": "spec", "path": "work/spec.md" }] }
 ```
 
-Branch names must match manifest `branches:` keys. Payload must validate against branch schema.
+Branch names must match manifest `branches:` keys. Payload must validate against the branch schema. A token without `step:resolve` is denied.
 
 ## Workflow
 
@@ -115,11 +121,14 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 
 | Code | Meaning |
 |------|---------|
-| `HANDLER_CONTRACT_KEY_UNCOVERED` | Agent step lacks handler binding |
-| `HANDLER_CONTRACT_KEY_UNKNOWN` | Handler key not in flow catalog |
-| `UNSUPPORTED_STEP_KIND` | Legacy step kind — migrate to contracts |
-| `CHECKPOINT_VIEW_DIST_MISSING` | View `dist/` missing — run view build |
-| `DEPRECATED_START_KEY` | Use `triggers:` instead of `start:` |
+| `LEGACY_START_KEY` | Top-level `start:` removed — use `triggers:` (including dual `start` + `triggers`) |
+| `LEGACY_REQUIRES_VIEW` | `requires_view` removed — bind Views through `handlers.yaml` |
+| `LEGACY_STEP_KIND` | Legacy `invoke:` / `checkpoint:` / `gate:` step kind |
+| `REMOVED_FIELD` | Removed step/branch key (`role`, `presentation`, `next`, `fail_run`, `goto`, `fail`, `payload`, `outcome`, …) |
+| `EMPTY_BRANCHES` | `branches: {}` — omit for defaults or declare at least one |
+| `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
+| `DEAD_STEP` | Step unreachable from flow entry |
+| `HANDLER_ORPHAN_KEY` | Handler `contract_key` not in flow catalog |
 
 ## Grants
 
@@ -127,14 +136,16 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 |------------|--------|
 | `flow:run` | Execute flows |
 | `flow:read` | Preview graph — no Run button |
+| `step:resolve` | Resolve open steps (required to call `murrmure_resolve_step`) |
 
-Mint: `mrmr grant mint --capabilities flow:run,flow:read`.
+Mint: `mrmr grant mint --capabilities flow:run,flow:read,step:resolve`.
 
 ## Manifest rules
 
-- `apiVersion: murrmure.flow/v1`
+- `apiVersion: murrmure.flow/v1` is the sole clean target (no dual parser)
 - **No inline script steps** — rejected at apply
 - **No `executor.action`** — use handlers + contract_keys
+- **No `start`, `requires_view`, `role`, `presentation`** — rejected by the strict schema
 - Templates: `{{steps.id.output.field}}`, `{{input.*}}` in handler params
 
-See [space-directory.md](space-directory.md) and parent `SKILL.md` for handler wiring.
+See [space-directory.md](space-directory.md) and parent `SKILL.md` for handler wiring, and the [step-contract bridge](../../../../../studio-specs/current/bridges/step-contract.md) for the normative contract.

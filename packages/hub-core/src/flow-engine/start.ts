@@ -20,7 +20,7 @@ export function canExecuteFlow(
 }
 
 export function isManualStartAllowed(entry: FlowIndexEntry): boolean {
-  return entry.triggers.manual !== false;
+  return entry.triggers.manual === true;
 }
 
 export function isFlowCallStartAllowed(entry: FlowIndexEntry): boolean {

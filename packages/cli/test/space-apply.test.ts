@@ -46,15 +46,18 @@ describe("space apply integration", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: demo",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: hello",
-        "    role: agent",
+        "    description: Run hello via handler.",
         "    branches:",
         "      completed:",
         "        schema: { type: object }",
-        "        next: null",
+        "        route: { run: completed }",
+        "      failed:",
+        "        schema: { type: object }",
+        "        route: { run: failed }",
       ].join("\n"),
     );
     writeFileSync(
@@ -133,7 +136,7 @@ describe("space apply integration", () => {
     mkdirSync(join(root, "other"), { recursive: true });
     writeFileSync(
       join(root, "other", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: demo\nstart:\n  manual: true\nsteps: []\n",
+      "apiVersion: murrmure.flow/v1\nname: demo\ntriggers:\n  manual: true\nsteps: []\n",
     );
     const bundle = readSpaceApplyBundle(projectDir);
     const ids = (bundle.flows ?? []).map((f) => f.flow_id);
@@ -179,17 +182,6 @@ describe("space apply integration", () => {
     );
   });
 
-  test("gate-only fixture warns pre phase 03", () => {
-    const { bundle, expect: fx } = loadFixture("unsupported-step-kind.json");
-    const warnings = lintSpaceApplyBundle(bundle);
-    for (const row of fx.warnings_contain as Array<{ code: string; step_id?: string }>) {
-      expect(
-        warnings.some((w) => w.code === row.code && (!row.step_id || w.step_id === row.step_id)),
-      ).toBe(true);
-    }
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
-  });
-
   test("checkpoint-on-resolve-missing fixture warns; strict fails", () => {
     const { bundle, expect: fx } = loadFixture("checkpoint-on-resolve-missing.json");
     const warnings = lintSpaceApplyBundle(bundle);
@@ -218,25 +210,27 @@ describe("space apply integration", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: review",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: intake",
-        "    presentation:",
-        "      view: my-view",
+        "    description: Human intake via view.",
         "    branches:",
         "      continue:",
         "        schema: { type: object }",
-        "        next: done",
+        "        route: { step: done }",
         "      cancel:",
         "        schema: { type: object }",
-        "        fail_run: true",
+        "        route: { run: failed }",
         "  - id: done",
-        "    role: agent",
+        "    description: Agent done.",
         "    branches:",
         "      completed:",
         "        schema: { type: object }",
-        "        next: null",
+        "        route: { run: completed }",
+        "      failed:",
+        "        schema: { type: object }",
+        "        route: { run: failed }",
       ].join("\n"),
     );
     writeFileSync(

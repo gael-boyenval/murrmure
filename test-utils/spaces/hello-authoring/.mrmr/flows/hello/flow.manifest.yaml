@@ -1,23 +1,11 @@
 # Role: flows tutorial — minimal handler-backed indexed flow.
 apiVersion: murrmure.flow/v1
 name: hello
-description: Hello handler — single agent step
+description: Hello handler — single step
 
 triggers:
-  manual: true
-
-start:
   manual: true
 
 steps:
   - id: hello
     description: Run hello script via handler.
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: null
-      failed:
-        schema: { type: object }
-        next: null
-        fail_run: true

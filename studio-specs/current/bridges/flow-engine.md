@@ -27,7 +27,7 @@ Maps rev-1 flow manifest semantics to hub runtime behavior. See [product/spec.md
 | `space-home.ts` | Aggregated `/v1/spaces/:id/home` payload |
 | `templates.ts` | `{{input.*}}`, `{{steps.*}}`, `{{event.*}}` resolution |
 | `step-contract-compile.ts` | YAML → `StepContractCatalog`; nested flatten |
-| `step-resolve.ts` | Unified `resolve_step` handler; nested goto / complete:parent |
+| `step-resolve.ts` | Unified `resolve_step` handler; nested `route` / `resume` |
 | `step-open.ts` | Open step + handler dispatch + first nested child bootstrap |
 | `step-catalog.ts` | Catalog lookups; nested children ordering |
 | `step-contract-slice.ts` | Runtime injection slice + `active-step-contract.json` |
@@ -40,30 +40,37 @@ mrmr space apply → parseFlowManifest → compileFlowIr → enrichCheckpointVie
 
 Runs pin `flow_digest` from compiled IR at start.
 
-## Step contracts (v2.2)
+## Step contracts (v3, resolver-agnostic)
 
-Flows authored with unified **`step`** blocks compile a **`StepContractCatalog`** at apply time. Runtime progression uses **`POST /v1/runs/{run_id}/steps/{step_id}/resolve`** (MCP: `murrmure_resolve_step`) — not gate resolve or `complete_action`.
+Flows authored with resolver-agnostic **`step`** blocks compile a **`StepContractCatalog`** at apply time. Runtime progression uses **`POST /v1/runs/{run_id}/steps/{step_id}/resolve`** (MCP: `murrmure_resolve_step`) — not gate resolve or `complete_action`. Start conditions live under **`triggers`** (the only start-condition field); the removed `start` and `requires_view` are rejected.
 
 | Concept | Behavior |
 |---------|----------|
-| **Top-level step** | Linear `next:` routes; engine opens next step |
-| **Nested step** | Qualified id `parent.child`; routes use `goto`, `complete: parent`, `continue: parent` |
-| **engine-routed** | Engine opens siblings (e.g. `build.review` after `build.build-loop` completes); agent waits |
-| **Parent with agent role** | One handler dispatch on parent open (`kill_on: step.resolved`); nested children loop without re-dispatch |
+| **Top-level step** | `route: { step: <id> }` opens the next step; `route: { run: completed \| failed }` terminates |
+| **Nested step** | Qualified id `parent.child`; `route: { step: parent.child }` opens a child; `resume: <parent>` yields back to an open parent |
+| **engine-routed** | Engine opens siblings (e.g. `build.review` after `build.build-loop` resolves); agent waits via `murrmure_wait_for_run` |
+| **Default branches** | Omitted `branches` inject `completed` / `failed`; explicit maps are exact (`branches: {}` rejected) |
+| **Unbound step** | No handler ⇒ open and externally resolvable; `open_steps[]` projects `resolver: null` |
 
 Normative detail: [step-contract.md](./step-contract.md). Execution binding: [handlers.md](./handlers.md).
 
 ### Nested runtime (preview-review)
 
 1. Engine opens **build** → dispatches handler `feature_build` (`contract_keys: preview-review.build, …`) → opens **build.build-loop**
-2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`)
-3. Engine opens **build.review** (view, `awaiting_human`)
-4. Human validates → `complete: parent` → **build** completed → **archive**
-5. Feedback → `continue: parent` + `goto: build-loop` → same shell session (owner handler not re-dispatched)
+2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`) → `route: { step: build.review }`
+3. Engine opens **build.review** (no bound handler) → appears in `open_steps[]` with `resolver: null`
+4. Human validates → `resume: build` → **build** completed → **archive**
+5. Feedback → `route: { step: build.build-loop }` → same shell session (owner handler not re-dispatched)
 
 Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_catalog` is present.
 
-## Legacy invoke/checkpoint (pre-v2.2)
+## Legacy invoke/checkpoint (pre-v2.2, historical)
+
+> In v3, `invoke:`, `checkpoint:`, `gate:`, and `wait:` step kinds are rejected
+> at apply (`LEGACY_STEP_KIND`); flows use resolver-agnostic step contracts
+> ([step-contract.md](./step-contract.md)). The table below documents the
+> historical engine surface retained for `start_flow` / `parallel.matrix`
+> internals and operator gate approval only.
 
 **Source of truth:** `packages/hub-core/src/flow-engine/engine-capabilities.ts` — `ENGINE_DISPATCH_KINDS`.
 
@@ -106,11 +113,11 @@ Index refresh: `mrmr space apply` (not `mrmr flow push`).
 
 ## Scheduler
 
-`packages/hub-daemon/src/flow-scheduler-cron.ts` — minute tick evaluates `start.schedule` cron expressions.
+`packages/hub-daemon/src/flow-scheduler-cron.ts` — minute tick evaluates `triggers.schedule` cron expressions.
 
 ## Event start
 
-Journal / space events matching `start.events` invoke `matchFlowEventStarts` after trigger dispatch.
+Journal / space events matching `triggers.events` invoke `matchFlowEventStarts` after trigger dispatch.
 
 ## Backlog
 

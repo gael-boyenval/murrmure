@@ -3,7 +3,10 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { createTemporaryUserData } from "../../../test-utils/tutorial-v3/helpers.js";
+import { materializeTutorialSnapshot } from "../../../test-utils/tutorial-v3/snapshots.js";
 import { setupCommand } from "../src/commands/setup.js";
+import { spaceApplyCommand } from "../src/commands/space/apply.js";
+import { flowRunCommand } from "../src/commands/flow/run.js";
 import { clearAuthContextCache } from "../src/lib/auth-context.js";
 
 describe("Tutorial v3 CLI conformance", () => {
@@ -59,6 +62,13 @@ describe("Tutorial v3 CLI conformance", () => {
             counts: { flows: 0, handlers: 0, views: 0 },
           }));
         }
+        if (url.includes("/run") && method === "POST") {
+          return new Response(JSON.stringify({
+            ok: true,
+            run_id: "run_tutorial_v3",
+            session: { session_id: "ses_tutorial_v3" },
+          }), { status: 201 });
+        }
         throw new Error(`Unexpected request: ${method} ${url}`);
       }),
     );
@@ -108,6 +118,41 @@ describe("Tutorial v3 CLI conformance", () => {
   });
 
   test.skip("Task 02 — setup creates and activates one local connection", () => {});
-  test.skip("Task 03 — strict apply and run use triggers only", () => {});
+  test("Task 03 — strict apply and run use triggers only", async () => {
+    materializeTutorialSnapshot(2, projectPath);
+
+    await (spaceApplyCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: {
+        path: projectPath,
+        space: "spc_01JTUTORIALV3SPACE0000000",
+        json: true,
+      },
+      rawArgs: [],
+    });
+
+    const applyReq = requests.find(({ url, method }) => url.endsWith("/apply") && method === "POST");
+    const flowManifest = (applyReq?.body as { bundle?: { flows?: Array<{ manifest?: Record<string, unknown>; flow_id?: string }> } })?.bundle?.flows?.[0]?.manifest;
+    expect(flowManifest?.triggers).toMatchObject({ manual: true });
+    expect(flowManifest?.start).toBeUndefined();
+    const flowId = (applyReq?.body as { bundle?: { flows?: Array<{ flow_id?: string }> } })?.bundle?.flows?.[0]?.flow_id;
+    expect(typeof flowId).toBe("string");
+
+    // Stable contract key for the tutorial step is written locally on apply.
+    const keys = JSON.parse(
+      readFileSync(join(projectPath, ".mrmr", "dev", "contracts", "contract-keys.json"), "utf-8"),
+    ) as Array<{ contract_key: string; branches: string[] }>;
+    const intake = keys.find((k) => k.contract_key === "my-dev-flow.intake");
+    expect(intake).toBeDefined();
+    expect(intake?.branches).toEqual(["continue", "cancel"]);
+
+    // Run request carries no `start`; eligibility is driven by `triggers`.
+    await (flowRunCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { flow_id: flowId, input: "{}", space: "spc_01JTUTORIALV3SPACE0000000", json: true },
+      rawArgs: [],
+    });
+    const runReq = requests.find(({ url, method }) => url.includes("/run") && method === "POST");
+    expect(runReq?.body?.start).toBeUndefined();
+    expect(runReq?.body?.space_id).toBe("spc_01JTUTORIALV3SPACE0000000");
+  });
   test.skip("Task 09 — capacity and active-run apply errors show blocking IDs", () => {});
 });

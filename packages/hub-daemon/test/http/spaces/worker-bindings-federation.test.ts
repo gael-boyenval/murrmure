@@ -46,13 +46,12 @@ describe("http/spaces/worker-bindings-federation", () => {
     const catalogFlowManifest = {
       apiVersion: "murrmure.flow/v1",
       name: "catalog-flow",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [
         {
           id: "write_spec",
-          role: "agent",
           branches: {
-            completed: { schema: { type: "object" }, next: null },
+            completed: { schema: { type: "object" }, route: { run: "completed" } },
           },
         },
       ],

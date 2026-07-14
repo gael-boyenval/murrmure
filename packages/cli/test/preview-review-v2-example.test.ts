@@ -40,29 +40,22 @@ describe("preview-review-v2 reference example", () => {
     expect(manifest.steps.some((s) => "executor" in s)).toBe(false);
 
     const intake = manifest.steps[0] as {
-      presentation?: { view: string };
       branches?: Record<string, unknown>;
     };
-    expect(intake.presentation?.view).toBe("preview-review-intake");
     expect(intake.branches?.continue).toBeDefined();
 
     const build = manifest.steps[2] as {
-      role?: string;
-      orchestration?: string;
       steps?: Array<{ id: string; branches?: Record<string, unknown> }>;
     };
-    expect(build.role).toBe("agent");
-    expect(build.orchestration).toBe("engine-routed");
     expect(build.steps?.map((s) => s.id)).toEqual(["build-loop", "review"]);
 
     const buildLoop = build.steps?.[0];
-    expect(buildLoop?.branches?.completed).toMatchObject({ goto: "review" });
+    expect(buildLoop?.branches?.completed).toMatchObject({ route: { step: "build.review" } });
 
     const nestedReview = build.steps?.[1];
-    expect(nestedReview?.branches?.validated).toMatchObject({ complete: "parent" });
+    expect(nestedReview?.branches?.validated).toMatchObject({ resume: "build" });
     expect(nestedReview?.branches?.changes_required).toMatchObject({
-      continue: "parent",
-      goto: "build-loop",
+      route: { step: "build.build-loop" },
     });
   });
 
@@ -119,11 +112,11 @@ describe("preview-review-v2 reference example", () => {
     const contractKey = (stepId: string) => `${manifest.name}.${stepId}`;
 
     const writeSpec = catalog!.entries.find((entry) => entry.step_id === "write_spec");
-    expect(writeSpec?.role).toBe("agent");
+    expect(writeSpec).toBeDefined();
     expect(contractKey("write_spec")).toBe("preview-review.write_spec");
 
     const buildReview = catalog!.entries.find((entry) => entry.step_id === "build.review");
-    expect(buildReview?.role).toBe("human");
+    expect(buildReview).toBeDefined();
     expect(contractKey("build.review")).toBe("preview-review.build.review");
 
     const writeSpecOnlyWarnings = lintHandlerCatalogCoverage({
@@ -211,7 +204,10 @@ describe("preview-review-v2 reference example", () => {
     }
   });
 
-  test("handlers.yaml flows through apply index to step dispatch", async () => {
+  // Handler dispatch on step open is owned by T05/T06 (handlers). Task 03
+  // removes role-based dispatch from openStepContract; the index/compile
+  // portions this test also covers are exercised by docs-proof 10-T1.
+  test.skip("handlers.yaml flows through apply index to step dispatch", async () => {
     const bundle = readSpaceApplyBundle(EXAMPLE_ROOT);
     expect(bundle.handlers?.file.handlers.length).toBeGreaterThan(0);
 

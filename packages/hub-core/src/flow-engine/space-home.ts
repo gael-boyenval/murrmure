@@ -90,7 +90,7 @@ function flowRow(
     triggers: entry.triggers,
     can_run,
     can_preview,
-    manual: entry.triggers.manual !== false,
+    manual: entry.triggers.manual === true,
     view_ref: entry.view_ref,
   };
 }

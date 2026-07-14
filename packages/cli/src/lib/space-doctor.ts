@@ -100,15 +100,12 @@ function applyLintSeverity(code: string): SpaceDoctorSeverity {
   if (code === "HANDLER_KEY_CONFLICT") return "error";
   if (code === "HANDLER_COMPLETE_AUTO_NESTED") return "error";
   if (code === "BINDINGS_UNRESOLVED") return "error";
-  if (code === "HANDLER_MISSING") return "warning";
-  if (code === "STEP_UNCOVERED") return "warning";
   if (code === "HANDLER_ORPHAN_KEY") return "warning";
   if (code === "HANDLER_COMPLETE_CLI_NO_RESOLVE") return "warning";
   return "info";
 }
 
 function normalizeApplyLintCode(code: string): string {
-  if (code === "STEP_UNCOVERED") return "HANDLER_MISSING";
   return code;
 }
 

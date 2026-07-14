@@ -81,7 +81,7 @@ Before dispatch the hub materializes each artifact into the target space inbox a
 
 `mrmr space init` scaffolds `.mrmr.temp/` with a gitignore hint.
 
-## Step-scoped layout (v2.2 step contracts)
+## Step-scoped layout (v3 step contracts)
 
 ```text
 .mrmr.temp/runs/{run_id}/steps/{qualified}/work/     # scratch

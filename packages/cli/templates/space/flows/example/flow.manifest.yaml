@@ -3,17 +3,13 @@ name: example-flow
 description: Example flow — replace steps and add matching handlers
 triggers:
   manual: true
-start:
-  manual: true
 steps:
   - id: hello
     description: Agent step — bind a handler with contract_keys [example-flow.hello]
-    role: agent
     branches:
       completed:
         schema: { type: object }
-        next: null
+        route: { run: completed }
       failed:
         schema: { type: object }
-        next: null
-        fail_run: true
+        route: { run: failed }

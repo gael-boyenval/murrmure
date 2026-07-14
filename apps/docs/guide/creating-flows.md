@@ -31,34 +31,51 @@ mrmr grant mint --space spc_… --capabilities flow:run,flow:read,step:resolve,s
 
 See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path, or [Tutorial 1b — Create the repo](./tutorials/01-local-preview-review/01-create-the-repo) and [Flow manifest](./tutorials/01-local-preview-review/05-flow-manifest) for the full walkthrough.
 
-## Step contracts (v2.2)
+## Step contracts (v3, resolver-agnostic)
 
-New flows use a **unified step shape** (`branches`, optional `presentation`, optional nested `steps`) instead of separate `invoke:` / `checkpoint:` blocks.
+New flows use a **resolver-agnostic step shape**: `id`, optional `description`,
+optional `branches`, and optional nested `steps` — no `role`, `presentation`, or
+resolver modality. Start conditions live under **`triggers`** (the only
+start-condition field); the removed `start` and `requires_view` are rejected.
 
-- **Normative bridge:** [step-contract.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)
-- **Apply:** `mrmr space apply` compiles a **StepContractCatalog** and prints a digest; `--strict` rejects legacy manifests and unknown `&#123;&#123;murrmure.*&#125;&#125;` template tokens.
-- **Runtime:** resolve via **`murrmure_resolve_step`** (MCP) or **`mrmr step resolve`** (shell). See [Space handlers](./space-handlers).
+- **Normative bridge:** [step-contract.md](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)
+- **Apply:** `mrmr space apply` compiles a **StepContractCatalog** and prints a digest; `--strict` rejects removed fields, legacy step kinds, and unknown `&#123;&#123;murrmure.*&#125;&#125;` template tokens.
+- **Runtime:** resolve via **`murrmure_resolve_step`** (MCP) or **`mrmr step resolve`** (shell). A step with no bound handler is open and externally resolvable (`resolver: null`). See [Space handlers](./space-handlers).
 
 ```yaml
-# excerpt — see bridge for full nested preview-review manifest
+# excerpt — see the bridge for the full manifest and default-branch rules
+triggers:
+  manual: true
 steps:
   - id: intake
-    presentation: { view: preview-review-intake }
+    description: Human attaches one spec markdown file.
     branches:
-      continue: { schema: { type: object }, next: write_spec }
-      cancel: { schema: { type: object }, next: null, fail_run: true }
+      continue:
+        schema: { type: object, required: [spec] }
+        artifact_slots:
+          spec: { max_bytes: 1048576 }
+        route: { run: completed }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
 ```
 
-## What you build (v2)
+A linear step needs only `id` (and optional `description`); omit `branches` to
+receive `completed` / `failed` defaults. Spaces bind Views and handlers through
+`.mrmr/space/handlers.yaml` (`contract_keys`), not through the portable flow.
+
+## What you build (v3)
 
 | Piece | Location |
 |-------|----------|
-| Flow manifest | `.mrmr/flows/{name}/flow.manifest.yaml` |
+| Flow manifest | `.mrmr/flows/{name}/flow.manifest.yaml` (`triggers`, resolver-agnostic steps) |
 | Handlers | `.mrmr/space/handlers.yaml` (`contract_keys`, `shell_spawn`, …) |
-| Checkpoint views | `.mrmr/views/{id}/` (Vite+React + `view.manifest.yaml`) |
+| Views | `.mrmr/views/{id}/` (Vite+React + `view.manifest.yaml`), bound to steps via handlers |
 | Local dev outputs | `.mrmr/dev/` (contract-keys codegen, gitignored) |
 
-Checkpoint steps with `presentation.view` open in **ViewCanvasHost** — see [View SDK](../reference/view-sdk).
+Open steps surface in run detail as `open_steps[]` (`resolver: null` when no
+handler is bound). The shell renders them; it does not synthesize fallback
+controls for unbound steps.
 
 ## Related
 

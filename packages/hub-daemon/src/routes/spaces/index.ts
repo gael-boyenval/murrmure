@@ -244,6 +244,10 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
       if (!guard.ok) {
         return c.json({ code: guard.code, message: guard.message }, 400);
       }
+      const manifestCheck = parseFlowManifest(flow.manifest);
+      if (!manifestCheck.ok) {
+        return c.json({ code: manifestCheck.code, message: manifestCheck.message }, 400);
+      }
     }
 
     const parsed = SpaceApplyBundleSchema.safeParse(body.bundle ?? body);

@@ -35,7 +35,7 @@ Deep dives: [reference/space-directory.md](reference/space-directory.md), [refer
 ## Authoring workflow
 
 1. **Scaffold** — `mrmr space init`; `mrmr space flow init <id>`; `mrmr space view init <id>`.
-2. **Edit protocol** — flow manifests: steps, branches, `presentation:` for human steps. No `executor.action`.
+2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/`requires_view`. No `executor.action`.
 3. **Edit execution** — `handlers.yaml`: map `contract_keys` to shell/MCP handlers.
 4. **Wire keys** — after apply, read `.mrmr/dev/contracts/contract-keys.json`; align handler `contract_keys` with catalog entries.
 5. **Validate** — `mrmr space apply --strict`; `mrmr space doctor`; fix lint warnings.
@@ -66,7 +66,7 @@ handlers:
 | Field | Notes |
 |-------|-------|
 | `contract_keys` | Protocol addresses; use multi-key for nested subgraph owners; empty for event-only handlers |
-| `on` | `step.opened` dispatches agent steps; human `presentation:` steps are never dispatched on open |
+| `on` | `step.opened` dispatches bound steps; steps with no handler are open and externally resolvable (`resolver: null`), never dispatched on open |
 | `complete: explicit` | Handler prompt must instruct agent to call `murrmure_resolve_step` |
 | `complete: cli` | Command must invoke `mrmr step resolve`; lint enforces |
 | `kill_on: step.resolved` | Cancel long-running shell when step resolves (nested loops) |
@@ -98,7 +98,7 @@ contract_key := {flow_ref}.{qualified_step_id}
 - Generated catalog: `.mrmr/dev/contracts/contract-keys.json` after `mrmr space apply`.
 - `flow_ref` = apply-time flow identity; `qualified_step_id` = dot path (`build.build-loop`).
 - Matching is exact (+ explicit multi-key on one handler). No wildcards in v1.
-- Human-step keys may appear in multi-key handlers for **scope/documentation only** — engine opens presentation instead of dispatching shell.
+- A step key may appear in multi-key handlers for **scope/documentation only** — the engine only dispatches steps with a bound handler; unbound steps stay open for external resolution.
 
 Verify coverage: `murrmure_list_handlers` (agent skill) or `mrmr space doctor`.
 
@@ -152,11 +152,11 @@ Reference: [Tutorial 1b handlers](../../apps/docs/guide/tutorials/01-local-previ
 | `feature_archive` | `preview-review.archive` | Move spec to archive |
 | `feature_commit` | `preview-review.commit` | Git commit + resolve with payload |
 
-Flow manifest (`preview-review`) uses v2.2 nested steps under `build`:
+Flow manifest (`preview-review`) uses resolver-agnostic nested steps under `build`:
 
 - `build.build-loop` — agent resolves with `{ preview_url }`.
-- `build.review` — human `presentation:` view; agent waits via `murrmure_wait_for_run`.
-- `changes_required` → `goto: build-loop` for another round.
+- `build.review` — human step with no bound handler, open and externally resolvable; agent waits via `murrmure_wait_for_run`.
+- `changes_required` → `route: { step: build.build-loop }` for another round.
 
 Handler prompt pattern for `feature_build`:
 
@@ -171,7 +171,7 @@ YAML anchors (`x-agent-cmd`) keep command DRY across handlers.
 1. **Index via apply** — editing `.mrmr/flows/` alone does not change runtime until apply succeeds.
 2. **Protocol vs execution** — flows declare branches/schemas; handlers declare commands/prompts.
 3. **No `executor.action`** in manifests — rejected at apply.
-4. **Human UX on `presentation:` steps** — not on triggers.
+4. **Human UX lives on steps, not triggers** — a step's human UI is bound by the space (handlers + Views), never declared in the portable flow.
 5. **Custom views are primary** — ViewCanvasHost fills main canvas; shell forms are operator fallback.
 
 ## Install

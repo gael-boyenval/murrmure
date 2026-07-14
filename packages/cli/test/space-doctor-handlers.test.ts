@@ -21,15 +21,18 @@ function writeFlowWithAgentStep(projectDir: string): void {
     [
       "apiVersion: murrmure.flow/v1",
       "name: demo-flow",
-      "start:",
+      "triggers:",
       "  manual: true",
       "steps:",
       "  - id: write_spec",
-      "    role: agent",
+      "    description: Write spec.",
       "    branches:",
       "      completed:",
       "        schema: { type: object }",
-      "        next: null",
+      "        route: { run: completed }",
+      "      failed:",
+      "        schema: { type: object }",
+      "        route: { run: failed }",
       "",
     ].join("\n"),
   );
@@ -59,12 +62,12 @@ beforeEach(() => {
 });
 
 describe("space-doctor-handlers", () => {
-  test("reports HANDLER_MISSING for uncovered agent steps", async () => {
+  test("unbound steps are valid — no HANDLER_MISSING for uncovered steps", async () => {
     const projectDir = track(createProject("cli-space-doctor-handlers-missing-"));
     writeFlowWithAgentStep(projectDir);
 
     const result = await runSpaceDoctor({ projectPath: projectDir, skipTests: true });
-    expect(result.issues.some((issue) => issue.code === "HANDLER_MISSING")).toBe(true);
+    expect(result.issues.some((issue) => issue.code === "HANDLER_MISSING")).toBe(false);
   });
 
   test("reports orphan and conflict handler keys", async () => {

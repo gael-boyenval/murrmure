@@ -85,8 +85,17 @@ describe("mcp/murrmure_attach_orchestration", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "mcp-proposed",
-            start: { manual: true },
-            steps: [{ id: "step1", invoke: { space: "{{origin_space}}", action: "noop" } }],
+            triggers: { manual: true },
+            steps: [
+              {
+                id: "step1",
+                description: "Proposed step",
+                branches: {
+                  completed: { schema: { type: "object" }, route: { run: "completed" } },
+                  failed: { schema: { type: "object" }, route: { run: "failed" } },
+                },
+              },
+            ],
           },
         },
       }),

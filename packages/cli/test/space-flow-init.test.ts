@@ -23,7 +23,7 @@ describe("space flow init scaffold", () => {
     rmSync(targetDir, { recursive: true, force: true });
   });
 
-  test("hello-gate creates preview-review tree with role comments", () => {
+  test("hello-gate creates preview-review tree with step contracts", () => {
     const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
@@ -45,34 +45,30 @@ describe("space flow init scaffold", () => {
       readFileSync(join(murrmureRoot, "flows/preview-review/flow.manifest.yaml"), "utf-8"),
     ) as Record<string, unknown>;
     expect(manifest.triggers).toEqual({ manual: true });
-    expect(manifest.start).toEqual({ manual: true });
+    expect(manifest.start).toBeUndefined();
 
     const steps = manifest.steps as Array<Record<string, unknown>>;
     expect(steps.map((s) => s.id)).toEqual(["intake", "build", "review", "done"]);
 
-    const intake = steps[0].checkpoint as { view: string; on_resolve: unknown };
-    expect(intake.view).toBe("preview-review-intake");
-    expect(intake.on_resolve).toMatchObject({
-      default: { goto: "build" },
-      cancel: { fail: true },
-    });
+    const intake = steps[0].branches as Record<string, { route: { step?: string; run?: string } }>;
+    expect(intake.continue.route).toEqual({ step: "build" });
+    expect(intake.cancel.route).toEqual({ run: "failed" });
 
-    const build = steps[1].invoke as { action: string };
-    expect(build.action).toBe("preview-review_run_preview_agent");
+    const build = steps[1].branches as Record<
+      string,
+      { schema?: { required?: string[] }; route: { step?: string; run?: string } }
+    >;
+    expect(build.completed.route).toEqual({ step: "review" });
+    expect(build.completed.schema?.required).toEqual(["preview_url"]);
+    expect(build.failed.route).toEqual({ run: "failed" });
 
-    const review = steps[2].checkpoint as {
-      view: string;
-      on_resolve: { when: string; values: Record<string, unknown> };
-    };
-    expect(review.view).toBe("preview-review");
-    expect(review.on_resolve.when).toBe("output.outcome");
-    expect(review.on_resolve.values).toMatchObject({
-      validated: { goto: "done" },
-      changes_required: { goto: "build" },
-    });
+    const review = steps[2].branches as Record<string, { route: { step?: string; run?: string } }>;
+    expect(review.validated.route).toEqual({ step: "done" });
+    expect(review.changes_required.route).toEqual({ step: "build" });
+    expect(review.cancel.route).toEqual({ run: "failed" });
 
-    const done = steps[3].invoke as { action: string };
-    expect(done.action).toBe("preview-review_mark_validated");
+    const done = steps[3].branches as Record<string, { route: { run?: string } }>;
+    expect(done.completed.route).toEqual({ run: "completed" });
 
     const flowManifestRaw = readFileSync(
       join(murrmureRoot, "flows/preview-review/flow.manifest.yaml"),
@@ -112,7 +108,7 @@ describe("space flow init scaffold", () => {
     );
   });
 
-  test("hello-invoke scaffolds invoke-only flow", () => {
+  test("hello-invoke scaffolds handler-backed flow", () => {
     const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "demo", "hello-invoke");
 
@@ -122,8 +118,10 @@ describe("space flow init scaffold", () => {
 
     const manifest = parseYaml(
       readFileSync(join(murrmureRoot, "flows/demo/flow.manifest.yaml"), "utf-8"),
-    ) as { steps: Array<{ invoke?: { action: string } }> };
-    expect(manifest.steps[0]?.invoke?.action).toBe("demo_hello");
+    ) as { triggers: { manual: boolean }; steps: Array<{ id: string; branches?: Record<string, { route: { run?: string } }> }> };
+    expect(manifest.triggers).toEqual({ manual: true });
+    expect(manifest.steps[0]?.id).toBe("hello");
+    expect(manifest.steps[0]?.branches?.completed?.route).toEqual({ run: "completed" });
   });
 
   test("rejects duplicate flow id", () => {
@@ -145,14 +143,16 @@ describe("space flow init scaffold", () => {
     );
   });
 
-  test("space apply strict fails on legacy scaffold until VS-8 migration", () => {
+  test("space apply strict passes for VS-8 step-contract scaffold", () => {
     const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
     writeMinimalViewDist(join(murrmureRoot, "views/preview-review"));
     writeMinimalViewDist(join(murrmureRoot, "views/preview-review-intake"));
 
-    expect(() => readSpaceApplyBundle(targetDir)).toThrow(/LEGACY_STEP_KIND/);
+    const bundle = readSpaceApplyBundle(targetDir);
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(strictLintFailures(warnings)).toEqual([]);
   });
 
   test("scaffolded view package.json declares vite build script", () => {

@@ -20,8 +20,8 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | **Handler** | Space-owned execution bound to `contract_keys` (`{flow_ref}.{step_id}`) — dispatches shell/MCP on `step.opened` |
 | **Hub index** | Compiled flow IR + handler digests after `mrmr space apply` |
 | **Session / Run** | Correlation + immutable execution; runs pin `flow_digest` |
-| **Step contract** | Active step slice — branches, schemas, presentation; resolve via `murrmure_resolve_step` |
-| **ViewCanvasHost** | Full primary canvas for custom views at human (`presentation:`) steps |
+| **Step contract** | Active step slice — `id`, `description`, `branches` (`schema`, `route`/`resume`); resolver-agnostic; resolve via `murrmure_resolve_step` |
+| **ViewCanvasHost** | Full primary canvas for custom views bound to steps by the space (handlers + Views) |
 | **MCP** | Grant-filtered tools for agents |
 
 ## Environment variables
@@ -88,8 +88,8 @@ Example — list handlers:
 Parent steps with `orchestration: engine-routed` and nested `steps:` expose qualified ids (`build.build-loop`, `build.review`).
 
 - Resolve **your** nested step with the qualified `step_id`.
-- Human nested steps (`presentation:`) — **`murrmure_wait_for_run`**; do not resolve them yourself.
-- Branch `complete: parent` on a nested human step completes the parent when validated.
+- Nested steps with no bound handler (e.g. a human review step) — **`murrmure_wait_for_run`**; do not resolve them yourself.
+- A nested step's `resume: <parent>` branch yields control back to the open parent when validated.
 
 Preview-review pattern: agent owns `build.build-loop` (resolve with `preview_url`); human owns `build.review`; on `changes_required`, fix and resolve `build.build-loop` again.
 
