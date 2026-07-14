@@ -64,7 +64,7 @@ export function RunPage() {
             run,
             flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
             space_id: run.space_id ?? "",
-            title: run.active_human_step?.step_id ?? "Review",
+            title: run.open_steps?.[0]?.step_id ?? "Review",
             adminHref: `/runs/${runId}?operator=1`,
             closeHref: `/runs/${runId}`,
           }

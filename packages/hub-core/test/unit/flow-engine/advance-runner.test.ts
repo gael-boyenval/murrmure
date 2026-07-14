@@ -2,34 +2,31 @@ import { describe, expect, test, vi } from "vitest";
 import type { FlowManifest, StepContractCatalog } from "@murrmure/contracts";
 import { compileFlowIr } from "../../../src/flow-engine/compile.js";
 import { compileStepContractCatalog } from "../../../src/flow-engine/step-contract-compile.js";
-import { bootstrapStepContractFlow, resolveFlowStep } from "../../../src/flow-engine/step-resolve.js";
+import {
+  bootstrapStepContractFlow,
+  resolveFlowStep,
+  maybeAdvanceStepContractFlow,
+} from "../../../src/flow-engine/step-resolve.js";
 import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 
 function linearManifest(): FlowManifest {
   return {
     apiVersion: "murrmure.flow/v1",
     name: "linear-resolve",
-    start: { manual: true },
+    triggers: { manual: true },
     steps: [
       {
         id: "intake",
-        presentation: { view: "intake-view" },
+        description: "intake",
         branches: {
           continue: {
             schema: { type: "object", required: ["topic"] },
-            next: "work",
+            route: { step: "work" },
           },
-          cancel: { schema: { type: "object" }, fail_run: true },
+          cancel: { schema: { type: "object" }, route: { run: "failed" } },
         },
       },
-      {
-        id: "work",
-        role: "agent",
-        branches: {
-          completed: { schema: { type: "object" }, next: null },
-          failed: { schema: { type: "object" }, fail_run: true },
-        },
-      },
+      { id: "work", description: "work" },
     ],
   };
 }
@@ -40,22 +37,14 @@ async function seedCatalogRun(studio: MemoryStudioPersistence) {
   const { catalog } = compileStepContractCatalog(manifest, "flw_linear");
   if (!catalog) throw new Error("catalog missing");
 
+  await studio.insertSpace(
+    { space_id: "demo", slug: "demo", name: "Demo", status: "active", members: [] },
+    clock.nowIso(),
+  );
   await studio.replaceSpaceIndex("demo", {
     actions: [],
     executors: [],
-    hooks: [
-      {
-        key: "do_work",
-        digest: "sha256:handlers",
-        payload_json: JSON.stringify({
-          id: "do_work",
-          contract_keys: ["linear-resolve.work"],
-          on: "step.opened",
-          type: "shell_spawn",
-          complete: "explicit",
-        }),
-      },
-    ],
+    hooks: [],
     events: [],
     flows: [
       {
@@ -63,7 +52,7 @@ async function seedCatalogRun(studio: MemoryStudioPersistence) {
         origin_space_id: "spc_demo",
         digest: ir.digest,
         name: "linear-resolve",
-        start: { manual: true },
+        triggers: { manual: true },
         step_spaces: ["spc_demo"],
         grants_required: [],
         ir,
@@ -106,7 +95,7 @@ const clock = { nowIso: () => "2026-07-08T12:00:00.000Z" };
 const ids = { ulid: () => "evt_test" };
 
 describe("flow-engine/advance-runner (step contracts)", () => {
-  test("bootstrap opens first human step as awaiting_human", async () => {
+  test("bootstrap opens first step as working without dispatch", async () => {
     const studio = new MemoryStudioPersistence();
     await seedCatalogRun(studio);
 
@@ -136,11 +125,11 @@ describe("flow-engine/advance-runner (step contracts)", () => {
 
     expect(opened).toBe(true);
     const memos = await studio.listRunStepMemos("run_run1");
-    expect(memos.find((m) => m.step_id === "intake")?.status).toBe("awaiting_human");
+    expect(memos.find((m) => m.step_id === "intake")?.status).toBe("working");
     expect(dispatchSteps).not.toHaveBeenCalled();
   });
 
-  test("resolve continue opens executor step; completed finishes run", async () => {
+  test("resolve continue opens next step; completed finishes run", async () => {
     const studio = new MemoryStudioPersistence();
     await seedCatalogRun(studio);
 
@@ -157,7 +146,7 @@ describe("flow-engine/advance-runner (step contracts)", () => {
     await studio.upsertRunStepMemo({
       run_id: "run_run1",
       step_id: "intake",
-      status: "awaiting_human",
+      status: "working",
       started_at: clock.nowIso(),
     });
 
@@ -176,14 +165,6 @@ describe("flow-engine/advance-runner (step contracts)", () => {
 
     const afterIntake = await studio.listRunStepMemos("run_run1");
     expect(afterIntake.find((m) => m.step_id === "work")?.status).toBe("working");
-    expect(dispatchSteps).toHaveBeenCalledTimes(1);
-
-    await studio.upsertRunStepMemo({
-      run_id: "run_run1",
-      step_id: "work",
-      status: "working",
-      started_at: clock.nowIso(),
-    });
 
     const workResult = await resolveFlowStep(deps, {
       run_id: "run_run1",
@@ -207,7 +188,7 @@ describe("flow-engine/advance-runner (step contracts)", () => {
     await studio.upsertRunStepMemo({
       run_id: "run_run1",
       step_id: "intake",
-      status: "awaiting_human",
+      status: "working",
     });
 
     const result = await resolveFlowStep(
@@ -235,7 +216,7 @@ describe("flow-engine/advance-runner (step contracts)", () => {
     }
   });
 
-  test("maybeAdvanceFlow fails run when executor step failed with fail_run branch", async () => {
+  test("maybeAdvanceStepContractFlow fails run when a step failed with fail_run branch", async () => {
     const studio = new MemoryStudioPersistence();
     await seedCatalogRun(studio);
     await studio.upsertRunStepMemo({
@@ -246,8 +227,7 @@ describe("flow-engine/advance-runner (step contracts)", () => {
       completed_at: clock.nowIso(),
     });
 
-    const { maybeAdvanceFlow } = await import("../../../src/flow-engine/advance-runner.js");
-    await maybeAdvanceFlow(
+    await maybeAdvanceStepContractFlow(
       {
         studio,
         handler: { appendSpaceJournal: vi.fn() } as never,

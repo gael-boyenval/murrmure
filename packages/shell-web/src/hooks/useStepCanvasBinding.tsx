@@ -32,9 +32,9 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
 
   const runId = run?.run_id;
   const sessionId = run?.session_id;
-  const stepId = run?.active_human_step?.step_id;
+  const stepId = run?.open_steps?.[0]?.step_id;
   const showCanvas = run ? shouldShowStepCanvas(run) : false;
-  const viewRef = viewRefFromActiveStep(run?.active_human_step);
+  const viewRef = viewRefFromActiveStep(run?.open_steps?.[0]);
 
   const context = useMemo(() => {
     if (!run || !showCanvas || !flowId || !spaceId) return null;

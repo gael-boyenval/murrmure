@@ -28,11 +28,10 @@ import {
   compileFlowIr,
   mergeActionResultIntoRun,
   flowStepContractCatalog,
-  isAgentCatalogStep,
   buildHandlerIndex,
   matchStepOpenedHandlers,
   maybeAutoResolveExecutorStepAfterAction,
-  findActiveHumanStep,
+  buildOpenStepProjections,
   defaultExecutorTimeoutScheduler,
   failRunWithNotification,
 } from "@murrmure/hub-core";
@@ -98,7 +97,6 @@ function resolveStepCompleteMode(input: {
   indexed_hooks: Array<Record<string, unknown>>;
 }): HandlerComplete {
   if (!input.catalog || !input.flow_name) return "explicit";
-  if (!isAgentCatalogStep(input.catalog, input.step_id)) return "explicit";
 
   const handlers = input.indexed_hooks
     .map((row) => HandlerSpecSchema.safeParse(row))
@@ -386,19 +384,14 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const flowEntry = row.flow_id
       ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id)
       : null;
-    const active_human_step =
-      findActiveHumanStep(
-        steps,
-        flowStepContractCatalog(flowEntry),
-        flowEntry?.origin_space_id ?? row.space_id,
-      ) ?? undefined;
+    const open_steps = buildOpenStepProjections(steps, flowStepContractCatalog(flowEntry));
 
     return c.json({
       ...run,
       instance_id: runIdToInstanceId(run.run_id),
       steps,
       journal_replay,
-      active_human_step,
+      open_steps,
     });
   });
 
@@ -525,8 +518,6 @@ export async function projectStepMemoFromJournal(
     error_code?: string;
     executor_type?: string;
     result?: Record<string, unknown>;
-    role?: string;
-    view_id?: string;
   },
 ): Promise<void> {
   if (!input.run_id || !input.step_id) return;
@@ -550,7 +541,7 @@ export async function projectStepMemoFromJournal(
     step_id: input.step_id,
     indexed_hooks: indexedHooks,
   });
-  const requiresResolveCall = isAgentCatalogStep(catalog, input.step_id);
+  const requiresResolveCall = Boolean(catalog);
 
   if (
     input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
@@ -644,8 +635,6 @@ export async function projectStepMemoFromJournal(
     idempotency_key: input.idempotency_key,
     error_code: input.error_code,
     executor_type: input.executor_type,
-    role: input.role,
-    view_id: input.view_id,
   });
 
   if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && requiresResolveCall && next) {

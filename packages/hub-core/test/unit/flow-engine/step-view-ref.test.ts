@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { RunStepMemo, StepContractCatalog } from "@murrmure/contracts";
-import { enrichCatalogViewRefs, findActiveHumanStep } from "../../../src/flow-engine/step-view-ref.js";
+import { buildOpenStepProjections } from "../../../src/flow-engine/step-view-ref.js";
 
 describe("flow-engine/step-view-ref", () => {
   const catalog: StepContractCatalog = {
@@ -12,80 +12,65 @@ describe("flow-engine/step-view-ref", () => {
       {
         step_id: "intake",
         parent_id: null,
-        role: "human",
         branches: {
-          continue: { routes: [{ engine: "open", step_id: "write_spec" }] },
+          continue: {
+            routes: [{ engine: "open", step_id: "write_spec" }],
+            schema: { type: "object" },
+          },
+          cancel: { routes: [{ engine: "fail_run" }], schema: { type: "object" } },
         },
-        presentation: { view: "intake-view" },
       },
       {
         step_id: "review",
         parent_id: null,
-        role: "human",
         branches: {
-          validated: { routes: [{ engine: "advance" }] },
+          validated: { routes: [{ engine: "advance" }], schema: { type: "object" } },
         },
-        presentation: { view: "review-view" },
       },
     ],
   };
 
-  test("enrichCatalogViewRefs denormalizes view_ref from apply bundle", () => {
-    const cat = structuredClone(catalog);
-    enrichCatalogViewRefs(cat, [
-      {
-        view_id: "intake-view",
-        rel_path: "views/intake/view.manifest.yaml",
-        digest: "sha256:v",
-        manifest: {
-          apiVersion: "murrmure.view/v1",
-          id: "intake-view",
-          entry: "./dist/index.html",
-          shell_route: "murrmure/intake",
-        },
-      },
-    ], "spc_demo");
-
-    expect(cat.entries[0]?.presentation?.view_ref).toEqual({
-      view_id: "intake-view",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
-      shell_route: "murrmure/intake",
-    });
-  });
-
-  test("findActiveHumanStep returns awaiting_human memo with view_ref", () => {
+  test("projects working steps as open with resolver null and branch names", () => {
     const memos: RunStepMemo[] = [
       { run_id: "run_1", step_id: "intake", status: "completed" },
-      {
-        run_id: "run_1",
-        step_id: "review",
-        status: "awaiting_human",
-      },
+      { run_id: "run_1", step_id: "review", status: "working" },
     ];
-    const cat = structuredClone(catalog);
-    cat.entries[1]!.presentation!.view_ref = {
-      view_id: "review-view",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
-    };
-
-    const active = findActiveHumanStep(memos, cat, "spc_demo");
-    expect(active?.step_id).toBe("review");
-    expect(active?.view_ref?.view_id).toBe("review-view");
-    expect(active?.branch_names).toContain("validated");
+    const open = buildOpenStepProjections(memos, catalog);
+    expect(open).toHaveLength(1);
+    expect(open[0]?.step_id).toBe("review");
+    expect(open[0]?.resolver).toBeNull();
+    expect(open[0]?.branches.map((b) => b.branch)).toEqual(["validated"]);
   });
 
-  test("findActiveHumanStep synthesizes view_ref when catalog lacks denormalized ref", () => {
+  test("projects multiple open steps in memo order", () => {
     const memos: RunStepMemo[] = [
-      { run_id: "run_1", step_id: "intake", status: "awaiting_human" },
+      { run_id: "run_1", step_id: "intake", status: "working" },
+      { run_id: "run_1", step_id: "review", status: "working" },
     ];
-    const active = findActiveHumanStep(memos, structuredClone(catalog), "spc_demo");
-    expect(active?.step_id).toBe("intake");
-    expect(active?.view_ref).toEqual({
-      view_id: "intake-view",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
-    });
+    const open = buildOpenStepProjections(memos, catalog);
+    expect(open.map((p) => p.step_id)).toEqual(["intake", "review"]);
+    expect(open.every((p) => p.resolver === null)).toBe(true);
+  });
+
+  test("returns empty when no step is working", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "intake", status: "completed" },
+      { run_id: "run_1", step_id: "review", status: "failed" },
+    ];
+    expect(buildOpenStepProjections(memos, catalog)).toEqual([]);
+  });
+
+  test("returns empty when catalog is absent", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "intake", status: "working" },
+    ];
+    expect(buildOpenStepProjections(memos, null)).toEqual([]);
+  });
+
+  test("skips working memos with no catalog entry", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "ghost", status: "working" },
+    ];
+    expect(buildOpenStepProjections(memos, catalog)).toEqual([]);
   });
 });

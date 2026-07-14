@@ -78,7 +78,7 @@ export function pickDefaultStepId(run: RunDetailPayload, graphStepIds?: string[]
   if (ids.length === 0) return undefined;
 
   const memos = (run.steps ?? []) as StepMemo[];
-  const working = memos.find((m) => m.status === "working" || m.status === "awaiting_human");
+  const working = memos.find((m) => m.status === "working");
   if (working) return working.step_id;
 
   const failed = memos.find((m) => m.status === "failed");

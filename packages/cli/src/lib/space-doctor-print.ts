@@ -115,8 +115,8 @@ function renderLegacySection(result: SpaceDoctorResult): void {
   }
 
   const lines: string[] = [
-    "This repo still uses @studio/capability (v1 FDK).",
-    "Murrmure v2 only picks up murrmure/flows/*/flow.manifest.yaml.",
+    "This repo still uses retired @studio/capability packages.",
+    "Murrmure only indexes .mrmr/flows/*/flow.manifest.yaml.",
   ];
 
   const manifests = legacyManifestPaths(result);

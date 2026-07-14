@@ -40,27 +40,26 @@ describe("unit/projections/step-memo", () => {
     expect(memo?.error_code).toBe("EXECUTOR_UNAVAILABLE");
   });
 
-  test("STEP_OPENED with human role maps to awaiting_human", () => {
+  test("STEP_OPENED maps to working under the generic open lifecycle", () => {
     const memo = applyStepMemoFromJournal(null, {
       run_id: "run_01JSTEPMEMOTEST000003",
       step_id: "intake",
       type: JOURNAL_EVENT_TYPES.STEP_OPENED,
       ts: "2026-06-30T10:00:00.000Z",
-      role: "human",
-      view_id: "preview-review-intake",
     });
-    expect(memo?.status).toBe("awaiting_human");
+    expect(memo?.status).toBe("working");
+    expect(memo?.started_at).toBe("2026-06-30T10:00:00.000Z");
   });
 
-  test("STEP_OPENED without presentation stays working", () => {
+  test("STEP_OPENED has no role or presentation discrimination", () => {
     const memo = applyStepMemoFromJournal(null, {
       run_id: "run_01JSTEPMEMOTEST000004",
       step_id: "write_spec",
       type: JOURNAL_EVENT_TYPES.STEP_OPENED,
       ts: "2026-06-30T10:00:00.000Z",
-      role: "agent",
     });
     expect(memo?.status).toBe("working");
+    expect((memo as { role?: unknown }).role).toBeUndefined();
   });
 
   test("terminal memo never regresses to working", () => {

@@ -25,7 +25,6 @@ function writeContractSnapshots(projectPath: string, bundle: Awaited<ReturnType<
     contract_key: string;
     flow_ref: string;
     step_id: string;
-    role: string;
     branches: string[];
     artifact_slots: string[];
   }> = [];
@@ -45,7 +44,6 @@ function writeContractSnapshots(projectPath: string, bundle: Awaited<ReturnType<
         contract_key: `${flow.manifest.name}.${entry.step_id}`,
         flow_ref: flowRef,
         step_id: entry.step_id,
-        role: entry.role,
         branches: Object.keys(entry.branches),
         artifact_slots: Object.keys(entry.artifact_slots ?? {}),
       });

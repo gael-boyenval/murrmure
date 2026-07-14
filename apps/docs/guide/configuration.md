@@ -32,7 +32,7 @@ mrmr space doctor --strict
 
 | Field | Notes |
 |-------|-------|
-| Slug | Drives space id (`ui-sandbox` → `spc_ui_sandbox`) |
+| Slug | Editable URL-safe name; the Hub assigns a separate immutable `spc_*` ID |
 | Install policy | `human_only` \| `authorized_agents` \| `allow_list` |
 
 ## Flows

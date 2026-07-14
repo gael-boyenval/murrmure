@@ -6,28 +6,14 @@ describe("flow-engine/conformance/manifest", () => {
   const validManifest = {
     apiVersion: "murrmure.flow/v1" as const,
     name: "morning-brief",
-    start: { manual: true, idempotency: "run_key" },
+    triggers: { manual: true, idempotency: "run_key" },
     steps: [
-      {
-        id: "research",
-        role: "agent",
-        branches: {
-          completed: { schema: { type: "object" }, next: "approve" },
-          failed: { schema: { type: "object" }, next: null, fail_run: true },
-        },
-      },
-      {
-        id: "approve",
-        presentation: { view: "review.v1" },
-        branches: {
-          validated: { schema: { type: "object" }, next: null },
-          cancel: { schema: { type: "object" }, next: null, fail_run: true },
-        },
-      },
+      { id: "research", description: "Research the brief." },
+      { id: "approve", description: "Approve the brief." },
     ],
   };
 
-  test("valid step-contract manifest parses and compiles IR with digest", () => {
+  test("valid trigger-only manifest parses and compiles IR with digest", () => {
     const parsed = parseFlowManifest(validManifest);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
@@ -42,11 +28,21 @@ describe("flow-engine/conformance/manifest", () => {
     expect(ir.digest).toMatch(/^sha256:/);
   });
 
-  test("rejects legacy invoke/checkpoint at parse time", () => {
+  test("rejects removed top-level start", () => {
+    const parsed = parseFlowManifest({
+      ...validManifest,
+      start: { manual: true },
+    });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.code).toBe("LEGACY_START_KEY");
+  });
+
+  test("rejects legacy invoke at parse time", () => {
     const parsed = parseFlowManifest({
       apiVersion: "murrmure.flow/v1",
       name: "legacy",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [{ id: "a", invoke: { space: "spc_x", action: "hello" } }],
     });
     expect(parsed.ok).toBe(false);
@@ -58,7 +54,7 @@ describe("flow-engine/conformance/manifest", () => {
     const guard = rejectInlineScriptSteps({
       apiVersion: "murrmure.flow/v1",
       name: "bad",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [{ id: "x", script: "echo bad" }],
     });
     expect(guard.ok).toBe(false);
@@ -70,7 +66,7 @@ describe("flow-engine/conformance/manifest", () => {
     const parsed = parseFlowManifest({
       apiVersion: "flow/v0",
       name: "bad",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [],
     });
     expect(parsed.ok).toBe(false);

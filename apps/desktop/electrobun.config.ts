@@ -16,7 +16,6 @@ const config: ElectrobunConfig = {
       "../../packages/hub-daemon/dist": "Resources/hub",
       "../../packages/mcp-bridge/dist": "Resources/mcp-bridge",
       "../../packages/shell-web/dist": "Resources/shell/dist",
-      "../../fixtures/hub/contracts": "Resources/hub/contracts",
     },
     buildFolder: "build",
     artifactFolder: "artifacts",

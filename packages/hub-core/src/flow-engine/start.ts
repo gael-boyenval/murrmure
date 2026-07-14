@@ -20,18 +20,18 @@ export function canExecuteFlow(
 }
 
 export function isManualStartAllowed(entry: FlowIndexEntry): boolean {
-  return entry.start.manual !== false;
+  return entry.triggers.manual !== false;
 }
 
 export function isFlowCallStartAllowed(entry: FlowIndexEntry): boolean {
-  return entry.start.flow_call === true;
+  return entry.triggers.flow_call === true;
 }
 
 export function matchesFlowStartEvent(
   entry: FlowIndexEntry,
   event: { type: string; source?: string },
 ): boolean {
-  const events = entry.start.events ?? [];
+  const events = entry.triggers.events ?? [];
   return events.some((spec: FlowStartEvent) => {
     if (spec.type !== event.type) return false;
     if (spec.source && event.source && spec.source !== event.source) return false;
@@ -44,7 +44,7 @@ export function buildRunKey(
   input: Record<string, unknown>,
   idempotencyHeader?: string,
 ): string | undefined {
-  if (entry.start.idempotency !== "run_key") return undefined;
+  if (entry.triggers.idempotency !== "run_key") return undefined;
   if (idempotencyHeader) return idempotencyHeader;
   return `run_key:${entry.flow_id}:${JSON.stringify(input)}`;
 }
@@ -109,12 +109,11 @@ export function sanitizeFlowPreview(entry: FlowIndexEntry) {
     flow_id: entry.flow_id,
     name: entry.name,
     digest: entry.digest,
-    start: {
-      manual: entry.start.manual,
-      flow_call: entry.start.flow_call,
-      events: entry.start.events,
-      schedule: entry.start.schedule ?? null,
-      requires_view: entry.start.requires_view ?? null,
+    triggers: {
+      manual: entry.triggers.manual,
+      flow_call: entry.triggers.flow_call,
+      events: entry.triggers.events,
+      schedule: entry.triggers.schedule ?? null,
     },
     steps: (ir?.steps ?? []).map((s) => ({
       id: s.id,

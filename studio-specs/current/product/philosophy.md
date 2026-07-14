@@ -22,7 +22,7 @@
 2. **Building custom views that take over the UI is success**, not a advanced feature.
 3. **The default shell is for admins and operators**, not a substitute for domain UI.
 4. Protocol (sessions, runs, gates, invoke, artifacts) stays in the hub; **presentation is 100% the view bundle** at gates and human checkpoints.
-5. FDK worker install is gone; **space-directory views + ViewCanvasHost** carry the same full-canvas ambition without a second product inside the product.
+5. Retired worker-install paths are gone; **space-directory views + ViewCanvasHost** carry the same full-canvas ambition without a second product inside the product.
 
 If a feature ships built-in forms or a narrow side drawer as the primary human path, **it violates this north star.**
 

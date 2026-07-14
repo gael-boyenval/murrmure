@@ -9,6 +9,15 @@ Every command carries: `space_id`, `instance_id?`, `actor_id`, `token_id`, `comm
 ## IDs
 
 Prefixed ULID: `spc_`, `ins_`, `tok_`, `grt_`, `evt_`, `chk_`, `trg_`, `hub_`, `qry_`, `act_`.
+Space IDs are opaque and immutable. A space's editable display name and slug
+must never be used to derive or replace its `spc_*` identity.
+
+## Clean storage
+
+Fresh Hub storage contains no spaces, contract refs, flow installs, or indexed
+flows. Startup, setup, and apply require no persisted bootstrap contract.
+Product schemas are compiled into binaries; persisted contracts enter only
+through explicit apply/install operations.
 
 ## Entity schemas (S0)
 
@@ -79,7 +88,9 @@ Types: `state` | `gate` | `event` | `contract` | `compound`.
 
 `schemaVersion: "2.0"` — states, transitions, gates, events.declarations, inbound_queries, outbound_queries, metadata_schema, mcp_tools_by_version.
 
-Fixture: [../fixtures/hub/linear-demo-v2.json](../fixtures/hub/linear-demo-v2.json).
+The non-shipped parse fixture
+[`test-utils/hub/contracts/linear-demo-v2.json`](../../../test-utils/hub/contracts/linear-demo-v2.json)
+is installed explicitly by tests that need it.
 
 ## Kernel bridge
 
@@ -135,7 +146,6 @@ packages/hub-persistence/        @murrmure/hub-persistence
 packages/hub-daemon/             @murrmure/hub-daemon
 packages/cli/                    @murrmure/cli (setup, grants, skill, flow tooling)
 packages/mcp-bridge/             @murrmure/mcp-bridge (murrmure-mcp stdio bridge; bundled in Murrmure Desktop)
-packages/flow-dev-kit/           @murrmure/flow-dev-kit
 packages/skill/                  @murrmure/skill (private)
 packages/contracts/              @murrmure/contracts
 ```
@@ -155,5 +165,5 @@ Export pattern: `@murrmure/contracts/commands/*`, `/queries/*`, `/sse/*`, `/mcp/
 
 ## Related fixtures
 
-- [../fixtures/hub/linear-demo-v2.json](../fixtures/hub/linear-demo-v2.json) — contract v2 example
+- [`test-utils/hub/contracts/linear-demo-v2.json`](../../../test-utils/hub/contracts/linear-demo-v2.json) — non-shipped contract parse fixture
 - [../fixtures/kernel/](../fixtures/kernel/) — kernel golden rules and journal scenarios

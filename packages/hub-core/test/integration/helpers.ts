@@ -1,14 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Capability } from "@murrmure/contracts";
-import { ContractV2Schema } from "@murrmure/contracts";
 import { InMemoryPersistence } from "@murrmure/runtime-persistence";
 import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
-import { createHubKernel, pinContract, HubHandler } from "../../src/index.js";
-
-const __dir = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__dir, "../../../../fixtures/hub");
+import { createHubKernel, HubHandler } from "../../src/index.js";
+import { pinHubContractFixture } from "../../../../test-utils/hub/contracts.js";
 
 let fixedSeq = 0;
 const FIXED_TS = "2026-06-20T12:00:00.000Z";
@@ -61,11 +55,11 @@ export async function makeHub() {
     FIXED_TS,
   );
 
-  const contractRaw = JSON.parse(
-    readFileSync(join(FIXTURES, "contracts/linear-demo-v2.json"), "utf-8"),
+  const contract = await pinHubContractFixture(
+    murrmurePersistence,
+    "linear-demo-v2",
+    "cref_linear_demo",
   );
-  const contract = ContractV2Schema.parse(contractRaw);
-  await pinContract(murrmurePersistence, "cref_linear_demo", contract);
 
   const { kernel } = createHubKernel({
     kernelPersistence,

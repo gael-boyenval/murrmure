@@ -1,5 +1,12 @@
 # @murrmure/hub-daemon
 
+## Unreleased
+
+### Breaking Changes
+
+- Hub startup no longer reads or pins bundled contract fixtures. Tests install
+  required contracts explicitly from `test-utils/`.
+
 ## 0.1.1
 
 ### Patch Changes

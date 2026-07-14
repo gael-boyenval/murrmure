@@ -4,27 +4,21 @@ import { lintHandlerCatalogCoverage } from "../../../src/index/handler-catalog-l
 const flowManifest = {
   apiVersion: "murrmure.flow/v1" as const,
   name: "preview-review",
-  start: { manual: true },
+  triggers: { manual: true },
   steps: [
     {
       id: "intake",
-      presentation: { view: "preview-review-intake" },
+      description: "Human attaches spec markdown.",
       branches: {
-        continue: { schema: { type: "object" }, next: "write_spec" },
+        continue: { schema: { type: "object" }, route: { step: "write_spec" } },
       },
     },
-    {
-      id: "write_spec",
-      role: "agent",
-      branches: {
-        completed: { schema: { type: "object" }, next: null },
-      },
-    },
+    { id: "write_spec", description: "Write the spec." },
   ],
 };
 
 describe("index/handler-catalog-lint", () => {
-  test("reports orphan key and uncovered agent step", () => {
+  test("reports orphan handler key for unknown contract key", () => {
     const warnings = lintHandlerCatalogCoverage({
       handlers: {
         version: 1,
@@ -42,16 +36,17 @@ describe("index/handler-catalog-lint", () => {
     });
 
     expect(warnings.some((w) => w.code === "HANDLER_ORPHAN_KEY")).toBe(true);
-    expect(
-      warnings.some(
-        (w) =>
-          (w.code === "HANDLER_MISSING" || w.code === "STEP_UNCOVERED") &&
-          w.contract_key === "preview-review.write_spec",
-      ),
-    ).toBe(true);
   });
 
-  test("reports handler key conflict for one agent step", () => {
+  test("does not warn for unbound steps (unbound steps are valid)", () => {
+    const warnings = lintHandlerCatalogCoverage({
+      handlers: { version: 1, handlers: [] },
+      flows: [{ flow_id: "flw_preview_review", manifest: flowManifest }],
+    });
+    expect(warnings.some((w) => w.code === "HANDLER_MISSING" || w.code === "STEP_UNCOVERED")).toBe(false);
+  });
+
+  test("reports handler key conflict for one step", () => {
     const warnings = lintHandlerCatalogCoverage({
       handlers: {
         version: 1,

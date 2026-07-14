@@ -268,7 +268,7 @@ export function planLaneDispatches(
       flow_id: "flw_lane",
       name: "lane",
       digest: "lane",
-      start: {},
+      triggers: {},
       steps: laneSteps,
     } as FlowIr;
     const dispatch = buildStepDispatch(ir, i, execContext, originSpaceId);

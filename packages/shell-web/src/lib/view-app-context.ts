@@ -58,7 +58,7 @@ export function buildViewAppContextFromRun(
     space_id: string;
   },
 ): ViewAppContext | null {
-  const active = run.active_human_step;
+  const active = run.open_steps?.[0];
   if (!active) return null;
   return buildViewAppContext({
     flow_id: input.flow_id,
@@ -68,7 +68,7 @@ export function buildViewAppContextFromRun(
     session_id: run.session_id,
     run_id: run.run_id,
     step_id: active.step_id,
-    branch_names: active.branch_names,
+    branch_names: active.branches.map((b) => b.branch),
     exec_context: run.exec_context,
   });
 }

@@ -48,3 +48,20 @@ export const RunSchema = z.preprocess((value) => {
 export type RunLifecycle = z.infer<typeof RunLifecycleSchema>;
 export type ExecContext = z.infer<typeof ExecContextSchema>;
 export type Run = z.infer<typeof RunSchema>;
+
+/**
+ * Projection of one open step and its bound resolver. `resolver: null` means
+ * no space handler is bound; an authorized protocol client must resolve the
+ * step externally. The shell must not synthesize a form or fallback control.
+ */
+export interface OpenStepResolverProjection {
+  step_id: string;
+  parent_id?: string | null;
+  description?: string;
+  resolver: string | null;
+  branches: Array<{
+    branch: string;
+    schema_ref?: string;
+    schema?: Record<string, unknown>;
+  }>;
+}

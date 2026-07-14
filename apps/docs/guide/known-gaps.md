@@ -46,7 +46,7 @@ Intentionally deferred product scope (not bugs) lives in the plan [deferred spec
 | Orchestration gates | Gate API for attach approval (operator mode) |
 | Event handlers | `on: event:` in `handlers.yaml` + `murrmure_emit_event` |
 | First-run wizard | `mrmr setup`, `mrmr space onboard` |
-| Agent onboarding | `mrmr setup --yes --json` |
+| Named-space onboarding | `mrmr setup --yes --json` (creates no agent credential) |
 | Agent MCP | `murrmure_resolve_step`, `murrmure_wait_for_run`, `murrmure_list_handlers` |
 | Split skills | `mrmr skill install --variant agent\|developer\|all` |
 

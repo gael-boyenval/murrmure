@@ -9,7 +9,6 @@ export function isTerminalStepStatus(status: RunStepStatus): boolean {
 
 export function stepStatusFromJournalType(
   type: string,
-  input?: { role?: string; view_id?: string },
 ): RunStepStatus | null {
   switch (type) {
     case JOURNAL_EVENT_TYPES.ACTION_DISPATCHED:
@@ -21,7 +20,7 @@ export function stepStatusFromJournalType(
     case JOURNAL_EVENT_TYPES.ACTION_EXECUTOR_UNAVAILABLE:
       return "failed";
     case JOURNAL_EVENT_TYPES.STEP_OPENED:
-      return input?.role === "human" || input?.view_id ? "awaiting_human" : "working";
+      return "working";
     case JOURNAL_EVENT_TYPES.STEP_RESOLVED:
       return "completed";
     default:
@@ -40,14 +39,9 @@ export function applyStepMemoFromJournal(
     result_hash?: string;
     error_code?: string;
     executor_type?: string;
-    role?: string;
-    view_id?: string;
   },
 ): RunStepMemo | null {
-  const nextStatus = stepStatusFromJournalType(input.type, {
-    role: input.role,
-    view_id: input.view_id,
-  });
+  const nextStatus = stepStatusFromJournalType(input.type);
   if (!nextStatus) return current;
 
   const base: RunStepMemo = current ?? {

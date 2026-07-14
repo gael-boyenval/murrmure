@@ -1,6 +1,6 @@
 # 01 — Launch clean and create a named space
 
-**Status:** Ready  
+**Status:** Complete
 **Build order:** 01  
 **Depends on:** 00  
 **Source work packages:** T08 naming/init subset, T09
@@ -72,6 +72,7 @@ Deliver the first uninterrupted Tutorial v3 experience: a fresh Hub/Desktop star
 - [Hub clean-slate plan](../2026-07-10-hub-clean-slate-boot.md)
 - [Connection onboarding plan](../2026-07-10-agent-grant-onboarding.md)
 - [Tutorial Part 1](../../../apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md)
+- [ADR-006 clean first boot](../../ADR/ADR-006-clean-first-boot.md)
 
 ## Done gate
 
@@ -80,4 +81,9 @@ Deliver the first uninterrupted Tutorial v3 experience: a fresh Hub/Desktop star
 - `space init` remains offline and credential-free.
 - Tests install fixtures explicitly.
 - No active code, current spec, user doc, skill, scaffold, or test depends on seed/FDK state.
+
+## Handoff
+| Turn | Agent | Model | Status | Summary | Evidence | Next |
+|------|-------|-------|--------|---------|----------|------|
+| build | build | gpt-5.6-sol-high | complete | Removed production seed/catalog startup paths and legacy database migration; moved Hub contracts behind explicit test helpers; added opaque space IDs, one-space naming/slug setup without credential creation, offline init, zero-state Desktop copy, synchronized ADR/spec/docs/skills/scaffolds/changelogs, and clean-state enforcement. | Task 01 CLI: 28 passed; focused Hub daemon: 7 passed; Hub core: 14 passed plus typecheck; Desktop: 16 passed plus typecheck; shell empty-state: 1 passed; Tutorial fence, known-gaps, FDK, clean-state, and `git diff --check` pass. Repository-wide docs/daemon/CLI gates still expose Task 00 step-contract fixture/type drift outside Task 01 scope. | review |
 

@@ -1,16 +1,14 @@
-import { accessSync, constants, mkdirSync, readFileSync, statSync } from "node:fs";
+import { accessSync, constants, mkdirSync, statSync } from "node:fs";
 import { once } from "node:events";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope } from "@murrmure/hub-core";
 import { setMurrmureProtocolRenderer } from "@murrmure/executors";
-import { ContractV2Schema } from "@murrmure/contracts";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
 import { acquireLock, cleanupStaleStaging, releaseLock, resolveDataDir, updateLockOwnerEndpoint, writeDiscovery } from "./ops.js";
@@ -27,8 +25,6 @@ import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./
 import { registerArtifactGcCron } from "./artifact-gc-cron.js";
 import { createOutOfShellService, wrapHandlerForOutOfShell } from "./out-of-shell-service.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
-
-const __dir = dirname(fileURLToPath(import.meta.url));
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 
@@ -91,10 +87,6 @@ function assertLoopbackListenHost(config: DaemonConfig): void {
   }
 }
 
-function resolveContractsDir(config: DaemonConfig): string {
-  return join(config.bundleRoot ?? join(__dir, "../../../fixtures"), "hub/contracts");
-}
-
 function closeServerGracefully(server: ReturnType<typeof serve>): Promise<void> {
   return new Promise((resolveClose) => {
     server.close(() => resolveClose());
@@ -129,8 +121,6 @@ export async function startHubDaemon(config: DaemonConfig) {
   }
   cleanupStaleStaging(resolveDataDir(config));
 
-  const contractsDir = resolveContractsDir(config);
-
   mkdirSync(dirname(config.databasePath), { recursive: true });
   const kernelPersistence = await createRuntimePersistence(config.databasePath);
   const db = new Database(config.databasePath);
@@ -139,12 +129,6 @@ export async function startHubDaemon(config: DaemonConfig) {
   const bootstrapBare = config.bootstrapToken ?? "01JBOOTSTRAPTOKEN00000001";
   ensureBootstrapToken(db, bootstrapBare, "actor_bootstrap", "bootstrap");
   const murrmurePersistence = createSqliteStudioPersistence(db);
-
-  for (const [refId, file] of [["cref_linear_demo", "linear-demo-v2.json"]] as const) {
-    const contractPath = join(contractsDir, file);
-    const contract = ContractV2Schema.parse(JSON.parse(readFileSync(contractPath, "utf-8")));
-    await pinContract(murrmurePersistence, refId, contract);
-  }
 
   const ids = { ulid: () => ulid() };
   const clock = { nowIso: () => new Date().toISOString() };
@@ -316,7 +300,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const shellStaticDir = process.env.MURRMURE_SHELL_STATIC_DIR;
   const embedded = process.env.MURRMURE_EMBEDDED === "1";
   const listenHost = process.env.MURRMURE_LISTEN_HOST ?? "127.0.0.1";
-  const bundleRoot = process.env.MURRMURE_BUNDLE_ROOT;
   const bootstrapToken = process.env.MURRMURE_BOOTSTRAP_TOKEN;
   await startHubDaemon({
     databasePath,
@@ -326,7 +309,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     shellStaticDir,
     embedded,
     listenHost,
-    bundleRoot,
     bootstrapToken,
   });
 }

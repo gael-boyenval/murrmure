@@ -1,6 +1,10 @@
 import { FlowManifestSchema, type FlowManifest, type FlowStep } from "@murrmure/contracts";
 import type { ParseResult } from "./parse-result.js";
-import { findLegacyStepKinds, rejectLegacyStepKinds } from "../flow-engine/step-contract-compile.js";
+import {
+  findLegacyStepKinds,
+  rejectLegacyStepKinds,
+  rejectRemovedFields,
+} from "../flow-engine/step-contract-compile.js";
 
 export { findLegacyStepKinds as detectLegacyStepKinds, rejectLegacyStepKinds };
 
@@ -48,9 +52,41 @@ export function rejectInlineScriptSteps(raw: unknown): ParseResult<unknown> {
   return { ok: true, value: raw };
 }
 
+/** Reject the removed `start` key (including dual `start` + `triggers`) and `requires_view`. */
+export function rejectRemovedStartFields(raw: unknown): ParseResult<unknown> {
+  if (!raw || typeof raw !== "object") return { ok: true, value: raw };
+  const record = raw as Record<string, unknown>;
+  if ("start" in record && record.start !== undefined) {
+    return {
+      ok: false,
+      code: "LEGACY_START_KEY",
+      message:
+        "Top-level 'start:' is removed — use 'triggers:' as the only start-condition field (see studio-specs/current/bridges/step-contract.md)",
+    };
+  }
+  const triggers = record.triggers;
+  if (triggers && typeof triggers === "object" && !Array.isArray(triggers)) {
+    if ("requires_view" in (triggers as Record<string, unknown>)) {
+      return {
+        ok: false,
+        code: "LEGACY_REQUIRES_VIEW",
+        message:
+          "'requires_view' is removed — spaces bind Views through handlers.yaml, not the portable flow",
+      };
+    }
+  }
+  return { ok: true, value: raw };
+}
+
 export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
   const guard = rejectInlineScriptSteps(raw);
   if (!guard.ok) return guard;
+
+  const start = rejectRemovedStartFields(raw);
+  if (!start.ok) return start;
+
+  const removed = rejectRemovedFields(raw);
+  if (!removed.ok) return removed;
 
   const legacy = rejectLegacyStepKinds(raw);
   if (!legacy.ok) return legacy;

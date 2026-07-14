@@ -8,7 +8,6 @@ import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { toRunDto, toSessionDto } from "../session/index.js";
 import { canExecuteFlow, canReadFlow } from "./start.js";
 import { buildSpaceHomeIndex, type SpaceHomeIndexSection } from "./space-home-index.js";
-import { flowUsesStepContracts } from "./step-catalog.js";
 import {
   buildEmittableEventsCatalog,
   type EmittableEventEntry,
@@ -27,7 +26,7 @@ export interface SpaceHomeFlowRow {
   flow_id: string;
   name: string;
   digest: string;
-  start: FlowIndexEntry["start"];
+  triggers: FlowIndexEntry["triggers"];
   can_run: boolean;
   can_preview: boolean;
   manual: boolean;
@@ -74,9 +73,6 @@ function effectiveRunLifecycle(
   memos: { status: string }[],
 ): Run["lifecycle"] {
   if (memos.some((m) => m.status === "failed")) return "failed";
-  if (lifecycle === "input-required" && !memos.some((m) => m.status === "awaiting_human")) {
-    return "working";
-  }
   return lifecycle;
 }
 
@@ -91,10 +87,10 @@ function flowRow(
     flow_id: entry.flow_id,
     name: entry.name,
     digest: entry.digest,
-    start: entry.start,
+    triggers: entry.triggers,
     can_run,
     can_preview,
-    manual: entry.start.manual !== false,
+    manual: entry.triggers.manual !== false,
     view_ref: entry.view_ref,
   };
 }
@@ -164,22 +160,6 @@ export async function buildSpaceHome(
       };
       if (lifecycle === "working" || lifecycle === "input-required") {
         active_runs.push(row);
-
-        if (run.flow_id) {
-          const entry = await studio.getFlowIndexEntry(run.flow_id, run.space_id);
-          if (flowUsesStepContracts(entry)) {
-            for (const memo of memos) {
-              if (memo.status !== "awaiting_human") continue;
-              needs_attention.push({
-                kind: "human_step",
-                step_id: memo.step_id,
-                run_id: dto.run_id,
-                session_id: dto.session_id,
-                title: `Needs you: ${memo.step_id}`,
-              });
-            }
-          }
-        }
       } else if (
         lifecycle === "completed" ||
         lifecycle === "failed" ||

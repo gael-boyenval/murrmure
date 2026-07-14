@@ -33,24 +33,17 @@ const LINEAR_FLOW_BUNDLE = {
       manifest: {
         apiVersion: "murrmure.flow/v1",
         name: "step-contracts-list",
-        start: { manual: true },
+        triggers: { manual: true },
         steps: [
           {
             id: "intake",
-            presentation: { view: "intake-view" },
+            description: "intake",
             branches: {
-              continue: { schema: { type: "object" }, next: "work" },
-              cancel: { schema: { type: "object" }, fail_run: true },
+              continue: { schema: { type: "object" }, route: { step: "work" } },
+              cancel: { schema: { type: "object" }, route: { run: "failed" } },
             },
           },
-          {
-            id: "work",
-            executor: { action: "do_work" },
-            branches: {
-              completed: { schema: { type: "object" }, next: null },
-              failed: { schema: { type: "object" }, fail_run: true },
-            },
-          },
+          { id: "work", description: "work" },
         ],
       },
     },

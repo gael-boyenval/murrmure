@@ -38,7 +38,7 @@ export function mountStepWorkUploadRoutes(app: Hono, ctx: DaemonContext): void {
     }
 
     const memo = (await murrmurePersistence.listRunStepMemos(run_id)).find((m) => m.step_id === step_id);
-    if (!memo || (memo.status !== "working" && memo.status !== "awaiting_human")) {
+    if (!memo || memo.status !== "working") {
       return c.json(
         { code: "STEP_NOT_ACTIVE", message: `Step '${step_id}' is not active for work upload` },
         409,

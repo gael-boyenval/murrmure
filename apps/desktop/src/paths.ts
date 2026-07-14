@@ -1,4 +1,4 @@
-import { existsSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +24,6 @@ export interface DesktopPaths {
   hubEntry: string;
   shellStaticDir: string;
   shellWebUrl: string | null;
-  bundleRoot: string;
   mcpBridgeEntry: string | null;
   hubUrl: string;
   healthUrl: string;
@@ -40,7 +39,7 @@ export interface ResolveDesktopPathsOptions {
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = resolve(moduleDir, "../../..");
 
-function resolveMcpBridgeEntry(candidates: string[]): string | null {
+function resolveMcpBridgeEntry(candidates: Array<string | undefined>): string | null {
   for (const candidate of candidates) {
     if (candidate && existsSync(candidate)) {
       return candidate;
@@ -87,7 +86,6 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
       hubEntry: join(repoRoot, "packages/hub-daemon/src/main.ts"),
       shellStaticDir: "",
       shellWebUrl: `http://${DESKTOP_HOST}:${shellDevPort}`,
-      bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? join(repoRoot, "fixtures"),
       mcpBridgeEntry: resolveMcpBridgeEntry([
         env.MURRMURE_MCP_BRIDGE_ENTRY,
         join(repoRoot, "packages/mcp-bridge/dist/main.js"),
@@ -122,7 +120,6 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
       hubEntry,
       shellStaticDir: env.MURRMURE_SHELL_STATIC_DIR ?? join(repoRoot, "packages/shell-web/dist"),
       shellWebUrl: null,
-      bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? join(repoRoot, "fixtures"),
       mcpBridgeEntry: resolveMcpBridgeEntry([
         env.MURRMURE_MCP_BRIDGE_ENTRY,
         join(repoRoot, "packages/mcp-bridge/dist/main.js"),
@@ -148,7 +145,6 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
     hubEntry: env.MURRMURE_DESKTOP_HUB_ENTRY ?? join(resourcesDir, "hub/main.js"),
     shellStaticDir: env.MURRMURE_SHELL_STATIC_DIR ?? join(resourcesDir, "shell/dist"),
     shellWebUrl: null,
-    bundleRoot: env.MURRMURE_BUNDLE_ROOT ?? resourcesDir,
     mcpBridgeEntry: resolveMcpBridgeEntry([
       env.MURRMURE_MCP_BRIDGE_ENTRY,
       join(resourcesDir, "mcp-bridge/main.js"),
@@ -159,86 +155,10 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
   };
 }
 
-const LEGACY_DB_BASENAME = "studio.db";
 const CANONICAL_DB_BASENAME = "murrmure.db";
-/** Upper bound for a freshly created / schema-only SQLite file (bytes). */
-const NEW_DB_MAX_BYTES = 8192;
 
-function dbFileSize(path: string): number {
-  try {
-    return statSync(path).size;
-  } catch {
-    return 0;
-  }
-}
-
-function removeDatabaseFiles(dbPath: string): void {
-  for (const suffix of ["", "-wal", "-shm"]) {
-    const sidecar = suffix ? `${dbPath}${suffix}` : dbPath;
-    if (existsSync(sidecar)) {
-      unlinkSync(sidecar);
-    }
-  }
-}
-
-/** Prefer legacy data when canonical exists but is empty/new and legacy has real content. */
-export function shouldPreferLegacyDatabaseMigration(
-  canonicalPath: string,
-  legacyPath: string,
-): boolean {
-  const legacySize = dbFileSize(legacyPath);
-  if (legacySize <= 0) {
-    return false;
-  }
-  const canonicalSize = dbFileSize(canonicalPath);
-  return canonicalSize <= NEW_DB_MAX_BYTES && legacySize > canonicalSize;
-}
-
-function migrateLegacyDatabase(
-  dataDir: string,
-  legacyPath: string,
-  canonicalPath: string,
-  log: (message: string) => void,
-): string {
-  renameSync(legacyPath, canonicalPath);
-  for (const suffix of ["-wal", "-shm"]) {
-    const legacySidecar = `${legacyPath}${suffix}`;
-    if (existsSync(legacySidecar)) {
-      renameSync(legacySidecar, `${canonicalPath}${suffix}`);
-    }
-  }
-
-  log(
-    `Migrated legacy database ${LEGACY_DB_BASENAME} → ${CANONICAL_DB_BASENAME} in ${dataDir}. ` +
-      "Set DATABASE_PATH explicitly to override.",
-  );
-  return canonicalPath;
-}
-
-/** Migrate legacy `studio.db` → `murrmure.db` on first launch after rename. */
-export function resolveDatabasePath(
-  dataDir: string,
-  log: (message: string) => void = console.warn,
-): string {
-  const canonicalPath = join(dataDir, CANONICAL_DB_BASENAME);
-  const legacyPath = join(dataDir, LEGACY_DB_BASENAME);
-
-  if (existsSync(canonicalPath)) {
-    if (existsSync(legacyPath) && shouldPreferLegacyDatabaseMigration(canonicalPath, legacyPath)) {
-      log(
-        `Replacing empty ${CANONICAL_DB_BASENAME} with legacy ${LEGACY_DB_BASENAME} in ${dataDir}.`,
-      );
-      removeDatabaseFiles(canonicalPath);
-    } else {
-      return canonicalPath;
-    }
-  }
-
-  if (!existsSync(legacyPath)) {
-    return canonicalPath;
-  }
-
-  return migrateLegacyDatabase(dataDir, legacyPath, canonicalPath, log);
+export function resolveDatabasePath(dataDir: string): string {
+  return join(dataDir, CANONICAL_DB_BASENAME);
 }
 
 export function buildHubSpawnEnv(paths: DesktopPaths, env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -248,7 +168,6 @@ export function buildHubSpawnEnv(paths: DesktopPaths, env: NodeJS.ProcessEnv = p
     DATABASE_PATH: resolveDatabasePath(paths.dataDir),
     MURRMURE_LISTEN_HOST: DESKTOP_HOST,
     MURRMURE_DATA_DIR: paths.dataDir,
-    MURRMURE_BUNDLE_ROOT: paths.bundleRoot,
   };
 
   if (paths.mode === "dev-hmr") {

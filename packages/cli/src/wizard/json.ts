@@ -37,13 +37,11 @@ export interface WizardRunResult {
 }
 
 export const SETUP_STEP_PLAN: WizardStepPlan[] = [
-  { id: "connect", command: "mrmr login", description: "Connect hub URL and bearer token" },
-  { id: "spaces", command: "mrmr space create", description: "Create or select hub space" },
-  { id: "init", command: "mrmr space init --with-skill", description: "Scaffold murrmure/ and install skill" },
+  { id: "spaces", command: "mrmr space create", description: "Confirm name and slug; create one space" },
+  { id: "init", command: "mrmr space init", description: "Scaffold the empty .mrmr/ tree" },
   { id: "link", command: "mrmr space link --path . --space <id>", description: "Register local path binding" },
   { id: "apply", command: "mrmr space apply", description: "Index local flows to hub" },
-  { id: "skill", command: "mrmr skill install", description: "Install murrmure Cursor skill (if skipped in init)" },
-  { id: "grant", command: "mrmr grant mint --capabilities …", description: "Mint agent grant + MCP snippet" },
+  { id: "skill", command: "mrmr skill install", description: "Optionally install Murrmure skills" },
 ];
 
 export const ONBOARD_STEP_PLAN: WizardStepPlan[] = [

@@ -269,18 +269,17 @@ export interface RunDetailPayload {
   exec_context?: Record<string, unknown>;
   journal_replay?: Array<{ step_id: string; status: string }>;
   steps?: Array<{ step_id: string; status: string }>;
-  active_human_step?: {
+  open_steps?: Array<{
     step_id: string;
-    view_ref?: {
-      view_id: string;
-      origin_space_id?: string;
-      entry_url?: string;
-      shell_route?: string;
-      params_schema?: string;
-    };
-    assignees?: string[];
-    branch_names: string[];
-  };
+    parent_id?: string | null;
+    description?: string;
+    resolver: string | null;
+    branches: Array<{
+      branch: string;
+      schema_ref?: string;
+      schema?: Record<string, unknown>;
+    }>;
+  }>;
 }
 
 export interface SessionDetailPayload {

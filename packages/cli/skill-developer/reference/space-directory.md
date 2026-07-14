@@ -23,6 +23,7 @@ Legacy `murrmure/` paths are accepted until HANDLER-CUTOVER but new spaces shoul
 
 | Command | Purpose |
 |---------|---------|
+| `mrmr setup` | Confirm one name/slug, create and link the Hub space, scaffold, and apply; creates no credential |
 | `mrmr space init` | Scaffold empty `.mrmr/` templates |
 | `mrmr space flow init <id> [--template hello-gate\|hello-invoke]` | Scaffold flow manifest + views |
 | `mrmr space view init <id>` | Scaffold Vite+React view under `.mrmr/views/` |

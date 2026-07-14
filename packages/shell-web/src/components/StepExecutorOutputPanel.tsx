@@ -19,7 +19,6 @@ const statusTone: Record<string, string> = {
   completed: "bg-emerald-400",
   failed: "bg-red-400",
   working: "bg-amber-400 animate-pulse",
-  awaiting_human: "bg-sky-400",
   pending: "bg-zinc-500",
   skipped: "bg-zinc-600",
 };
@@ -27,7 +26,7 @@ const statusTone: Record<string, string> = {
 function statusBadgeVariant(status: string): "outline" | "success" | "warning" | "failed" {
   if (status === "completed") return "success";
   if (status === "failed") return "failed";
-  if (status === "working" || status === "awaiting_human") return "warning";
+  if (status === "working") return "warning";
   return "outline";
 }
 

@@ -4,6 +4,10 @@
 
 ### Breaking Changes
 
+- `mrmr setup` creates one user-named space instead of fixed development spaces
+  and stops before local-tool credential creation.
+- `mrmr space init` derives its name/slug from the target folder, remains
+  offline, and scaffolds no credential or MCP configuration.
 - Removed legacy `murrmure mcp` / `mrmr mcp` onboarding shape from docs and setup flows.
 - MCP onboarding now targets `@murrmure/mcp-bridge` (`murrmure-mcp`) with thin config (`MURRMURE_HUB_TOKEN` only).
 - Added grant token switching via `mrmr grant use --space <spc_...>` with per-space token storage under `~/.murrmure/grants/`.

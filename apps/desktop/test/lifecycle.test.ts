@@ -132,7 +132,6 @@ describe("desktop lifecycle", () => {
     expect(paths.hubCommand).toBe("pnpm");
     expect(paths.hubArgs).toEqual(["--filter", "@murrmure/hub-daemon", "start"]);
     expect(paths.shellStaticDir).toBe("/tmp/work/packages/shell-web/dist");
-    expect(paths.bundleRoot).toBe("/tmp/work/fixtures");
     expect(paths.port).toBe(8787);
   });
 
@@ -145,7 +144,6 @@ describe("desktop lifecycle", () => {
         MURRMURE_DESKTOP_NODE: "/bundle/node",
         MURRMURE_DESKTOP_HUB_ENTRY: "/bundle/resources/hub/main.js",
         MURRMURE_SHELL_STATIC_DIR: "/bundle/resources/shell/dist",
-        MURRMURE_BUNDLE_ROOT: "/bundle/resources",
       },
     });
 
@@ -154,7 +152,6 @@ describe("desktop lifecycle", () => {
     expect(paths.hubCommand).toBe("/bundle/node");
     expect(paths.hubArgs).toEqual(["/bundle/resources/hub/main.js"]);
     expect(paths.shellStaticDir).toBe("/bundle/resources/shell/dist");
-    expect(paths.bundleRoot).toBe("/bundle/resources");
     expect(paths.hubUrl).toBe("http://127.0.0.1:8787");
   });
 });

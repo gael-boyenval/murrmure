@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
+import { pinHubContractFixture } from "../../../test-utils/hub/contracts.js";
 
 /** J01 review loop migrated to session/run API (phase 16 shim removal). */
 describe("http/j01-happy-path", () => {
@@ -27,6 +28,11 @@ describe("http/j01-happy-path", () => {
       defaultSpaceId: "",
       bootstrapToken,
     });
+    await pinHubContractFixture(
+      daemon.ctx.murrmurePersistence,
+      "linear-demo-v2",
+      "cref_linear_demo",
+    );
 
     const addr = daemon.server.address();
     const port = typeof addr === "object" && addr ? addr.port : 8787;

@@ -31,7 +31,7 @@ export interface SpaceDoctorSkillsContext {
   };
   legacy: {
     monolith_present: boolean;
-    fdk_present: boolean;
+    retired_flow_skill_present: boolean;
   };
 }
 
@@ -72,7 +72,7 @@ export function scanSpaceDoctorSkills(
   const agentPath = defaultInstallPath(projectPath, "agent");
   const developerPath = defaultInstallPath(projectPath, "developer");
   const legacyMonolithPath = legacyMonolithInstallPath(projectPath);
-  const legacyFdkPath = legacyInstallPath(projectPath);
+  const retiredFlowSkillPath = legacyInstallPath(projectPath);
 
   const bundledAgent = readSkillVersion("agent");
   const bundledDeveloper = readSkillVersion("developer");
@@ -129,12 +129,12 @@ export function scanSpaceDoctorSkills(
     }));
   }
 
-  if (existsSync(legacyFdkPath)) {
+  if (existsSync(retiredFlowSkillPath)) {
     issues.push(issue({
-      code: "SKILL_LEGACY_FDK",
+      code: "SKILL_RETIRED_FLOW",
       severity: "info",
-      message: "Legacy FDK skill (.cursor/skills/murrmure-flow) still exists",
-      path: legacyFdkPath,
+      message: "Retired murrmure-flow skill directory still exists",
+      path: retiredFlowSkillPath,
       fix: "mrmr skill install --variant all",
     }));
   }
@@ -154,7 +154,7 @@ export function scanSpaceDoctorSkills(
       },
       legacy: {
         monolith_present: existsSync(legacyMonolithPath),
-        fdk_present: existsSync(legacyFdkPath),
+        retired_flow_skill_present: existsSync(retiredFlowSkillPath),
       },
     },
   };

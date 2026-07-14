@@ -1,7 +1,6 @@
 import type {
   Capability,
   FlowIndexEntry,
-  FlowViewRef,
   IndexedAction,
   SpaceApplyBundle,
   ViewManifest,
@@ -17,7 +16,6 @@ import { collectStepSpaces } from "./parse-flow-manifest.js";
 import { compileFlowIr } from "../flow-engine/compile.js";
 import { detectFlowCallCycles } from "../flow-engine/cycle-detect.js";
 import { compileStepContractCatalog } from "../flow-engine/step-contract-compile.js";
-import { enrichCatalogViewRefs } from "../flow-engine/step-view-ref.js";
 
 function enrichCheckpointViewRefs(
   ir: ReturnType<typeof compileFlowIr>,
@@ -44,23 +42,6 @@ function flowIdFromName(name: string): string {
   return `flw_${slug || "unnamed"}`;
 }
 
-function resolveViewRef(
-  requiresView: string | null | undefined,
-  views: SpaceApplyBundle["views"],
-  originSpaceId: string,
-): FlowViewRef | undefined {
-  if (!requiresView) return undefined;
-  const view = (views ?? []).find((v) => v.view_id === requiresView || v.manifest.id === requiresView);
-  if (!view) return undefined;
-  return {
-    view_id: view.view_id,
-    origin_space_id: originSpaceId,
-    entry_url: view.manifest.entry,
-    shell_route: view.manifest.shell_route,
-    params_schema: view.manifest.params_schema,
-  };
-}
-
 export function buildFlowIndexEntries(
   bundle: SpaceApplyBundle,
   originSpaceId: string,
@@ -72,18 +53,15 @@ export function buildFlowIndexEntries(
     const ir = compileFlowIr(flow.manifest, flow_id);
     enrichCheckpointViewRefs(ir, bundle.views, originSpaceId);
     const { catalog } = compileStepContractCatalog(flow.manifest, flow_id);
-    if (catalog) {
-      enrichCatalogViewRefs(catalog, bundle.views, originSpaceId);
-    }
     return {
       flow_id,
       origin_space_id: originSpaceId,
       digest: flow.digest || ir.digest,
       name: flow.manifest.name,
-      start: flow.manifest.start,
+      triggers: flow.manifest.triggers,
       step_spaces: collectStepSpaces(flow.manifest, originSpaceId),
       grants_required,
-      view_ref: resolveViewRef(flow.manifest.start.requires_view, bundle.views, originSpaceId),
+      view_ref: undefined,
       ir,
       step_contract_catalog: catalog ?? undefined,
     };

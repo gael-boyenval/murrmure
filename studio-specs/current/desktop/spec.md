@@ -8,6 +8,15 @@ Normative baseline for desktop behavior from `murrmure-desktop-v1` (Tasks 1-4).
 - Keep `/v1`, `/api`, `/flows`, `/internal` route precedence over SPA fallback
 - Launch/stop hub sidecar with desktop app lifecycle
 - Skip manual `/connect` bootstrap in bundled desktop mode
+- Start fresh storage with zero spaces, persisted contracts, flow installs, or indexed flows
+
+## Clean first boot
+
+Desktop packages compiled product schemas, not contract fixtures or demo data.
+The Hub creates schema-only SQLite storage plus the local bootstrap actor; product
+objects enter storage only through explicit space creation and apply/install.
+Earlier development databases are not read or migrated during this cutover.
+Operators must use the documented one-time local-state reset.
 
 ## Single-URL topology
 
@@ -57,7 +66,6 @@ Packaged Desktop copies build artifacts into `Resources/`:
 | `Resources/hub/` | `@murrmure/hub-daemon` | Hub sidecar entry (`main.js`) |
 | `Resources/shell/dist/` | `@murrmure/shell-web` | Bundled observer shell static |
 | `Resources/mcp-bridge/` | `@murrmure/mcp-bridge` | Agent MCP stdio bridge (`main.js` → `murrmure-mcp`) |
-| `Resources/hub/contracts/` | fixtures | Seed contract bundles |
 
 Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` when present.
 
@@ -68,7 +76,6 @@ Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` 
   - `MURRMURE_LISTEN_HOST=127.0.0.1`
   - `MURRMURE_DATA_DIR=~/.murrmure`
   - `MURRMURE_SHELL_STATIC_DIR=<shell dist>`
-  - `MURRMURE_BUNDLE_ROOT=<bundle resources root>`
   - `MURRMURE_MCP_BRIDGE_ENTRY=<bundled mcp-bridge/main.js>` when the bridge artifact is present
 - Startup gate: poll `GET /v1/health` until ready (timeout: 30s).
 - Quit path: send `SIGTERM` to hub, wait up to 5s, then `SIGKILL` if still alive.
@@ -89,7 +96,6 @@ Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` 
 |----------|----------|---------|
 | `MURRMURE_SHELL_STATIC_DIR` | Optional | Built shell static directory (`dist`) mounted by hub at `/`. |
 | `MURRMURE_LISTEN_HOST` | Optional | Hub bind interface (desktop default `127.0.0.1`). |
-| `MURRMURE_BUNDLE_ROOT` | Optional | Resource root where seed contracts resolve from `<root>/hub/contracts`. |
 | `MURRMURE_DATA_DIR` | Optional | Hub data directory (desktop default `~/.murrmure`). |
 | `MURRMURE_MCP_BRIDGE_ENTRY` | Optional | Absolute path to bundled `murrmure-mcp` entry; Desktop sets this when spawning the hub. |
 | `PORT` | Optional | Hub listen port (desktop default `8787`). |

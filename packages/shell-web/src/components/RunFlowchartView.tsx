@@ -34,7 +34,6 @@ const statusColor = (status?: string) => {
   if (status === "completed") return "#22c55e";
   if (status === "failed") return "#ef4444";
   if (status === "working") return "#eab308";
-  if (status === "awaiting_human") return "#38bdf8";
   return "#64748b";
 };
 

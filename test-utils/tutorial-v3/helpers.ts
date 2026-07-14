@@ -103,6 +103,12 @@ export interface TemporaryHub extends TemporaryResource {
   baseUrl: string;
   bootstrapToken: string;
   dataDir: string;
+  productCounts: () => {
+    spaces: number;
+    contracts: number;
+    installs: number;
+    flows: number;
+  };
   stop: () => Promise<void>;
 }
 
@@ -125,15 +131,20 @@ export async function createTemporaryHub(
   const address = daemon.server.address();
   const port = typeof address === "object" && address ? address.port : 8787;
   let stopped = false;
+  const productCounts = () => {
+    const count = (table: string): number =>
+      Number((daemon.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count);
+    return {
+      spaces: count("spaces"),
+      contracts: count("contract_refs"),
+      installs: count("capability_installs"),
+      flows: count("flow_index"),
+    };
+  };
   const stop = async () => {
     if (stopped) return;
     stopped = true;
-    await new Promise<void>((resolveClose, reject) => {
-      daemon.server.close((error) => {
-        if (error) reject(error);
-        else resolveClose();
-      });
-    });
+    await daemon.shutdown();
     resource.cleanup();
   };
   return {
@@ -141,6 +152,7 @@ export async function createTemporaryHub(
     baseUrl: `http://127.0.0.1:${port}`,
     bootstrapToken,
     dataDir,
+    productCounts,
     stop,
     cleanup: () => {
       void stop();

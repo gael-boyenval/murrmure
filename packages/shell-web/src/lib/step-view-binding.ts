@@ -1,25 +1,18 @@
 import type { RunDetailPayload } from "@murrmure/shell-client";
 import type { ViewRefLike } from "./view-app-context.js";
 
-export function activeHumanStepFromRun(
-  run: RunDetailPayload | undefined,
-): RunDetailPayload["active_human_step"] | undefined {
-  return run?.active_human_step;
+type OpenStep = NonNullable<RunDetailPayload["open_steps"]>[number];
+
+export function activeOpenStepFromRun(run: RunDetailPayload | undefined): OpenStep | undefined {
+  return run?.open_steps?.[0];
 }
 
-export function viewRefFromActiveStep(
-  active: RunDetailPayload["active_human_step"],
-): ViewRefLike | undefined {
-  if (!active?.view_ref) return undefined;
-  return {
-    view_id: active.view_ref.view_id,
-    origin_space_id: active.view_ref.origin_space_id,
-    entry_url: active.view_ref.entry_url,
-    shell_route: active.view_ref.shell_route,
-  };
+// View binding is introduced in a later slice. Open steps in the
+// resolver-agnostic contract carry no view identity, so no view ref is derived.
+export function viewRefFromActiveStep(_active: OpenStep | undefined): ViewRefLike | undefined {
+  return undefined;
 }
 
-export function shouldShowStepCanvas(run: RunDetailPayload | undefined): boolean {
-  const active = activeHumanStepFromRun(run);
-  return Boolean(active?.view_ref?.view_id || active?.view_ref?.shell_route);
+export function shouldShowStepCanvas(_run: RunDetailPayload | undefined): boolean {
+  return false;
 }

@@ -19,15 +19,11 @@ export function replayHeadlessSteps(
     if (!step_id) continue;
 
     const current = byStep.get(step_id) ?? null;
-    const role = typeof event.payload.role === "string" ? event.payload.role : undefined;
-    const view_id = typeof event.payload.view_id === "string" ? event.payload.view_id : undefined;
     const next = applyStepMemoFromJournal(current, {
       run_id,
       step_id,
       type: event.type,
       ts: event.ts,
-      role,
-      view_id,
       idempotency_key:
         typeof event.payload.idempotency_key === "string"
           ? event.payload.idempotency_key

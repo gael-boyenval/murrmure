@@ -1,8 +1,7 @@
 # Acceptance — current (in-scope DoD)
 
 Merged definition of done for the local-first platform. Every in-scope row has a
-golden fixture under [fixtures/](./fixtures/) and a vitest. CDK author-flow
-acceptance is in [build-capability/acceptance.md](./build-capability/acceptance.md).
+golden fixture under [fixtures/](./fixtures/) and a vitest.
 
 Deferred rows (cloud CL0, cross-space XS1 federation) are **not** here — see
 [../plans/README.md](../plans/README.md).
@@ -34,7 +33,8 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | `test-utils/spaces/daily-brief-v2/` | Tutorial 3 tree (CI) | `packages/cli/test/docs-proof.test.ts` |
 | `test-utils/spaces/hello-authoring/` | Minimal handlers space (CI) | `packages/cli/test/docs-proof.test.ts` |
 | Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
-| Zero FDK in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
+| Zero retired install guidance in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
+| Clean first boot and production import boundaries | Tutorial v3 Task 01 | `pnpm check:clean-state` |
 | Tutorial pages (29, including Tutorial v3) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
 
 ## Flow runtime (CR)
@@ -45,17 +45,6 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | `fixtures/flow-runtime/promote-tool-refresh.json` | Live apply pushes `tools_changed`; catalog refresh | `…/flow-runtime/promote-tool-refresh.test.ts` |
 | `fixtures/flow-runtime/grant-scoped-tool-list.json` | Grant ACL filters MCP catalog | `…/flow-runtime/grant-scoped-tool-list.test.ts` |
 | `fixtures/flow-runtime/reconnect-outbox-replay.json` | Control-bus replay after reconnect | `…/flow-runtime/reconnect-outbox-replay.test.ts` |
-| `fixtures/flow-runtime/rollback-live-mount.json` | Rollback restores prior mount; pinned contracts | `…/flow-runtime/rollback-live-mount.test.ts` |
-| `fixtures/e2e/phase2-full-chain.json` | FDK bundle push → install → validate → test → apply → live worker | `…/flow-runtime/phase2-full-chain.test.ts` |
-
-## Feature-spec reference capability (FS)
-
-| Fixture | Proves | Test |
-|---------|--------|------|
-| `fixtures/feature-spec/happy-path-publish.json` | Spec publish flow | `…/feature-spec/happy-path-publish.test.ts` |
-| `fixtures/feature-spec/publish-direct-denied.json` | Direct publish denied (gate) | `…/feature-spec/publish-direct-denied.test.ts` |
-| `fixtures/feature-spec/revise-republish-v2.json` | Revise + republish v2 | `…/feature-spec/revise-republish-v2.test.ts` |
-| `fixtures/feature-spec/spec-summary-query.json` | `spec_summary@1` query answered (FS0/XS0) | `…/feature-spec/spec-summary-query.test.ts` |
 
 ## Triggers (TR)
 
@@ -84,7 +73,6 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | Fixture | Proves | Test |
 |---------|--------|------|
 | deny install on prod | Prod install gate | `…/config/deny-install-prod.test.ts` |
-| first-week setup | Setup wizard flow | `…/config/first-week-setup.test.ts` |
 | promote breaking gate | Breaking promote → human gate | `…/config/promote-breaking-gate.test.ts` |
 | shared-config (BC6b) | `shared.json` project registry routes | `…/studio/shared-config.test.ts` |
 
@@ -95,12 +83,6 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | Mount collisions | `ROUTE_PREFIX_COLLISION`, `MCP_TOOL_COLLISION` | `…/security/mount-collision-worker-env.test.ts` |
 | Worker env sanitization | No hub secrets leak into worker env | `…/security/mount-collision-worker-env.test.ts` |
 | UI blob traversal | `..` path traversal blocked on UI route | `…/flow-runtime/phase2-full-chain.test.ts` |
-
-## CDK author flow
-
-See [build-capability/acceptance.md](./build-capability/acceptance.md). Conformance
-(validate + deterministic build digest) and `dev --sim` are covered by
-`capability-sdk/test/cdk-conformance.test.ts`, `validate.test.ts`, `dev-sim.test.ts`.
 
 ## Reference workflow — preview-review-v2 (RW)
 

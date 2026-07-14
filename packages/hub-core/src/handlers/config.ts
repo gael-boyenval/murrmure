@@ -8,12 +8,6 @@ import { computeFederationStatus } from "../federation/outbound-queue.js";
 import type { FederationRegistryDeps } from "../federation/registry.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 
-const PACKAGE_CATALOG: Record<string, { contract_ref_id: string; default_version: string }> = {
-  "review-loop": { contract_ref_id: "cref_review_loop", default_version: "2.0.0" },
-  "brand-check": { contract_ref_id: "cref_linear_demo", default_version: "1.0.0" },
-  "feature-spec": { contract_ref_id: "cref_feature_spec", default_version: "1.0.0" },
-};
-
 const GRANT_TEMPLATES: Record<string, Capability[]> = {
   worker: [
     "space:read",
@@ -45,7 +39,7 @@ export class ConfigHandler {
       return denialResult("space_exists", { message: `Space slug '${cmd.slug}' already exists` }, HTTP_SEMANTIC.CONFLICT);
     }
 
-    const space_id = cmd.slug.replace(/-/g, "_");
+    const space_id = this.ids.ulid();
     const ts = this.clock.nowIso();
     await this.studio.insertSpace(
       {
@@ -227,28 +221,11 @@ export class ConfigHandler {
       });
     }
 
-    const catalog = PACKAGE_CATALOG[flowId];
-    if (!catalog) {
-      return denialResult("unknown_package", { message: `Unknown flow: ${flowId}` }, HTTP_SEMANTIC.NOT_FOUND);
-    }
-
-    const version = body.version ?? catalog.default_version;
-    const install_id = this.ids.ulid();
-    const targetState = (body.target_state ?? "draft") as FlowInstall["evolution_state"];
-    const evolution_state = targetState === "live" && version === catalog.default_version ? "live" : targetState;
-
-    const install: FlowInstall = {
-      install_id: `ins_${install_id}`,
-      space_id: addSpaceId(bare),
-      flow_id: flowId,
-      version,
-      contract_ref_id: catalog.contract_ref_id,
-      evolution_state,
-      config: body.config,
-    };
-
-    await this.studio.insertFlowInstall(install, this.clock.nowIso());
-    return successResult("capability_installed", install);
+    return denialResult(
+      "unknown_package",
+      { message: `Unknown flow: ${flowId}. Install requires an explicit bundle.` },
+      HTTP_SEMANTIC.NOT_FOUND,
+    );
   }
 
   async configureCapability(space_id: string, install_id: string, config: Record<string, unknown>) {

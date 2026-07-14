@@ -6,7 +6,7 @@ Open the app, understand what you're looking at, and create your first space.
 
 Install and launch Desktop — see [Murrmure Desktop](../../desktop).
 
-The app opens and invites you to **link your first space**. You should see:
+The app opens and invites you to **create your first space**. You should see:
 
 - **No projects yet** — the list on the left is empty (*No spaces linked yet*)
 - **A short guide** in the center — pick a folder on your computer, run a few terminal commands, and your project will show up here
@@ -50,11 +50,14 @@ From your project folder:
 mrmr setup
 ```
 
-The wizard does what the Desktop screen describes — connect, create the space, scaffold, link, apply, and connect your agent — in one guided pass. Confirm each step:
+The wizard uses the already-running Desktop Hub authorization, then creates one
+named space, scaffolds, links, and applies in one guided pass. It does not write
+a login or create a local-tool connection, token, grant, or credential in this
+part.
 
-**Connect** — links the CLI to the Desktop you have open.
-
-**Spaces** — creates the space on the hub. Name it `my-first-space`.
+**Space** — asks for a human-readable name defaulted from the current folder,
+then shows an editable slug. Confirm `my-first-space` for both in this tutorial.
+The Hub assigns a separate immutable `spc_…` ID.
 
 **Init** — creates `.mrmr/` in your project folder. When asked **Include example flow and starter files?**, choose **No** — Part 2 adds your own flow from scratch.
 
@@ -62,13 +65,7 @@ The wizard does what the Desktop screen describes — connect, create the space,
 
 **Apply** — publishes `.mrmr/` so Desktop can see it. Watch the sidebar: your space should appear while the wizard runs.
 
-**Skill** — optional platform skills that teach agents how to use Murrmure's tools. Accept if your agent supports them.
-
-**Connection** — asks whether tools on this computer may access the space. Accept
-to create one least-privilege local connection and configure the integration
-contexts you select. Tokens stay in the OS credential store; generated config
-contains IDs only. Follow the reload and verification prompts. Decline to create
-no connection.
+**Skill** — optional platform skills that teach tools how to use Murrmure.
 
 The confirmed name and slug are written consistently during setup; no manual
 `space.yaml` repair or second apply is required.
@@ -99,6 +96,7 @@ handlers: []
 ```yaml
 apiVersion: murrmure.space/v1
 slug: my-first-space
+name: my-first-space
 ```
 
 ## Step 4 — Check Desktop
@@ -118,7 +116,18 @@ Both should pass without errors.
 - [ ] After setup, **my-first-space** appears in the sidebar
 - [ ] `mrmr space status` shows your project folder linked
 - [ ] `.mrmr/` matches the layout above (empty handlers, no flows)
-- [ ] Wizard **Connection** step completed (or explicitly declined)
+
+## One-time reset for earlier development builds
+
+This release intentionally has no seed migration or compatibility reader. If
+you previously ran a development build, quit Desktop and move the old local
+state aside once:
+
+```bash
+mv ~/.murrmure ~/.murrmure.pre-tutorial-v3-$(date +%Y%m%d-%H%M%S)
+```
+
+The next launch creates fresh empty storage. This does not delete the backup.
 
 ## Next
 

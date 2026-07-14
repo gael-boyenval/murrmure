@@ -93,7 +93,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   });
 
   app.get("/v1/spaces/:space_id/flows/:install_id/source", async (c) => {
-    return c.json({ code: "source_not_found", message: "FDK source snapshots removed in v2" }, 404);
+    return c.json({ code: "source_not_found", message: "Source snapshots are not stored by the Hub" }, 404);
   });
 
   app.get("/v1/spaces/:space_id/contracts/diff", async (c) => {

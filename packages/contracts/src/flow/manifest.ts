@@ -4,10 +4,6 @@ import { GateFormSchema } from "../entities/gate.js";
 import {
   StepBranchDefinitionSchema,
   StepContractManifestStepSchema,
-  StepOrchestrationSchema,
-  StepPresentationSchema,
-  StepRoleSchema,
-  type StepContractManifestStep,
 } from "../entities/step-contract.js";
 
 export const FlowStartEventSchema = z.object({
@@ -17,14 +13,17 @@ export const FlowStartEventSchema = z.object({
 
 export type FlowStartEvent = z.infer<typeof FlowStartEventSchema>;
 
+/**
+ * Start conditions. `triggers` is the only start-condition field; the removed
+ * `start` and `requires_view` keys are rejected by the parser.
+ */
 export const FlowStartConditionsSchema = z.object({
   manual: z.boolean().optional(),
   flow_call: z.boolean().optional(),
   events: z.array(FlowStartEventSchema).optional(),
   schedule: z.string().nullable().optional(),
-  requires_view: z.string().nullable().optional(),
   idempotency: z.string().optional(),
-});
+}).strict();
 
 export const FlowStartFlowStepSchema = z.object({
   flow_id: z.string(),
@@ -89,24 +88,18 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
   z.object({
     id: z.string(),
     description: z.string().optional(),
-    role: StepRoleSchema.optional(),
-    orchestration: StepOrchestrationSchema.optional(),
-    presentation: StepPresentationSchema.optional(),
     branches: z.record(StepBranchDefinitionSchema).optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
     parallel: FlowParallelStepSchema.optional(),
     start_flow: FlowStartFlowStepSchema.optional(),
-  }),
+  }).strict(),
 );
 
 export type FlowStep = {
   id: string;
   description?: string;
-  role?: z.infer<typeof StepRoleSchema>;
-  orchestration?: z.infer<typeof StepOrchestrationSchema>;
-  presentation?: z.infer<typeof StepPresentationSchema>;
   branches?: Record<string, z.infer<typeof StepBranchDefinitionSchema>>;
-  steps?: StepContractManifestStep[];
+  steps?: z.infer<typeof StepContractManifestStepSchema>[];
   parallel?: z.infer<typeof FlowParallelStepSchema>;
   start_flow?: z.infer<typeof FlowStartFlowStepSchema>;
 };
@@ -115,15 +108,14 @@ export const FlowManifestSchema = z.object({
   apiVersion: z.literal("murrmure.flow/v1"),
   name: z.string(),
   description: z.string().optional(),
-  triggers: FlowStartConditionsSchema.optional(),
-  start: FlowStartConditionsSchema,
+  triggers: FlowStartConditionsSchema,
   grants: z
     .object({
       suggested: z.array(CapabilitySchema).optional(),
     })
     .optional(),
   steps: z.array(FlowStepSchema),
-});
+}).strict();
 
 export type FlowStartConditions = z.infer<typeof FlowStartConditionsSchema>;
 export type FlowManifest = z.infer<typeof FlowManifestSchema>;

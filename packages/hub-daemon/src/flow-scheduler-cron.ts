@@ -26,7 +26,7 @@ export function registerFlowSchedulerCron(
     for (const space of spaces) {
       const flows = await studio.listFlowIndex(space.space_id);
       const due = dueScheduledFlows(
-        flows.map((f) => ({ flow_id: f.flow_id, schedule: f.start.schedule })),
+        flows.map((f) => ({ flow_id: f.flow_id, schedule: f.triggers.schedule })),
         now,
       );
 

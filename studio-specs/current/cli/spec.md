@@ -226,7 +226,13 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 | `update <space_id>` | PATCH `/v1/spaces/:id` | requireScope · space:admin |
 | `archive <space_id>` | POST `/v1/spaces/:id/archive` | requireScope · space:admin |
 
-**`space init`:** Scaffolds `.mrmr/` — `space/space.yaml`, `space/handlers.yaml` (required), legacy empty `actions.yaml` / `executors.yaml` / `hooks.yaml` stubs, and `dev/.gitignore`. **Default:** empty handlers only (no example flow, no `.mrmr/README.md`). **`--with-examples`** (or interactive confirm / `mrmr setup` prompt) adds `flows/example/flow.manifest.yaml` and `.mrmr/README.md`. Flags: `--with-examples`, `--no-examples`. Does not require hub auth.
+**`space init`:** Offline-only scaffold of `.mrmr/space/space.yaml`,
+`.mrmr/space/handlers.yaml`, and `.mrmr/dev/.gitignore`. The name defaults from
+the target folder and the slug is normalized unless `--name` / `--slug` are
+passed. **Default:** empty handlers only (no example flow, no
+`.mrmr/README.md`). **`--with-examples`** adds
+`flows/example/flow.manifest.yaml` and `.mrmr/README.md`. It never contacts the
+Hub or creates a token, grant, connection, or credential.
 
 **`space link`:** Registers `{ host, path, primary }` binding with hub; persists **`link.space_id`** and machine-local **`link.host`** in `.mrmr/space/space.yaml` (not `.murrmure/link.json`). Use `--create` to create hub space from `space.yaml` slug.
 
@@ -236,7 +242,9 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 
 **`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `.mrmr/` — manifest (`triggers` + checkpoint steps per decision 05), handlers, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `.mrmr/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `.mrmr/` repo redirects with exit 1.
 
-**`space setup`:** Interactive hub setup — connect, create spaces, **execute** init/link/apply (not print-only), optional grant mint with rev-1 capabilities + MCP snippet.
+**`space setup`:** Same Task 01 sequence as top-level setup: confirm one
+folder-derived display name and editable slug, create one opaque Hub space,
+then execute init/link/apply. It creates no local-tool credential.
 
 **`space onboard`:** Short path for existing `.mrmr/` — link → apply → status. Doctor suggests this when link is missing.
 
@@ -244,11 +252,12 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 
 | Command | Human (Clack) | Agent (`--json`) |
 |---------|---------------|------------------|
-| `mrmr setup` | connect → spaces → init (optional examples prompt) → link → apply → skill → grant + MCP | `--json` = step plan; `--json --yes` = non-interactive run (init skips examples) |
+| `mrmr setup` | confirm name/slug → create one space → init → link → apply → optional skill | `--json` = step plan; `--json --yes` = non-interactive run (folder defaults, no examples) |
 | `mrmr space onboard` | link → apply → status | same flags |
-| `mrmr space setup` | hub admin subset of setup | use `mrmr setup --json` instead |
+| `mrmr space setup` | same named-space setup sequence | same flags |
 
-**Grant step:** mints rev-1 capabilities (`space:read`, `flow:run`, `flow:read`, `action:invoke`, `gate:resolve`, `journal:read`) — not v1 `WORKER_SCOPES`.
+Task 01 setup uses existing Hub authorization and deliberately writes no login
+or local-tool connection credential.
 
 **Handoff:** wizard outro points to Desktop → Run → **ViewCanvasHost** at checkpoint steps.
 

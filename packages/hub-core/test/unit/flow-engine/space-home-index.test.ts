@@ -22,14 +22,14 @@ describe("space-home-index", () => {
     });
   });
 
-  test("collectFlowStartEvents reads flow start.events", () => {
+  test("collectFlowStartEvents reads flow triggers.events", () => {
     const events = collectFlowStartEvents([
       {
         flow_id: "flw_daily",
         origin_space_id: "spc_demo",
         digest: "sha256:x",
         name: "daily",
-        start: {
+        triggers: {
           manual: false,
           events: [{ type: "brief.requested", source: "/spaces/spc_demo" }],
         },

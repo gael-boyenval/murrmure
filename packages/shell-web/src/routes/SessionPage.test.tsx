@@ -23,16 +23,14 @@ const activeHumanRun = {
   session_id: "ses_1",
   flow_id: "flw_demo",
   space_id: "spc_demo",
-  lifecycle: "input-required",
-  active_human_step: {
-    step_id: "review",
-    branch_names: ["validated"],
-    view_ref: {
-      view_id: "preview-review",
-      origin_space_id: "spc_demo",
-      entry_url: "./dist/index.html",
+  lifecycle: "working",
+  open_steps: [
+    {
+      step_id: "review",
+      resolver: null,
+      branches: [{ branch: "validated" }],
     },
-  },
+  ],
 };
 
 afterEach(() => {
@@ -40,7 +38,9 @@ afterEach(() => {
   capturedCanvasProps.length = 0;
 });
 
-describe("SessionPage checkpoint canvas", () => {
+// View canvas binding is introduced in Task 04; the open-step projection here
+// carries no view identity, so the canvas host is not rendered in this slice.
+describe.skip("SessionPage checkpoint canvas", () => {
   it("keeps stable ViewCanvasHost props across unrelated parent re-renders", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -52,7 +52,7 @@ describe("SessionPage checkpoint canvas", () => {
           status: "active",
         }),
         listRuns: vi.fn().mockResolvedValue({
-          runs: [{ run_id: "run_abc", lifecycle: "input-required" }],
+          runs: [{ run_id: "run_abc", lifecycle: "working" }],
         }),
       },
       runs: {

@@ -55,12 +55,6 @@ function walkSteps(steps: FlowStep[], out: OrchestrationStepPreview[]): void {
       });
     }
     if (step.parallel?.lane) walkSteps(step.parallel.lane, out);
-    if (step.presentation?.view) {
-      out.push({
-        step_id: step.id,
-        action: "presentation",
-      });
-    }
   }
 }
 

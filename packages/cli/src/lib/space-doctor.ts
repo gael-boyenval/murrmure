@@ -263,7 +263,7 @@ function scanLegacyWorkspaceAt(projectPath: string): SpaceDoctorIssue[] {
     pushIssue(issues, {
       code: "LEGACY_STUDIO_PACKAGE",
       severity: "warning",
-      message: "package.json references @studio/capability-* (v1 FDK) — Murrmure v2 uses murrmure/ + mrmr space apply",
+      message: "package.json references retired @studio/capability-* packages — use .mrmr/ + mrmr space apply",
       path: "package.json",
       fix: "mrmr space init && mrmr space link --path . --create && mrmr space apply",
     });
@@ -273,7 +273,7 @@ function scanLegacyWorkspaceAt(projectPath: string): SpaceDoctorIssue[] {
     pushIssue(issues, {
       code: "LEGACY_CAPABILITY_MANIFEST",
       severity: "warning",
-      message: `Legacy FDK capability manifest at ${rel} — not indexed by Murrmure v2 space apply`,
+      message: `Retired capability manifest at ${rel} — not indexed by Murrmure space apply`,
       path: rel,
       fix: "Port flows to murrmure/flows/*/flow.manifest.yaml (see apps/docs/guide/space-index.md)",
     });
@@ -495,7 +495,7 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
       why: "install/update authoring skill for local flows/views",
     });
   }
-  if (skillCodes.has("SKILL_LEGACY_MONOLITH") || skillCodes.has("SKILL_LEGACY_FDK")) {
+  if (skillCodes.has("SKILL_LEGACY_MONOLITH") || skillCodes.has("SKILL_RETIRED_FLOW")) {
     steps.push({
       command: "mrmr skill install --variant all",
       why: "replace legacy skill directories with split variants",
@@ -599,9 +599,9 @@ function scanDeprecatedConfig(murrmureRoot: string): SpaceDoctorIssue[] {
 
   for (const rel of walkMurrmureFiles(murrmureRoot, (path) => path.endsWith("murrmure.flow.yaml"))) {
     pushIssue(issues, {
-      code: "LEGACY_FDK_ARTIFACT",
+      code: "RETIRED_FLOW_PACKAGE",
       severity: "warning",
-      message: "FDK worker package file is not indexed by space apply — use flow.manifest.yaml under murrmure/flows/",
+      message: "Retired worker package file is not indexed by space apply — use flow.manifest.yaml under .mrmr/flows/",
       path: `murrmure/${rel}`,
     });
   }
@@ -610,7 +610,7 @@ function scanDeprecatedConfig(murrmureRoot: string): SpaceDoctorIssue[] {
     pushIssue(issues, {
       code: "LEGACY_MANIFEST_FORMAT",
       severity: "warning",
-      message: "flow.manifest.json is a legacy FDK format — use flow.manifest.yaml for v2 indexed flows",
+      message: "flow.manifest.json is retired — use flow.manifest.yaml for indexed flows",
       path: `murrmure/${rel}`,
     });
   }

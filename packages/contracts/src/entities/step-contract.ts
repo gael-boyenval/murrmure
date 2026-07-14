@@ -1,67 +1,64 @@
 import { z } from "zod";
-import { FlowViewRefSchema } from "../flow/view-ref.js";
 
-/** Normative step statuses (v2.2 § Step identity/status). */
-export const StepStatusSchema = z.enum([
-  "pending",
-  "working",
-  "awaiting_human",
-  "completed",
-  "failed",
-  "skipped",
-]);
-
-export type StepStatus = z.infer<typeof StepStatusSchema>;
-
-export const StepOrchestrationSchema = z.enum(["engine-routed", "agent-scheduled"]);
-
-export type StepOrchestration = z.infer<typeof StepOrchestrationSchema>;
-
-export const StepRoleSchema = z.enum(["agent", "human", "system"]);
-
-export type StepRole = z.infer<typeof StepRoleSchema>;
+/**
+ * Resolver-agnostic step contracts (v3).
+ *
+ * A step is a contract plus open/resolve events, branches, and routes. It
+ * carries no `role`, `presentation`, `deriveRole`, wait kind, or resolver
+ * modality — spaces bind resolvers through handlers. See
+ * `studio-specs/current/bridges/step-contract.md`.
+ */
 
 /** Inline JSON Schema object or registry ref string. */
 export const StepBranchSchemaValueSchema = z.union([z.record(z.unknown()), z.string()]);
 
+/** Branch route: open/transfer to a step, or terminate the run. */
+export const StepBranchRouteSchema = z.object({
+  step: z.string().optional(),
+  run: z.enum(["completed", "failed"]).optional(),
+});
+
+export type StepBranchRoute = z.infer<typeof StepBranchRouteSchema>;
+
+/**
+ * Artifact slot declaration. Enrichment fields (`media_types`, `extensions`,
+ * `min_bytes`, `max_files`, …) are part of the authoring contract; enforcement
+ * is owned by the artifact-validation slice.
+ */
 export const StepArtifactSlotSchema = z.object({
   description: z.string().optional(),
+  media_types: z.array(z.string()).optional(),
+  extensions: z.array(z.string()).optional(),
+  min_bytes: z.number().int().nonnegative().optional(),
   max_bytes: z.number().int().positive().optional(),
+  min_files: z.number().int().nonnegative().optional(),
+  max_files: z.number().int().positive().optional(),
+  max_total_bytes: z.number().int().positive().optional(),
 });
 
 export type StepArtifactSlot = z.infer<typeof StepArtifactSlotSchema>;
 
-/** Authoring branch definition (manifest YAML). */
+/**
+ * Authoring branch definition (manifest YAML). Flat shape: `schema`,
+ * `artifact_slots`, and optional `route` / `resume` are sibling fields.
+ * Wrapper shapes (`payload`, `outcome`) and superseded routing keys
+ * (`next`, `fail_run`, `complete`, `continue`, `goto`, `fail`) are rejected by
+ * the parser — there is no dual parser.
+ */
 export const StepBranchDefinitionSchema = z.object({
   schema: StepBranchSchemaValueSchema.optional(),
   schema_ref: z.string().optional(),
-  next: z.string().nullable().optional(),
-  fail_run: z.boolean().optional(),
-  complete: z.union([z.literal("parent"), z.literal(true)]).optional(),
-  continue: z.union([z.literal("parent"), z.literal(true)]).optional(),
-  goto: z.string().optional(),
-  fail: z.boolean().optional(),
   artifact_slots: z.record(StepArtifactSlotSchema).optional(),
-});
+  route: StepBranchRouteSchema.optional(),
+  resume: z.string().optional(),
+}).strict();
 
 export type StepBranchDefinition = z.infer<typeof StepBranchDefinitionSchema>;
-
-export const StepPresentationSchema = z.object({
-  view: z.string(),
-  view_ref: FlowViewRefSchema.optional(),
-  assignees: z.array(z.string()).optional(),
-  expires_at: z.string().optional(),
-});
-
-export type StepPresentation = z.infer<typeof StepPresentationSchema>;
 
 export type StepContractManifestStep = {
   id: string;
   description?: string;
-  role?: StepRole;
-  orchestration?: StepOrchestration;
-  presentation?: StepPresentation;
-  branches: Record<string, StepBranchDefinition>;
+  branches?: Record<string, StepBranchDefinition>;
   steps?: StepContractManifestStep[];
 };
 
@@ -69,21 +66,15 @@ export const StepContractManifestStepSchema: z.ZodType<StepContractManifestStep>
   z.object({
     id: z.string().min(1),
     description: z.string().optional(),
-    role: StepRoleSchema.optional(),
-    orchestration: StepOrchestrationSchema.optional(),
-    presentation: StepPresentationSchema.optional(),
-    branches: z.record(StepBranchDefinitionSchema),
+    branches: z.record(StepBranchDefinitionSchema).optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
-  }),
+  }).strict(),
 );
 
 /** Compiled route effect (catalog entry). */
 export const StepCatalogRouteSchema = z.object({
-  engine: z
-    .enum(["open", "advance", "fail_run", "complete_parent", "continue_parent", "goto"])
-    .optional(),
+  engine: z.enum(["open", "advance", "fail_run", "resume"]).optional(),
   step_id: z.string().optional(),
-  fail_run: z.boolean().optional(),
 });
 
 export type StepCatalogRoute = z.infer<typeof StepCatalogRouteSchema>;
@@ -96,14 +87,24 @@ export const StepCatalogBranchSchema = z.object({
 
 export type StepCatalogBranch = z.infer<typeof StepCatalogBranchSchema>;
 
+/**
+ * One canonical branch resolve contract per branch. Owned here so every
+ * compiler, runtime, and consumer projection references a single definition.
+ */
+export interface BranchResolveContract {
+  step_id: string;
+  branch: string;
+  schema_ref?: string;
+  schema?: Record<string, unknown>;
+  routes: StepCatalogRoute[];
+}
+
 export const StepContractCatalogEntrySchema = z.object({
   step_id: z.string(),
   parent_id: z.string().nullable(),
   description: z.string().optional(),
-  role: StepRoleSchema,
   branches: z.record(StepCatalogBranchSchema),
   artifact_slots: z.record(StepArtifactSlotSchema).optional(),
-  presentation: StepPresentationSchema.optional(),
 });
 
 export type StepContractCatalogEntry = z.infer<typeof StepContractCatalogEntrySchema>;
@@ -127,12 +128,11 @@ export const StepContractSliceBranchSchema = z.object({
 
 export type StepContractSliceBranch = z.infer<typeof StepContractSliceBranchSchema>;
 
-/** Runtime scoped slice (populated at run in VS-5). */
+/** Runtime scoped slice (populated at run). */
 export const StepContractSliceSchema = z.object({
   step_id: z.string(),
   parent_id: z.string().nullable().optional(),
   description: z.string().optional(),
-  role: StepRoleSchema,
   branches: z.record(StepContractSliceBranchSchema),
   workdir: z.string().optional(),
   iteration: z.number().int().nonnegative().optional(),
@@ -143,7 +143,6 @@ export type StepContractSlice = z.infer<typeof StepContractSliceSchema>;
 
 export const ListStepContractsResponseSchema = z.object({
   run_id: z.string(),
-  orchestration: StepOrchestrationSchema.optional(),
   active: StepContractSliceSchema.nullable(),
   callable: z.array(StepContractSliceSchema),
   graph_digest: z.string(),

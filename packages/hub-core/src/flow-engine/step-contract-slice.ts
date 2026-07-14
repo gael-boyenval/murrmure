@@ -7,7 +7,6 @@ import type {
   StepContractCatalogEntry,
   StepContractSlice,
   StepContractSliceBranch,
-  StepOrchestration,
   RunStepMemo,
 } from "@murrmure/contracts";
 import type { InvokeStepContractContext } from "@murrmure/runtime-contracts";
@@ -48,13 +47,9 @@ export function renderThenHint(routes: StepCatalogRoute[]): string {
   for (const route of routes) {
     if (route.engine === "open" && route.step_id) {
       hints.push(`engine opens ${route.step_id}`);
-    } else if (route.engine === "goto" && route.step_id) {
-      hints.push(`engine opens ${route.step_id}`);
-    } else if (route.engine === "complete_parent") {
-      hints.push("complete parent");
-    } else if (route.engine === "continue_parent") {
-      hints.push("continue parent");
-    } else if (route.engine === "fail_run" || route.fail_run) {
+    } else if (route.engine === "resume" && route.step_id) {
+      hints.push(`resume ${route.step_id}`);
+    } else if (route.engine === "fail_run") {
       hints.push("fail run");
     } else if (route.engine === "advance") {
       hints.push("run completes");
@@ -109,7 +104,6 @@ export function buildStepContractSlice(input: {
     step_id: input.entry.step_id,
     parent_id: input.entry.parent_id,
     description: input.entry.description,
-    role: input.entry.role,
     branches: buildSliceBranches(input.entry),
     workdir,
     iteration,
@@ -166,9 +160,9 @@ export function renderMurrmureProtocolEnvelope(input: {
   lines.push("Structured JSON is also in `MURRMURE_STEP_CONTRACT`; workdir in `MURRMURE_STEP_WORKDIR`.");
   lines.push("");
   lines.push("## Resolve API");
-  lines.push("- `murrmure_resolve_step` — close the active agent-owned step with a branch + payload.");
-  lines.push("- `murrmure_wait_for_run` — block until human steps finish (long-lived build sessions only).");
-  lines.push("- Never resolve human-owned steps (`awaiting_human`).");
+  lines.push("- `murrmure_resolve_step` — close the active open step with a branch + payload.");
+  lines.push("- `murrmure_wait_for_run` — block until open steps finish (long-lived build sessions only).");
+  lines.push("- Resolve only the active open step id; do not resolve steps that are not open.");
   return lines.join("\n").trim();
 }
 
@@ -331,7 +325,7 @@ export function buildInvokeStepContractContext(input: {
 }
 
 export function findActiveStepMemo(memos: RunStepMemo[]): RunStepMemo | undefined {
-  const active = memos.filter((m) => m.status === "working" || m.status === "awaiting_human");
+  const active = memos.filter((m) => m.status === "working");
   if (active.length === 0) return undefined;
   return active.sort((a, b) => b.step_id.split(".").length - a.step_id.split(".").length)[0];
 }
@@ -398,13 +392,6 @@ export async function buildFlowInvokeStepContract(
   });
 }
 
-function flowOrchestration(
-  _catalog: StepContractCatalog,
-  _activeEntry: StepContractCatalogEntry | undefined,
-): StepOrchestration {
-  return "engine-routed";
-}
-
 export async function listStepContractsForRun(
   studio: StudioPersistencePort,
   run_id: string,
@@ -444,7 +431,6 @@ export async function listStepContractsForRun(
 
   return {
     run_id: prefixedRunId(run_id),
-    orchestration: flowOrchestration(catalog, activeEntry),
     active,
     callable: [],
     graph_digest: catalog.graph_digest,

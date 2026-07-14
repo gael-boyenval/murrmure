@@ -82,10 +82,10 @@ describe("runs/graph", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "morning-brief",
-                start: { manual: true },
+                triggers: { manual: true },
                 steps: [
-                  { id: "research", invoke: { space: "{{origin_space}}", action: "noop" } },
-                  { id: "finish", invoke: { space: "{{origin_space}}", action: "noop" } },
+                  { id: "research", description: "research" },
+                  { id: "finish", description: "finish" },
                 ],
               },
             },

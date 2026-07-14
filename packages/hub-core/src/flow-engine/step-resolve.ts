@@ -79,7 +79,7 @@ function branchRoutes(entry: StepContractCatalogEntry, branch: string): StepCata
 }
 
 function isFailRoute(routes: StepCatalogRoute[]): boolean {
-  return routes.some((r) => r.fail_run === true || r.engine === "fail_run");
+  return routes.some((r) => r.engine === "fail_run");
 }
 
 function openTargetFromRoutes(routes: StepCatalogRoute[]): string | null | undefined {
@@ -93,27 +93,8 @@ function isRunCompleteRoute(routes: StepCatalogRoute[]): boolean {
   return routes.some((r) => r.engine === "advance") && !routes.some((r) => r.engine === "open");
 }
 
-function gotoTargetFromRoutes(routes: StepCatalogRoute[]): string | undefined {
-  return routes.find((r) => r.engine === "goto")?.step_id;
-}
-
-function hasCompleteParentRoute(routes: StepCatalogRoute[]): boolean {
-  return routes.some((r) => r.engine === "complete_parent");
-}
-
-function hasContinueParentRoute(routes: StepCatalogRoute[]): boolean {
-  return routes.some((r) => r.engine === "continue_parent");
-}
-
-function parentSuccessRoutes(parentEntry: StepContractCatalogEntry): StepCatalogRoute[] {
-  const completed = parentEntry.branches.completed?.routes;
-  if (completed?.length) return completed;
-  for (const branch of Object.values(parentEntry.branches)) {
-    if (!branch.routes.some((r) => r.engine === "fail_run" || r.fail_run)) {
-      return branch.routes;
-    }
-  }
-  return [{ engine: "advance" }];
+function resumeTargetFromRoutes(routes: StepCatalogRoute[]): string | undefined {
+  return routes.find((r) => r.engine === "resume")?.step_id;
 }
 
 function stepsToResetForBackwardLoop(
@@ -146,62 +127,6 @@ function defaultAdvanceDeps(
       dispatchSteps: deps.dispatchSteps,
     }
   );
-}
-
-async function reopenNestedStep(
-  deps: StepResolveDeps,
-  input: {
-    run_id: string;
-    catalog: StepContractCatalog;
-    goto_step_id: string;
-    exec_context: Record<string, unknown>;
-    space_id: string;
-    session_id?: string;
-    actor_id: string;
-    token_id: string;
-    journal: StepResolveJournal;
-    advance: FlowAdvanceDeps;
-  },
-): Promise<void> {
-  const gotoEntry = catalogEntryForStep(input.catalog, input.goto_step_id);
-  if (!gotoEntry) return;
-
-  const steps = (input.exec_context.steps ?? {}) as Record<
-    string,
-    { output?: Record<string, unknown> }
-  >;
-  const prior = steps[input.goto_step_id];
-  const iteration = (Number(prior?.output?.iteration) || 1) + 1;
-  const execContext = {
-    ...input.exec_context,
-    steps: {
-      ...steps,
-      [input.goto_step_id]: {
-        ...prior,
-        output: { ...prior?.output, iteration },
-      },
-    },
-  };
-  await persistRunExecContext(deps.studio, input.run_id, execContext);
-
-  await deps.studio.upsertRunStepMemo({
-    run_id: input.run_id,
-    step_id: input.goto_step_id,
-    status: "pending",
-  });
-
-  await openStepContract(input.advance, {
-    run_id: input.run_id,
-    session_id: input.session_id ?? "",
-    space_id: input.space_id,
-    step_id: input.goto_step_id,
-    entry: gotoEntry,
-    exec_context: execContext,
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    journal: input.journal,
-    skip_nested_bootstrap: true,
-  });
 }
 
 async function openIrStepAfterResolve(
@@ -258,74 +183,18 @@ async function applyResolvedRoutes(
     advance: FlowAdvanceDeps;
   },
 ): Promise<void> {
-  const { routes, resolvedEntry } = input;
-  const ts = deps.clock.nowIso();
+  const { routes } = input;
 
-  if (hasCompleteParentRoute(routes) && resolvedEntry.parent_id) {
-    const parentId = resolvedEntry.parent_id;
-    const parentEntry = catalogEntryForStep(input.catalog, parentId);
-    if (!parentEntry) return;
-
-    await deps.studio.upsertRunStepMemo({
-      run_id: input.run_id,
-      step_id: parentId,
-      status: "completed",
-      completed_at: ts,
-    });
-    cancelStepExecutor(input.run_id, parentId);
-
-    await applyResolvedRoutes(deps, {
-      ...input,
-      resolvedEntry: parentEntry,
-      resolved_step_id: parentId,
-      routes: parentSuccessRoutes(parentEntry),
-    });
-    return;
-  }
-
-  const gotoTarget = gotoTargetFromRoutes(routes);
-  if (hasContinueParentRoute(routes) && gotoTarget) {
-    await reopenNestedStep(deps, {
-      run_id: input.run_id,
-      catalog: input.catalog,
-      goto_step_id: gotoTarget,
-      exec_context: input.exec_context,
-      space_id: input.space_id,
-      session_id: input.session_id,
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-      journal: input.journal,
-      advance: input.advance,
-    });
-    return;
-  }
-
-  if (gotoTarget) {
-    const nextEntry = catalogEntryForStep(input.catalog, gotoTarget);
-    if (nextEntry) {
-      await openStepContract(input.advance, {
+  const resumeTarget = resumeTargetFromRoutes(routes);
+  if (resumeTarget) {
+    // Resume returns control to an already-open ancestor without reopening or
+    // resolving it. The parent remains open and owns its own resolution.
+    const ancestorEntry = catalogEntryForStep(input.catalog, resumeTarget);
+    if (ancestorEntry) {
+      await deps.studio.upsertRunStepMemo({
         run_id: input.run_id,
-        session_id: input.session_id ?? "",
-        space_id: input.space_id,
-        step_id: gotoTarget,
-        entry: nextEntry,
-        exec_context: input.exec_context,
-        actor_id: input.actor_id,
-        token_id: input.token_id,
-        journal: input.journal,
-        skip_nested_bootstrap: true,
-      });
-    } else {
-      await openIrStepAfterResolve(deps, {
-        run_id: input.run_id,
-        runBare: input.runBare,
-        step_id: gotoTarget,
-        exec_context: input.exec_context,
-        space_id: input.space_id,
-        session_id: input.session_id,
-        actor_id: input.actor_id,
-        token_id: input.token_id,
-        advance: input.advance,
+        step_id: resumeTarget,
+        status: "working",
       });
     }
     return;
@@ -470,11 +339,11 @@ export async function resolveFlowStep(
     };
   }
 
-  if (memo.status !== "working" && memo.status !== "awaiting_human") {
+  if (memo.status !== "working") {
     return {
       ok: false,
       code: "STEP_NOT_ACTIVE",
-      message: `Step '${input.step_id}' is '${memo.status}', expected working or awaiting_human`,
+      message: `Step '${input.step_id}' is '${memo.status}', expected working`,
       http: 409,
     };
   }
@@ -550,13 +419,7 @@ export async function resolveFlowStep(
     idempotency_key: input.body.idempotency_key,
   });
 
-  if (entry.role === "agent") {
-    cancelStepExecutor(input.run_id, input.step_id);
-  }
-
-  if (memo.status === "awaiting_human") {
-    await deps.studio.resolveNotificationsForRunStep(input.run_id, input.step_id, ts);
-  }
+  cancelStepExecutor(input.run_id, input.step_id);
 
   await persistRunExecContext(deps.studio, input.run_id, execContext);
 
@@ -707,8 +570,7 @@ export async function maybeAutoResolveExecutorStepAfterAction(
 ): Promise<boolean> {
   if (input.complete_mode !== "auto") return false;
   const entry = catalogEntryForStep(input.catalog, input.step_id);
-  if (!entry || entry.role !== "agent" || entry.presentation?.view) return false;
-  if (!entry.branches.completed) return false;
+  if (!entry || !entry.branches.completed) return false;
   if (parentHasNestedChildren(input.catalog, input.step_id)) {
     throw new Error("HANDLER_COMPLETE_AUTO_NESTED");
   }
@@ -755,7 +617,7 @@ export async function maybeAdvanceStepContractFlow(
   const stepEntry = catalogEntryForStep(catalog, input.step_id);
   const failedBranch = stepEntry?.branches.failed;
   const shouldFailRun = failedBranch?.routes?.some(
-    (route) => route.fail_run === true || route.engine === "fail_run",
+    (route) => route.engine === "fail_run",
   );
   if (!shouldFailRun) return;
 

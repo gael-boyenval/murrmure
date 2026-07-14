@@ -5,8 +5,6 @@ import { buildHandlerIndex } from "./parse-handlers.js";
 export interface HandlerCatalogLintWarning {
   code:
     | "HANDLER_ORPHAN_KEY"
-    | "HANDLER_MISSING"
-    | "STEP_UNCOVERED"
     | "HANDLER_KEY_CONFLICT"
     | "HANDLER_COMPLETE_CLI_NO_RESOLVE"
     | "HANDLER_COMPLETE_AUTO_NESTED";
@@ -20,7 +18,6 @@ export interface HandlerCatalogLintWarning {
 interface CatalogKeyMeta {
   flow_id: string;
   step_id: string;
-  role: "agent" | "human" | "system";
   has_nested: boolean;
 }
 
@@ -45,7 +42,6 @@ function collectCatalogKeys(
       map.set(keyFromFlowRef(flowRef, entry.step_id), {
         flow_id: flow.flow_id,
         step_id: entry.step_id,
-        role: entry.role,
         has_nested: parentWithChildren.has(entry.step_id),
       });
     }
@@ -110,18 +106,7 @@ export function lintHandlerCatalogCoverage(input: {
   }
 
   for (const [contract_key, meta] of known.entries()) {
-    if (meta.role !== "agent") continue;
     const matches = index.step_opened_by_key[contract_key] ?? [];
-    if (matches.length === 0) {
-      warnings.push({
-        code: "HANDLER_MISSING",
-        contract_key,
-        flow_id: meta.flow_id,
-        step_id: meta.step_id,
-        message: `Agent step '${meta.step_id}' has no step.opened handler for '${contract_key}'`,
-      });
-      continue;
-    }
     if (matches.length > 1) {
       warnings.push({
         code: "HANDLER_KEY_CONFLICT",

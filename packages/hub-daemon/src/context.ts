@@ -20,7 +20,6 @@ export interface DaemonConfig {
   shellStaticDir?: string;
   embedded?: boolean;
   listenHost?: string;
-  bundleRoot?: string;
   /** Session cancel cascade cap (default 30s). Tests may set lower. */
   cancelTimeoutMs?: number;
 }

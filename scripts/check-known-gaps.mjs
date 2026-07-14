@@ -29,8 +29,14 @@ function normalizeBody(content, stripPrefix) {
 }
 
 function extractComparableSections(human, skill) {
-  const humanWhatWorks = human.match(/## What works today[\s\S]*/)?.[0]?.trim() ?? "";
-  const skillWhatWorks = skill.match(/## What works today[\s\S]*/)?.[0]?.trim() ?? "";
+  const normalizeEntities = (text) =>
+    text.replace(/&#123;/g, "{").replace(/&#125;/g, "}");
+  const humanWhatWorks = normalizeEntities(
+    human.match(/## What works today[\s\S]*/)?.[0]?.trim() ?? "",
+  );
+  const skillWhatWorks = normalizeEntities(
+    skill.match(/## What works today[\s\S]*/)?.[0]?.trim() ?? "",
+  );
   const skillNormalized = skillWhatWorks.replace(
     /See \[flow-authoring\.md\][^\n]+/,
     "See [Creating flows](./creating-flows) and [Quick start](./quick-start).",

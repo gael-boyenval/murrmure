@@ -61,7 +61,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 | **Murrmure role** | Agentic OS **kernel** — journal, grants, invoke, artifacts, gates, audit, agent coordination. Never prompts, skills, models, agent definitions. |
 | **Primary human UX** | **Custom views** (`.mrmr/views/`) in **ViewCanvasHost** — full primary-region UI; hide generic shell. **Not** narrow drawers or built-in gate forms as default. |
 | **Shell chrome** | **Admin/operator** — space home, flowchart, notifications, grants, debug. Observe and manage; not the product authors ship to end users. |
-| **Space** | User root directory + `.mrmr/` index. Identity (`spc_*`) + binding (path/host). May be shared git repo. |
+| **Space** | User root directory + `.mrmr/` index. Opaque immutable identity (`spc_*`), editable name/slug, and binding (path/host). May be shared git repo. |
 | **Session** | **Correlation context** — user-facing tracker spanning spaces, flows, and time. Mutable grouping only. |
 | **Run** | **Immutable execution unit** — lifecycle, step state, gates, exec context (worktree, preview URL). Parallel lanes = sibling Runs. |
 | **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only — **no executor refs**. |
@@ -657,7 +657,7 @@ interface Gate {
 
 ### 6.2 Custom view at gates (primary UX)
 
-Human gates use **`gate.requires_view`** → shell loads the author’s view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Same model as legacy FDK canvas: shell = observer chrome; domain UI = 100% the view bundle.
+Human gates use **`gate.requires_view`** → shell loads the author’s view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Shell = observer chrome; domain UI = 100% the view bundle.
 
 ```yaml
 steps:
@@ -1127,6 +1127,9 @@ No v1 seven-step wizard. Empty sidebar → instruction page:
 - Copy-to-clipboard CLI blocks
 - Live "Waiting for space…" SSE indicator
 - Sidebar populates when `mrmr space link` completes — no reload
+- Fresh storage has zero spaces, persisted contracts, package-catalog entries, or demo flows
+- `mrmr setup` confirms one folder-derived display name and editable slug, then uses that slug consistently in Hub creation and `.mrmr/`
+- `mrmr space init` is offline and creates no Hub record or credential
 
 Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 
@@ -1377,10 +1380,12 @@ Sourced from [plan/index.md](../../plans/product/plan/index.md) rev-5 (2026-07-0
 | 06 | Reference workflow (`preview-review-v2`, R1–R6) | ✅ | [06-reference-workflow-preview-review](../../plans/product/plan/06-reference-workflow-preview-review.md) |
 | 07 | Unified **`murrmure`** agent skill | ✅ | [07-unified-murrmure-skill](../../plans/product/plan/07-unified-murrmure-skill.md) |
 | 08 | CLI setup wizards (`mrmr setup`, `space onboard`) | ✅ | [08-cli-setup-wizards](../../plans/product/plan/08-cli-setup-wizards.md) |
-| 09 | FDK / worker stack deletion | ✅ | [09-fdk-deletion](../../plans/product/plan/09-fdk-deletion.md) |
+| 09 | Retired worker stack deletion | ✅ | historical release record |
 | 10 | Human docs rewrite + acceptance proof | ✅ | [10-docs-and-proof](../../plans/product/plan/10-docs-and-proof.md) |
 
-Living checklist: [00-doc-skill-mcp-tracker.md](../../plans/product/plan/00-doc-skill-mcp-tracker.md). Pre-09 inventory: [09-pre-fdk-test-disposition.md](../../plans/product/plan/09-pre-fdk-test-disposition.md). Synthesis: [09-review-synthesis.md](../../plans/product/plan/09-review-synthesis.md).
+Living checklist: [00-doc-skill-mcp-tracker.md](../../plans/product/plan/00-doc-skill-mcp-tracker.md).
+Historical worker-stack inventories and review synthesis live under
+`studio-specs/archives/`.
 
 **Manual release checklist (not CI-gated):** 10-T1/10-T1b Desktop walkthrough, 10-U2 TTFRun ≤10 min — see phase 10 DoD.
 

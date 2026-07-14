@@ -60,11 +60,6 @@ export async function startHubSidecar(options?: {
       assertReadablePath(paths.hubEntry, "Hub entry");
     }
     assertReadablePath(paths.shellStaticDir, "Bundled shell dist");
-    assertReadablePath(paths.bundleRoot, "Bundle root");
-  }
-
-  if (mode === "dev-hmr") {
-    assertReadablePath(paths.bundleRoot, "Bundle root");
   }
 
   const hubProcess = Bun.spawn([paths.hubCommand, ...paths.hubArgs], {

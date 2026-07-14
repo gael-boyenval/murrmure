@@ -14,7 +14,7 @@ export const FlowIndexEntrySchema = z.object({
   origin_space_id: SpaceIdSchema,
   digest: z.string(),
   name: z.string(),
-  start: FlowStartConditionsSchema,
+  triggers: FlowStartConditionsSchema,
   step_spaces: z.array(SpaceIdSchema),
   grants_required: z.array(CapabilitySchema),
   view_ref: FlowViewRefSchema.optional(),

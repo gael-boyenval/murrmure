@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { cliResourcePath } from "./cli-package-root.js";
 
 type TemplateManifest = Record<string, string>;
@@ -39,7 +40,7 @@ export function isMurrmureDirEmpty(murrmureRoot: string): boolean {
 
 export function scaffoldMurrmureDir(
   targetDir: string,
-  options?: { withExamples?: boolean },
+  options?: { withExamples?: boolean; slug?: string; name?: string },
 ): {
   created: string[];
   filledEmptyMurrmure: boolean;
@@ -73,7 +74,15 @@ export function scaffoldMurrmureDir(
     }
     const dest = join(root, rel);
     mkdirSync(dirname(dest), { recursive: true });
-    writeFileSync(dest, content, "utf-8");
+    const rendered =
+      rel === "space/space.yaml" && options?.slug
+        ? stringifyYaml({
+            apiVersion: "murrmure.space/v1",
+            slug: options.slug,
+            ...(options.name ? { name: options.name } : {}),
+          })
+        : content;
+    writeFileSync(dest, rendered, "utf-8");
     created.push(dest);
   }
 
@@ -87,4 +96,24 @@ export function scaffoldMurrmureDir(
   }
 
   return { created, filledEmptyMurrmure };
+}
+
+export function writeSpaceIdentity(
+  targetDir: string,
+  identity: { slug: string; name: string },
+): string {
+  const path = join(targetDir, ".mrmr", "space", "space.yaml");
+  const parsed = existsSync(path)
+    ? parseYaml(readFileSync(path, "utf-8"))
+    : undefined;
+  const doc =
+    parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  doc.apiVersion = "murrmure.space/v1";
+  doc.slug = identity.slug;
+  doc.name = identity.name;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, stringifyYaml(doc), "utf-8");
+  return path;
 }

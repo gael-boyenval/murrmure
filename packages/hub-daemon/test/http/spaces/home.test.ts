@@ -69,8 +69,8 @@ describe("http/spaces/home", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "home-demo",
-                start: { manual: true },
-                steps: [{ id: "ping", invoke: { space: "{{origin_space}}", action: "ping" } }],
+                triggers: { manual: true },
+                steps: [{ id: "ping", description: "ping" }],
               },
             },
           ],

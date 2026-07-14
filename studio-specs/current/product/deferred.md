@@ -35,12 +35,6 @@ Items here are **deliberate non-goals or future slices**, not bugs. For **known 
 
 ---
 
-## FDK / worker runtime
-
-**Deleted in phase 09** — not deferred. Worker pool, evolution HTTP, FDK CLI, and `@murrmure/flow-kit` are removed. Finished product = `murrmure/` space directory + `mrmr space apply` only. See [09-fdk-deletion](../../plans/product/plan/09-fdk-deletion.md).
-
----
-
 ## Historical drafts (archived)
 
 Promoted to `current/product/` 2026-06-30. Full rev-1 text only in archive:

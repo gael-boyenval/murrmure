@@ -4,88 +4,53 @@ import {
   lintStepContractManifest,
   manifestUsesStepContracts,
 } from "../../../src/flow-engine/step-contract-compile.js";
-import { parseFlowManifest } from "../../../src/flow-engine/parse.js";
+import { parseFlowManifest } from "../../../src/index/parse-flow-manifest.js";
 import type { FlowManifest } from "@murrmure/contracts";
 
 const LINEAR_MANIFEST: FlowManifest = {
   apiVersion: "murrmure.flow/v1",
-  name: "preview-review-v2",
-  start: { manual: true },
+  name: "demo",
+  triggers: { manual: true },
   steps: [
     {
       id: "intake",
       description: "Human attaches spec markdown.",
-      presentation: { view: "preview-review-intake" },
       branches: {
-        continue: { schema: { type: "object" }, next: "write_spec" },
-        cancel: { schema: { type: "object" }, next: null, fail_run: true },
+        continue: { schema: { type: "object" }, route: { step: "write_spec" } },
+        cancel: { schema: { type: "object" }, route: { run: "failed" } },
       },
     },
-    {
-      id: "write_spec",
-      executor: {
-        action: "feature_write_spec",
-        params: { spec_filename: "{{input.spec_filename}}" },
-      },
-      branches: {
-        completed: { schema: { type: "object" }, next: "build" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
+    { id: "write_spec", description: "Write the spec." },
     {
       id: "build",
-      orchestration: "engine-routed",
-      executor: {
-        action: "feature_build",
-        params: { spec_filename: "{{murrmure.step.write_spec.artifact.spec.path}}" },
+      description: "Build and review.",
+      branches: {
+        completed: { schema: { type: "object" }, route: { step: "archive" } },
       },
       steps: [
         {
           id: "build-loop",
-          description: "Implement site; resolve when preview URL ready.",
+          description: "Implement; resolve when preview URL ready.",
           branches: {
-            completed: {
-              schema: { type: "object", properties: { preview_url: { type: "string" } } },
-              goto: "review",
-            },
-            failed: { schema: { type: "object" }, fail: true },
+            completed: { schema: { type: "object" }, route: { step: "build.review" } },
+            failed: { schema: { type: "object" }, route: { run: "failed" } },
           },
         },
         {
           id: "review",
-          presentation: { view: "preview-review", assignees: ["{{input.reviewer}}"] },
+          description: "Human review.",
           branches: {
-            validated: { schema: { type: "object" }, complete: "parent" },
+            validated: { schema: { type: "object" }, resume: "build" },
             changes_required: {
               schema: { type: "object" },
-              continue: "parent",
-              goto: "build-loop",
+              route: { step: "build.build-loop" },
             },
-            cancel: { schema: { type: "object" }, fail: true },
           },
         },
       ],
-      branches: {
-        completed: { schema: { type: "object" }, next: "archive" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
     },
-    {
-      id: "archive",
-      executor: { action: "feature_archive" },
-      branches: {
-        completed: { schema: { type: "object" }, next: "commit" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
-    {
-      id: "commit",
-      executor: { action: "feature_commit" },
-      branches: {
-        completed: { schema: { type: "object" }, next: null },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
+    { id: "archive", description: "Archive artifacts." },
+    { id: "commit", description: "Commit work." },
   ],
 };
 
@@ -96,88 +61,136 @@ describe("flow-engine/step-contract-compile", () => {
       manifestUsesStepContracts({
         apiVersion: "murrmure.flow/v1",
         name: "legacy",
-        start: { manual: true },
+        triggers: { manual: true },
         steps: [{ id: "x", invoke: { space: "spc_a", action: "hello" } }],
       }),
     ).toBe(false);
   });
 
-  test("flattens nested steps to qualified ids", () => {
-    const { catalog, warnings } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_preview_review");
+  test("flattens nested steps to qualified ids with parent links", () => {
+    const { catalog, warnings } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_demo");
     expect(warnings.filter((w) => w.code === "DEAD_STEP")).toEqual([]);
     expect(catalog).not.toBeNull();
     expect(catalog!.step_ids).toContain("build.build-loop");
     expect(catalog!.step_ids).toContain("build.review");
     const nested = catalog!.entries.find((e) => e.step_id === "build.review");
     expect(nested?.parent_id).toBe("build");
-    expect(nested?.role).toBe("human");
-    const agent = catalog!.entries.find((e) => e.step_id === "build.build-loop");
-    expect(agent?.role).toBe("agent");
   });
 
   test("compiles branch routes for top-level and nested steps", () => {
-    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_preview_review");
+    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_demo");
     const intake = catalog!.entries.find((e) => e.step_id === "intake");
     expect(intake?.branches.continue?.routes).toEqual([{ engine: "open", step_id: "write_spec" }]);
-    expect(intake?.branches.cancel?.routes).toEqual([{ engine: "fail_run", fail_run: true }]);
+    expect(intake?.branches.cancel?.routes).toEqual([{ engine: "fail_run" }]);
+
+    const loop = catalog!.entries.find((e) => e.step_id === "build.build-loop");
+    expect(loop?.branches.completed?.routes).toEqual([
+      { engine: "open", step_id: "build.review" },
+    ]);
+    expect(loop?.branches.failed?.routes).toEqual([{ engine: "fail_run" }]);
 
     const review = catalog!.entries.find((e) => e.step_id === "build.review");
-    expect(review?.branches.validated?.routes).toEqual([{ engine: "complete_parent" }]);
+    expect(review?.branches.validated?.routes).toEqual([{ engine: "resume", step_id: "build" }]);
     expect(review?.branches.changes_required?.routes).toEqual([
-      { engine: "continue_parent" },
-      { engine: "goto", step_id: "build.build-loop" },
+      { engine: "open", step_id: "build.build-loop" },
     ]);
   });
 
-  test("lint rejects unknown murrmure tokens", () => {
-    const bad: FlowManifest = {
-      ...LINEAR_MANIFEST,
-      steps: [
-        {
-          id: "write_spec",
-          executor: {
-            action: "feature_write_spec",
-            params: { path: "{{murrmure.unknown_token}}" },
+  test("default branches: completed opens next sibling, failed fails the run", () => {
+    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_demo");
+    const writeSpec = catalog!.entries.find((e) => e.step_id === "write_spec");
+    expect(writeSpec?.branches.completed?.routes).toEqual([{ engine: "open", step_id: "build" }]);
+    expect(writeSpec?.branches.failed?.routes).toEqual([{ engine: "fail_run" }]);
+  });
+
+  test("last top-level default completed compiles to terminal success (advance, not open null)", () => {
+    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_demo");
+    const commit = catalog!.entries.find((e) => e.step_id === "commit");
+    expect(commit?.branches.completed?.routes).toEqual([{ engine: "advance" }]);
+    expect(commit?.branches.failed?.routes).toEqual([{ engine: "fail_run" }]);
+  });
+
+  test("omitted branches inject completed/failed defaults that are semantically identical to explicit ones", () => {
+    const implicit = compileStepContractCatalog(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "one",
+        triggers: { manual: true },
+        steps: [{ id: "only", description: "only" }],
+      },
+      "flw_one",
+    );
+    const explicit = compileStepContractCatalog(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "one",
+        triggers: { manual: true },
+        steps: [
+          {
+            id: "only",
+            description: "only",
+            branches: {
+              completed: { schema: { type: "object" } },
+              failed: { schema: { type: "object" } },
+            },
           },
-          branches: {
-            completed: { schema: { type: "object" }, next: null },
-          },
-        },
-      ],
-    };
-    const warnings = lintStepContractManifest(bad, "flw_bad");
-    expect(warnings.some((w) => w.code === "UNKNOWN_MURRMURE_TOKEN")).toBe(true);
+        ],
+      },
+      "flw_one",
+    );
+    expect(implicit.catalog?.entries[0]?.branches).toEqual(
+      explicit.catalog?.entries[0]?.branches,
+    );
+  });
+
+  test("lint rejects empty explicit branch maps", () => {
+    const warnings = lintStepContractManifest(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "empty",
+        triggers: { manual: true },
+        steps: [{ id: "x", branches: {} }],
+      },
+      "flw_empty",
+    );
+    expect(warnings.some((w) => w.code === "EMPTY_BRANCHES")).toBe(true);
+  });
+
+  test("lint requires explicit routes for custom top-level branches", () => {
+    const warnings = lintStepContractManifest(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "custom",
+        triggers: { manual: true },
+        steps: [{ id: "only", branches: { weird: { schema: { type: "object" } } } }],
+      },
+      "flw_custom",
+    );
+    expect(warnings.some((w) => w.code === "CUSTOM_BRANCH_REQUIRES_ROUTE")).toBe(true);
   });
 
   test("lint reports dead steps", () => {
-    const bad: FlowManifest = {
-      apiVersion: "murrmure.flow/v1",
-      name: "dead",
-      start: { manual: true },
-      steps: [
-        {
-          id: "start",
-          branches: { done: { schema: { type: "object" }, next: null } },
-        },
-        {
-          id: "orphan",
-          branches: { done: { schema: { type: "object" }, next: null } },
-        },
-      ],
-    };
-    const warnings = lintStepContractManifest(bad, "flw_dead");
+    const warnings = lintStepContractManifest(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "dead",
+        triggers: { manual: true },
+        steps: [
+          { id: "start", branches: { done: { schema: { type: "object" }, route: { run: "completed" } } } },
+          { id: "orphan", branches: { done: { schema: { type: "object" }, route: { run: "completed" } } } },
+        ],
+      },
+      "flw_dead",
+    );
     expect(warnings.some((w) => w.code === "DEAD_STEP" && w.step_id === "orphan")).toBe(true);
   });
 
-  test("lint reports legacy invoke/checkpoint via raw scan", () => {
+  test("lint reports legacy invoke via raw scan", () => {
     const raw = {
       apiVersion: "murrmure.flow/v1" as const,
       name: "legacy",
-      start: { manual: true },
-      steps: [
-        { id: "a", invoke: { space: "spc_x", action: "hello" } },
-        { id: "b", checkpoint: { view: "v", on_resolve: { default: { goto: "a" }, cancel: { fail: true } } } },
-      ],
+      triggers: { manual: true },
+      steps: [{ id: "a", invoke: { space: "spc_x", action: "hello" } }],
     };
     const parsed = parseFlowManifest(raw);
     expect(parsed.ok).toBe(false);

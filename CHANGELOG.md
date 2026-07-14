@@ -1,5 +1,22 @@
 # Changelog
 
+## Tutorial v3 clean-state setup (2026-07-14)
+
+### Breaking
+
+- Fresh Hub/Desktop storage now starts with zero spaces, persisted contracts,
+  flow installs, and demo flows. Production seed contracts and package-catalog
+  stubs are removed from startup and packaging.
+- Earlier development databases are not migrated. Quit Desktop and move
+  `~/.murrmure` aside once before relaunching.
+
+### Added
+
+- `mrmr setup` now creates one folder-defaulted, user-named space with an
+  editable slug used consistently in Hub state and `.mrmr/`.
+- `mrmr space init` remains fully offline and creates no credential. Local-tool
+  connection creation is a separate later step.
+
 ## MCP reliability phase 3 (2026-07-09)
 
 ### Breaking

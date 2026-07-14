@@ -3,7 +3,7 @@ import { FlowIdSchema } from "../ids.js";
 import { FlowStartConditionsSchema, FlowCheckpointOnResolveSchema } from "./manifest.js";
 import { FlowViewRefSchema } from "./view-ref.js";
 
-export const FlowStepKindSchema = z.enum(["invoke", "gate", "wait", "parallel", "start_flow", "step_contract"]);
+export const FlowStepKindSchema = z.enum(["invoke", "gate", "parallel", "start_flow", "step_contract"]);
 
 export const FlowStepIrStartFlowSchema = z.object({
   flow_id: z.string(),
@@ -60,7 +60,7 @@ export const FlowIrSchema = z.object({
   flow_id: FlowIdSchema,
   name: z.string(),
   digest: z.string(),
-  start: FlowStartConditionsSchema,
+  triggers: FlowStartConditionsSchema,
   steps: z.array(FlowStepIrSchema),
 });
 

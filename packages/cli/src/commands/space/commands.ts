@@ -129,7 +129,7 @@ export const spaceCreateCommand = defineCommand({
     ...globalArgs,
     slug: {
       type: "string",
-      description: "Space slug (e.g. ui-sandbox → spc_ui_sandbox)",
+      description: "Editable URL-safe space slug (identity is a separate opaque spc_* id)",
       required: true,
     },
     name: {

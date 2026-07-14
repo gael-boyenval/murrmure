@@ -27,10 +27,11 @@ describe("SpacesNewPage", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText("Link a space")).toBeTruthy();
+    expect(screen.getByText("Create your first space")).toBeTruthy();
+    expect(screen.getByText(/mrmr setup/)).toBeTruthy();
     expect(screen.getByText(/mrmr space init/)).toBeTruthy();
     expect(screen.getByText(/mrmr space link --create/)).toBeTruthy();
     expect(screen.getByText(/mrmr space apply/)).toBeTruthy();
-    expect(screen.getByText(/mrmr grant mint/)).toBeTruthy();
+    expect(screen.queryByText(/mrmr grant mint/)).toBeNull();
   });
 });

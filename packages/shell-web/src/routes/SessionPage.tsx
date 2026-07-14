@@ -89,7 +89,7 @@ export function SessionPage() {
             run,
             flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
             space_id: run.space_id ?? "",
-            title: session?.title ?? run.active_human_step?.step_id ?? "Session",
+            title: session?.title ?? run.open_steps?.[0]?.step_id ?? "Session",
             adminHref: `/sessions/${sessionId}?operator=1`,
             closeHref: `/sessions/${sessionId}`,
           }

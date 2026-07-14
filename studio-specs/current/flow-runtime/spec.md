@@ -80,7 +80,7 @@ Failed mount rolls back registry row; install stays `promoted` not `live`.
 
 ### v2 flow index (space directory)
 
-Flows in `murrmure/flows/` are indexed via `POST /v1/spaces/{id}/apply` — not per-space FDK install. The hub compiles manifest → IR, stores digest, and pins `flow_digest` on each Run. See [bridges/flow-engine.md](../bridges/flow-engine.md).
+Flows in `.mrmr/flows/` are indexed via `POST /v1/spaces/{id}/apply`. The hub compiles manifest → IR, stores digest, and pins `flow_digest` on each Run. See [bridges/flow-engine.md](../bridges/flow-engine.md).
 
 Apply errors: `INSTALL_POLICY_VIOLATION`, `SCOPE_ENFORCEMENT_FAILURE`, `LIVE_APPLY_FAILED`.
 

@@ -5,6 +5,7 @@ import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { scaffoldMurrmureDir } from "../../lib/space-scaffold.js";
 import { installMurrmureSkill } from "../../skill/install.js";
+import { resolveSpaceIdentity } from "../../wizard/space-naming.js";
 
 async function maybeInstallSkill(
   target: string,
@@ -70,6 +71,14 @@ export const spaceInitCommand = defineCommand({
       type: "string",
       description: "Target directory (default: .)",
     },
+    name: {
+      type: "string",
+      description: "Display name (default: target folder name)",
+    },
+    slug: {
+      type: "string",
+      description: "Space slug (default: normalized display name)",
+    },
     "with-skill": {
       type: "boolean",
       description: "Install murrmure Cursor skill without prompting",
@@ -98,7 +107,6 @@ export const spaceInitCommand = defineCommand({
     const noSkill = Boolean(args["no-skill"]);
     const withExamples = Boolean(args["with-examples"]);
     const noExamples = Boolean(args["no-examples"]);
-
     if (withSkill && noSkill) {
       printErr("USAGE", "Pass only one of --with-skill or --no-skill");
     }
@@ -107,9 +115,14 @@ export const spaceInitCommand = defineCommand({
     }
 
     try {
+      const identity = resolveSpaceIdentity(target, {
+        name: typeof args.name === "string" ? args.name : undefined,
+        slug: typeof args.slug === "string" ? args.slug : undefined,
+      });
       const includeExamples = await resolveWithExamples({ withExamples, noExamples });
       const { created, filledEmptyMurrmure } = scaffoldMurrmureDir(target, {
         withExamples: includeExamples,
+        ...identity,
       });
       const skill = await maybeInstallSkill(target, { withSkill, noSkill });
 
@@ -119,6 +132,8 @@ export const spaceInitCommand = defineCommand({
           murrmure_root: `${target}/.mrmr`,
           filled_empty_murrmure: filledEmptyMurrmure,
           with_examples: includeExamples,
+          name: identity.name,
+          slug: identity.slug,
           skill_installed: skill.installed,
           skill_path: skill.path,
           skill_version: skill.version,
@@ -132,7 +147,7 @@ export const spaceInitCommand = defineCommand({
         cliConsola.success(`Installed murrmure skill to ${skill.path} (v${skill.version})`);
       }
       console.log(
-        "Next: run `mrmr space link --path . --create`, `mrmr space apply`, then `mrmr grant mint --space <spc_…>` to connect MCP.",
+        "Next: run `mrmr space link --path . --create`, then `mrmr space apply`.",
       );
     } catch (error) {
       printErr("SCAFFOLD_FAILED", error instanceof Error ? error.message : "Scaffold failed");

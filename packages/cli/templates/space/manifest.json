@@ -1,5 +1,5 @@
 {
   "space/handlers.yaml": "version: 1\nhandlers: []\n",
   "space/space.yaml": "apiVersion: murrmure.space/v1\nslug: my-space\n",
-  "README.md": "# Murrmure space scaffold\n\nLayout:\n\n- `.mrmr/space/` — local space metadata + handlers\n- `.mrmr/flows/` — flow manifests\n- `.mrmr/views/` — view packages\n- `.mrmr/dev/` — local runtime outputs (gitignored)\n\nNext steps:\n\n1. `mrmr space link --path . --create`\n2. `mrmr space apply --strict`\n3. `mrmr grant mint --space spc_... --label \"cursor-agent\"`\n\nMCP config is not scaffolded automatically. Use `mrmr grant mint` to print the export command and optionally write `~/.cursor/mcp.json` (or use `--local` for project-level config).\n"
+  "README.md": "# Murrmure space scaffold\n\nLayout:\n\n- `.mrmr/space/` — local space metadata + handlers\n- `.mrmr/flows/` — flow manifests\n- `.mrmr/views/` — view packages\n- `.mrmr/dev/` — local runtime outputs (gitignored)\n\nNext steps:\n\n1. `mrmr space link --path . --create`\n2. `mrmr space apply --strict`\n\nLocal tool connections are created separately after the space exists.\n"
 }

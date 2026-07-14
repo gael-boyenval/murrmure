@@ -44,11 +44,3 @@ export function isTopLevelStepContractStep(
 export function flowUsesStepContracts(entry: FlowIndexEntry | null | undefined): boolean {
   return Boolean(entry?.step_contract_catalog?.entries.length);
 }
-
-export function isAgentCatalogStep(
-  catalog: StepContractCatalog | null | undefined,
-  step_id: string,
-): boolean {
-  const entry = catalogEntryForStep(catalog, step_id);
-  return entry?.role === "agent";
-}

@@ -15,71 +15,30 @@ import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 
 const LINEAR_MANIFEST: FlowManifest = {
   apiVersion: "murrmure.flow/v1",
-  name: "preview-review-v2",
-  start: { manual: true },
+  name: "preview-review",
+  triggers: { manual: true },
   steps: [
     {
       id: "intake",
       description: "Human attaches spec markdown.",
-      presentation: { view: "preview-review-intake" },
       branches: {
-        continue: { schema: { type: "object" }, next: "write_spec" },
-        cancel: { schema: { type: "object" }, next: null, fail_run: true },
+        continue: { schema: { type: "object" }, route: { step: "write_spec" } },
+        cancel: { schema: { type: "object" }, route: { run: "failed" } },
       },
     },
-    {
-      id: "write_spec",
-      executor: {
-        action: "feature_write_spec",
-        params: { spec_filename: "{{input.spec_filename}}" },
-      },
-      branches: {
-        completed: { schema: { type: "object" }, next: "build" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
-    {
-      id: "build",
-      orchestration: "engine-routed",
-      executor: {
-        action: "feature_build",
-        params: { spec_filename: "{{input.spec_filename}}" },
-      },
-      branches: {
-        completed: { schema: { type: "object" }, next: "archive" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
-    {
-      id: "archive",
-      executor: { action: "feature_archive" },
-      branches: {
-        completed: { schema: { type: "object" }, next: "commit" },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
-    {
-      id: "commit",
-      executor: { action: "feature_commit" },
-      branches: {
-        completed: { schema: { type: "object" }, next: null },
-        failed: { schema: { type: "object" }, next: null, fail_run: true },
-      },
-    },
+    { id: "write_spec", description: "Write the spec." },
+    { id: "build", description: "Build the site." },
+    { id: "archive", description: "Archive artifacts." },
+    { id: "commit", description: "Commit work." },
   ],
 };
 
 describe("flow-engine/step-contract-slice", () => {
   test("renderThenHint maps catalog routes to then strings", () => {
     expect(renderThenHint([{ engine: "open", step_id: "write_spec" }])).toBe("engine opens write_spec");
-    expect(renderThenHint([{ engine: "fail_run", fail_run: true }])).toBe("fail run");
+    expect(renderThenHint([{ engine: "fail_run" }])).toBe("fail run");
     expect(renderThenHint([{ engine: "advance" }])).toBe("run completes");
-    expect(
-      renderThenHint([
-        { engine: "continue_parent" },
-        { engine: "goto", step_id: "build.build-loop" },
-      ]),
-    ).toBe("continue parent; engine opens build.build-loop");
+    expect(renderThenHint([{ engine: "resume", step_id: "build" }])).toBe("resume build");
   });
 
   test("buildStepContractSlice includes then hints and workdir", () => {
@@ -93,11 +52,23 @@ describe("flow-engine/step-contract-slice", () => {
     });
 
     expect(slice.step_id).toBe("intake");
-    expect(slice.role).toBe("human");
     expect(slice.workdir).toBe(".mrmr/dev/runs/run_01TEST/steps/intake/work");
     expect(slice.branches.continue?.then).toBe("engine opens write_spec");
     expect(slice.branches.cancel?.then).toBe("fail run");
     expect(slice.inputs_from_run).toEqual({ spec_filename: "demo.md" });
+  });
+
+  test("buildStepContractSlice for default branches renders terminal success on last step", () => {
+    const { catalog } = compileStepContractCatalog(LINEAR_MANIFEST, "flw_preview_review");
+    const commit = catalog!.entries.find((e) => e.step_id === "commit")!;
+    const slice = buildStepContractSlice({
+      entry: commit,
+      exec_context: {},
+      run_id: "run_01TEST",
+      space_root: "/tmp/space",
+    });
+    expect(slice.branches.completed?.then).toBe("run completes");
+    expect(slice.branches.failed?.then).toBe("fail run");
   });
 
   test("renderAgentStepContractMarkdown includes resolve_step guidance", () => {
@@ -219,7 +190,7 @@ describe("flow-engine/step-contract-slice", () => {
           origin_space_id: "spc_demo",
           digest: ir.digest,
           name: "preview-review",
-          start: { manual: true },
+          triggers: { manual: true },
           step_spaces: ["spc_demo"],
           grants_required: [],
           ir,
@@ -256,7 +227,7 @@ describe("flow-engine/step-contract-slice", () => {
     await studio.upsertRunStepMemo({
       run_id: "run_run1",
       step_id: "intake",
-      status: "awaiting_human",
+      status: "working",
       started_at: clock.nowIso(),
     });
 

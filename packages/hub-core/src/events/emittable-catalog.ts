@@ -194,7 +194,7 @@ export async function buildEmittableEventsCatalog(
 
     const flows = await studio.listFlowIndex(space.space_id);
     for (const flow of flows) {
-      for (const event of flow.start.events ?? []) {
+      for (const event of flow.triggers.events ?? []) {
         if (!hookSourceMatches(event.source, callerSource)) continue;
         const entry = upsertEntry(byType, event.type);
         if (!entry.origins.includes("flow_start")) entry.origins.push("flow_start");

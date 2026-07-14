@@ -4,6 +4,7 @@
 
 | Path | Used by |
 |------|---------|
+| `hub/contracts/` + `hub/contracts.ts` | Explicit Hub contract fixtures and pin helpers; never production runtime input |
 | `spaces/preview-review-v2/` | `packages/cli/test/preview-review-v2-example.test.ts`, `docs-proof` strict apply |
 | `spaces/team-brief-v2/` | `docs-proof` (Tutorial 2 tree) |
 | `spaces/daily-brief-v2/` | `docs-proof` (Tutorial 3 tree) |

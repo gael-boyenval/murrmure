@@ -41,6 +41,18 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 - Port in use — change `PORT` or close other Desktop instance
 - Lock held — one hub per `~/.murrmure` data dir
 
+## Earlier development state appears after the clean-state cutover
+
+There is intentionally no upgrade reader or seed migration. Quit Desktop and
+move the old local state aside once:
+
+```bash
+mv ~/.murrmure ~/.murrmure.pre-tutorial-v3-$(date +%Y%m%d-%H%M%S)
+```
+
+Relaunch Desktop. The new data directory starts with zero spaces, persisted
+contracts, and flows. The backup remains available for manual inspection.
+
 ## Agent workflow help
 
 Install the split runtime skills:

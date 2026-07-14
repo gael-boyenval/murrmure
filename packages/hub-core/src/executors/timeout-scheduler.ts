@@ -40,14 +40,14 @@ export function humanStepPausesExecutorTimeout(
   return false;
 }
 
-export function runHasAwaitingHumanForExecutor(
+export function runHasOpenStepForExecutor(
   catalog: StepContractCatalog | null | undefined,
   memos: RunStepMemo[],
   executor_step_id: string,
 ): boolean {
   return memos.some(
     (memo) =>
-      memo.status === "awaiting_human" &&
+      memo.status === "working" &&
       humanStepPausesExecutorTimeout(catalog, executor_step_id, memo.step_id),
   );
 }
@@ -100,7 +100,7 @@ export class ExecutorTimeoutScheduler {
     let extendMs = 0;
     for (const [key, entry] of this.entries) {
       if (!key.startsWith(prefix)) continue;
-      const shouldPause = runHasAwaitingHumanForExecutor(input.catalog, input.memos, entry.step_id);
+      const shouldPause = runHasOpenStepForExecutor(input.catalog, input.memos, entry.step_id);
       if (shouldPause && entry.pause_started_at === undefined) {
         entry.pause_started_at = now;
       } else if (!shouldPause && entry.pause_started_at !== undefined) {

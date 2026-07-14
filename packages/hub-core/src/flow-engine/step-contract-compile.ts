@@ -7,7 +7,6 @@ import type {
   StepContractManifestStep,
   StepCatalogBranch,
   StepCatalogRoute,
-  StepRole,
 } from "@murrmure/contracts";
 import { computeContentDigest } from "../index/digest.js";
 import type { ParseResult } from "../index/parse-result.js";
@@ -43,6 +42,34 @@ export interface StepContractCompileResult {
 }
 
 const LEGACY_STEP_KEYS = ["invoke", "checkpoint", "gate"] as const;
+
+/** Removed authoring keys that the clean target rejects with no dual parser. */
+const REMOVED_STEP_KEYS = [
+  "role",
+  "presentation",
+  "orchestration",
+  "deriveRole",
+  "executor",
+  "next",
+  "fail_run",
+  "complete",
+  "continue",
+  "goto",
+  "fail",
+] as const;
+
+const REMOVED_BRANCH_KEYS = [
+  "next",
+  "fail_run",
+  "complete",
+  "continue",
+  "goto",
+  "fail",
+  "payload",
+  "outcome",
+] as const;
+
+const BRANCH_WRAPPER_KEYS = ["payload", "outcome"] as const;
 
 export function scanRawLegacyStepKinds(
   raw: unknown,
@@ -86,8 +113,77 @@ export function rejectLegacyStepKinds(raw: unknown): ParseResult<unknown> {
   };
 }
 
+interface RemovedFieldHit {
+  step_id: string;
+  branch?: string;
+  key: string;
+  kind: "step" | "branch";
+}
+
+export function scanRawRemovedFields(raw: unknown): RemovedFieldHit[] {
+  if (!raw || typeof raw !== "object") return [];
+  const steps = (raw as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return [];
+  const hits: RemovedFieldHit[] = [];
+
+  const visitStep = (step: unknown, idPrefix: string | null): void => {
+    if (!step || typeof step !== "object") return;
+    const record = step as Record<string, unknown>;
+    const stepId = typeof record.id === "string" ? record.id : "(unknown)";
+    const qualifiedId = idPrefix ? `${idPrefix}.${stepId}` : stepId;
+    for (const key of REMOVED_STEP_KEYS) {
+      if (key in record && record[key] !== undefined) {
+        hits.push({ step_id: qualifiedId, key, kind: "step" });
+      }
+    }
+    const branches = record.branches;
+    if (branches && typeof branches === "object" && !Array.isArray(branches)) {
+      for (const [branchName, branch] of Object.entries(
+        branches as Record<string, unknown>,
+      )) {
+        if (!branch || typeof branch !== "object") continue;
+        for (const key of REMOVED_BRANCH_KEYS) {
+          if (key in (branch as Record<string, unknown>) && (branch as Record<string, unknown>)[key] !== undefined) {
+            hits.push({ step_id: qualifiedId, branch: branchName, key, kind: "branch" });
+          }
+        }
+      }
+    }
+    const children = record.steps;
+    if (Array.isArray(children)) {
+      for (const child of children) visitStep(child, qualifiedId);
+    }
+  };
+
+  for (const step of steps) visitStep(step, null);
+  return hits;
+}
+
+export function rejectRemovedFields(raw: unknown): ParseResult<unknown> {
+  const hits = scanRawRemovedFields(raw);
+  if (hits.length === 0) return { ok: true, value: raw };
+  const first = hits[0]!;
+  const where =
+    first.kind === "branch"
+      ? `Step '${first.step_id}' branch '${first.branch}'`
+      : `Step '${first.step_id}'`;
+  const wrapper = BRANCH_WRAPPER_KEYS.includes(first.key as (typeof BRANCH_WRAPPER_KEYS)[number])
+    ? ` uses removed wrapper '${first.key}:' — keep schema/artifact_slots/route/resume flat`
+    : ` uses removed '${first.key}:' — see ${STEP_CONTRACT_MIGRATION_DOC}`;
+  return {
+    ok: false,
+    code: "REMOVED_FIELD",
+    message: `${where}${wrapper}`,
+  };
+}
+
+/** A step is a step contract unless it is a parallel or start_flow step. */
 export function isStepContractStep(step: FlowStep | StepContractManifestStep): boolean {
-  return Boolean(step.branches && Object.keys(step.branches).length > 0);
+  if ((step as FlowStep).parallel || (step as FlowStep).start_flow) return false;
+  for (const key of LEGACY_STEP_KEYS) {
+    if (key in step && (step as Record<string, unknown>)[key] !== undefined) return false;
+  }
+  return true;
 }
 
 export function manifestUsesStepContracts(manifest: FlowManifest): boolean {
@@ -121,14 +217,6 @@ export function findLegacyStepKinds(
   return hits;
 }
 
-function deriveRole(step: StepContractManifestStep, parentRole?: StepRole): StepRole {
-  if (step.role) return step.role;
-  if (step.presentation?.view) return "human";
-  if (parentRole === "agent") return "agent";
-  if (parentRole === "human") return "human";
-  return "agent";
-}
-
 function schemaRefForBranch(branchName: string, branch: StepBranchDefinition): string | undefined {
   if (branch.schema_ref) return branch.schema_ref;
   if (typeof branch.schema === "string") return branch.schema;
@@ -138,68 +226,135 @@ function schemaRefForBranch(branchName: string, branch: StepBranchDefinition): s
   return undefined;
 }
 
-function compileBranchRoutes(
-  branch: StepBranchDefinition,
-  isNested: boolean,
-  childIds: Set<string>,
-  parentQualifiedId: string | null,
-): StepCatalogRoute[] {
-  const routes: StepCatalogRoute[] = [];
-
-  if (isNested) {
-    if (branch.complete === "parent" || branch.complete === true) {
-      routes.push({ engine: "complete_parent" });
-    }
-    if (branch.continue === "parent" || branch.continue === true) {
-      routes.push({ engine: "continue_parent" });
-    }
-    if (branch.goto) {
-      const stepId = parentQualifiedId ? `${parentQualifiedId}.${branch.goto}` : branch.goto;
-      routes.push({ engine: "goto", step_id: stepId });
-    }
-    if (branch.fail === true) {
-      routes.push({ engine: "fail_run", fail_run: true });
-    }
-    return routes.length > 0 ? routes : [{ engine: "advance" }];
-  }
-
-  if (branch.fail_run === true) {
-    routes.push({ engine: "fail_run", fail_run: true });
-  }
-  if (branch.next === null) {
-    if (branch.fail_run !== true) {
-      routes.push({ engine: "advance" });
-    }
-  } else if (typeof branch.next === "string") {
-    routes.push({ engine: "open", step_id: branch.next });
-  }
-  return routes.length > 0 ? routes : [{ engine: "advance" }];
+interface FlatStep {
+  step: StepContractManifestStep;
+  qualifiedId: string;
+  parentId: string | null;
+  isNested: boolean;
+  /** Next top-level sibling id in manifest order (top-level only). */
+  nextSiblingId: string | null;
 }
 
 function flattenManifestSteps(
   steps: StepContractManifestStep[],
   parentId: string | null,
   parentQualifiedPrefix: string | null,
-  out: Array<{ step: StepContractManifestStep; qualifiedId: string; parentId: string | null; isNested: boolean }>,
+  topLevelOrder: string[],
+  out: FlatStep[],
 ): void {
   for (const step of steps) {
     const qualifiedId = parentQualifiedPrefix ? `${parentQualifiedPrefix}.${step.id}` : step.id;
     const isNested = parentId !== null;
-    out.push({ step, qualifiedId, parentId, isNested });
+    const nextSiblingId = !isNested ? nextTopLevelSibling(topLevelOrder, step.id) : null;
+    out.push({ step, qualifiedId, parentId, isNested, nextSiblingId });
     if (step.steps?.length) {
-      flattenManifestSteps(step.steps, qualifiedId, qualifiedId, out);
+      flattenManifestSteps(step.steps, qualifiedId, qualifiedId, topLevelOrder, out);
     }
   }
 }
 
-function collectBranchTargets(
+function nextTopLevelSibling(topLevelOrder: string[], stepId: string): string | null {
+  const idx = topLevelOrder.indexOf(stepId);
+  if (idx < 0 || idx + 1 >= topLevelOrder.length) return null;
+  return topLevelOrder[idx + 1]!;
+}
+
+/**
+ * Inject `completed` / `failed` defaults for steps with omitted `branches`.
+ * Omission alone receives defaults; explicit maps (including empty) are exact.
+ */
+function applyDefaultBranches(steps: StepContractManifestStep[]): void {
+  for (const step of steps) {
+    if (step.branches === undefined) {
+      step.branches = {
+        completed: { schema: { type: "object" } },
+        failed: { schema: { type: "object" } },
+      };
+    }
+    if (step.steps?.length) applyDefaultBranches(step.steps);
+  }
+}
+
+function compileBranchRoutes(
   branch: StepBranchDefinition,
-  isNested: boolean,
-): string[] {
-  const targets: string[] = [];
-  if (!isNested && typeof branch.next === "string") targets.push(branch.next);
-  if (isNested && branch.goto) targets.push(branch.goto);
-  return targets;
+  row: FlatStep,
+  knownStepIds: Set<string>,
+  topLevelIds: Set<string>,
+  warnings: StepContractLintWarning[],
+  flowId: string,
+): StepCatalogRoute[] {
+  if (branch.resume) {
+    if (!isAncestorOf(row, branch.resume, knownStepIds)) {
+      warnings.push({
+        flow_id: flowId,
+        step_id: row.qualifiedId,
+        code: "RESUME_TARGET_NOT_ANCESTOR",
+        message: `resume target '${branch.resume}' is not an open ancestor of '${row.qualifiedId}'`,
+      });
+    }
+    return [{ engine: "resume", step_id: branch.resume }];
+  }
+
+  if (branch.route) {
+    if (typeof branch.route.step === "string") {
+      if (!knownStepIds.has(branch.route.step)) {
+        warnings.push({
+          flow_id: flowId,
+          step_id: row.qualifiedId,
+          code: "ROUTE_TARGET_NOT_FOUND",
+          message: `route.step '${branch.route.step}' is not a known step id`,
+        });
+      }
+      return [{ engine: "open", step_id: branch.route.step }];
+    }
+    if (branch.route.run === "completed") return [{ engine: "advance" }];
+    if (branch.route.run === "failed") return [{ engine: "fail_run" }];
+  }
+
+  // No authored route/resume: apply control defaults by name and scope.
+  if (row.isNested) {
+    // Nested no-control branches resume their immediate parent (incl. failed).
+    return [{ engine: "resume", step_id: row.parentId! }];
+  }
+
+  // Top-level standard names receive control defaults from step order/name.
+  // Custom top-level branch names require an explicit route.
+  return [];
+}
+
+function resolveTopLevelDefaultRoutes(
+  branchName: string,
+  row: FlatStep,
+  warnings: StepContractLintWarning[],
+  flowId: string,
+): StepCatalogRoute[] {
+  if (branchName === "completed") {
+    return row.nextSiblingId
+      ? [{ engine: "open", step_id: row.nextSiblingId }]
+      : [{ engine: "advance" }];
+  }
+  if (branchName === "failed") {
+    return [{ engine: "fail_run" }];
+  }
+  warnings.push({
+    flow_id: flowId,
+    step_id: row.qualifiedId,
+    code: "CUSTOM_BRANCH_REQUIRES_ROUTE",
+    message: `Custom top-level branch '${branchName}' requires an explicit route`,
+  });
+  return [{ engine: "advance" }];
+}
+
+function isAncestorOf(row: FlatStep, ancestorId: string, knownStepIds: Set<string>): boolean {
+  if (!knownStepIds.has(ancestorId)) return false;
+  if (row.parentId === null) return false;
+  let cursor: string | null = row.parentId;
+  while (cursor) {
+    if (cursor === ancestorId) return true;
+    const dot = cursor.lastIndexOf(".");
+    cursor = dot > 0 ? cursor.slice(0, dot) : null;
+  }
+  return false;
 }
 
 function walkJsonValues(value: unknown, visit: (text: string) => void): void {
@@ -226,7 +381,7 @@ function isKnownMurrmureToken(tokenPath: string, knownStepIds: Set<string>): boo
 }
 
 function lintMurrmureTokens(
-  flat: Array<{ step: StepContractManifestStep; qualifiedId: string }>,
+  flat: FlatStep[],
   manifest: FlowManifest,
   flowId: string,
   knownStepIds: Set<string>,
@@ -253,8 +408,7 @@ function lintMurrmureTokens(
   walkJsonValues(manifest, (text) => scanString(text));
   for (const row of flat) {
     if (row.step.description) scanString(row.step.description, row.qualifiedId);
-    walkJsonValues(row.step.branches, (text) => scanString(text, row.qualifiedId));
-    if (row.step.presentation) walkJsonValues(row.step.presentation, (text) => scanString(text, row.qualifiedId));
+    walkJsonValues(row.step.branches ?? {}, (text) => scanString(text, row.qualifiedId));
   }
 }
 
@@ -273,169 +427,90 @@ function lintLegacySteps(
   }
 }
 
-function lintMixedStepKinds(
-  manifest: FlowManifest,
-  flowId: string,
-  warnings: StepContractLintWarning[],
-): void {
-  for (const step of manifest.steps) {
-    if (!isStepContractStep(step)) continue;
-    for (const key of LEGACY_STEP_KEYS) {
-      if (key in step && (step as Record<string, unknown>)[key] !== undefined) {
-        warnings.push({
-          flow_id: flowId,
-          step_id: step.id,
-          code: "MIXED_STEP_SHAPE",
-          message: `Step '${step.id}' mixes branches with legacy '${key}:' — use one shape only`,
-        });
-      }
-    }
-  }
-}
-
-function lintBranchRoutes(
-  flat: Array<{
-    step: StepContractManifestStep;
-    qualifiedId: string;
-    parentId: string | null;
-    isNested: boolean;
-  }>,
-  flowId: string,
-  knownStepIds: Set<string>,
-  warnings: StepContractLintWarning[],
-): void {
-  const childIdsByParent = new Map<string, Set<string>>();
+function lintEmptyBranches(flat: FlatStep[], flowId: string, warnings: StepContractLintWarning[]): void {
   for (const row of flat) {
-    if (!row.parentId) continue;
-    const set = childIdsByParent.get(row.parentId) ?? new Set<string>();
-    set.add(row.step.id);
-    childIdsByParent.set(row.parentId, set);
-  }
-
-  for (const row of flat) {
-    const childIds = childIdsByParent.get(row.qualifiedId) ?? new Set<string>();
-    for (const [branchName, branch] of Object.entries(row.step.branches)) {
-      compileBranchRoutes(branch, row.isNested, childIds, row.parentId);
-
-      for (const target of collectBranchTargets(branch, row.isNested)) {
-        if (row.isNested) {
-          const siblings = childIdsByParent.get(row.parentId!) ?? new Set<string>();
-          if (!siblings.has(target)) {
-            warnings.push({
-              flow_id: flowId,
-              step_id: row.qualifiedId,
-              code: "GOTO_TARGET_NOT_FOUND",
-              message: `Nested goto target '${target}' is not a sibling under '${row.parentId}'`,
-            });
-          }
-        } else if (!knownStepIds.has(target)) {
-          warnings.push({
-            flow_id: flowId,
-            step_id: row.qualifiedId,
-            code: "NEXT_TARGET_NOT_FOUND",
-            message: `Branch '${branchName}' next target '${target}' is not a top-level step id`,
-          });
-        }
-      }
-
-      if (row.isNested && branch.next) {
-        warnings.push({
-          flow_id: flowId,
-          step_id: row.qualifiedId,
-          code: "NESTED_TOP_LEVEL_ROUTE",
-          message: `Nested step '${row.qualifiedId}' must not use top-level 'next:' — use goto/complete/continue/fail`,
-        });
-      }
+    if (row.step.branches && Object.keys(row.step.branches).length === 0) {
+      warnings.push({
+        flow_id: flowId,
+        step_id: row.qualifiedId,
+        code: "EMPTY_BRANCHES",
+        message: `Step '${row.qualifiedId}' declares branches: {} — omit branches to receive defaults or declare at least one branch`,
+      });
     }
   }
 }
 
 function lintDeadSteps(
-  flat: Array<{ qualifiedId: string; isNested: boolean; parentId: string | null }>,
-  manifest: FlowManifest,
+  entries: StepContractCatalogEntry[],
   flowId: string,
   warnings: StepContractLintWarning[],
 ): void {
-  const topLevel = flat.filter((r) => !r.isNested);
+  const topLevel = entries.filter((e) => e.parent_id === null);
   if (topLevel.length === 0) return;
 
-  const referenced = new Set<string>();
-  for (const row of flat) {
-    if (row.isNested) continue;
-    const step = manifest.steps.find((s) => s.id === row.qualifiedId);
-    if (!step?.branches) continue;
-    for (const branch of Object.values(step.branches)) {
-      if (typeof branch.next === "string") referenced.add(branch.next);
-    }
-  }
-
-  const entry = topLevel[0]!.qualifiedId;
+  const byId = new Map(topLevel.map((e) => [e.step_id, e]));
+  const entry = topLevel[0]!.step_id;
   const reachable = new Set<string>([entry]);
   const queue = [entry];
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const step = manifest.steps.find((s) => s.id === current);
-    if (!step?.branches) continue;
-    for (const branch of Object.values(step.branches)) {
-      if (typeof branch.next === "string" && !reachable.has(branch.next)) {
-        reachable.add(branch.next);
-        queue.push(branch.next);
+    const entry_ = byId.get(current);
+    if (!entry_) continue;
+    for (const branch of Object.values(entry_.branches)) {
+      for (const route of branch.routes) {
+        if (
+          (route.engine === "open" || route.engine === "resume") &&
+          typeof route.step_id === "string" &&
+          byId.has(route.step_id) &&
+          !reachable.has(route.step_id)
+        ) {
+          reachable.add(route.step_id);
+          queue.push(route.step_id);
+        }
       }
     }
   }
 
   for (const row of topLevel) {
-    if (row.qualifiedId === entry) continue;
-    if (!reachable.has(row.qualifiedId) && !referenced.has(row.qualifiedId)) {
+    if (row.step_id === entry) continue;
+    if (!reachable.has(row.step_id)) {
       warnings.push({
         flow_id: flowId,
-        step_id: row.qualifiedId,
+        step_id: row.step_id,
         code: "DEAD_STEP",
-        message: `Step '${row.qualifiedId}' is not reachable from flow entry '${entry}'`,
+        message: `Step '${row.step_id}' is not reachable from flow entry '${entry}'`,
       });
     }
   }
 }
 
 function compileCatalogEntries(
-  flat: Array<{
-    step: StepContractManifestStep;
-    qualifiedId: string;
-    parentId: string | null;
-    isNested: boolean;
-  }>,
+  flat: FlatStep[],
+  warnings: StepContractLintWarning[],
+  flowId: string,
 ): StepContractCatalogEntry[] {
-  const childIdsByParent = new Map<string, Set<string>>();
-  for (const row of flat) {
-    if (!row.parentId) continue;
-    const set = childIdsByParent.get(row.parentId) ?? new Set<string>();
-    set.add(row.step.id);
-    childIdsByParent.set(row.parentId, set);
-  }
-
   return flat.map((row) => {
-    const childIds = childIdsByParent.get(row.qualifiedId) ?? new Set<string>();
-    const parentRow = row.parentId ? flat.find((r) => r.qualifiedId === row.parentId) : undefined;
-    const parentRole = parentRow ? deriveRole(parentRow.step) : undefined;
     const branches: Record<string, StepCatalogBranch> = {};
-    for (const [name, def] of Object.entries(row.step.branches)) {
+    for (const [name, def] of Object.entries(row.step.branches ?? {})) {
+      const lowered = compileBranchRoutes(def, row, new Set(flat.map((r) => r.qualifiedId)), new Set(), warnings, flowId);
+      const routes = lowered.length > 0
+        ? lowered
+        : resolveTopLevelDefaultRoutes(name, row, warnings, flowId);
       branches[name] = {
         schema_ref: schemaRefForBranch(name, def),
         schema: typeof def.schema === "object" ? def.schema : undefined,
-        routes: compileBranchRoutes(def, row.isNested, childIds, row.parentId),
+        routes,
       };
     }
     return {
       step_id: row.qualifiedId,
       parent_id: row.parentId,
       description: row.step.description,
-      role: deriveRole(row.step, parentRole),
       branches,
-      artifact_slots: Object.values(row.step.branches).reduce(
+      artifact_slots: Object.values(row.step.branches ?? {}).reduce(
         (acc, branch) => ({ ...acc, ...branch.artifact_slots }),
-        {} as Record<string, { description?: string; max_bytes?: number }>,
+        {} as Record<string, Record<string, unknown>>,
       ),
-      presentation: row.step.presentation,
     };
   });
 }
@@ -451,23 +526,23 @@ export function compileStepContractCatalog(
     return { catalog: null, warnings };
   }
 
-  lintMixedStepKinds(manifest, flowId, warnings);
+  // Materialize default branches before every downstream consumer so explicit
+  // and injected branches are downstream-equivalent.
+  const contractSteps = manifest.steps
+    .filter(isStepContractStep)
+    .map((step) => structuredClone(step) as StepContractManifestStep);
+  applyDefaultBranches(contractSteps);
 
-  const contractSteps = manifest.steps.filter(isStepContractStep) as StepContractManifestStep[];
-  const flat: Array<{
-    step: StepContractManifestStep;
-    qualifiedId: string;
-    parentId: string | null;
-    isNested: boolean;
-  }> = [];
-  flattenManifestSteps(contractSteps, null, null, flat);
+  const topLevelOrder = contractSteps.map((s) => s.id);
+  const flat: FlatStep[] = [];
+  flattenManifestSteps(contractSteps, null, null, topLevelOrder, flat);
 
   const knownStepIds = new Set(flat.map((r) => r.qualifiedId));
   lintMurrmureTokens(flat, manifest, flowId, knownStepIds, warnings);
-  lintBranchRoutes(flat, flowId, knownStepIds, warnings);
-  lintDeadSteps(flat, manifest, flowId, warnings);
+  lintEmptyBranches(flat, flowId, warnings);
 
-  const entries = compileCatalogEntries(flat);
+  const entries = compileCatalogEntries(flat, warnings, flowId);
+  lintDeadSteps(entries, flowId, warnings);
   const graphBody = entries.map((e) => ({
     step_id: e.step_id,
     branches: Object.fromEntries(

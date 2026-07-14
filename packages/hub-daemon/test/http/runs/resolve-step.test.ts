@@ -25,21 +25,6 @@ const LINEAR_FLOW_BUNDLE = {
     },
   },
   hooks: { digest: "sha256:rs-hooks", file: { version: 1, hooks: {} } },
-  handlers: {
-    digest: "sha256:rs-handlers",
-    file: {
-      version: 1,
-      handlers: [
-        {
-          id: "do_work",
-          contract_keys: ["linear-resolve.work"],
-          on: "step.opened",
-          type: "shell_spawn",
-          complete: "explicit",
-        },
-      ],
-    },
-  },
   flows: [
     {
       flow_id: "flw_linear_resolve",
@@ -48,24 +33,17 @@ const LINEAR_FLOW_BUNDLE = {
       manifest: {
         apiVersion: "murrmure.flow/v1",
         name: "linear-resolve",
-        start: { manual: true },
+        triggers: { manual: true },
         steps: [
           {
             id: "intake",
-            presentation: { view: "intake-view" },
+            description: "intake",
             branches: {
-              continue: { schema: { type: "object", required: ["topic"] }, next: "work" },
-              cancel: { schema: { type: "object" }, fail_run: true },
+              continue: { schema: { type: "object", required: ["topic"] }, route: { step: "work" } },
+              cancel: { schema: { type: "object" }, route: { run: "failed" } },
             },
           },
-          {
-            id: "work",
-            role: "agent",
-            branches: {
-              completed: { schema: { type: "object" }, next: null },
-              failed: { schema: { type: "object" }, fail_run: true },
-            },
-          },
+          { id: "work", description: "work" },
         ],
       },
     },

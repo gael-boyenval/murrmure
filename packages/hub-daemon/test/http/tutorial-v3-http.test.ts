@@ -14,6 +14,20 @@ describe("Tutorial v3 HTTP conformance", () => {
     }
   });
 
+  test("Task 01 — a fresh Hub has zero persisted product objects", async () => {
+    const hub = await createTemporaryHub();
+    try {
+      expect(hub.productCounts()).toEqual({
+        spaces: 0,
+        contracts: 0,
+        installs: 0,
+        flows: 0,
+      });
+    } finally {
+      await hub.stop();
+    }
+  });
+
   test.skip("Task 03 — start and externally resolve the Part 2 flow", () => {});
   test.skip("Task 05 — upload intent and resolve errors are transport-neutral", () => {});
   test.skip("Task 09 — run admission and apply quiescence are atomic", () => {});

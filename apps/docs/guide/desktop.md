@@ -55,7 +55,7 @@ The **`/spaces/new`** page and `mrmr setup` share the same handoff: after link +
 | Actor | How to authenticate |
 |-------|----------------------|
 | **Desktop human** | Bootstrap token auto-injected — no `/connect` paste |
-| **Agent (MCP)** | `mrmr setup` grant step or `mrmr grant mint` → one-time `tok_…` in MCP config |
+| **Agent (MCP)** | Explicit connection setup after space creation; `mrmr setup` does not mint credentials |
 | **CLI operator** | `mrmr login` (bootstrap first time, or a minted grant) → saved in `~/.murrmure/credentials` |
 
 The **`/connect`** route exists for contributor debugging only. End users on Desktop never need it.

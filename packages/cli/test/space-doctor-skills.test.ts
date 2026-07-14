@@ -97,7 +97,7 @@ describe("space doctor skills policy", () => {
     expect(skillCodes.has("SKILL_DEVELOPER_OUTDATED")).toBe(true);
   });
 
-  test("reports legacy monolith and fdk skill directories", async () => {
+  test("reports legacy monolith and retired flow skill directories", async () => {
     const project = makeProject("cli-doctor-legacy-skills-");
     mkdirSync(legacyMonolithInstallPath(project), { recursive: true });
     mkdirSync(legacyInstallPath(project), { recursive: true });
@@ -106,6 +106,6 @@ describe("space doctor skills policy", () => {
     const skillCodes = new Set(result.issues.map((issue) => issue.code));
 
     expect(skillCodes.has("SKILL_LEGACY_MONOLITH")).toBe(true);
-    expect(skillCodes.has("SKILL_LEGACY_FDK")).toBe(true);
+    expect(skillCodes.has("SKILL_RETIRED_FLOW")).toBe(true);
   });
 });

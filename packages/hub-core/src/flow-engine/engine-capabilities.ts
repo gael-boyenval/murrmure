@@ -41,7 +41,6 @@ export interface FlowApplyLintContext {
 
 /** Codes that stay warn-only even under `--strict`. */
 export const WARN_ONLY_LINT_CODES = new Set([
-  "DEPRECATED_START_KEY",
   "CHECKPOINT_LOOPBACK_HINT",
 ]);
 
@@ -94,15 +93,13 @@ function lintUnsupportedStepKinds(
 ): void {
   walkIrSteps(ir.steps, (step) => {
     if (ENGINE_DISPATCH_KINDS.includes(step.kind as EngineDispatchKind)) return;
-    if (step.kind === "wait") {
-      pushWarning(
-        out,
-        ctx,
-        step.id,
-        "UNSUPPORTED_STEP_KIND",
-        `Step kind '${step.kind}' is not dispatched by the engine`,
-      );
-    }
+    pushWarning(
+      out,
+      ctx,
+      step.id,
+      "UNSUPPORTED_STEP_KIND",
+      `Step kind '${step.kind}' is not dispatched by the engine`,
+    );
   });
 }
 
@@ -139,41 +136,10 @@ function lintInvokeCrossRefs(
 }
 
 function lintManifestStart(
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
+  _ctx: FlowApplyLintContext,
+  _out: FlowApplyLintWarning[],
 ): void {
-  const raw = ctx.manifestRaw ?? (ctx.manifest as Record<string, unknown>);
-  const hasStart = "start" in raw;
-  const hasTriggers = "triggers" in raw;
-  if (hasStart && !hasTriggers) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "DEPRECATED_START_KEY",
-      "Top-level 'start:' is deprecated — migrate to 'triggers:' (see decision 05)",
-    );
-  }
-  const start = ctx.manifest.start;
-  if (start.requires_view) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "LEGACY_START_REQUIRES_VIEW",
-      `start.requires_view '${start.requires_view}' is removed — use a step 0 checkpoint with view instead (decision 05)`,
-    );
-  }
-  const triggers = ctx.manifest.triggers;
-  if (triggers?.requires_view) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "LEGACY_START_REQUIRES_VIEW",
-      `triggers.requires_view '${triggers.requires_view}' is removed — use a step 0 checkpoint with view instead (decision 05)`,
-    );
-  }
+  // `start` and `requires_view` are rejected by the parser; no warn-only path.
 }
 
 export function lintFlowEngineCapabilities(

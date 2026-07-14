@@ -66,7 +66,7 @@ export async function bindOrchestrationToRun(
     origin_space_id: input.space_id,
     digest: ir.digest,
     name: input.manifest.name,
-    start: input.manifest.start,
+    triggers: input.manifest.triggers,
     step_spaces: collectStepSpaces(input.manifest, input.space_id).map((s) =>
       s.startsWith("spc_") ? (s as FlowIndexEntry["step_spaces"][number]) : (`spc_${stripSpaceId(s)}` as FlowIndexEntry["step_spaces"][number]),
     ),

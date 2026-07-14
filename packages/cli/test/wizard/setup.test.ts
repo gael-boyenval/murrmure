@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import * as clack from "@clack/prompts";
 import { clearAuthContextCache } from "../../src/lib/auth-context.js";
 import { setupCommand } from "../../src/commands/setup.js";
-import { spaceSetupCommand } from "../../src/commands/space/setup.js";
 import { AGENT_GRANT_CAPABILITIES, AGENT_GRANT_CAPABILITIES_CSV } from "../../src/wizard/capabilities.js";
 import { buildMcpConfigSnippet } from "../../src/lib/space-doctor-mcp.js";
 import { buildOnboardJsonPlan, buildSetupJsonPlan } from "../../src/wizard/json.js";
@@ -43,17 +42,15 @@ describe("wizard capabilities", () => {
 });
 
 describe("wizard json plans", () => {
-  test("buildSetupJsonPlan lists connect through grant steps", () => {
+  test("buildSetupJsonPlan stops before connection creation", () => {
     const plan = buildSetupJsonPlan();
     expect(plan.wizard).toBe("setup");
     expect(plan.steps.map((step) => step.id)).toEqual([
-      "connect",
       "spaces",
       "init",
       "link",
       "apply",
       "skill",
-      "grant",
     ]);
   });
 
@@ -100,15 +97,13 @@ describe("wizard space ops", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: example",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: hello",
-        "    role: agent",
         "    branches:",
         "      completed:",
         "        schema: { type: object }",
-        "        next: null",
         "",
       ].join("\n"),
     );
@@ -248,6 +243,102 @@ describe("clack confirm helper", () => {
   });
 });
 
+describe("setup naming interaction", () => {
+  const envSnapshot = { ...process.env };
+  let projectDir: string;
+
+  beforeEach(() => {
+    process.env = {
+      ...envSnapshot,
+      MURRMURE_HUB_URL: "http://127.0.0.1:8787",
+      MURRMURE_HUB_TOKEN: "tok_admin",
+    };
+    projectDir = mkdtempSync(join(tmpdir(), "cli-setup-naming-"));
+    clearAuthContextCache();
+  });
+
+  afterEach(() => {
+    process.env = envSnapshot;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    clearAuthContextCache();
+    rmSync(projectDir, { recursive: true, force: true });
+  });
+
+  test("reprompts an edited slug after a collision", async () => {
+    vi.mocked(clack.confirm)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+    vi.mocked(clack.text)
+      .mockResolvedValueOnce("My Space")
+      .mockResolvedValueOnce("existing-space")
+      .mockResolvedValueOnce("available-space");
+    const createdSlugs: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/v1/auth/whoami")) {
+        return new Response(JSON.stringify({
+          actor_id: "actor_admin",
+          kind: "human",
+          token_id: "tok_admin",
+          spaces: [],
+        }));
+      }
+      if (String(url).endsWith("/v1/spaces") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { slug: string; name: string };
+        createdSlugs.push(body.slug);
+        if (body.slug === "existing-space") {
+          return new Response(JSON.stringify({
+            code: "space_exists",
+            message: "Space already exists",
+          }), { status: 409 });
+        }
+        return new Response(JSON.stringify({
+          space_id: "spc_01JAVAILABLESPACE00000000",
+          slug: body.slug,
+          name: body.name,
+        }), { status: 201 });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+
+    await (setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: projectDir },
+      rawArgs: [],
+    });
+
+    expect(createdSlugs).toEqual(["existing-space", "available-space"]);
+  });
+
+  test("cancellation before naming creates no Hub space or scaffold", async () => {
+    vi.mocked(clack.confirm).mockResolvedValueOnce(false);
+    vi.mocked(clack.text).mockResolvedValueOnce(Symbol.for("clack:cancel") as never);
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).endsWith("/v1/auth/whoami")) {
+        return new Response(JSON.stringify({
+          actor_id: "actor_admin",
+          kind: "human",
+          token_id: "tok_admin",
+          spaces: [],
+        }));
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(process, "exit").mockImplementation((code?: string | number | null) => {
+      throw new Error(`process.exit:${code ?? 0}`);
+    });
+
+    await expect((setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: projectDir },
+      rawArgs: [],
+    })).rejects.toThrow("process.exit:0");
+
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/v1/spaces"))).toBe(false);
+    expect(existsSync(join(projectDir, ".mrmr"))).toBe(false);
+  });
+});
+
 function stubWizardHubFetch(projectDir: string) {
   vi.stubGlobal(
     "fetch",
@@ -312,7 +403,7 @@ describe("setup --yes --json", () => {
   const envSnapshot = { ...process.env };
   let projectDir: string;
   let stdout: string;
-  let exitCode: number | undefined;
+  let exitCode: string | number | undefined;
 
   beforeEach(() => {
     process.env = { ...envSnapshot };
@@ -324,7 +415,7 @@ describe("setup --yes --json", () => {
     vi.spyOn(console, "log").mockImplementation((line: string) => {
       stdout += `${line}\n`;
     });
-    vi.spyOn(process, "exit").mockImplementation((code?: number) => {
+    vi.spyOn(process, "exit").mockImplementation((code?: string | number | null) => {
       exitCode = code ?? 0;
       throw new Error(`process.exit:${code ?? 0}`);
     });
@@ -367,15 +458,13 @@ describe("setup --yes --json", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: example",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: hello",
-        "    role: agent",
         "    branches:",
         "      completed:",
         "        schema: { type: object }",
-        "        next: null",
         "",
       ].join("\n"),
     );
@@ -561,15 +650,13 @@ describe("setup --yes --json", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: example",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: hello",
-        "    role: agent",
         "    branches:",
         "      completed:",
         "        schema: { type: object }",
-        "        next: null",
         "",
       ].join("\n"),
     );
@@ -594,107 +681,5 @@ describe("setup --yes --json", () => {
     expect(payload.ok).toBe(false);
     expect(payload.steps.find((step) => step.id === "apply")?.ok).toBe(false);
     applySpy.mockRestore();
-  });
-});
-
-describe("space setup grant mint", () => {
-  const envSnapshot = { ...process.env };
-  let projectDir: string;
-  let grantSpaceId: string | undefined;
-
-  beforeEach(() => {
-    process.env = { ...envSnapshot };
-    process.env.MURRMURE_HUB_URL = "http://127.0.0.1:8787";
-    process.env.MURRMURE_HUB_TOKEN = "tok_admin";
-    clearAuthContextCache();
-    grantSpaceId = undefined;
-
-    projectDir = mkdtempSync(join(tmpdir(), "cli-space-setup-grant-"));
-    const root = join(projectDir, ".mrmr");
-    mkdirSync(join(root, "space"), { recursive: true });
-    writeFileSync(
-      join(root, "space", "handlers.yaml"),
-      "version: 1\nhandlers: []\n",
-    );
-    writeFileSync(
-      join(root, "space", "space.yaml"),
-      "apiVersion: murrmure.space/v1\nslug: grant-smoke\nname: Grant Smoke\n",
-    );
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string, init?: RequestInit) => {
-        const method = init?.method ?? "GET";
-        if (String(url).endsWith("/v1/auth/whoami")) {
-          return {
-            ok: true,
-            status: 200,
-            json: async () => ({
-              actor_id: "actor_admin",
-              kind: "human",
-              token_id: "tok_admin",
-              spaces: [
-                {
-                  space_id: "spc_from_link",
-                  scopes: ["hub:admin", "space:admin", "space:write", "space:read"],
-                },
-              ],
-            }),
-          };
-        }
-        if (String(url).endsWith("/v1/spaces") && method === "POST") {
-          return {
-            ok: true,
-            status: 201,
-            json: async () => ({ space_id: "spc_should_not_mint", slug: "ui-sandbox" }),
-          };
-        }
-        if (String(url).includes("/link") && method === "POST") {
-          return { ok: true, status: 200, json: async () => ({ ok: true }) };
-        }
-        if (String(url).includes("/apply") && method === "POST") {
-          return { ok: true, status: 200, json: async () => ({ ok: true }) };
-        }
-        if (String(url).includes("/grants") && method === "POST") {
-          const match = String(url).match(/\/v1\/spaces\/([^/]+)\/grants/);
-          grantSpaceId = match?.[1];
-          return {
-            ok: true,
-            status: 201,
-            json: async () => ({
-              grant_id: "grt_space_setup",
-              token: "tok_agent",
-              scopes: AGENT_GRANT_CAPABILITIES,
-            }),
-          };
-        }
-        throw new Error(`unexpected fetch ${method} ${url}`);
-      }),
-    );
-  });
-
-  afterEach(() => {
-    process.env = envSnapshot;
-    vi.unstubAllGlobals();
-    clearAuthContextCache();
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  test("mints grant for linked space id not first created space", async () => {
-    const createSpy = vi.spyOn(await import("../../src/commands/space/commands.js"), "createSpaceOnHub");
-    const linkSpy = vi.spyOn(await import("../../src/wizard/space-ops.js"), "wizardSpaceLink").mockResolvedValueOnce({
-      space_id: "spc_from_link",
-      created: false,
-    });
-
-    await (spaceSetupCommand as { run: (ctx: unknown) => Promise<void> }).run({
-      args: { path: projectDir, yes: true },
-      rawArgs: [],
-    });
-
-    expect(grantSpaceId).toBe("spc_from_link");
-    expect(grantSpaceId).not.toBe("spc_should_not_mint");
-    createSpy.mockRestore();
-    linkSpy.mockRestore();
   });
 });

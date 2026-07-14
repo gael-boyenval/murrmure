@@ -24,7 +24,7 @@ Hub event types (unchanged): `ask` · `answer` · `query_failed`
 - Response projection per hub architecture Part 11
 - `_attribution` injected server-side
 
-- Capability-owned query type `spec_summary@1` (feature-spec), answered by the live capability — see [../build-capability/12-worker-runtime-and-host-bridge.md](../build-capability/12-worker-runtime-and-host-bridge.md) §6
+- Space-owned query type `spec_summary@1`, answered by an authorized handler
 
 ### XS1 — federation relay (promoted phase 13)
 
@@ -208,5 +208,4 @@ Typical flow: source space registers artifact → target space invoke with `arti
 
 ## Related
 
-- Feature-spec inbound handler: [capabilities/feature-spec.md](../capabilities/feature-spec.md)
 - Config query_policy UI: XS1 extension to [config/spec.md](../config/spec.md)

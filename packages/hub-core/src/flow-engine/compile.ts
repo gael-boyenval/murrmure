@@ -28,9 +28,6 @@ function flattenStepContractIr(step: FlowStep, parentId: string | null, prefix: 
 }
 
 function stepToIr(step: FlowStep): FlowStepIr {
-  if (isStepContractStep(step)) {
-    return stepContractToIr(step, step.id, null);
-  }
   if (step.parallel) {
     return {
       id: step.id,
@@ -74,7 +71,8 @@ function stepToIr(step: FlowStep): FlowStepIr {
       },
     };
   }
-  return { id: step.id, kind: "wait" };
+  // Every other step is a step contract (defaults injected at compile).
+  return stepContractToIr(step, step.id, null);
 }
 
 export function compileFlowIr(manifest: FlowManifest, flow_id: string): FlowIr {
@@ -89,7 +87,7 @@ export function compileFlowIr(manifest: FlowManifest, flow_id: string): FlowIr {
   const body = {
     flow_id,
     name: manifest.name,
-    start: manifest.start,
+    triggers: manifest.triggers,
     steps,
   };
   return {

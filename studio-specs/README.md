@@ -1,7 +1,7 @@
 # Murrmure specs
 
-Source of truth for the Murrmure platform: a local-first kernel, hub daemon, web
-shell, and the Flow Dev Kit (FDK) for user-authored flows.
+Source of truth for the Murrmure platform: a local-first kernel, Hub daemon,
+Desktop shell, portable flows and Views, and space-owned execution.
 
 Start at the technical index: [current/index.md](./current/index.md).
 
@@ -16,24 +16,27 @@ Start at the technical index: [current/index.md](./current/index.md).
 
 **On conflict, `current/` wins** over `plans/` and `archives/`.
 
-## Published npm packages (v1)
+## Public package surfaces
 
 | Package | Role |
 |---------|------|
-| `@murrmure/cli` | All CLI commands (`mrmr` / `murrmure`), MCP, bundled skill |
-| `@murrmure/flow-dev-kit` | Flow project library (React mount, schema, host/server types) |
+| `@murrmure/cli` | CLI commands (`mrmr`) plus agent and developer skills |
+| `@murrmure/mcp-bridge` | Harness-neutral MCP bridge (`murrmure-mcp`) |
+| `@murrmure/view-sdk` | Custom View host and app contracts |
 
-See [ADR-001](./ADR/ADR-001-murrmure-publish.md) and [archives/plans/npm-publish-v1.md](./archives/plans/npm-publish-v1.md).
+See [ADR-001](./ADR/ADR-001-murrmure-publish.md) for the original publication
+decision and `current/` for the shipped package contracts.
 
-## What is in scope (v1)
+## What is in scope
 
-Local-first platform: kernel, hub, shell, FDK, and the flow surfaces
-covered by [current/acceptance.md](./current/acceptance.md) and
-[current/build-capability/acceptance.md](./current/build-capability/acceptance.md) —
-flow runtime (install → validate → test → apply → live worker), triggers,
-same-hub cross-space queries (XS0), and the feature-spec reference flow.
+Local-first platform: kernel, Hub, Desktop shell, portable flow orchestration,
+custom Views, space-owned handlers, triggers, and same-Hub cross-space queries.
+The current definition of done is
+[current/acceptance.md](./current/acceptance.md).
 
-Strict-apply test spaces live under [`../test-utils/spaces/`](../test-utils/spaces/). Platform packages (`packages/`) contain no bundled workflow flows.
+Strict-apply test spaces and explicit non-shipped Hub fixtures live under
+[`../test-utils/`](../test-utils/). Production packages contain no bundled
+workflow or demo state.
 
 ## What is deferred
 
@@ -43,18 +46,23 @@ See [plans/README.md](./plans/README.md): hosted cloud shell, cross-space XS1 ex
 
 ```bash
 pnpm typecheck          # all workspace packages typecheck
-pnpm build              # includes @murrmure/cli and @murrmure/flow-dev-kit
+pnpm build              # build all workspace packages
 pnpm test               # unit + integration (vitest)
 pnpm test:acceptance    # hub-daemon + @murrmure/cli
 pnpm check:boundaries   # import boundary rules
+pnpm check:docs-proof   # docs, skills, fixtures, and clean-state guards
 ```
 
 All green, and every in-scope acceptance row has a vitest covering it.
 
 ## Smoke checklist (manual)
 
-1. `pnpm dev` starts the hub daemon and web shell.
-2. Scaffold a flow: `mrmr flow init demo` → `mrmr flow build` → push to the hub.
-3. Install → validate → test → apply; the flow mounts live and its `/health` route responds.
-4. The flow canvas loads in the shell iframe from the hub UI blob route.
-5. MCP catalog lists the flow's tools for a grant token with its ACL.
+1. Launch Desktop with fresh user data and confirm the space list is empty.
+2. In a project directory, run `mrmr setup` and confirm one display name and
+   editable slug.
+3. Verify `.mrmr/space/space.yaml`, the local link, and Hub state use that
+   confirmed identity while the Hub-assigned `spc_*` ID remains opaque.
+4. Add a flow under `.mrmr/flows/`, run `mrmr space apply --strict`, and start
+   it from Desktop.
+5. Confirm custom View presentation and any space-owned handlers execute through
+   their current protocol contracts.

@@ -17,7 +17,6 @@ const statusTone: Record<string, string> = {
   completed: "bg-emerald-500/15 text-emerald-400",
   failed: "bg-red-500/15 text-red-400",
   working: "bg-amber-500/15 text-amber-300",
-  awaiting_human: "bg-sky-500/15 text-sky-300",
   pending: "bg-zinc-500/15 text-zinc-400",
   skipped: "bg-zinc-500/15 text-zinc-500",
 };
