@@ -64,21 +64,14 @@ The wizard does what the Desktop screen describes — connect, create the space,
 
 **Skill** — optional platform skills that teach agents how to use Murrmure's tools. Accept if your agent supports them.
 
-**Grant** — connects your coding agent (MCP). The wizard prints the token, MCP config, and what to do next — follow its prompts through reload and verify. Everything for agent setup lives in that step; there is no separate procedure here.
+**Connection** — asks whether tools on this computer may access the space. Accept
+to create one least-privilege local connection and configure the integration
+contexts you select. Tokens stay in the OS credential store; generated config
+contains IDs only. Follow the reload and verification prompts. Decline to create
+no connection.
 
-Set the space slug in `.mrmr/space/space.yaml` to match the name you picked:
-
-```diff
- apiVersion: murrmure.space/v1
--slug: my-space
-+slug: my-first-space
-```
-
-Publish again:
-
-```bash
-mrmr space apply
-```
+The confirmed name and slug are written consistently during setup; no manual
+`space.yaml` repair or second apply is required.
 
 When the wizard is done, your project should have a **`.mrmr/`** directory like this (no flows yet — Part 2 adds those):
 
@@ -94,6 +87,7 @@ my-first-space/
 
 `handlers.yaml`:
 
+<!-- tutorial-v3-fence:part-1-empty-handlers -->
 ```yaml
 version: 1
 handlers: []
@@ -101,6 +95,7 @@ handlers: []
 
 `space.yaml`:
 
+<!-- tutorial-v3-fence:part-1-space -->
 ```yaml
 apiVersion: murrmure.space/v1
 slug: my-first-space
@@ -123,7 +118,7 @@ Both should pass without errors.
 - [ ] After setup, **my-first-space** appears in the sidebar
 - [ ] `mrmr space status` shows your project folder linked
 - [ ] `.mrmr/` matches the layout above (empty handlers, no flows)
-- [ ] Wizard **Grant** step completed (agent connected per wizard instructions)
+- [ ] Wizard **Connection** step completed (or explicitly declined)
 
 ## Next
 

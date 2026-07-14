@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "beats": [
+    {
+      "id": "part-1-clean-launch",
+      "chapters": [1],
+      "owner": "01",
+      "automated": ["tutorial-v3-packaged.test.ts"],
+      "manual_only": [
+        "signed-release:notarization-gatekeeper",
+        "signed-release:keychain-locked-prompt",
+        "signed-release:actual-upgrade",
+        "signed-release:integration-reload-verification"
+      ]
+    },
+    {
+      "id": "part-1-local-connection",
+      "chapters": [1],
+      "owner": "02",
+      "automated": [
+        "tutorial-v3-cli.test.ts",
+        "tutorial-v3-mcp.test.ts",
+        "tutorial-v3-packaged.test.ts"
+      ],
+      "manual_only": ["signed-release:real-supported-adapter", "signed-release:generic-adapter"]
+    },
+    {
+      "id": "part-2-minimal-flow",
+      "chapters": [2],
+      "owner": "03",
+      "automated": [
+        "tutorial-v3-contract.test.ts",
+        "tutorial-v3-http.test.ts",
+        "tutorial-v3-cli.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "part-3-intake-view",
+      "chapters": [3],
+      "owner": "04",
+      "automated": [
+        "tutorial-v3-view.test.ts",
+        "tutorial-v3-shell-ui.test.ts",
+        "tutorial-v3-handler.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "part-4-submit-cancel",
+      "chapters": [3, 4],
+      "owner": "05",
+      "automated": [
+        "tutorial-v3-contract.test.ts",
+        "tutorial-v3-http.test.ts",
+        "tutorial-v3-mcp.test.ts",
+        "tutorial-v3-view.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "part-5-copy",
+      "chapters": [5],
+      "owner": "06",
+      "automated": ["tutorial-v3-handler.test.ts"],
+      "manual_only": []
+    },
+    {
+      "id": "part-5-agent-build",
+      "chapters": [5],
+      "owner": "07",
+      "automated": [
+        "tutorial-v3-mcp.test.ts",
+        "tutorial-v3-handler.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "part-5-run-capacity",
+      "chapters": [4, 5],
+      "owner": "09",
+      "automated": [
+        "tutorial-v3-http.test.ts",
+        "tutorial-v3-cli.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "part-6-cleanup",
+      "chapters": [6],
+      "owner": "10",
+      "automated": ["tutorial-v3-repository.test.ts"],
+      "manual_only": []
+    },
+    {
+      "id": "parts-4-6-retention",
+      "chapters": [4, 5, 6],
+      "owner": "11",
+      "automated": [
+        "tutorial-v3-contract.test.ts",
+        "tutorial-v3-handler.test.ts"
+      ],
+      "manual_only": []
+    },
+    {
+      "id": "parts-2-6-shared-flow-page",
+      "chapters": [2, 3, 4, 5, 6],
+      "owner": "12",
+      "automated": ["tutorial-v3-shell-ui.test.ts"],
+      "manual_only": []
+    },
+    {
+      "id": "parts-1-6-release",
+      "chapters": [1, 2, 3, 4, 5, 6],
+      "owner": "14",
+      "automated": ["tutorial-v3-packaged.test.ts"],
+      "manual_only": [
+        "signed-release:notarization-gatekeeper",
+        "signed-release:keychain-locked-prompt",
+        "signed-release:actual-upgrade",
+        "signed-release:integration-reload-verification"
+      ]
+    }
+  ]
+}

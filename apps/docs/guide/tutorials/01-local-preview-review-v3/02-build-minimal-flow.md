@@ -55,7 +55,8 @@ Writing the YAML does not start a run, index the space, or dispatch a handler. *
 
 For this tutorial, **`manual: true`** is enough.
 
-Human UI does **not** belong under `triggers`. Views attach to **steps** via `presentation.view` ([Part 3](./03-build-intake-view)).
+Human UI does **not** belong under `triggers` or the portable flow. Spaces bind
+Views to steps through `handlers.yaml` ([Part 3](./03-build-intake-view)).
 
 ### Default branches (linear steps)
 
@@ -64,7 +65,7 @@ For a normal pipeline step, you only need **`id`** and **`description`**. The co
 | Branch | Meaning |
 |--------|---------|
 | **`completed`** | Success — opens the **next step** in the `steps` list (last step ends the run) |
-| **`failed`** | Failure — ends the run (`fail_run: true` by default) |
+| **`failed`** | Failure — compiles to the canonical run-failed route |
 
 You will use default branches for **`write_spec`** and **`cleanup`** in [Part 5](./05-extend-flow-and-handlers) and [Part 6](./06-cleanup-and-commit). **`build`** declares explicit **`branches`** because its **`completed`** resolve must carry **`commit_message`** and **`description`** in the payload.
 
@@ -74,28 +75,36 @@ Human steps with custom outcomes still declare **`branches`** explicitly (intake
 
 ## Step 2 — One step: intake only
 
-Open the file from Step 1 and append the `steps` block:
+Open the file from Step 1 and make it match this complete manifest:
 
-```diff
- triggers:
-   manual: true
-+
-+steps:
-+  - id: intake
-+    description: Human attaches one spec markdown file.
-+    branches:
-+      continue:
-+        schema:
-+          type: object
-+          required: [spec]
-+        artifact_slots:
-+          spec:
-+            description: The spec markdown file
-+            max_bytes: 1048576
-+        next: null
-+      cancel:
-+        schema: { type: object }
-+        fail_run: true
+<!-- tutorial-v3-fence:part-2-flow -->
+```yaml
+apiVersion: murrmure.flow/v1
+name: my-dev-flow
+description: My first dev workflow
+
+triggers:
+  manual: true
+
+steps:
+  - id: intake
+    description: Human attaches one spec markdown file.
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec]
+        artifact_slots:
+          spec:
+            description: The spec markdown file
+            media_types: [text/markdown, text/plain]
+            extensions: [.md, .markdown, .txt]
+            min_bytes: 1
+            max_bytes: 1048576
+        route: { run: completed }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
 ```
 
 Save the file. Do not run `mrmr space apply` yet — add the intake view in [Part 3](./03-build-intake-view) first.
@@ -115,12 +124,12 @@ Each key under `branches` is an **outcome name** — what gets passed to `resolv
 **`continue`** — success path:
 
 - `schema.required: [spec]` — resolve **must** include the `spec` artifact. Names in `required` that match `artifact_slots` are **file slots**, not payload fields — there is no `spec_filename` (or other form data) on this branch.
-- `artifact_slots.spec` — the markdown file (max 1 MiB). The original filename travels with the upload in `artifacts_out`.
-- `next: null` — no further step; the run ends after intake (this tutorial has only one step).
+- `artifact_slots.spec` — one non-empty Markdown/plain-text file (max 1 MiB). The original filename travels with the artifact reference.
+- `route: { run: completed }` — no further step; the run ends successfully after intake.
 
 **`cancel`** — abort:
 
-- `fail_run: true` — run ends as failed.
+- `route: { run: failed }` — run ends as failed.
 - `schema: { type: object }` — no extra fields required.
 
 That is all you need for this step. Loops and richer routing are in the [full tutorial manifest](../01-local-preview-review/05-flow-manifest).
@@ -130,7 +139,7 @@ That is all you need for this step. Loops and richer routing are in the [full tu
 - [ ] `.mrmr/flows/my-dev-flow/flow.manifest.yaml` exists with flow shell + single `intake` step
 - [ ] Flow name is **`my-dev-flow`**
 - [ ] `triggers.manual: true`
-- [ ] `intake` has explicit `branches.continue` + `branches.cancel`, **no** `presentation.view` yet
+- [ ] `intake` has explicit `branches.continue` + `branches.cancel` and no resolver/View modality
 - [ ] `continue` is **file-only**: `schema.required: [spec]` + `artifact_slots.spec` — no payload fields like `spec_filename`
 
 ## Next

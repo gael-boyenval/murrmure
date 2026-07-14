@@ -190,9 +190,12 @@ The program is complete only when all of the following are true:
 
 ## 4. Parallel delivery model
 
-### 4.1 Shared-interface gate
+### 4.1 Accepted shared interfaces
 
-Task **T00** freezes the interfaces consumed by parallel tasks. No task may invent a different:
+Task **T00** is accepted in
+[ADR-005](../ADR/ADR-005-tutorial-v3-contract-ownership.md). That packet names
+the canonical package and build-task owner for all ten shared contracts. No task
+may invent a different:
 
 - trigger normalization rule;
 - default branch and resolver-agnostic step rule;
@@ -208,7 +211,7 @@ Task **T00** freezes the interfaces consumed by parallel tasks. No task may inve
 
 | Wave | Parallel tasks | Merge constraint |
 |---|---|---|
-| **0 — decisions and harness** | T00, T01 fixture extraction | T00 decisions merge before behavior code |
+| **0 — decisions and harness** | T00, T01 fixture extraction | Accepted ADR-005 decisions are the input to behavior code |
 | **1 — independent foundations** | T02 triggers, T08 onboarding, T09 clean boot, T10 MCP packaging verification, T12 scratch paths | T09 owns Desktop packaging files until merged; T10 may verify in parallel but rebases before edits |
 | **2 — compiler foundation** | T03 defaults/step identity; T01 expands contract tests | T03 merges after T02 |
 | **3 — contract/runtime lanes** | T04 artifact contract, T05 handler binding | Both start after T03; they have disjoint owned paths |
@@ -245,7 +248,10 @@ T01 runs progressively across all waves ─────────┴─> T15
 - `step-contract-slice.ts`: T11 only.
 - Scratch path helper and path call sites: T12 only; T04/T06 consume its API after merge.
 - Space home and graph UI/API: T14 only.
-- `test-utils/spaces/tutorial-v3/**` and tutorial-v3 test orchestrators: T01 only.
+- `test-utils/spaces/tutorial-v3/**`, `test-utils/tutorial-v3/**`, and tutorial-v3
+  test orchestrators: build Task 00 establishes the harness; later build tasks
+  edit only their owned snapshot/skeleton assertions and rebase before shared
+  fence-registry edits.
 - Shared tutorial chapters and normative files use a **documentation lease** named in each task. A later task rebases and edits only its assigned sections.
 
 ---
@@ -253,6 +259,10 @@ T01 runs progressively across all waves ─────────┴─> T15
 ## 5. Work packages
 
 ## T00 — Freeze the tutorial-v3 architecture contract
+
+**Decision status:** accepted — see
+[ADR-005](../ADR/ADR-005-tutorial-v3-contract-ownership.md). All v3-critical
+architecture decisions are accepted inputs to implementation.
 
 ### Context
 

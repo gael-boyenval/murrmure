@@ -6,6 +6,7 @@ import { parse as parseYaml } from "yaml";
 import { lintSpaceApplyBundle, strictLintFailures } from "@murrmure/hub-core";
 import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
+import { verifyTutorialV3Docs } from "./helpers/tutorial-v3-docs.js";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
@@ -24,6 +25,13 @@ const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/01-local-preview-review/07-index-and-apply.md",
   "apps/docs/guide/tutorials/01-local-preview-review/08-run-the-loop.md",
   "apps/docs/guide/tutorials/01-local-preview-review/09-troubleshooting.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/index.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/03-build-intake-view.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/04-run-and-understand.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
+  "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/index.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-flow.md",
   "apps/docs/guide/tutorials/02-multi-agent-brief/02-admin-setup.md",
@@ -113,6 +121,10 @@ describe("phase 10 docs proof (10-T*)", () => {
       const content = readFileSync(path, "utf-8");
       expect(content, rel).not.toMatch(FDK_PATTERN);
     }
+  });
+
+  test("TUTORIAL-V3-00 — stable fences match progressive fixtures", () => {
+    expect(verifyTutorialV3Docs(REPO_ROOT)).toEqual([]);
   });
 
   test("10-T1 — preview-review-v2 example passes apply lint (v2.2 step contracts)", () => {

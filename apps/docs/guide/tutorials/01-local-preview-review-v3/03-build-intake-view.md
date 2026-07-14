@@ -23,22 +23,24 @@ This creates `.mrmr/views/spec-intake/` — a small Vite + React app with `view.
 | `src/App.tsx` | Your UI — uses `@murrmure/view-sdk/app` to submit or cancel |
 | `dist/` | Production build output (created by `npm run build`) |
 
-## Step 2 — Attach the view to the intake step
+## Step 2 — Bind the view in your space
 
-The view id (`spec-intake`) must match `presentation.view` on the step.
+The portable flow stays resolver-agnostic. Bind the local View to its readable
+step key in `.mrmr/space/handlers.yaml`:
 
-Edit `.mrmr/flows/my-dev-flow/flow.manifest.yaml` from [Part 2](./02-build-minimal-flow):
-
-```diff
- steps:
-   - id: intake
-     description: Human attaches one spec markdown file.
-+    presentation:
-+      view: spec-intake
-     branches:
+<!-- tutorial-v3-fence:part-3-view-handler -->
+```yaml
+version: 1
+handlers:
+  - id: intake_view
+    on: step.opened::my-dev-flow.intake
+    type: view_resolver
+    view: spec-intake
 ```
 
-When the run opens `intake`, Desktop loads **`spec-intake`** as the main UI for that step — not a built-in operator form.
+Apply resolves that alias to the immutable flow/step identity. When the run opens
+`intake`, Desktop loads **`spec-intake`** as the main UI for that resolver — not
+a built-in operator form.
 
 ## Step 3 — Implement the view (file only)
 
@@ -46,6 +48,7 @@ Replace `src/App.tsx` with a minimal form: **one file input**, **Submit**, **Can
 
 The view does **not** hardcode what `continue` requires. The shell passes the compiled **branch contract** from your flow manifest in `ViewAppContext.step.branches`. The SDK validates against that contract **before** calling resolve — so a missing file shows an inline error instead of failing the run on the hub.
 
+<!-- tutorial-v3-fence:part-3-app -->
 ```tsx
 import { useState } from "react";
 import { isViewContractError, useViewContract } from "@murrmure/view-sdk/app";
@@ -109,20 +112,21 @@ export function App() {
 | Layer | Role |
 |-------|------|
 | **Flow manifest** | Declares `branches.continue` — `schema.required: [spec]`, `artifact_slots.spec` |
-| **Apply** | Compiles a step contract catalog; denormalizes `presentation.view` → `view_ref` |
-| **Run** | Hub opens `intake` (`awaiting_human`); run API includes `active_human_step.branches` |
-| **Shell** | Desktop loads the view and passes `context.step.branches` from the compiled contract |
+| **Apply** | Compiles the branch contract and resolves `intake_view` to canonical flow/step/View identity |
+| **Run** | Hub opens `intake`; `open_steps[]` includes the sanitized resolver and branch contracts |
+| **Shell** | Desktop selects the projected `view_resolver` and passes `context.step.branches` |
 | **View** | Reads the contract from `useViewContract()` — same shape as the manifest branch, no duplication |
 
 On **Submit**, `submitBranch("continue", { files: { spec } })`:
 
 1. SDK validates against `context.step.branches.continue` (required slot `spec`, `max_bytes`, empty payload).
 2. If validation fails → `ViewContractError` with field messages; **resolve is not called**.
-3. If validation passes → SDK uploads the `File` to the step workdir (encoding handled internally).
-4. SDK resolves branch **`continue`** with empty payload and `artifacts_out: [{ slot: "spec", path: "…" }]`.
-5. Hub promotes the file under `steps/intake/spec/`.
+3. If validation passes → the trusted host obtains an upload intent and streams the browser `File`; the View receives no intent or Hub credential.
+4. The host resolves branch **`continue`** with an empty payload and the uploaded artifact reference.
+5. Hub atomically validates, promotes, and resolves the selected branch.
 
-**Cancel** calls `cancel()` → branch **`cancel`** (`fail_run: true`). No file validation on cancel.
+**Cancel** calls `cancel()` → branch **`cancel`**, whose contract routes the run
+to failure. No file validation on cancel.
 
 ## Step 4 — Dev loop (optional)
 
@@ -187,7 +191,7 @@ mrmr space apply
 ## Checkpoint
 
 - [ ] `.mrmr/views/spec-intake/` exists with `npm install` done
-- [ ] `intake` has `presentation.view: spec-intake`
+- [ ] `handlers.yaml` binds `my-dev-flow.intake` through `type: view_resolver`
 - [ ] `App.tsx` uses `useViewContract` + `submitBranch` — file input + Submit + Cancel only
 - [ ] `npm run build` succeeded
 - [ ] `mrmr space apply` indexed the view and flow

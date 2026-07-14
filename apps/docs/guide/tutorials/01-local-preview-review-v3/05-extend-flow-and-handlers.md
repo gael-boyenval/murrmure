@@ -2,7 +2,9 @@
 
 **Concept:** The flow manifest describes **what** happens next; **handlers** in `.mrmr/space/handlers.yaml` describe **how** your space executes each step. Part 4 stopped after **intake** — here you add **`write_spec`** (copy the spec into the repo), then **`build`** (agent implements it and returns a commit subject + description for later).
 
-Linear steps need only **`id`** and **`description`** — the compiler supplies **`completed`** (next step in line) and **`failed`** (`fail_run: true`). See [Part 2 — Default branches](./02-build-minimal-flow#default-branches-linear-steps).
+Linear steps need only **`id`** and **`description`** — the compiler supplies
+**`completed`** (next step in line) and **`failed`** (canonical run failure).
+See [Part 2 — Default branches](./02-build-minimal-flow#default-branches-linear-steps).
 
 ## Before you start
 
@@ -19,8 +21,6 @@ Edit `.mrmr/flows/my-dev-flow/flow.manifest.yaml` from [Part 3](./03-build-intak
  steps:
    - id: intake
      description: Human attaches one spec markdown file.
-     presentation:
-       view: spec-intake
      branches:
        continue:
          schema:
@@ -30,11 +30,11 @@ Edit `.mrmr/flows/my-dev-flow/flow.manifest.yaml` from [Part 3](./03-build-intak
            spec:
              description: The spec markdown file
              max_bytes: 1048576
--        next: null
-+        next: write_spec
+-        route: { run: completed }
++        route: { step: write_spec }
        cancel:
          schema: { type: object }
-         fail_run: true
+        route: { run: failed }
 +
 +  - id: write_spec
 +    description: Copy intake spec into the repo (shell command).
@@ -59,7 +59,7 @@ Replace the empty handlers from [Part 1](./01-launch-and-create-space) in `.mrmr
 +    complete: auto
 +    command: |
 +      mkdir -p specs/current
-+      cp "{{murrmure.step.intake.artifact.spec.path}}" specs/current/spec.md
++      cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md
 +    timeout_ms: 10000
 ```
 
@@ -185,7 +185,15 @@ Append to `.mrmr/space/handlers.yaml`:
 When **`build`** opens, the hub assembles two blocks:
 
 1. **Task** — your handler `prompt:` (workflow steps; template tokens expanded at spawn).
-2. **Murrmure protocol** — auto-generated from **`contract_keys`**: active step contract with a full **`murrmure_resolve_step`** call under each branch (ids filled from the active run).
+2. **Murrmure protocol** — versioned and auto-generated from **`contract_keys`**:
+   active branch schemas and complete **`murrmure_resolve_step`** calls with live IDs.
+
+Every injected protocol block starts with:
+
+<!-- tutorial-v3-fence:part-5-agent-protocol-prefix -->
+```text
+Protocol: murrmure.agent/v1
+```
 
 | `contract_keys` count | Protocol contents |
 |----------------------|-------------------|
@@ -213,6 +221,7 @@ Workflow:
 
 <!-- MURRMURE_PROTOCOL_BEGIN -->
 # Murrmure protocol
+Protocol: murrmure.agent/v1
 
 ## Contracts
 ### Active step: build
@@ -241,6 +250,96 @@ Branch `failed`:
 Each branch lists the full MCP call with `run_id` and `step_id` filled at spawn.
 
 **Subgraph-owner handlers** (multiple `contract_keys`) additionally receive **Handler scope** and **Discovery** — see `feature_build` in the [full tutorial](../01-local-preview-review/04-prompt-triggers).
+
+After Steps 1–5, the complete flow manifest is:
+
+<!-- tutorial-v3-fence:part-5-flow -->
+```yaml
+apiVersion: murrmure.flow/v1
+name: my-dev-flow
+description: My first dev workflow
+
+triggers:
+  manual: true
+
+steps:
+  - id: intake
+    description: Human attaches one spec markdown file.
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec]
+        artifact_slots:
+          spec:
+            description: The spec markdown file
+            media_types: [text/markdown, text/plain]
+            extensions: [.md, .markdown, .txt]
+            min_bytes: 1
+            max_bytes: 1048576
+        route: { step: write_spec }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
+
+  - id: write_spec
+    description: Copy intake spec into the repo (shell command).
+
+  - id: build
+    description: Agent implements the spec and proposes commit subject + description.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [commit_message, description]
+          properties:
+            commit_message: { type: string }
+            description: { type: string }
+      failed:
+        schema: { type: object }
+```
+
+The complete space handler catalog is:
+
+<!-- tutorial-v3-fence:part-5-handlers -->
+```yaml
+version: 1
+run_policies:
+  - flow: my-dev-flow
+    max_concurrent_runs: 1
+handlers:
+  - id: intake_view
+    on: step.opened::my-dev-flow.intake
+    type: view_resolver
+    view: spec-intake
+
+  - id: write_spec_copy
+    on: step.opened::my-dev-flow.write_spec
+    type: shell_spawn
+    complete: auto
+    command: |
+      mkdir -p specs/current
+      cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md
+    timeout_ms: 10000
+
+  - id: dev_build
+    on: step.opened::my-dev-flow.build
+    contract_keys:
+      - my-dev-flow.build
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      Read specs/current/spec.md and implement what it asks for in this repo.
+
+      Workflow:
+      1. Read the spec under specs/current/spec.md
+      2. Make the code changes the spec describes
+      3. Resolve build on branch completed with commit_message and description
+         (conventional commit subject + one-sentence summary of what you built)
+      4. If you cannot finish, resolve build on branch failed
+    command: cursor agent -p --force {{prompt}}
+    timeout_ms: 3600000
+```
 
 Re-apply:
 
@@ -274,8 +373,8 @@ The spec is still under **`specs/current/`** — archiving and committing happen
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `HANDLER_MISSING` on apply | `on` binding mismatch | Match `step.opened::my-dev-flow.{step}` to `contract-keys.json`; flow name `my-dev-flow` |
-| Run stops after intake | Not applied / wrong `next` | `next: write_spec` on intake `continue`; re-apply |
+| No resolver runs | `on` binding mismatch | Match `step.opened::my-dev-flow.{step}` to `contract-keys.json`; flow name `my-dev-flow` |
+| Run stops after intake | Not applied / wrong route | `route: { step: write_spec }` on intake `continue`; re-apply |
 | `cp` failed in journal | Bad artifact path | Confirm Part 4 intake succeeded; check handler command |
 | `EXECUTOR_UNAVAILABLE` | Shell cannot run | Space linked; hub running — default delivery fails fast; fix executor, re-run |
 | `build` stuck open | Agent did not resolve | Nudge: `murrmure_resolve_step` on `build` / `completed` with payload |

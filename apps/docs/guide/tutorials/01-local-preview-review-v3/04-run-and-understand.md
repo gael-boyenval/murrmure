@@ -34,19 +34,22 @@ In **Murrmure Desktop**:
 2. Find flow **`my-dev-flow`**
 3. Click **Run**
 
-The hub creates a **session** (`ses_…`) and a **run** (`run_…`). The engine opens step **`intake`** (`awaiting_human`). Desktop loads your **spec-intake** view in the main canvas.
+The hub creates a **session** (`ses_…`) and a **run** (`run_…`). The engine
+opens generic step **`intake`**. Its `open_steps[]` projection identifies the
+space-owned `view_resolver`, so Desktop loads **spec-intake** in the main canvas.
 
 ```text
 flow.run.started
-  └─ step.opened(intake)     presentation → spec-intake
-       └─ run paused for human input
+  └─ step.opened(intake)     resolver → intake_view → spec-intake
+       └─ run remains open for resolution
 ```
 
 ## Step 2 — Cancel — run fails (on purpose)
 
 In the intake view, click **Cancel** without choosing a file.
 
-The view resolves branch **`cancel`**. Your manifest sets `fail_run: true` on that branch — the run ends as **failed**, not success.
+The view resolves branch **`cancel`**. Your manifest routes that branch to
+`run: failed`, so the run ends as **failed**, not success.
 
 **What you should see in Desktop:**
 
@@ -79,7 +82,7 @@ The view validates against the branch contract, uploads the file, and resolves *
 
 - Run status **succeeded** / completed
 - Step **`intake`** resolved on branch `continue`
-- Run terminal — your flow has only the **`intake`** step (`next: null` on `continue`)
+- Run terminal — your flow has only **`intake`** (`continue` routes to `run: completed`)
 
 ```text
 step.resolved(intake, continue)
@@ -121,8 +124,8 @@ Open the **successful** run in Desktop (flowchart / journal) or ask your agent:
 |------|-------------------|
 | **Session** | Container for the run's journal |
 | **Run** | One walk through `intake` — you ran two (failed, then succeeded) |
-| **Human step** | Pauses the run; view calls resolve |
-| **Branch** | `cancel` → `fail_run`; `continue` → success + artifact |
+| **Open step** | Waits for an authorized resolver; this space binds the intake View |
+| **Branch** | `cancel` → run failed; `continue` → run completed + artifact |
 | **Artifact** | Spec file bytes under `.mrmr/dev/runs/…/steps/intake/spec/` |
 | **View** | Your custom UI in Desktop |
 | **Journal** | Append-only log — Cancel and Submit both recorded |
@@ -136,7 +139,7 @@ Part 5 adds **command** and **agent** steps after intake; [Part 6](./06-cleanup-
 | Space empty / no flow | Not applied | `mrmr space apply --strict` |
 | No **Run** on flow | Flow not indexed | Re-apply from space root |
 | Blank intake view | View not built | `cd .mrmr/views/spec-intake && npm run build && mrmr space apply` |
-| First run “failed” after Cancel | Expected | That is `fail_run: true` — start a new run for Submit |
+| First run “failed” after Cancel | Expected | That is `route: { run: failed }` — start a new run for Submit |
 | Submit errors in view | Contract validation | Fix file (required slot `spec`, max 1 MiB) before resolve |
 | No file under `runs/…/spec/` | Wrong run id | Use the **successful** second run, not the cancelled one |
 

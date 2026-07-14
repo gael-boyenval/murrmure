@@ -133,6 +133,14 @@ mrmr view dev preview-review-intake      # fixture dev loop
 
 Inside a `.mrmr/` repo, legacy `mrmr flow init` redirects to `mrmr space flow init`.
 
+### Tutorial v3 conformance fixtures
+
+When changing behavior shown by Tutorial v3, reuse the progressive snapshots in
+`test-utils/spaces/tutorial-v3/` and the helpers in `test-utils/tutorial-v3/`.
+Activate only the skipped assertions owned by the current build task. Keep
+behavior-defining Markdown fences linked through `fences.json`; do not copy a
+second fixture or merge an expected-failing test.
+
 ## Preview-review handlers walkthrough
 
 Reference: [Tutorial 1b handlers](../../apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md) — full `handlers.yaml` snippet.

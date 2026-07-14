@@ -52,6 +52,36 @@ This directory turns the coordinating plan into implementation-sized tasks. Task
 
 Tasks 08, 10, 11, and 12 may proceed in parallel once their own dependencies are satisfied. Task 13 is an integration/removal gate, not permission to defer slice-owned cleanup or documentation.
 
+## Hot-file ownership and merge dependencies
+
+The task that owns a path has the edit lease until its done gate merges. A
+dependent task consumes the canonical API and rebases before touching a shared
+file; it does not land a parallel type or temporary compatibility path.
+
+| Hot path / surface | Owner and merge rule |
+|---|---|
+| `packages/contracts/src/flow/manifest.ts` | 03 only |
+| `packages/contracts/src/entities/step-contract.ts` | 03 owns normalization/defaults; 05 rebases after 03 and adds `BranchResolveContract` |
+| `packages/contracts/src/entities/handler.ts` | 04 owns resolver aliases/types; 09 rebases after 04 for run policy |
+| `packages/contracts/src/entities/run.ts` | 03 owns generic `open_steps[]`; 04 rebases for sanitized resolver projection |
+| `packages/contracts/src/entities/artifact.ts` | 05 owns upload/reference foundation; 11 rebases for collections/retention |
+| `packages/view-sdk/**` and shell View host/context | 04 owns context/security; 05 rebases for submission/upload |
+| handler compilation/indexing | 04 owns alias/View binding; 06 and 07 consume after 04 |
+| shell execution and placeholder expansion | 06 only; 10 consumes the safe API |
+| agent prompt compiler | 07 only |
+| run scratch helper and call sites | 05 establishes the frozen API only; 11 owns completion/retention; 06 consumes |
+| setup/connection/credential/launcher files | 01 owns clean boot; 02 rebases and owns connection/launcher |
+| space home and shared flow graph | 12 only |
+| `test-utils/spaces/tutorial-v3/**`, `test-utils/tutorial-v3/**`, fence registry | 00 establishes; later tasks edit only their owned stage/assertions and rebase before registry edits |
+| Tutorial Part 1 | 01 for launch/space, then 02 for connection |
+| Tutorial Parts 2–4 | 03, then 04, then 05 in dependency order |
+| Tutorial Part 5 | 06 copy, 07 build, 09 capacity; rebase in that order |
+| Tutorial Part 6 | 10; 11 may edit retention/path explanation after rebasing |
+| Shared acceptance/spec/index files | one documentation lease per task; rebase and edit only the task-owned section |
+
+Canonical package ownership is frozen in
+[ADR-005](../../ADR/ADR-005-tutorial-v3-contract-ownership.md).
+
 ## Required task evidence
 
 Every completed task records:

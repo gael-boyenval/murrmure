@@ -1,6 +1,6 @@
 # 00 — Freeze contracts and build the tutorial harness
 
-**Status:** Ready  
+**Status:** Complete
 **Build order:** 00  
 **Depends on:** none  
 **Source work packages:** T00, T01
@@ -86,4 +86,27 @@ This is the only intentionally enabling task. It must not implement speculative 
 - Every tutorial beat maps to an executable assertion or a named manual-only packaged check.
 - Docs-proof detects snippet drift.
 - Later tasks can activate focused assertions without creating another fixture or redefining a contract.
+
+## Delivery record
+
+- Canonical ownership and the Tasks 01–12 decision index are accepted in
+  [ADR-005](../../ADR/ADR-005-tutorial-v3-contract-ownership.md).
+- Progressive Parts 2, 3, 5, and 6 snapshots, fence registry, beat map, and the
+  manual evidence schema live under `test-utils/spaces/tutorial-v3/`.
+- Shared snapshot/materialization, Hub, user-data, space, Git, fake-agent, and
+  packaged-app helpers live under `test-utils/tutorial-v3/`.
+- Contract, HTTP, MCP, CLI, View, handler, repository, shell UI, and packaged
+  suites are present. Pending behavior assertions use `test.skip` and name their
+  owning build task.
+- All seven Tutorial v3 pages are registered in docs-proof. Registered fences
+  compare structurally for YAML/JSON and byte-for-byte for executable text/code.
+- Hot-file and documentation leases are recorded in the ordered backlog and the
+  coordinating plan.
+- Changelog is unaffected because this slice establishes contracts and test
+  infrastructure without shipping runtime behavior.
+
+## Handoff
+| Turn | Agent | Model | Status | Summary | Evidence | Next |
+|------|-------|-------|--------|---------|----------|------|
+| build | build | gpt-5.6-sol-high | complete | Accepted ten canonical contract owners; added the progressive fixture, isolated helpers, fence/beat/evidence contracts, nine skipped owned suites, ADR index, and synchronized specs/plans/tutorial/skill guidance. | `pnpm --filter @murrmure/cli test tutorial-v3-harness docs-proof` (28 passed); focused Tutorial suites (8 passed, 25 skipped); MCP suite (3 owned skips); contract ownership test (1 passed, 3 skips); `pnpm check:docs-proof` reached the pre-existing `check:known-gaps` drift gate before docs-proof. | review |
 

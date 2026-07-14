@@ -35,7 +35,7 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | `test-utils/spaces/hello-authoring/` | Minimal handlers space (CI) | `packages/cli/test/docs-proof.test.ts` |
 | Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
 | Zero FDK in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
-| Tutorial pages (16) | 10-T4 | `packages/cli/test/docs-proof.test.ts` |
+| Tutorial pages (29, including Tutorial v3) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
 
 ## Flow runtime (CR)
 
@@ -118,6 +118,40 @@ Test tree: `test-utils/spaces/preview-review-v2/`.
 | R2 | Tutorial 1 walkthrough | Non-contributor scaffold → Run Desktop | manual | release checklist **10-T1** |
 | R3/R4 | Tutorial 1 visual | ViewCanvasHost + round-trip UX | manual | release checklist **10-T1** |
 | R2–R4 | Playwright Desktop | Full human path automation | backlog | post-v2 |
+
+## Tutorial v3 progressive conformance (TV3)
+
+Tutorial v3 is a living product surface and the canonical manual end-to-end
+acceptance path. Its executable source is
+`test-utils/spaces/tutorial-v3/`, with progressive snapshots after Parts 2, 3,
+5, and 6.
+
+| ID | Fixture / record | Proves | Layer |
+|----|------------------|--------|-------|
+| TV3-2 | `part-2/snapshot.json` | Trigger-only resolver-agnostic intake flow | contract, CLI, HTTP |
+| TV3-3 | `part-3/snapshot.json` | Space-owned View resolver and exact intake app | handler, View, shell |
+| TV3-5 | `part-5/snapshot.json` | Safe copy plus versioned agent assignment | handler, MCP |
+| TV3-6 | `part-6/snapshot.json` | Run-ID archive and allowlisted commit | repository |
+| TV3-F | `fences.json` | Registered Markdown fences match canonical fixture content | docs-proof |
+| TV3-M | `manual-acceptance.schema.json` | Review evidence is complete and comparable | manual/release |
+
+Requirements:
+
+- Every behavior-defining registered fence has a stable unique ID. Missing or
+  duplicate IDs, missing fixture targets, and content drift fail docs-proof.
+- YAML and JSON compare as canonical structures; shell, TypeScript, TSX, and
+  executable text compare byte-for-byte.
+- Every tutorial beat maps in `tutorial-beats.json` to an executable assertion
+  or a named packaged-only check. Deterministic packaged behavior belongs in CI;
+  signed/notarized installation, real credential-store states, actual upgrade,
+  and real integration reload/verification remain signed-release evidence.
+- Pending behavior suites are structurally present and skipped with their owning
+  build-task ID. Expected failures are not acceptance evidence.
+- Each manual record includes task, tutorial chapters, environment, product
+  build, commands, run IDs, evidence, result, and blockers.
+- Feature slices rerun the smallest affected contiguous tutorial path. Release
+  acceptance runs Parts 1–6 verbatim from a clean checkout, including paths with
+  spaces and apostrophes.
 
 ## Gate
 
