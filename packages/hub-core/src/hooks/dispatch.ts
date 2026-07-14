@@ -262,7 +262,10 @@ async function dispatchEventHandler(
     return { outcome: "failed", message: created.error?.message ?? "create_run_failed" };
   }
 
-  const params = resolveHookParams(input.handler.params, execContext);
+  const params = resolveHookParams(
+    input.handler.type === "view_resolver" ? undefined : input.handler.params,
+    execContext,
+  );
   const step_id = hookStepId(input.handler.id);
   const invokeResult = await deps.invokeAction({
     space_id: hookSpace,

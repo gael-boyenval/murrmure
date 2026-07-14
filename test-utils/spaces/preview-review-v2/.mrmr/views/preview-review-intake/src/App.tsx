@@ -1,40 +1,63 @@
-import { useRef, useState } from "react";
-import { useViewSubmit } from "@murrmure/view-sdk/app";
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("Failed to read file"));
-        return;
-      }
-      const base64 = result.includes(",") ? result.split(",")[1]! : result;
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
+import { useState } from "react";
+import { useViewContract, isViewContractError, type ViewContractError } from "@murrmure/view-sdk/app";
 
 export function App() {
-  const { submit, cancel } = useViewSubmit();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { context: ctx, submitBranch, cancel } = useViewContract();
   const [reviewer, setReviewer] = useState("");
   const [specFilename, setSpecFilename] = useState("hero-section.md");
-  const [specFile, setSpecFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ViewContractError | null>(null);
 
-  const canSubmit = Boolean(reviewer.trim() && specFilename.trim() && specFile);
+  if (!ctx) {
+    return (
+      <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", color: "#64748b" }}>
+        Waiting for view context…
+      </main>
+    );
+  }
+
+  const branches = ctx.step?.branches ?? [];
+  const continueBranch = branches.find((b) => b.branch === "continue") ?? branches[0];
+  const specSlot = continueBranch?.artifact_slots?.spec;
+  const canSubmit = Boolean(reviewer.trim() && specFilename.trim());
+
+  async function onSubmit() {
+    if (!continueBranch) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await submitBranch(continueBranch.branch, {
+        reviewer: reviewer.trim(),
+        spec_filename: specFilename.trim(),
+      });
+    } catch (err) {
+      if (isViewContractError(err)) setError(err);
+      else setError({ code: "VIEW_BRANCH_VALIDATION_FAILED", message: String(err) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCancel() {
+    setBusy(true);
+    setError(null);
+    try {
+      await cancel();
+    } catch (err) {
+      if (isViewContractError(err)) setError(err);
+      else setError({ code: "VIEW_CANCEL_REJECTED", message: String(err) });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", maxWidth: 560 }}>
       <h1 style={{ marginTop: 0 }}>Preview review — intake</h1>
       <p style={{ color: "#64748b" }}>
-        Attach a spec file. Large markdown is stored as a step artifact — not inline in the resolve payload.
+        Record the reviewer and spec filename for this run. Spec artifact upload lands in a later step.
       </p>
+
       <label style={{ display: "block", marginBottom: "1rem" }}>
         <span style={{ display: "block", fontWeight: 600, marginBottom: "0.25rem" }}>Reviewer</span>
         <input
@@ -45,6 +68,7 @@ export function App() {
           style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box" }}
         />
       </label>
+
       <label style={{ display: "block", marginBottom: "1rem" }}>
         <span style={{ display: "block", fontWeight: 600, marginBottom: "0.25rem" }}>Spec filename</span>
         <input
@@ -54,50 +78,32 @@ export function App() {
           style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box" }}
         />
       </label>
-      <label style={{ display: "block", marginBottom: "1rem" }}>
-        <span style={{ display: "block", fontWeight: 600, marginBottom: "0.25rem" }}>Spec file</span>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".md,.markdown,.txt,text/markdown,text/plain"
-          onChange={(e) => {
-            const file = e.target.files?.[0] ?? null;
-            setSpecFile(file);
-            if (file?.name) setSpecFilename(file.name);
-            setError(null);
-          }}
-          style={{ width: "100%" }}
-        />
-        {specFile ? (
-          <span style={{ display: "block", marginTop: "0.25rem", color: "#64748b", fontSize: "0.875rem" }}>
-            {specFile.name} ({Math.round(specFile.size / 1024)} KiB)
-          </span>
-        ) : null}
-      </label>
-      {error ? <p style={{ color: "#b91c1c" }}>{error}</p> : null}
-      <div style={{ display: "flex", gap: "0.5rem" }}>
-        <button
-          type="button"
-          disabled={!canSubmit || submitting}
-          onClick={async () => {
-            if (!specFile) return;
-            setSubmitting(true);
-            setError(null);
-            try {
-              const content_base64 = await fileToBase64(specFile);
-              await submit(
-                { reviewer: reviewer.trim(), spec_filename: specFilename.trim() },
-                [{ slot: "spec", filename: specFilename.trim(), content_base64 }],
-              );
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Submit failed");
-              setSubmitting(false);
-            }
+
+      {specSlot ? (
+        <p
+          style={{
+            color: "#64748b",
+            fontSize: "0.875rem",
+            background: "#f8fafc",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "0.5rem",
           }}
         >
-          {submitting ? "Uploading…" : "Start review"}
+          Spec slot: {specSlot.description ?? "spec"} — max {Math.round((specSlot.max_bytes ?? 0) / 1024)} KiB.
+        </p>
+      ) : null}
+
+      {error ? (
+        <p role="alert" style={{ color: "#b91c1c" }}>
+          {error.code}: {error.message}
+        </p>
+      ) : null}
+
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+        <button type="button" disabled={!canSubmit || busy} onClick={onSubmit}>
+          {busy ? "Submitting…" : "Start review"}
         </button>
-        <button type="button" onClick={() => cancel()} disabled={submitting}>
+        <button type="button" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
       </div>

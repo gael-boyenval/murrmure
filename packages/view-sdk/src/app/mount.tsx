@@ -36,7 +36,7 @@ function ViewMountRoot({
 
   useEffect(() => {
     if (!context || readySent) return;
-    postViewMessage({ type: "murrmure.view.ready" }, context.hub_base_url);
+    postViewMessage({ type: "murrmure.view.ready" }, context.hub_base_url, context.nonce);
     setReadySent(true);
   }, [context, readySent]);
 

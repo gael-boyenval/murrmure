@@ -13,6 +13,12 @@ export {
   matchEventHandlers,
 } from "./parse-handlers.js";
 export { lintHandlerCatalogCoverage } from "./handler-catalog-lint.js";
+export { validateHandlerBindings } from "./validate-handler-bindings.js";
+export {
+  handlerStepBinding,
+  handlerAlias,
+  matchStepResolvedHandlers,
+} from "./parse-handlers.js";
 export {
   parseFlowManifest,
   rejectInlineScriptSteps,

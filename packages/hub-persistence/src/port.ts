@@ -241,6 +241,7 @@ export interface StudioPersistencePort {
   listIndexedExecutors(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedHooks(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>>;
+  listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>>;
   listFlowIndex(space_id: string): Promise<FlowIndexEntry[]>;
   getFlowIndexEntry(flow_id: string, origin_space_id?: string): Promise<FlowIndexEntry | null>;
 

@@ -42,7 +42,7 @@ describe("http/mcp/list-handlers", () => {
           payload_json: JSON.stringify({
             id: "write-spec",
             contract_keys: ["preview-review.write_spec", "preview-review.intake"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "explicit",
             command: "cursor agent -p --force {{prompt}}",

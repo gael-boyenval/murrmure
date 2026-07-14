@@ -83,13 +83,25 @@ describe("preview-review-v2 reference example", () => {
     if (!parsed.ok) return;
     const ids = parsed.value.handlers.map((h) => h.id);
     expect(ids).toEqual([
+      "intake_view",
       "feature_write_spec",
       "feature_build",
       "feature_archive",
       "feature_commit",
     ]);
-    expect(parsed.value.handlers.every((h) => (h.contract_keys ?? []).length > 0)).toBe(true);
-    expect(parsed.value.handlers.every((h) => h.on === "step.opened")).toBe(true);
+    const viewResolver = parsed.value.handlers.find((h) => h.type === "view_resolver");
+    expect(viewResolver?.view).toBe("preview-review-intake");
+    expect(viewResolver?.on).toBe("step.opened::preview-review.intake");
+    expect(
+      parsed.value.handlers
+        .filter((h) => h.type !== "view_resolver")
+        .every((h) => (h.contract_keys ?? []).length > 0),
+    ).toBe(true);
+    expect(
+      parsed.value.handlers.every(
+        (h) => typeof h.on === "string" && h.on.startsWith("step.opened::"),
+      ),
+    ).toBe(true);
 
     const handlersText = readFileSync(join(MURRMURE_ROOT, "space", "handlers.yaml"), "utf-8");
     expect(handlersText).toContain("--approve-mcps");
@@ -126,7 +138,7 @@ describe("preview-review-v2 reference example", () => {
           {
             id: "write-spec",
             contract_keys: ["preview-review.write_spec"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "explicit",
           },
@@ -143,7 +155,7 @@ describe("preview-review-v2 reference example", () => {
           {
             id: "build-handoff",
             contract_keys: ["preview-review.write_spec", "preview-review.build.review"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "explicit",
           },
@@ -207,7 +219,7 @@ describe("preview-review-v2 reference example", () => {
     expect(bundle.handlers?.file.handlers.length).toBeGreaterThan(0);
 
     const indexed = applyIndexDiff(
-      { actions: [], executors: [], hooks: [], events: [], flows: [] },
+      { actions: [], executors: [], hooks: [], events: [], flows: [], views: [] },
       bundle,
       "spc_preview_review",
     );
@@ -215,6 +227,7 @@ describe("preview-review-v2 reference example", () => {
       HandlerSpecSchema.safeParse(JSON.parse(row.payload_json)).success,
     );
     expect(handlerRows.map((row) => row.key)).toEqual([
+      "intake_view",
       "feature_write_spec",
       "feature_build",
       "feature_archive",

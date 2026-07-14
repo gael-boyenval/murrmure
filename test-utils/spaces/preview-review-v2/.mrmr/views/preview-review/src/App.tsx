@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useViewContext, useViewSubmit } from "@murrmure/view-sdk/app";
+import { useViewContract, isViewContractError, type ViewContractError } from "@murrmure/view-sdk/app";
 
 type Comment = { text: string };
 
@@ -25,8 +25,9 @@ function previewUrlFromBuildOutput(output: Record<string, unknown> | undefined):
 }
 
 export function App() {
-  const ctx = useViewContext();
-  const { submit, cancel } = useViewSubmit();
+  const { context: ctx, submitBranch, cancel } = useViewContract();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ViewContractError | null>(null);
 
   const buildLoopOutput = ctx.steps?.["build.build-loop"]?.output as
     | Record<string, unknown>
@@ -124,24 +125,62 @@ export function App() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem" }}>
-          <button type="button" onClick={() => submit({ outcome: "validated" })}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await submitBranch("validated", {});
+              } catch (err) {
+                if (isViewContractError(err)) setError(err);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
             Validated
           </button>
           <button
             type="button"
-            onClick={() =>
-              submit({
-                outcome: "changes_required",
-                comments: comments.map((c) => c.text),
-              })
-            }
-            disabled={comments.length === 0}
+            disabled={busy || comments.length === 0}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await submitBranch("changes_required", { comments: comments.map((c) => c.text) });
+              } catch (err) {
+                if (isViewContractError(err)) setError(err);
+              } finally {
+                setBusy(false);
+              }
+            }}
           >
             Request changes
           </button>
-          <button type="button" onClick={() => cancel()}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await cancel();
+              } catch (err) {
+                if (isViewContractError(err)) setError(err);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
             Cancel run
           </button>
+          {error ? (
+            <p role="alert" style={{ color: "#b91c1c", fontSize: "0.875rem", margin: 0 }}>
+              {error.code}: {error.message}
+            </p>
+          ) : null}
         </div>
       </aside>
     </main>

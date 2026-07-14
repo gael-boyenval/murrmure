@@ -1,10 +1,10 @@
 # Space handlers & contract keys
 
-Spaces own **execution** — what runs when a step opens, how agents are invoked, and how completion is signaled. After the handlers cutover, that lives in **`.mrmr/space/handlers.yaml`**, keyed by **`contract_keys`** (`{flow_ref}.{qualified_step_id}`).
+Spaces own **execution** — what runs when a step opens, how agents are invoked, how a step is presented, and how completion is signaled. After the handlers cutover, that lives in **`.mrmr/space/handlers.yaml`**. A step handler binds to a resolver-agnostic step with **`on: step.opened::{flow_name}.{qualified_step_id}`** (the `on::key` binding); `contract_keys` is now **prompt-scope only**.
 
-Flow manifests carry **protocol only** — step shape, branches, presentation. No `executor.action` in portable flow definitions.
+Flow manifests carry **protocol only** — step shape, branches. No `executor.action`, no `role`, no `presentation`, no View identity in portable flow definitions. A space binds a custom View to a step with a **`view_resolver`** handler.
 
-Normative bridge: [handlers.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/handlers.md) (`studio-specs/current/bridges/handlers.md`).
+Normative bridge: [handlers.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/handlers.md) (`studio-specs/current/bridges/handlers.md`). Boundary decision: [ADR-009](https://github.com/murrmure/agentStudio/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md).
 
 ## Handler file
 
@@ -14,37 +14,47 @@ Normative bridge: [handlers.md](https://github.com/murrmure/agentStudio/blob/mai
 version: 1
 handlers:
   - id: feature_write_spec
-    contract_keys: [preview-review.write_spec]
-    on: step.opened
+    contract_keys: [preview-review.write_spec]   # prompt-scope only
+    on: step.opened::preview-review.write_spec
     type: shell_spawn
     complete: explicit
     prompt: |
       Copy intake spec, then resolve via murrmure_resolve_step …
     command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
+
+  # Bind a locally built View to the intake step.
+  - id: intake_view
+    on: step.opened::preview-review.intake
+    type: view_resolver
+    view: preview-review-intake
 ```
 
 | Field | Notes |
 |-------|-------|
-| `contract_keys` | Protocol addresses; empty for event-only handlers |
-| `on` | `step.opened` \| `step.resolved` \| `event: { type, source? }` |
-| `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` |
-| `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch |
-| `kill_on` | Optional — cancel in-flight handler when step resolves (long-lived subgraph owners) |
+| `on` | `step.opened::{flow_name}.{qualified_step_id}` \| `step.resolved::…` \| `event: { type, source? }`. Bare `step.opened` is rejected. |
+| `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
+| `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
+| `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
+| `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
+| `kill_on` | **Removed.** Authored `kill_on` is rejected; assignment termination is runtime-owned. |
+
+**`view_resolver` is executor-free** — it carries `view` and binds `step.opened::…` only, and forbids `command`, `prompt`, `params`, and `cwd`.
 
 **Full walkthrough:** [Tutorial 1b — handlers](./tutorials/01-local-preview-review/04-prompt-triggers.md) includes a complete `handlers.yaml` for the preview-review flow.
 
-## Contract keys
+## `on::key` binding and contract keys
 
 ```text
-contract_key := {flow_ref}.{qualified_step_id}
+on := step.(opened|resolved)::{flow_name}.{qualified_step_id}
+contract_key := {flow_ref}.{qualified_step_id}   # prompt-scope only
 ```
 
-- `flow_ref` = apply-time resolved flow identity (`flow_id` or `graph_digest`-qualified ref).
-- `qualified_step_id` = dot path from `StepContractCatalog.step_ids` (e.g. `build.build-loop`).
-- Matching: exact + explicit multi-key only (no wildcards in v1).
+- `{flow_name}` is the applied flow's `name`; `{qualified_step_id}` is the dot path from `StepContractCatalog.step_ids` (e.g. `build.build-loop`).
+- Binding is exact and explicit via `on::key`; there is no wildcard and no lifecycle-only `on: step.opened` dispatch. A step may have at most one `step.opened` resolver.
+- `contract_keys` documents prompt scope for multi-key subgraph-owner handlers; it is no longer the binding key.
 
-Human-step keys may appear in `contract_keys` for **scope/documentation** on subgraph-owner handlers — they are never dispatched on `step.opened`; the engine opens presentation instead.
+Human-step keys may appear in `contract_keys` for **scope/documentation** on subgraph-owner handlers — they are never dispatched on `step.opened`. A human step is presented by a space-bound **`view_resolver`** (the space owns the View), or left unbound and **observability-only** (no built-in form is synthesized).
 
 ## Complete modes
 
@@ -68,6 +78,15 @@ mrmr step resolve --branch completed --payload-json '{"preview_url":"http://loca
 Hub injects short-lived run-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly.
 
 Agents in IDE sessions should prefer **`murrmure_resolve_step`** MCP tool (`step:resolve` capability).
+
+## View resolvers
+
+A `view_resolver` binds a locally built View to a step. The shell loads the View
+from the open-step projection in a **hardened iframe host** (sandboxed,
+host-mediated postMessage, no hub credential). Authors use the View SDK
+`useViewContract` / `submitBranch(branch, params)` / `cancel()` — see
+[View SDK](../reference/view-sdk). Apply validates the `view_id` and its build
+atomically; an unknown or unbuilt View fails apply and preserves the prior index.
 
 ## Event handlers
 
@@ -100,7 +119,7 @@ mrmr space doctor             # handler lint, missing bindings, MCP hints
 mrmr space doctor --strict    # fail on worker spaces without bindings
 ```
 
-Common lint codes: missing handler for dispatched step, `contract_key` mismatch, `HANDLER_COMPLETE_CLI_NO_RESOLVE`.
+Common lint codes: `HANDLER_ORPHAN_KEY` (prompt-scope key with no matching step), `HANDLER_COMPLETE_CLI_NO_RESOLVE`, and the apply-time binding codes — `DUPLICATE_FLOW_NAME`, `HANDLER_ORPHAN_ALIAS`, `HANDLER_RESOLVER_CONFLICT`, `VIEW_RESOLVER_NOT_OPENED`, `VIEW_RESOLVER_VIEW_NOT_FOUND`, `VIEW_RESOLVER_BUILD_MISSING`. `HANDLER_MISSING` is removed: an unbound step is valid and observability-only.
 
 ## Related
 

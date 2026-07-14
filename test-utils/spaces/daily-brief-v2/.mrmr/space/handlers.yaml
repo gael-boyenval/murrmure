@@ -3,7 +3,7 @@ version: 1
 handlers:
   - id: daily-brief-agent
     contract_keys: [daily-brief.agent]
-    on: step.opened
+    on: step.opened::daily-brief.agent
     type: shell_spawn
     complete: explicit
     command: echo '{"wake":"handle_brief_requested"}'
@@ -16,7 +16,7 @@ handlers:
 
   - id: daily-brief-done
     contract_keys: [daily-brief.done]
-    on: step.opened
+    on: step.opened::daily-brief.done
     type: shell_spawn
     complete: explicit
     command: echo '{"format":"markdown","body":"# Daily brief"}'

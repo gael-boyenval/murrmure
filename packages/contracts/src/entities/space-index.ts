@@ -14,10 +14,11 @@ export type SpaceIndexSnapshot = {
   hooks: IndexedResourceRow[];
   events: IndexedResourceRow[];
   flows: FlowIndexRow[];
+  views: IndexedResourceRow[];
 };
 
 export type ApplyIndexChange = {
-  resource: "actions" | "executors" | "hooks" | "events" | "flows";
+  resource: "actions" | "executors" | "hooks" | "events" | "flows" | "views";
   key: string;
   change: "added" | "updated" | "removed" | "unchanged";
   digest?: string;
@@ -31,6 +32,7 @@ export type ApplyIndexResult = {
     hooks: number;
     events: number;
     flows: number;
+    views: number;
     changed: number;
   };
   next: SpaceIndexSnapshot;

@@ -73,4 +73,56 @@ describe("flow-engine/step-view-ref", () => {
     ];
     expect(buildOpenStepProjections(memos, catalog)).toEqual([]);
   });
+
+  test("projects bound view_resolver resolver and sanitized view ref", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "intake", status: "working" },
+    ];
+    const open = buildOpenStepProjections(memos, catalog, {
+      flow_name: "preview",
+      space_id: "spc_local",
+      handlers: [
+        { id: "intake-view", on: "step.opened::preview.intake", type: "view_resolver", view: "intake", contract_keys: [] },
+      ],
+      views: [
+        {
+          view_id: "intake",
+          manifest: { apiVersion: "murrmure.view/v1", id: "intake", entry: "./dist/index.html", shell_route: "murrmure/intake" },
+        },
+      ],
+    });
+    expect(open).toHaveLength(1);
+    expect(open[0]?.resolver).toEqual({ handler_id: "intake-view", type: "view_resolver", view_id: "intake" });
+    expect(open[0]?.view).toEqual({
+      view_id: "intake",
+      origin_space_id: "spc_local",
+      entry: "./dist/index.html",
+      shell_route: "murrmure/intake",
+    });
+  });
+
+  test("resolver projection carries no command, prompt, or secret", () => {
+    const memos: RunStepMemo[] = [
+      { run_id: "run_1", step_id: "intake", status: "working" },
+    ];
+    const open = buildOpenStepProjections(memos, catalog, {
+      flow_name: "preview",
+      space_id: "spc_local",
+      handlers: [
+        {
+          id: "intake-exec",
+          on: "step.opened::preview.intake",
+          type: "shell_spawn",
+          complete: "explicit",
+          command: "secret-command",
+          prompt: "secret-prompt",
+          contract_keys: [],
+        },
+      ],
+    });
+    expect(open[0]?.resolver).toEqual({ handler_id: "intake-exec", type: "shell_spawn" });
+    const resolver = open[0]?.resolver as Record<string, unknown> | null;
+    expect(resolver).not.toHaveProperty("command");
+    expect(resolver).not.toHaveProperty("prompt");
+  });
 });

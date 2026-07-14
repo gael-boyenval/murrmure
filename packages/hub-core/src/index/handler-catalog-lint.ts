@@ -1,11 +1,11 @@
 import type { FlowManifest, HandlerSpec, HandlersFile } from "@murrmure/contracts";
+import { parseHandlerStepBinding } from "@murrmure/contracts";
 import { compileStepContractCatalog } from "../flow-engine/step-contract-compile.js";
 import { buildHandlerIndex } from "./parse-handlers.js";
 
 export interface HandlerCatalogLintWarning {
   code:
     | "HANDLER_ORPHAN_KEY"
-    | "HANDLER_KEY_CONFLICT"
     | "HANDLER_COMPLETE_CLI_NO_RESOLVE"
     | "HANDLER_COMPLETE_AUTO_NESTED";
   message: string;
@@ -19,10 +19,6 @@ interface CatalogKeyMeta {
   flow_id: string;
   step_id: string;
   has_nested: boolean;
-}
-
-function keyFromFlowRef(flow_ref: string, step_id: string): string {
-  return `${flow_ref}.${step_id}`;
 }
 
 function collectCatalogKeys(
@@ -39,7 +35,7 @@ function collectCatalogKeys(
         .filter((parentId): parentId is string => typeof parentId === "string" && parentId.length > 0),
     );
     for (const entry of catalog.entries) {
-      map.set(keyFromFlowRef(flowRef, entry.step_id), {
+      map.set(`${flowRef}.${entry.step_id}`, {
         flow_id: flow.flow_id,
         step_id: entry.step_id,
         has_nested: parentWithChildren.has(entry.step_id),
@@ -49,9 +45,9 @@ function collectCatalogKeys(
   return map;
 }
 
-function stepOpenedContractKeys(handler: HandlerSpec): string[] {
-  if (handler.on !== "step.opened") return [];
-  return handler.contract_keys ?? [];
+function isOpenedStepHandler(handler: HandlerSpec): boolean {
+  const binding = parseHandlerStepBinding(handler.on);
+  return binding?.lifecycle === "opened";
 }
 
 export function lintHandlerCatalogCoverage(input: {
@@ -60,9 +56,11 @@ export function lintHandlerCatalogCoverage(input: {
 }): HandlerCatalogLintWarning[] {
   const warnings: HandlerCatalogLintWarning[] = [];
   const known = collectCatalogKeys(input.flows);
-  const index = buildHandlerIndex(input.handlers);
+  buildHandlerIndex(input.handlers); // exercise index construction for parity
 
   for (const handler of input.handlers.handlers) {
+    // `contract_keys` is prompt scope only: each entry must be a known catalog
+    // alias (`{flow_name}.{qualified_step_id}`). Unknown keys are orphan scope.
     for (const key of handler.contract_keys ?? []) {
       if (known.has(key)) continue;
       warnings.push({
@@ -74,7 +72,8 @@ export function lintHandlerCatalogCoverage(input: {
     }
 
     if (
-      handler.on === "step.opened" &&
+      handler.type !== "view_resolver" &&
+      isOpenedStepHandler(handler) &&
       handler.complete === "cli" &&
       (typeof handler.command !== "string" ||
         !/\bmrmr\s+step\s+resolve\b/.test(handler.command))
@@ -88,33 +87,27 @@ export function lintHandlerCatalogCoverage(input: {
       });
     }
 
-    if (handler.on === "step.opened" && handler.complete === "auto") {
-      for (const key of handler.contract_keys ?? []) {
-        const meta = known.get(key);
-        if (!meta?.has_nested) continue;
-        warnings.push({
-          code: "HANDLER_COMPLETE_AUTO_NESTED",
-          contract_key: key,
-          handler_id: handler.id,
-          flow_id: meta.flow_id,
-          step_id: meta.step_id,
-          message:
-            `Handler '${handler.id}' uses complete=auto for nested step '${meta.step_id}' (${key})`,
-        });
+    if (
+      handler.type !== "view_resolver" &&
+      isOpenedStepHandler(handler) &&
+      handler.complete === "auto"
+    ) {
+      const binding = parseHandlerStepBinding(handler.on);
+      const alias = binding?.alias;
+      if (alias) {
+        const meta = known.get(alias);
+        if (meta?.has_nested) {
+          warnings.push({
+            code: "HANDLER_COMPLETE_AUTO_NESTED",
+            contract_key: alias,
+            handler_id: handler.id,
+            flow_id: meta.flow_id,
+            step_id: meta.step_id,
+            message:
+              `Handler '${handler.id}' uses complete=auto for nested step '${meta.step_id}' (${alias})`,
+          });
+        }
       }
-    }
-  }
-
-  for (const [contract_key, meta] of known.entries()) {
-    const matches = index.step_opened_by_key[contract_key] ?? [];
-    if (matches.length > 1) {
-      warnings.push({
-        code: "HANDLER_KEY_CONFLICT",
-        contract_key,
-        flow_id: meta.flow_id,
-        step_id: meta.step_id,
-        message: `Contract key '${contract_key}' matches multiple step.opened handlers (${matches.map((h) => h.id).join(", ")})`,
-      });
     }
   }
 

@@ -1,10 +1,20 @@
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@murrmure/shell-ui";
-import { ViewHostFrame, defaultRunParamsForm, paramsSchemaToGateForm, resolveViewEntryUrl } from "@murrmure/view-sdk";
+import {
+  ViewHostFrame,
+  VIEW_TRANSPORT_VERSION,
+  defaultRunParamsForm,
+  paramsSchemaToGateForm,
+  resolveViewEntryUrl,
+  type ViewAppContext,
+  type ViewContractError,
+} from "@murrmure/view-sdk";
 import type { GateForm } from "@murrmure/shell-client";
 import { ViewParamForm } from "./ViewParamForm.js";
 import { ReviewParamsView } from "./ReviewParamsView.js";
-import { getStorageItem, getHubBaseUrl } from "../hooks.js";
+import { getHubBaseUrl } from "../hooks.js";
+
+type Ack = { ok: true } | { ok: false; error: ViewContractError };
 
 export interface ViewDrawerFlow {
   flow_id: string;
@@ -50,9 +60,9 @@ function resolveFallbackForm(flow: ViewDrawerFlow, paramsSchema?: unknown): Gate
 }
 
 export function ViewDrawer({ open, flow, spaceId, onClose, onSubmit, submitting, paramsSchema }: ViewDrawerProps) {
+  const [nonce] = useState(() => globalThis.crypto?.randomUUID?.() ?? `nonce-${Date.now()}`);
   if (!flow) return null;
 
-  const token = getStorageItem("murrmure_token") ?? "";
   const hubBase = getHubBaseUrl();
   const viewRef = flow.view_ref;
   const shellRoute = viewRef?.shell_route;
@@ -67,6 +77,25 @@ export function ViewDrawer({ open, flow, spaceId, onClose, onSubmit, submitting,
       : undefined;
 
   const showFallback = !BuiltinView && !iframeSrc;
+
+  const iframeContext: ViewAppContext = {
+    flow_id: flow.flow_id,
+    space_id: spaceId,
+    hub_base_url: hubBase,
+    mode: "production",
+    transport_version: VIEW_TRANSPORT_VERSION,
+    nonce,
+    step: { step_id: "start", branches: [{ branch: "start" }] },
+  };
+
+  const onSubmitBranch = async (_branch: string, params: Record<string, unknown>): Promise<Ack> => {
+    onSubmit(params);
+    return { ok: true };
+  };
+  const onCancel = async (): Promise<Ack> => {
+    onClose();
+    return { ok: true };
+  };
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
@@ -86,14 +115,9 @@ export function ViewDrawer({ open, flow, spaceId, onClose, onSubmit, submitting,
             <div className="h-[min(60vh,480px)]">
               <ViewHostFrame
                 src={iframeSrc}
-                context={{
-                  flow_id: flow.flow_id,
-                  space_id: spaceId,
-                  hub_base_url: hubBase,
-                  token,
-                }}
-                onSubmit={onSubmit}
-                onCancel={onClose}
+                context={iframeContext}
+                onSubmitBranch={onSubmitBranch}
+                onCancel={onCancel}
               />
             </div>
           ) : (

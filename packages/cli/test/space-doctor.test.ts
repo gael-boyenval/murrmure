@@ -55,7 +55,7 @@ describe("runSpaceDoctor", () => {
         "handlers:",
         "  - id: hello",
         "    contract_keys: [demo.hello]",
-        "    on: step.opened",
+        "    on: step.opened::demo.hello",
         "    type: shell_spawn",
         "    command: echo hello",
         "    cwd: \"{{space_root}}\"",

@@ -120,6 +120,19 @@ function buildHandlerRows(bundle: SpaceApplyBundle): IndexedResourceRow[] {
   }));
 }
 
+function buildViewRows(bundle: SpaceApplyBundle): IndexedResourceRow[] {
+  return (bundle.views ?? []).map((view) => ({
+    key: view.view_id,
+    digest: view.digest,
+    payload_json: JSON.stringify({
+      view_id: view.view_id,
+      rel_path: view.rel_path,
+      manifest: view.manifest,
+      build: view.build,
+    }),
+  }));
+}
+
 export function applyIndexDiff(
   current: SpaceIndexSnapshot,
   bundle: SpaceApplyBundle,
@@ -132,6 +145,7 @@ export function applyIndexDiff(
     hooks: [],
     events: [],
     flows: [],
+    views: [],
   };
 
   const diffResource = <TRow extends { digest: string }>(
@@ -217,6 +231,13 @@ export function applyIndexDiff(
     next.flows = current.flows;
   }
 
+  if (bundle.views !== undefined) {
+    const viewRows = buildViewRows(bundle);
+    next.views = diffResource("views", current.views ?? [], viewRows, (r) => r.key);
+  } else {
+    next.views = current.views ?? [];
+  }
+
   const changed = changes.filter((c) => c.change !== "unchanged").length;
   return {
     changes,
@@ -226,6 +247,7 @@ export function applyIndexDiff(
       hooks: next.hooks.length,
       events: next.events.length,
       flows: next.flows.length,
+      views: next.views.length,
       changed,
     },
     next,
@@ -240,6 +262,7 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
       hooks: snapshot.hooks.length,
       events: (snapshot.events ?? []).length,
       flows: snapshot.flows.length,
+      views: (snapshot.views ?? []).length,
     },
     digests: {
       actions: snapshot.actions[0]?.digest,

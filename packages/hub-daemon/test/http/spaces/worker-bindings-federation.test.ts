@@ -121,7 +121,7 @@ describe("http/spaces/worker-bindings-federation", () => {
                 {
                   id: "write-spec",
                   contract_keys: ["catalog-flow.write_spec"],
-                  on: "step.opened",
+                  on: "step.opened::catalog-flow.write_spec",
                   type: "shell_spawn",
                   complete: "explicit",
                   command: "echo worker-handler",

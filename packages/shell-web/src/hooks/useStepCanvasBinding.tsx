@@ -1,12 +1,15 @@
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ViewContractError } from "@murrmure/view-sdk";
 import type { RunDetailPayload, ShellClient } from "@murrmure/shell-client";
 import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
 import { buildViewAppContextFromRun } from "../lib/view-app-context.js";
-import { mapViewSubmitToResolveStep } from "../lib/view-resolve-adapter.js";
+import { mapBranchSubmitToResolveStep, mapCancelToResolveStep } from "../lib/view-resolve-adapter.js";
 import { shouldShowStepCanvas, viewRefFromActiveStep } from "../lib/step-view-binding.js";
-import { getStoredHubUrl, getShellToken } from "../hooks.js";
+import { getStoredHubUrl } from "../hooks.js";
+
+type Ack = { ok: true } | { ok: false; error: ViewContractError };
 
 export interface StepCanvasBindingInput {
   client: ShellClient;
@@ -40,7 +43,6 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     if (!run || !showCanvas || !flowId || !spaceId) return null;
     return buildViewAppContextFromRun(run, {
       hub_base_url: getStoredHubUrl(),
-      token: getShellToken() ?? "",
       flow_id: flowId,
       space_id: spaceId,
     });
@@ -73,21 +75,45 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     }
   }, [invalidate, navigate, closeHref, runId, sessionId]);
 
-  const onSubmit = useCallback(
-    async (params: Record<string, unknown>) => {
-      if (!client || !runId || !stepId) return;
-      const body = mapViewSubmitToResolveStep(params, "submit");
-      await client.runs.resolveStep(runId, stepId, body);
-      await closeCheckpoint();
+  const onSubmitBranch = useCallback(
+    async (branch: string, params: Record<string, unknown>): Promise<Ack> => {
+      if (!client || !runId || !stepId) {
+        return { ok: false, error: { code: "VIEW_CONTEXT_MISMATCH", message: "No active step to resolve" } };
+      }
+      try {
+        const body = mapBranchSubmitToResolveStep(branch, params);
+        await client.runs.resolveStep(runId, stepId, body);
+        await closeCheckpoint();
+        return { ok: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error: {
+            code: "VIEW_BRANCH_VALIDATION_FAILED",
+            message: err instanceof Error ? err.message : "Host rejected submit",
+            branch,
+          },
+        };
+      }
     },
     [client, runId, stepId, closeCheckpoint],
   );
 
-  const onCancel = useCallback(async () => {
-    if (!client || !runId || !stepId) return;
-    const body = mapViewSubmitToResolveStep({}, "cancel");
-    await client.runs.resolveStep(runId, stepId, body);
-    await closeCheckpoint();
+  const onCancel = useCallback(async (): Promise<Ack> => {
+    if (!client || !runId || !stepId) {
+      return { ok: false, error: { code: "VIEW_CANCEL_REJECTED", message: "No active step to cancel" } };
+    }
+    try {
+      const body = mapCancelToResolveStep();
+      await client.runs.resolveStep(runId, stepId, body);
+      await closeCheckpoint();
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: { code: "VIEW_CANCEL_REJECTED", message: err instanceof Error ? err.message : "Host rejected cancel" },
+      };
+    }
   }, [client, runId, stepId, closeCheckpoint]);
 
   const onResolved = closeCheckpoint;
@@ -98,7 +124,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
         title={title}
         viewRef={viewRef}
         context={context}
-        onSubmit={onSubmit}
+        onSubmitBranch={onSubmitBranch}
         onCancel={onCancel}
         onResolved={onResolved}
         adminHref={adminHref}
@@ -107,5 +133,5 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
       />
     ) : null;
 
-  return { showCanvas, canvas, onSubmit, onCancel, onResolved, context };
+  return { showCanvas, canvas, onSubmitBranch, onCancel, onResolved, context };
 }

@@ -35,24 +35,24 @@ Deep dives: [reference/space-directory.md](reference/space-directory.md), [refer
 ## Authoring workflow
 
 1. **Scaffold** — `mrmr space init`; `mrmr space flow init <id>`; `mrmr space view init <id>`.
-2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/`requires_view`. No `executor.action`.
-3. **Edit execution** — `handlers.yaml`: map `contract_keys` to shell/MCP handlers.
+2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/`requires_view`. No `executor.action`, no View identity.
+3. **Edit execution** — `handlers.yaml`: bind steps with `on: step.opened::{flow_name}.{step_id}`; map prompt-scope `contract_keys`; bind Views with `view_resolver`.
 4. **Wire keys** — after apply, read `.mrmr/dev/contracts/contract-keys.json`; align handler `contract_keys` with catalog entries.
 5. **Validate** — `mrmr space apply --strict`; `mrmr space doctor`; fix lint warnings.
 6. **Install skills** — `mrmr skill install --variant all` in authoring repos.
 
 ## Handlers (`handlers.yaml`)
 
-Handlers replace legacy `actions.yaml`, `hooks.yaml`, and per-step `executor.action` for default spaces.
+Handlers replace legacy `actions.yaml`, `hooks.yaml`, and per-step `executor.action` for default spaces. A step is bound by its `on::key` alias; `contract_keys` is prompt-scope only.
 
 ```yaml
 version: 1
 handlers:
   - id: my_step_handler
     contract_keys:
-      - my-flow.my_step          # {flow_ref}.{qualified_step_id}
-    on: step.opened               # step.opened | step.resolved | event: { type, source? }
-    type: shell_spawn             # shell_spawn | mcp_session | queue_poll | remote_hub
+      - my-flow.my_step          # prompt-scope only
+    on: step.opened::my-flow.my_step   # step.opened::{flow_name}.{step_id} | step.resolved::… | event: { type, source? }
+    type: shell_spawn             # shell_spawn | mcp_session | queue_poll | remote_hub | view_resolver
     complete: explicit            # auto | cli | explicit
     prompt: |
       … task brief …
@@ -61,15 +61,22 @@ handlers:
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 3600000
+
+  # Bind a locally built View to a step (executor-free).
+  - id: intake_view
+    on: step.opened::my-flow.intake
+    type: view_resolver
+    view: my-intake-view
 ```
 
 | Field | Notes |
 |-------|-------|
-| `contract_keys` | Protocol addresses; use multi-key for nested subgraph owners; empty for event-only handlers |
-| `on` | `step.opened` dispatches bound steps; steps with no handler are open and externally resolvable (`resolver: null`), never dispatched on open |
+| `on` | `step.opened::{flow_name}.{step_id}` dispatches bound steps; `step.resolved::…` reacts; bare `step.opened` is rejected. A step may have at most one `step.opened` resolver; unbound steps stay open and externally resolvable (`resolver: null`). |
+| `contract_keys` | Prompt-scope addresses for multi-key subgraph owners; empty for event-only and `view_resolver` handlers |
 | `complete: explicit` | Handler prompt must instruct agent to call `murrmure_resolve_step` |
 | `complete: cli` | Command must invoke `mrmr step resolve`; lint enforces |
-| `kill_on: step.resolved` | Cancel long-running shell when step resolves (nested loops) |
+| `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. `view_resolver` forbids `command`/`prompt`/`params`/`cwd`. |
+| `kill_on` | **Removed** — authored `kill_on` is rejected; assignment termination is runtime-owned |
 
 ### Event handlers (not hooks chains)
 
@@ -92,13 +99,14 @@ Do **not** add separate `hooks.yaml` invoke chains or `invoke:` flow steps — t
 ## Contract keys
 
 ```text
-contract_key := {flow_ref}.{qualified_step_id}
+on := step.(opened|resolved)::{flow_name}.{qualified_step_id}   # binding
+contract_key := {flow_ref}.{qualified_step_id}                   # prompt-scope only
 ```
 
+- Binding is via `on::key` (exact, explicit; no wildcards, no bare `step.opened`).
+- `contract_keys` documents prompt scope for multi-key subgraph owners; it is no longer the binding key.
 - Generated catalog: `.mrmr/dev/contracts/contract-keys.json` after `mrmr space apply`.
-- `flow_ref` = apply-time flow identity; `qualified_step_id` = dot path (`build.build-loop`).
-- Matching is exact (+ explicit multi-key on one handler). No wildcards in v1.
-- A step key may appear in multi-key handlers for **scope/documentation only** — the engine only dispatches steps with a bound handler; unbound steps stay open for external resolution.
+- A step key may appear in multi-key handlers for **scope/documentation only** — the engine only dispatches steps with a bound `on::key` handler; unbound steps stay open for external resolution.
 
 Verify coverage: `murrmure_list_handlers` (agent skill) or `mrmr space doctor`.
 
@@ -115,10 +123,38 @@ Common apply lint codes:
 
 | Code | Fix |
 |------|-----|
-| `HANDLER_CONTRACT_KEY_UNKNOWN` | Key not in flow catalog — fix typo or re-apply after manifest edit |
-| `HANDLER_CONTRACT_KEY_UNCOVERED` | Flow step has no handler — add handler or binding |
-| `CHECKPOINT_VIEW_DIST_MISSING` | Build view `dist/` before apply |
+| `HANDLER_ORPHAN_KEY` | Prompt-scope key not in flow catalog — fix typo or re-apply after manifest edit |
+| `HANDLER_COMPLETE_CLI_NO_RESOLVE` | `complete: cli` command lacks `mrmr step resolve` |
+| `DUPLICATE_FLOW_NAME` | Two applied flows share a `name` — rename one |
+| `HANDLER_ORPHAN_ALIAS` | `on::key` references an unknown flow/step |
+| `HANDLER_RESOLVER_CONFLICT` | More than one `step.opened` resolver for a step |
+| `VIEW_RESOLVER_NOT_OPENED` | `view_resolver` must bind `step.opened::…` |
+| `VIEW_RESOLVER_VIEW_NOT_FOUND` | `view_id` unknown to the space index |
+| `VIEW_RESOLVER_BUILD_MISSING` | Build the View (`npm run build`) before apply |
 | `UNSUPPORTED_STEP_KIND` | Remove legacy `invoke:` / `checkpoint:` kinds — use step contracts |
+
+`HANDLER_MISSING` is removed: an unbound step is valid and observability-only.
+
+## View authoring (`view_resolver`)
+
+A `view_resolver` binds a locally built View (`.mrmr/views/<id>`) to a step. The
+shell loads it in a hardened iframe host; Views use the v3 SDK contract — no hub
+credential, host-mediated submit/cancel:
+
+```tsx
+import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
+
+function App() {
+  const { context, ready, submitBranch, cancel } = useViewContract();
+  if (!ready) return null;
+  // context.step.branches[] carries each branch's schema + artifact_slots
+  return <button onClick={() => submitBranch("continue", { reviewer })}>Submit</button>;
+}
+createViewMount({ App });
+```
+
+Dev loop: `mrmr view dev <id>` loads `dev/fixtures/*.json` (`mode: "dev"`); submit
+logs non-mutating intents only. See [View SDK](../../apps/docs/reference/view-sdk.md).
 
 ## Flow & view init
 
@@ -171,8 +207,8 @@ YAML anchors (`x-agent-cmd`) keep command DRY across handlers.
 1. **Index via apply** — editing `.mrmr/flows/` alone does not change runtime until apply succeeds.
 2. **Protocol vs execution** — flows declare branches/schemas; handlers declare commands/prompts.
 3. **No `executor.action`** in manifests — rejected at apply.
-4. **Human UX lives on steps, not triggers** — a step's human UI is bound by the space (handlers + Views), never declared in the portable flow.
-5. **Custom views are primary** — ViewCanvasHost fills main canvas; shell forms are operator fallback.
+4. **Human UX lives on steps, not triggers** — a step's human UI is bound by the space (`view_resolver` + Views), never declared in the portable flow.
+5. **Custom views are primary; no fallback forms** — a bound `view_resolver` fills the canvas; the shell synthesizes no built-in form. Unbound steps are observability-only.
 
 ## Install
 

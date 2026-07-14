@@ -3,7 +3,7 @@ version: 1
 handlers:
   - id: hello_hello
     contract_keys: [hello.hello]
-    on: step.opened
+    on: step.opened::hello.hello
     type: shell_spawn
     complete: auto
     command: node .mrmr/space/scripts/hello-hello.mjs

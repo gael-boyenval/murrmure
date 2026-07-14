@@ -348,6 +348,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
         hooks: [],
         events: [],
         flows: [],
+        views: [],
       }
     );
   }
@@ -384,6 +385,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   async listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>> {
     const snapshot = await this.getSpaceIndexSnapshot(space_id);
     return (snapshot.events ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {
+    const snapshot = await this.getSpaceIndexSnapshot(space_id);
+    return (snapshot.views ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
   }
 
   async listFlowIndex(space_id: string): Promise<FlowIndexEntry[]> {

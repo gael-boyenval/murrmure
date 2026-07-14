@@ -1,33 +1,97 @@
-import type {
-  ViewAppContext,
-  ViewHostInboundMessage,
-  ViewHostOutboundMessage,
+import {
+  VIEW_TRANSPORT_VERSION,
+  type ViewAppContext,
+  type ViewHostInboundMessage,
+  type ViewHostInboundPayload,
+  type ViewHostOutboundMessage,
+  type ViewMessageEnvelope,
 } from "../types.js";
 
-export function isViewContextMessage(data: unknown): data is ViewHostOutboundMessage {
+export type ViewContextOutboundMessage = Extract<ViewHostOutboundMessage, { type: "murrmure.view.context" }>;
+
+function isEnvelope(data: unknown): data is ViewMessageEnvelope {
   if (!data || typeof data !== "object") return false;
+  const v = data as { v?: unknown; nonce?: unknown };
+  return typeof v.v === "number" && typeof v.nonce === "string";
+}
+
+export function isViewContextMessage(data: unknown): data is ViewContextOutboundMessage {
+  if (!isEnvelope(data)) return false;
   const msg = data as { type?: string; context?: unknown };
   return msg.type === "murrmure.view.context" && msg.context !== null && typeof msg.context === "object";
 }
 
 export function isViewHostInboundMessage(data: unknown): data is ViewHostInboundMessage {
-  if (!data || typeof data !== "object") return false;
-  const msg = data as { type?: string };
-  return (
-    msg.type === "murrmure.view.ready" ||
-    msg.type === "murrmure.view.cancel" ||
-    msg.type === "murrmure.view.resolved" ||
-    (msg.type === "murrmure.view.submit" &&
-      typeof (data as { params?: unknown }).params === "object" &&
-      (data as { params?: unknown }).params !== null)
-  );
+  if (!isEnvelope(data)) return false;
+  const msg = data as { type?: string; branch?: unknown; params?: unknown };
+  switch (msg.type) {
+    case "murrmure.view.ready":
+    case "murrmure.view.cancel":
+    case "murrmure.view.resolved":
+      return true;
+    case "murrmure.view.submit_branch":
+      return typeof msg.branch === "string" && typeof msg.params === "object" && msg.params !== null;
+    default:
+      return false;
+  }
 }
 
-export function createViewContextMessage(context: ViewAppContext): ViewHostOutboundMessage {
-  return { type: "murrmure.view.context", context };
+export function createViewContextMessage(
+  context: ViewAppContext,
+  nonce: string,
+): ViewContextOutboundMessage {
+  return {
+    type: "murrmure.view.context",
+    v: context.transport_version,
+    nonce,
+    context,
+  };
 }
 
-export function postViewMessage(message: ViewHostInboundMessage, hubBaseUrl: string): void {
+export function createAckMessage(input: {
+  nonce: string;
+  transport_version: number;
+  kind: "submit_branch" | "cancel";
+  ok: true;
+}): ViewHostOutboundMessage;
+export function createAckMessage(input: {
+  nonce: string;
+  transport_version: number;
+  kind: "submit_branch" | "cancel";
+  ok: false;
+  error: import("../types.js").ViewContractError;
+}): ViewHostOutboundMessage;
+export function createAckMessage(input: {
+  nonce: string;
+  transport_version: number;
+  kind: "submit_branch" | "cancel";
+  ok: boolean;
+  error?: import("../types.js").ViewContractError;
+}): ViewHostOutboundMessage {
+  if (input.ok) {
+    return { type: "murrmure.view.ack", v: input.transport_version, nonce: input.nonce, kind: input.kind, ok: true };
+  }
+  return {
+    type: "murrmure.view.ack",
+    v: input.transport_version,
+    nonce: input.nonce,
+    kind: input.kind,
+    ok: false,
+    error: input.error!,
+  };
+}
+
+/** Build a versioned, nonce-bound inbound message to post to the host. */
+export function postViewMessage(
+  message: ViewHostInboundPayload,
+  hubBaseUrl: string,
+  nonce: string,
+): void {
   const targetOrigin = new URL(hubBaseUrl).origin;
-  window.parent.postMessage(message, targetOrigin);
+  const envelope: ViewHostInboundMessage = {
+    ...message,
+    v: VIEW_TRANSPORT_VERSION,
+    nonce,
+  };
+  window.parent.postMessage(envelope, targetOrigin);
 }

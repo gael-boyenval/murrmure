@@ -37,6 +37,7 @@ export async function upsertEphemeralFlowEntry(
       ...current.flows.filter((f) => f.flow_id !== entry.flow_id),
       { ...entry, payload_json: JSON.stringify(entry) } as FlowIndexRow,
     ],
+    views: current.views ?? [],
   };
   await studio.replaceSpaceIndex(bare, next);
 }

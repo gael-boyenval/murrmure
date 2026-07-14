@@ -281,11 +281,24 @@ export interface RunDetailPayload {
     step_id: string;
     parent_id?: string | null;
     description?: string;
-    resolver: string | null;
+    /** Sanitized resolver descriptor; `null` means no space handler is bound. */
+    resolver: {
+      handler_id: string;
+      type: string;
+      view_id?: string;
+    } | null;
+    /** Inline View reference, present only when a `view_resolver` is bound. */
+    view?: {
+      view_id: string;
+      origin_space_id: string;
+      entry?: string;
+      shell_route?: string;
+    } | null;
     branches: Array<{
       branch: string;
       schema_ref?: string;
       schema?: Record<string, unknown>;
+      artifact_slots?: Record<string, Record<string, unknown>>;
     }>;
   }>;
 }

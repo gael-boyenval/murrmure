@@ -43,7 +43,7 @@ describe("http/mcp/space-health", () => {
           payload_json: JSON.stringify({
             id: "health-handler",
             contract_keys: ["preview-review.write_spec"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "explicit",
             command: "cursor agent -p --force {{prompt}}",

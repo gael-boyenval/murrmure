@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import type { ViewAppContext } from "@murrmure/view-sdk";
+import { VIEW_TRANSPORT_VERSION, type ViewAppContext, type ViewContractError } from "@murrmure/view-sdk";
 import { AppShell } from "../layout/AppShell.js";
 import { ViewCanvasHost, type ViewCanvasFixtureTab } from "../components/ViewCanvasHost.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
-import { getHubBaseUrl, getShellToken } from "../hooks.js";
+import { getHubBaseUrl } from "../hooks.js";
+
+type Ack = { ok: true } | { ok: false; error: ViewContractError };
 
 export function ViewDevPage() {
   const { spaceId, viewId } = useParams();
   const client = useShellClient();
   const [activeFixture, setActiveFixture] = useState<string | undefined>();
   const [fixtureContexts, setFixtureContexts] = useState<Record<string, ViewAppContext>>({});
+  const [nonce] = useState(() => globalThis.crypto?.randomUUID?.() ?? `nonce-${Date.now()}`);
 
   const sessionQuery = useQuery({
     queryKey: ["view-dev-session", spaceId],
@@ -52,7 +55,6 @@ export function ViewDevPage() {
 
   const activeContext = initialFixture ? fixtureContexts[initialFixture] : undefined;
   const hubBase = getHubBaseUrl();
-  const token = getShellToken();
 
   const context: ViewAppContext =
     activeContext ??
@@ -60,9 +62,10 @@ export function ViewDevPage() {
       flow_id: "dev",
       space_id: spaceId ?? "spc_dev",
       hub_base_url: hubBase,
-      token,
-      gate: { gate_id: "gte_dev", step_id: "review" },
-  step: { step_id: "review", branch_names: ["validated"] },
+      mode: "dev",
+      transport_version: VIEW_TRANSPORT_VERSION,
+      nonce,
+      step: { step_id: "review", branches: [{ branch: "validated" }] },
     } satisfies ViewAppContext);
 
   if (sessionQuery.isLoading) {
@@ -90,7 +93,8 @@ export function ViewDevPage() {
         title={viewId ?? "View dev"}
         iframeSrc={session.dev_url}
         context={context}
-        onSubmit={() => undefined}
+        onSubmitBranch={async () => ({ ok: true } satisfies Ack)}
+        onCancel={async () => ({ ok: true } satisfies Ack)}
         devMode
         fixtureTabs={fixtureTabs}
         activeFixture={initialFixture}

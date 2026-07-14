@@ -18,7 +18,7 @@ const flowManifest = {
 };
 
 describe("index/handler-catalog-lint", () => {
-  test("reports orphan handler key for unknown contract key", () => {
+  test("reports orphan prompt-scope contract key for unknown alias", () => {
     const warnings = lintHandlerCatalogCoverage({
       handlers: {
         version: 1,
@@ -26,7 +26,7 @@ describe("index/handler-catalog-lint", () => {
           {
             id: "orphan",
             contract_keys: ["preview-review.unknown_step"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "explicit",
           },
@@ -46,37 +46,6 @@ describe("index/handler-catalog-lint", () => {
     expect(warnings.some((w) => w.code === "HANDLER_MISSING" || w.code === "STEP_UNCOVERED")).toBe(false);
   });
 
-  test("reports handler key conflict for one step", () => {
-    const warnings = lintHandlerCatalogCoverage({
-      handlers: {
-        version: 1,
-        handlers: [
-          {
-            id: "writer-a",
-            contract_keys: ["preview-review.write_spec"],
-            on: "step.opened",
-            type: "shell_spawn",
-            complete: "explicit",
-          },
-          {
-            id: "writer-b",
-            contract_keys: ["preview-review.write_spec"],
-            on: "step.opened",
-            type: "shell_spawn",
-            complete: "explicit",
-          },
-        ],
-      },
-      flows: [{ flow_id: "flw_preview_review", manifest: flowManifest }],
-    });
-
-    expect(
-      warnings.some(
-        (w) => w.code === "HANDLER_KEY_CONFLICT" && w.contract_key === "preview-review.write_spec",
-      ),
-    ).toBe(true);
-  });
-
   test("warns when complete=cli command does not call mrmr step resolve", () => {
     const warnings = lintHandlerCatalogCoverage({
       handlers: {
@@ -85,7 +54,7 @@ describe("index/handler-catalog-lint", () => {
           {
             id: "writer-cli",
             contract_keys: ["preview-review.write_spec"],
-            on: "step.opened",
+            on: "step.opened::preview-review.write_spec",
             type: "shell_spawn",
             complete: "cli",
             command: "npm run lint",
@@ -94,8 +63,24 @@ describe("index/handler-catalog-lint", () => {
       },
       flows: [{ flow_id: "flw_preview_review", manifest: flowManifest }],
     });
-    expect(
-      warnings.some((w) => w.code === "HANDLER_COMPLETE_CLI_NO_RESOLVE"),
-    ).toBe(true);
+    expect(warnings.some((w) => w.code === "HANDLER_COMPLETE_CLI_NO_RESOLVE")).toBe(true);
+  });
+
+  test("does not lint complete policy for view_resolver", () => {
+    const warnings = lintHandlerCatalogCoverage({
+      handlers: {
+        version: 1,
+        handlers: [
+          {
+            id: "intake-view",
+            on: "step.opened::preview-review.intake",
+            type: "view_resolver",
+            view: "intake",
+          },
+        ],
+      },
+      flows: [{ flow_id: "flw_preview_review", manifest: flowManifest }],
+    });
+    expect(warnings.some((w) => w.code === "HANDLER_COMPLETE_CLI_NO_RESOLVE")).toBe(false);
   });
 });

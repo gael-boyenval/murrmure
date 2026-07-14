@@ -16,6 +16,7 @@ import {
   rejectInlineScriptSteps,
   lintSpaceApplyBundle,
   resolveBindingsFile,
+  validateHandlerBindings,
 } from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
@@ -305,6 +306,31 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
     result.changes = [...result.changes.filter((change) => change.resource !== "flows"), ...flowChanges];
     result.summary.flows = mergedFlowRows.length;
     result.summary.changed = result.changes.filter((change) => change.change !== "unchanged").length;
+
+    // Candidate apply order is Views → flows/contracts → handlers → atomic
+    // commit. Handler bindings are resolved against the post-apply flow + View
+    // index (local + bound + preserved) before the applied index is replaced,
+    // so a missing/unbuilt View or a stale alias hard-fails and leaves the
+    // previous configuration active.
+    const bindingFlows = mergedFlowEntries.map((entry) => ({
+      name: entry.name,
+      step_ids: entry.step_contract_catalog?.step_ids ?? [],
+    }));
+    const bindingViews = (parsed.data.views ?? (current.views ?? []).map((row) => {
+      const parsed = JSON.parse(row.payload_json) as { view_id?: string; build?: { dist_present: boolean; entry_present: boolean } };
+      return { view_id: parsed.view_id ?? row.key, build: parsed.build };
+    })).map((view) => ({ view_id: view.view_id, build: view.build }));
+    const handlerBindings = validateHandlerBindings({
+      handlers: parsed.data.handlers?.file.handlers ?? [],
+      flows: bindingFlows,
+      views: bindingViews,
+    });
+    if (!handlerBindings.ok) {
+      return c.json(
+        { code: handlerBindings.code, message: handlerBindings.message, handler_id: handlerBindings.handler_id },
+        400,
+      );
+    }
 
     const warnings = [...lintSpaceApplyBundle(parsed.data), ...bound.warnings];
 

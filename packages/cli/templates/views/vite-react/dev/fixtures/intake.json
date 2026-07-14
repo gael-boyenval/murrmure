@@ -2,12 +2,27 @@
   "flow_id": "preview-review",
   "space_id": "spc_local",
   "hub_base_url": "http://127.0.0.1:8787",
-  "token": "dev-readonly",
+  "mode": "dev",
+  "transport_version": 1,
+  "nonce": "dev-intake",
   "session_id": "ses_dev",
   "run_id": "run_dev",
-  "gate": {
-    "gate_id": "gte_intake",
-    "step_id": "intake"
+  "step": {
+    "step_id": "intake",
+    "branches": [
+      {
+        "branch": "approve",
+        "schema": { "type": "object", "required": ["note"] },
+        "artifact_slots": {
+          "spec": {
+            "description": "Approved spec markdown",
+            "media_types": ["text/markdown"],
+            "extensions": [".md"]
+          }
+        }
+      },
+      { "branch": "request_changes" }
+    ]
   },
   "input": {}
 }

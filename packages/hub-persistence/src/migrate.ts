@@ -185,6 +185,14 @@ export function migrateStudio(db: Database.Database): void {
       PRIMARY KEY (space_id, name)
     );
 
+    CREATE TABLE IF NOT EXISTS space_views (
+      space_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      digest TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      PRIMARY KEY (space_id, name)
+    );
+
     CREATE TABLE IF NOT EXISTS flow_index (
       origin_space_id TEXT NOT NULL,
       flow_id TEXT NOT NULL,

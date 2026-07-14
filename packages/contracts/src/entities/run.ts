@@ -50,18 +50,45 @@ export type ExecContext = z.infer<typeof ExecContextSchema>;
 export type Run = z.infer<typeof RunSchema>;
 
 /**
+ * Sanitized resolver descriptor projected on an open step. Server-derived from
+ * the canonical handler match and authorized for the caller. Carries no
+ * command, prompt, path, parameter, environment, or secret. `view_id` is
+ * present only for `view_resolver`.
+ */
+export interface OpenStepResolver {
+  handler_id: string;
+  type: string;
+  view_id?: string;
+}
+
+/**
+ * Inline View reference for a `view_resolver` open step. The shell loads the
+ * locally built View from this without client-side handler matching. `entry` is
+ * the View manifest entry path (e.g. `./dist/index.html`), not a host path.
+ */
+export interface OpenStepViewRef {
+  view_id: string;
+  origin_space_id: string;
+  entry?: string;
+  shell_route?: string;
+}
+
+/**
  * Projection of one open step and its bound resolver. `resolver: null` means
  * no space handler is bound; an authorized protocol client must resolve the
  * step externally. The shell must not synthesize a form or fallback control.
+ * `view` is present only when a `view_resolver` is bound.
  */
 export interface OpenStepResolverProjection {
   step_id: string;
   parent_id?: string | null;
   description?: string;
-  resolver: string | null;
+  resolver: OpenStepResolver | null;
+  view?: OpenStepViewRef | null;
   branches: Array<{
     branch: string;
     schema_ref?: string;
     schema?: Record<string, unknown>;
+    artifact_slots?: Record<string, Record<string, unknown>>;
   }>;
 }

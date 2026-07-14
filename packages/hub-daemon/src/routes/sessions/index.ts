@@ -7,6 +7,7 @@ import {
   type HandlerComplete,
   type HandlerSpec,
   type Session,
+  type ViewManifest,
 } from "@murrmure/contracts";
 import {
   cancelRun,
@@ -109,7 +110,11 @@ function resolveStepCompleteMode(input: {
     `${input.flow_name}.${input.step_id}`,
   );
   if (matches.length !== 1) return "explicit";
-  return matches[0]?.complete ?? "explicit";
+  const match = matches[0];
+  if (!match) return "explicit";
+  // `view_resolver` carries no completion policy — the View resolves via submit.
+  if (match.type === "view_resolver") return "explicit";
+  return match.complete ?? "explicit";
 }
 
 export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
@@ -384,7 +389,30 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const flowEntry = row.flow_id
       ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id)
       : null;
-    const open_steps = buildOpenStepProjections(steps, flowStepContractCatalog(flowEntry));
+    const indexedHooks = row.space_id
+      ? await murrmurePersistence.listIndexedHooks(row.space_id)
+      : [];
+    const indexedViews = row.space_id
+      ? await murrmurePersistence.listIndexedViews(row.space_id)
+      : [];
+    const handlerSpecs = indexedHooks
+      .map((raw) => HandlerSpecSchema.safeParse(raw))
+      .filter((r): r is { success: true; data: HandlerSpec } => r.success)
+      .map((r) => r.data);
+    const viewRows = indexedViews.map((raw) => {
+      const r = raw as { view_id?: string; manifest?: ViewManifest };
+      return { view_id: String(r.view_id ?? ""), manifest: r.manifest as ViewManifest };
+    }).filter((v) => v.view_id && v.manifest);
+    const open_steps = buildOpenStepProjections(
+      steps,
+      flowStepContractCatalog(flowEntry),
+      {
+        flow_name: flowEntry?.name,
+        space_id: row.space_id ? prefixedSpaceId(row.space_id) : undefined,
+        handlers: handlerSpecs,
+        views: viewRows,
+      },
+    );
 
     return c.json({
       ...run,

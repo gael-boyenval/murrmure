@@ -719,11 +719,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const events = this.db
       .prepare("SELECT name AS key, digest, payload_json FROM space_events WHERE space_id = ?")
       .all(bare) as IndexedResourceRow[];
+    const views = this.db
+      .prepare("SELECT name AS key, digest, payload_json FROM space_views WHERE space_id = ?")
+      .all(bare) as IndexedResourceRow[];
     const flowRows = this.db
       .prepare("SELECT payload_json FROM flow_index WHERE origin_space_id = ?")
       .all(bare) as Array<{ payload_json: string }>;
     const flows = flowRows.map((row) => JSON.parse(row.payload_json) as SpaceIndexSnapshot["flows"][number]);
-    return { actions, executors, hooks, events, flows };
+    return { actions, executors, hooks, events, flows, views };
   }
 
   async replaceSpaceIndex(space_id: string, snapshot: SpaceIndexSnapshot): Promise<void> {
@@ -733,6 +736,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       this.db.prepare("DELETE FROM space_executors WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_hooks WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_events WHERE space_id = ?").run(bare);
+      this.db.prepare("DELETE FROM space_views WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM flow_index WHERE origin_space_id = ?").run(bare);
 
       const insertAction = this.db.prepare(
@@ -761,6 +765,13 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       );
       for (const row of snapshot.events ?? []) {
         insertEvent.run(bare, row.key, row.digest, row.payload_json);
+      }
+
+      const insertView = this.db.prepare(
+        "INSERT INTO space_views (space_id, name, digest, payload_json) VALUES (?, ?, ?, ?)",
+      );
+      for (const row of snapshot.views ?? []) {
+        insertView.run(bare, row.key, row.digest, row.payload_json);
       }
 
       const insertFlow = this.db.prepare(
@@ -807,6 +818,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const bare = this.bareSpaceId(space_id);
     const rows = this.db
       .prepare("SELECT payload_json FROM space_events WHERE space_id = ? ORDER BY name")
+      .all(bare) as Array<{ payload_json: string }>;
+    return rows.map((r) => JSON.parse(r.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {
+    const bare = this.bareSpaceId(space_id);
+    const rows = this.db
+      .prepare("SELECT payload_json FROM space_views WHERE space_id = ? ORDER BY name")
       .all(bare) as Array<{ payload_json: string }>;
     return rows.map((r) => JSON.parse(r.payload_json) as Record<string, unknown>);
   }

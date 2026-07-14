@@ -55,6 +55,9 @@ export const SpaceApplyViewSchema = DigestPayloadSchema.extend({
   build: SpaceApplyViewBuildStatusSchema.optional(),
 });
 
+export type SpaceApplyView = z.infer<typeof SpaceApplyViewSchema>;
+export type SpaceApplyViewBuildStatus = z.infer<typeof SpaceApplyViewBuildStatusSchema>;
+
 export const SpaceApplyBundleSchema = z.object({
   actions: SpaceApplyActionsSchema.optional(),
   executors: SpaceApplyExecutorsSchema.optional(),

@@ -3,7 +3,7 @@ import { HandlerSpecSchema } from "@murrmure/contracts";
 import { applyIndexDiff, validateApplyBundle } from "../../../src/index/apply-index.js";
 import type { SpaceApplyBundle, SpaceIndexSnapshot } from "@murrmure/contracts";
 
-const EMPTY: SpaceIndexSnapshot = { actions: [], executors: [], hooks: [], events: [], flows: [] };
+const EMPTY: SpaceIndexSnapshot = { actions: [], executors: [], hooks: [], events: [], flows: [], views: [] };
 
 const bundle: SpaceApplyBundle = {
   actions: {
@@ -31,6 +31,24 @@ describe("index/apply-index", () => {
     const second = applyIndexDiff(first.next, bundle, "spc_demo");
     expect(second.summary.changed).toBe(0);
     expect(second.changes.every((c) => c.change === "unchanged")).toBe(true);
+  });
+
+  test("indexes applied views into the snapshot", () => {
+    const viewBundle: SpaceApplyBundle = {
+      views: [
+        {
+          view_id: "intake",
+          rel_path: "views/intake",
+          digest: "sha256:view1",
+          manifest: { apiVersion: "murrmure.view/v1", id: "intake", entry: "./dist/index.html" },
+          build: { dist_present: true, entry_present: true },
+        },
+      ],
+    };
+    const result = applyIndexDiff(EMPTY, viewBundle, "spc_demo");
+    expect(result.summary.views).toBe(1);
+    expect(result.changes.some((c) => c.resource === "views" && c.key === "intake" && c.change === "added")).toBe(true);
+    expect(result.next.views.map((r) => r.key)).toEqual(["intake"]);
   });
 
   test("flow diff keys rows by flow_id", () => {
@@ -162,7 +180,7 @@ describe("index/apply-index", () => {
             {
               id: "write-spec",
               contract_keys: ["demo.write_spec"],
-              on: "step.opened",
+              on: "step.opened::demo.write_spec",
               type: "shell_spawn",
               complete: "explicit",
             },
@@ -201,7 +219,7 @@ describe("index/apply-index", () => {
             {
               id: "write-spec",
               contract_keys: ["demo.write_spec"],
-              on: "step.opened",
+              on: "step.opened::demo.write_spec",
               type: "shell_spawn",
               complete: "explicit",
             },

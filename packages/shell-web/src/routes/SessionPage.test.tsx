@@ -27,7 +27,12 @@ const activeHumanRun = {
   open_steps: [
     {
       step_id: "review",
-      resolver: null,
+      resolver: { handler_id: "hdl_intake", type: "view_resolver", view_id: "intake" },
+      view: {
+        view_id: "intake",
+        origin_space_id: "spc_demo",
+        entry: "./dist/index.html",
+      },
       branches: [{ branch: "validated" }],
     },
   ],
@@ -38,9 +43,9 @@ afterEach(() => {
   capturedCanvasProps.length = 0;
 });
 
-// View canvas binding is introduced in Task 04; the open-step projection here
-// carries no view identity, so the canvas host is not rendered in this slice.
-describe.skip("SessionPage checkpoint canvas", () => {
+// Task 04: the hub projects a `view_resolver` + inline view ref on the open
+// step; the shell consumes it verbatim and mounts the hardened ViewCanvasHost.
+describe("SessionPage checkpoint canvas", () => {
   it("keeps stable ViewCanvasHost props across unrelated parent re-renders", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -104,7 +109,7 @@ describe.skip("SessionPage checkpoint canvas", () => {
     });
 
     const after = capturedCanvasProps[capturedCanvasProps.length - 1];
-    expect(after.onSubmit).toBe(before.onSubmit);
+    expect(after.onSubmitBranch).toBe(before.onSubmitBranch);
     expect(after.onCancel).toBe(before.onCancel);
     expect(after.context).toBe(before.context);
     expect(after.context.step?.step_id).toBe("review");
