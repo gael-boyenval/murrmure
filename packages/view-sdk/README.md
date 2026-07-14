@@ -1,6 +1,6 @@
 # @murrmure/view-sdk
 
-Client package for **custom checkpoint views** in `murrmure/views/`. Published to npm.
+Client package for **custom checkpoint views** in `.mrmr/views/`. Published to npm.
 
 ## Exports
 
@@ -13,16 +13,20 @@ Client package for **custom checkpoint views** in `murrmure/views/`. Published t
 
 ```bash
 mrmr space view init my-view
-cd murrmure/views/my-view && npm install
+cd .mrmr/views/my-view && npm install
 ```
 
 ```tsx
-import { createViewMount, useViewContext, useViewSubmit } from "@murrmure/view-sdk/app";
+import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const ctx = useViewContext();
-  const { submit } = useViewSubmit();
-  return <button onClick={() => submit({ outcome: "validated" })}>{ctx.gate?.step_id}</button>;
+  const { context, ready, submitBranch } = useViewContract();
+  if (!ready) return null;
+  return (
+    <button onClick={() => submitBranch("continue", {})}>
+      Continue {context.step.step_id}
+    </button>
+  );
 }
 
 createViewMount({ App });

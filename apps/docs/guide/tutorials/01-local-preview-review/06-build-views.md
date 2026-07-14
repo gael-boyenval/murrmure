@@ -1,6 +1,11 @@
 # Part 6 — Build the views
 
-Checkpoint steps need **custom views** — React apps built to `dist/` and indexed on apply. Shell built-in forms are operator fallback only.
+> This page uses the retired v2 View SDK. Follow
+> **[Tutorial 1a (v3)](../01-local-preview-review-v3/)** for the current
+> space-owned `view_resolver` contract. The current shell does not synthesize a
+> built-in form for an unbound step; it remains observability-only.
+
+Checkpoint steps need **custom views** — React apps built to `dist/` and indexed on apply.
 
 Views live under **`.mrmr/views/{view-id}/`**. Each view is a small Vite + React package scaffolded in the steps below.
 

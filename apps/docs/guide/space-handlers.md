@@ -109,7 +109,7 @@ Discover emittable types with **`murrmure_list_emittable_events`**. Emit from ag
 
 ## Legacy files (pre-cutover)
 
-`actions.yaml`, `hooks.yaml`, and `executors.yaml` under `.mrmr/space/` are accepted until HANDLER-CUTOVER but **new spaces should use `handlers.yaml` only**. Migrate invoke/hook chains to handlers with matching `contract_keys` or `on: event:`.
+`actions.yaml`, `hooks.yaml`, and `executors.yaml` under `.mrmr/space/` are accepted until HANDLER-CUTOVER but **new spaces should use `handlers.yaml` only**. Migrate step reactions to exact `on: step.opened::{flow_name}.{qualified_step_id}` bindings and journal reactions to `on: event:`.
 
 ## Doctor and apply
 

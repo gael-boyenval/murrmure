@@ -41,7 +41,10 @@ export function mountViewAssetRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "SPACE_ROOT_MISSING", message: "Space has no linked root path" }, 422);
     }
 
-    const viewRoot = resolve(join(spaceRoot, "murrmure", "views", view_id));
+    // Production Views are locally built and scaffolded under `<space>/.mrmr/views`
+    // (CLI `space view init` / `view dev` / dev fixture route all use `.mrmr/views`).
+    // Serve packaged/shell assets from the same canonical disk location.
+    const viewRoot = resolve(join(spaceRoot, ".mrmr", "views", view_id));
     const target = normalize(resolve(viewRoot, rest));
     if (!target.startsWith(viewRoot)) {
       return c.json({ code: "PATH_TRAVERSAL", message: "Invalid view asset path" }, 400);

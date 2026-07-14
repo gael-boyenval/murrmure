@@ -49,9 +49,9 @@ When indexed, a flow provides:
 
 1. **Declarative steps** — unified step contracts (`branches`, `presentation`, nested `steps`)
 2. **Custom views** at human steps — rendered in **ViewCanvasHost** (full primary-region canvas)
-3. **Handler dispatch** — `contract_keys` match steps on `step.opened`; agents complete with **`murrmure_resolve_step`**
+3. **Handler dispatch** — handlers bind steps via **`on::key`** (`on: step.opened::{flow_name}.{step_id}`); `contract_keys` is prompt-scope only. Agents complete with **`murrmure_resolve_step`**
 
-Shell chrome (space home, flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a step specifies `presentation.view`.
+Shell chrome (space home, flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a space-owned view is bound to the step.
 
 ## What a normal setup looks like
 
@@ -86,7 +86,7 @@ CI/team/production boundaries.
 | **Space** | Project boundary (`spc_...`) where flows are installed and sessions run. |
 | **Grant** | Scoped permission definition for an agent identity; minting produces a token. |
 | **Flow** | Workflow manifest in `.mrmr/flows/` indexed per space via apply |
-| **Handler** | Space-owned execution binding in `handlers.yaml`, keyed by `contract_keys` |
+| **Handler** | Space-owned execution binding in `handlers.yaml`, bound by `on::key` (`contract_keys` is prompt-scope) |
 | **Session / Run** | Correlation container and one flow execution; human steps pause runs |
 | **ViewCanvasHost** | Shell region that embeds custom checkpoint views (primary human UX) |
 | **Gate** | Human approval checkpoint (imperative API or orchestration attach) |

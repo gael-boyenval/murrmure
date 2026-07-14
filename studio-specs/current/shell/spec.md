@@ -12,10 +12,10 @@ Murrmure is an **agentic operating system**. The shell is **not** the product UI
 
 | Mode | What it is | When |
 |------|------------|------|
-| **Custom view (ViewCanvasHost)** | **Primary human experience** — author's full UI from `murrmure/views/`; generic shell chrome hidden or minimized | Gates, human checkpoints, workflow-specific dashboards |
-| **Shell admin chrome** | **Operator/admin** — space home, flowchart, notifications, grants, session debug | Managing spaces, observing runs, fallback when no view loaded |
+| **Custom view (ViewCanvasHost)** | **Primary human experience** — author's full UI from `.mrmr/views/`; generic shell chrome hidden or minimized | Gates, human checkpoints, workflow-specific dashboards |
+| **Shell admin chrome** | **Operator/admin** — space home, flowchart, notifications, grants, session debug | Managing spaces and observing runs, including unbound steps |
 
-**Implementation must not treat** space home, flowchart, or `GateResolvePanel` as the default human path when a view exists or should exist.
+**Implementation must not treat** space home, flowchart, or a built-in gate form as the default human path when a view is bound. Unbound steps stay observability-only — no form is synthesized.
 
 ---
 
@@ -50,10 +50,10 @@ v2 retires Configure mode and the setup wizard. Default shell routes are **admin
 | `/spaces/:id` | Space home (six sections + Run) |
 | `/spaces/:id/flows/:flowId` | Flow preview (`flow:read`) |
 | `/connect` | Hub URL + token + MCP snippet (non-bundled) |
-| `/notifications` | Actionable inbox (gates primary) + resolve panel |
+| `/notifications` | Actionable inbox linking bound checkpoints to their custom Views |
 | `/logs` | Journal explorer with filter chips (retrieval only) |
 | `/runs/:id?gate=chk_*` | Run detail with flowchart or journal replay + gate tab |
-| `/sessions/:id` | Session — pending checkpoint with `view_ref` → **ViewCanvasHost** (session title chrome) |
+| `/sessions/:id` | Session — pending checkpoint with a bound view → **ViewCanvasHost** (session title chrome) |
 | `/spaces/:id/dev/views/:viewId` | View dev — author iframe + fixture tabs (`mrmr view dev`) |
 
 ---
@@ -61,7 +61,7 @@ v2 retires Configure mode and the setup wizard. Default shell routes are **admin
 ## Notifications & gates (phase 07)
 
 - Header **Needs you (n)** badge from `GET /v1/notifications` pending count; persists across refresh.
-- Gate resolve uses embedded `GateFormSchema` default form (`GateResolvePanel`).
+- Gate resolve uses the bound View in **ViewCanvasHost**; unbound steps are observability-only (no built-in form).
 - Hidden space §6.4: assignees see "Private space" without nav link; non-assignees suppressed.
 - Profile menu sets landing space via `PATCH /v1/me`.
 
@@ -111,14 +111,14 @@ Views are **full custom UI** in the **primary content region** (sandboxed iframe
 
 | Moment | Field | Shell surface |
 |--------|-------|---------------|
-| Checkpoint step | `checkpoint.view` → `view_ref` on gate | **ViewCanvasHost** (full canvas) |
-| Missing view bundle | — | `GateResolvePanel` form fallback (**admin only**) |
+| Checkpoint step | space `view_resolver` → inline view ref on `open_steps[]` | **ViewCanvasHost** (full canvas) |
+| No view bound | — | Observability-only (no fallback form synthesized) |
 
 **Session UX (decision 07):** ViewCanvasHost chrome shows **session title** / workflow name — not raw `run_*` ids. Operator run detail remains at `/runs/:id?admin=1`.
 
 **Dev route:** `/spaces/:id/dev/views/:viewId` — iframe loads author dev server; fixture tabs switch `dev/fixtures/*.json` context (decision 02).
 
-Hub denormalizes `view_ref` at apply onto flow IR checkpoint steps. Assets: `GET /v1/spaces/{id}/views/{view_id}/*`.
+The hub projects the space's `view_resolver` as a sanitized inline descriptor (`view_id`, `origin_space_id`, `entry`, `shell_route`) on `open_steps[]`; the shell consumes it without client-side handler matching. Production assets are locally built under `<space>/.mrmr/views/{view_id}/` and served by `GET /v1/spaces/{id}/views/{view_id}/*`. Flow records carry no View identity, and the shell provides no built-in fallback form.
 
 See `packages/cli/skill-developer/reference/flow-authoring.md` and `packages/view-sdk/README.md`.
 

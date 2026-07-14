@@ -62,14 +62,15 @@ steps:
 
 A linear step needs only `id` (and optional `description`); omit `branches` to
 receive `completed` / `failed` defaults. Spaces bind Views and handlers through
-`.mrmr/space/handlers.yaml` (`contract_keys`), not through the portable flow.
+`.mrmr/space/handlers.yaml` via the **`on::key`** binding (`contract_keys` is
+prompt-scope only), not through the portable flow.
 
 ## What you build (v3)
 
 | Piece | Location |
 |-------|----------|
 | Flow manifest | `.mrmr/flows/{name}/flow.manifest.yaml` (`triggers`, resolver-agnostic steps) |
-| Handlers | `.mrmr/space/handlers.yaml` (`contract_keys`, `shell_spawn`, …) |
+| Handlers | `.mrmr/space/handlers.yaml` (`on::key` binding, `shell_spawn`, …; `contract_keys` is prompt-scope) |
 | Views | `.mrmr/views/{id}/` (Vite+React + `view.manifest.yaml`), bound to steps via handlers |
 | Local dev outputs | `.mrmr/dev/` (contract-keys codegen, gitignored) |
 

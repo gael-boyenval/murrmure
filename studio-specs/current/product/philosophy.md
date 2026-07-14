@@ -13,8 +13,8 @@
 
 | Surface | Role |
 |---------|------|
-| **Custom view** (`murrmure/views/`) | **The product.** Full-screen (or full primary-region) UI authored per workflow — preview, review, brief editor, daily dashboard. Hides or replaces generic shell chrome. This is what users build and what end users live in. |
-| **Shell chrome** (space home, flowchart, notifications, gate inbox, settings) | **Admin / operator mode.** Observe runs, debug, manage spaces and grants, resolve gates when no custom view is loaded. Not the default day-to-day experience for workflow authors or their users. |
+| **Custom view** (`.mrmr/views/`) | **The product.** Full-screen (or full primary-region) UI authored per workflow — preview, review, brief editor, daily dashboard. Hides or replaces generic shell chrome. This is what users build and what end users live in. |
+| **Shell chrome** (space home, flowchart, notifications, gate inbox, settings) | **Admin / operator mode.** Observe runs, debug, and manage spaces and grants. Unbound human steps are visible but expose no synthesized resolve form. |
 
 **Hard rules for all design and implementation:**
 
@@ -24,7 +24,7 @@
 4. Protocol (sessions, runs, gates, invoke, artifacts) stays in the hub; **presentation is 100% the view bundle** at gates and human checkpoints.
 5. Retired worker-install paths are gone; **space-directory views + ViewCanvasHost** carry the same full-canvas ambition without a second product inside the product.
 
-If a feature ships built-in forms or a narrow side drawer as the primary human path, **it violates this north star.**
+If a feature ships built-in resolver forms or a narrow side drawer, **it violates this north star.**
 
 ---
 

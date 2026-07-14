@@ -36,8 +36,8 @@ Murrmure separates **who does what** from **how work is coordinated**:
 | **Flow** | Declarative graph in `.mrmr/flows/{name}/flow.manifest.yaml` |
 | **Run** | One execution of a flow (`run_…`) — pauses at **human** steps until resolved via view or agent |
 | **Session** | Human-visible container (`ses_…`) — title, journal, Desktop route |
-| **Handler** | Space execution entry in `.mrmr/space/handlers.yaml` — keyed by `contract_keys` or events |
-| **Contract key** | Protocol address `{flow_ref}.{step_id}` binding handler to step contract |
+| **Handler** | Space execution entry in `.mrmr/space/handlers.yaml` — bound by `on::key` (`contract_keys` is prompt-scope) or events |
+| **Contract key** | Protocol address `{flow_ref}.{step_id}` used to compile handler prompt scope; dispatch uses `on::key` |
 | **View** | React UI in `.mrmr/views/{id}/` — opens in **ViewCanvasHost** at human steps |
 | **Grant** | Agent token (`tok_…`) — MCP tools filtered by capabilities |
 | **Emittable event** | Declared hub event (e.g. `brief.published`) — triggers event handlers after apply |

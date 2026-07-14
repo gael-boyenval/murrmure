@@ -300,7 +300,7 @@ CLI: `mrmr federation peer add --id hub_b --url http://…`, `mrmr federation st
 
 ## Views {#views}
 
-Static assets for custom flow start UI (`.mrmr/views/`).
+Static assets for space-owned custom checkpoint views (`.mrmr/views/{view_id}/dist/`). Production Views are locally built and shell-hosted; the route serves them from the linked space root.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|

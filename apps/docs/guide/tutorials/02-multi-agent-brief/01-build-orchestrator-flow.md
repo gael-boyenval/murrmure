@@ -76,10 +76,13 @@ steps:
 | Step | Role | Purpose |
 |------|------|---------|
 | **open** | agent | Handler initializes brief state |
-| **publish** | human | Any human in space resolves via operator chrome |
+| **publish** | human | Waits for an authorized protocol client |
 | **done** | agent | Handler completes orchestrator side after publish |
 
-The **publish** step uses built-in human assignee (`human:*`). A custom publish view can replace operator chrome later; the coordination pattern is what matters here.
+The **publish** step is intentionally unbound in this coordination example, so
+the shell shows observability-only state and an authorized protocol client must
+resolve it. To make it interactive in Desktop, bind a custom View with a
+space-owned `view_resolver`; the shell does not synthesize a fallback form.
 
 ## 3) Handlers
 

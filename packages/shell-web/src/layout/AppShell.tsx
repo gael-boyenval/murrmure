@@ -16,7 +16,13 @@ import { NotificationBell } from "../components/NotificationBell.js";
 import { ProfileMenu } from "../components/ProfileMenu.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  canvasMode = false,
+}: {
+  children: ReactNode;
+  canvasMode?: boolean;
+}) {
   const location = useLocation();
   const client = useShellClient();
 
@@ -27,6 +33,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
 
   const spaces = spacesQuery.data ?? [];
+
+  if (canvasMode) {
+    return (
+      <div className="flex h-screen flex-col bg-background text-foreground">
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

@@ -101,7 +101,7 @@ Architecture review items P1–P6, U1–U6, O1–O3, F1–F3 are normative in [s
 |------|------------------|
 | Parallel matrix | Eager sibling runs at step entry |
 | Headless step ids | `hook:{id}`, `action:{name}`, `orchestration:proposed` |
-| Views | `view_ref` on flow index; no hub view registry |
+| Views | Space-owned `view_resolver` in `handlers.yaml` + `.mrmr/views/`; no hub registry or flow-owned View identity |
 | Federation | Virtual `remote_hub` bindings, cross-hub artifacts |
 | Out-of-shell notify | Gate pending + run failed |
 | Flow-call | `start_flow` step + `flow_call` start condition |
@@ -113,7 +113,7 @@ Architecture review items P1–P6, U1–U6, O1–O3, F1–F3 are normative in [s
 | Anti-pattern | Guardrail |
 |--------------|-----------|
 | Fat daemon with domain logic | Move to `hub-core` |
-| Hub view registry | Views are clients; `view_ref` denormalized at apply |
+| Hub view registry | Views are clients; the shell reads the space's `view_resolver` projection on `open_steps[]` without apply-time flow denormalization |
 | Silent executor unavailable | ExecutorPort preflight + typed error |
 | Session owns step state | Runs + step memo own execution state |
 | Hub runs LLM loop | Out of scope |

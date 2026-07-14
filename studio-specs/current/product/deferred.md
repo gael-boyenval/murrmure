@@ -25,7 +25,7 @@ Items here are **deliberate non-goals or future slices**, not bugs. For **known 
 
 | Item | Rationale |
 |------|-----------|
-| Hub view registry / view entity | Views stay clients; `view_ref` on flow index only. View canvas ships in plan phase 06 — not deferred |
+| Hub view registry / view entity | Views stay clients; bound by the space (`handlers.yaml` `view_resolver` + `.mrmr/views/`), with no hub registry or flow-owned View identity. View canvas ships in plan phase 06 — not deferred |
 | Flow marketplace | Not v2 scope |
 | Gate delegation UI | Not v2 scope |
 | Cron / schedule trigger **UI** | Hub scheduler runs; no separate schedule editor |

@@ -66,9 +66,9 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 | **Run** | **Immutable execution unit** — lifecycle, step state, gates, exec context (worktree, preview URL). Parallel lanes = sibling Runs. |
 | **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only — **no executor refs**. |
 | **Handler** | Space-owned execution unit in `.mrmr/space/handlers.yaml` — bound via **`on::key`** (dispatched on `step.opened::{alias}` / events); `contract_keys` is prompt-scope only. Replaces actions + executors + hooks for default spaces. |
-| **contract_key** | Protocol address `{flow_ref}.{qualified_step_id}` — binds flow steps to space handlers at apply time. |
-| **View** | **Primary human interface** — full custom UI packages in `.mrmr/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. Built-in forms = fallback only. |
-| **Gate** | Run in `input-required`; the bound View (resolved from the space's `handlers.yaml` + `.mrmr/views/`) opens the author's view canvas (primary). Built-in gate form = fallback when no view binding exists. |
+| **contract_key** | Protocol address `{flow_ref}.{qualified_step_id}` used to compile prompt scope; handler dispatch binds through `on::key`. |
+| **View** | **Primary human interface** — full custom UI packages in `.mrmr/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. |
+| **Gate** | Run in `input-required`; the bound View (resolved from the space's `handlers.yaml` + `.mrmr/views/`) opens the author's view canvas. Without a binding, the shell is observability-only and exposes no resolve form. |
 | **Journal** | CloudEvents-compatible append-only log. `subject` carries session/run correlation path. |
 | **Headless delivery** | Every hub trigger/hook delivery **must** create Session (if needed) + Run. No silent executions. |
 | **Flow vs UI** | Flows declare orchestration; **views are the human OS surface**. Authors ship flow + view together; human gates **require** custom view canvas in finished product (phase 06). |
@@ -568,7 +568,7 @@ interface FlowIndexEntry {
 }
 ```
 
-**View binding (clean cutover):** flow manifests carry no `requires_view` and the flow index carries no `view_ref`. Views bind to steps through the **space** (`handlers.yaml` + `.mrmr/views/`), not the portable flow; the shell reads `open_steps[]` and the space's view bindings at run time. There is **no hub view registry** and no flow-level form fallback.
+**View binding (clean cutover):** flow manifests and the flow index carry no View identity. Views bind to steps through the **space** (`handlers.yaml` + `.mrmr/views/`), not the portable flow; the shell reads the authorized inline projection on `open_steps[]` at run time. There is **no hub View registry** and no flow-level form fallback.
 
 No per-space "install" UX — index refresh only.
 
@@ -617,7 +617,7 @@ interface Gate {
 
 ### 6.2 Custom view at gates (primary UX)
 
-Human gates are served by the bound View — resolved from the space's `handlers.yaml` + `.mrmr/views/` at run time (no flow-level `requires_view`; the manifest carries only `gate: { form?, assignees? }`). The shell loads the author's view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Shell = observer chrome; domain UI = 100% the view bundle.
+Human gates are served by the bound View — resolved from the space's `handlers.yaml` + `.mrmr/views/` at run time (no flow-level `requires_view`; Views bind through the space, not the portable flow). The shell loads the author's view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Shell = observer chrome; domain UI = 100% the view bundle.
 
 ```yaml
 steps:
@@ -628,9 +628,9 @@ steps:
 
 View binding lives in the space, not the portable flow (see §5.4).
 
-**Fallback only:** if no view binding exists for the step at run time, the shell uses the embedded `GateFormSchema` (`GateResolvePanel`) — not the primary path.
+**Unbound steps:** if no view is bound to the step at run time, the shell stays **observability-only** — it must not synthesize a built-in gate form or fallback resolve control. The step remains open and externally resolvable by an authorized protocol client.
 
-**Not acceptable:** narrow side drawer (`ViewDrawer` / `Sheet max-w-lg`) as the default human gate or review surface.
+**Not acceptable:** a narrow side drawer or any built-in fallback form as the default human gate or review surface.
 
 ### 6.3 Agent orchestration push gate
 

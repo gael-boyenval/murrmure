@@ -11,7 +11,7 @@ my-project/
   .mrmr/
     space/
       space.yaml              # slug hint for link --create; optional link.host override
-      handlers.yaml           # step + event handlers (contract_keys)
+      handlers.yaml           # step + event handlers (on::key binding; contract_keys is prompt-scope)
       bindings.yaml           # optional — remote flow/view refs for worker spaces
     flows/
       my-flow/
@@ -56,7 +56,7 @@ After apply, the space appears in Desktop when the actor has `space:read`. Bindi
 |------|------------|---------|
 | `handlers.yaml` | Step + event handlers | Dispatched on `step.opened` / journal events |
 
-Handlers match steps via **`contract_keys`** (`{flow_ref}.{qualified_step_id}`). Agents complete steps with **`murrmure_resolve_step`**; shell scripts may use **`mrmr step resolve`**.
+Handlers bind steps via **`on: step.opened::{flow_name}.{qualified_step_id}`** (the `on::key` binding); **`contract_keys`** is **prompt-scope only** (`{flow_ref}.{qualified_step_id}`), not the binding key. Agents complete steps with **`murrmure_resolve_step`**; shell scripts may use **`mrmr step resolve`**.
 
 List indexed handlers: MCP **`murrmure_list_handlers`** or `mrmr space doctor`.
 
@@ -70,7 +70,7 @@ List indexed handlers: MCP **`murrmure_list_handlers`** or `mrmr space doctor`.
 | v1 / legacy | v2 |
 |-------------|-----|
 | legacy `murrmure/actions.yaml` + `hooks.yaml` | `.mrmr/space/handlers.yaml` |
-| `executor.action` in flow manifest | `contract_keys` in handlers |
+| `executor.action` in flow manifest | `on::key` binding in `handlers.yaml` (`contract_keys` is prompt-scope) |
 | `mrmr space trigger register` only | Event handlers in `handlers.yaml` + optional trigger templates |
 | Instance-centric URLs | `/sessions/:id`, `/runs/:id` in Desktop shell |
 

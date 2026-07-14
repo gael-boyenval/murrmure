@@ -11,10 +11,10 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | Revoked connection / 401 / 403 | `mrmr connection rotate con_… --space spc_…`, reinstall contexts, reload |
 | `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; connection needs `tutorial-builder/v1` or explicit advanced capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
-| Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
+| Checkpoint shows no view (observability-only) | Rebuild view `dist/`; strict-apply so the `view_resolver` binds the step |
 | `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |
-| Handler not dispatched | Check `contract_keys` in `handlers.yaml`; `mrmr space doctor` |
-| `contract_key` mismatch | Align handler keys with StepContractCatalog step ids |
+| Handler not dispatched | Check the `on::key` binding (`on: step.opened::{flow}.{step}`) in `handlers.yaml`; `mrmr space doctor` |
+| `contract_key` mismatch | `contract_keys` is prompt-scope only; binding uses `on::key` — align the alias with the StepContractCatalog step id |
 | Missing `handlers.yaml` entry | Add handler for dispatched step; re-apply |
 | Trigger did not wake agent | Confirm event handler in `handlers.yaml` + apply; check delivery log |
 | Cross-space `QUERY_POLICY_DENIED` | Fix inbound allowlist on target space |

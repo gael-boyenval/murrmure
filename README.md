@@ -31,7 +31,7 @@ Agents (Cursor, CI)     MCP + HTTP grants
         └── @murrmure/executors     shell spawn, MCP session, queue poll
 
 Humans                  @murrmure/shell-web (observer shell)
-        │               ViewCanvasHost for custom murrmure/views/
+        │               ViewCanvasHost for custom .mrmr/views/
         ▼
 ~/.murrmure/              SQLite DB (`murrmure.db`), space index, staging dirs
 ```
