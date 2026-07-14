@@ -60,33 +60,14 @@ export async function startFlowRun(
     _flow_token_id: input.token_id,
   };
 
-  const runKey = buildRunKey(input.entry, execContext.input as Record<string, unknown>, input.idempotency_header);
-
   if (input.idempotency_header) {
     execContext.idempotency_key = input.idempotency_header;
   }
-  if (runKey) {
-    execContext._run_key = runKey;
-  }
 
-  const prepared = prepareFlowStart(input.entry, {
-    exec_context: execContext,
-    origin_space_id: input.space_id,
-    capabilities: input.capabilities,
-    flow_acl: input.flow_acl,
-    mode: input.mode,
-  });
-
-  if ("code" in prepared) {
-    return { ok: false, error: prepared };
-  }
-
-  const plan = prepared;
-
-  // Dedup, capacity admission, session creation, and run insert share one
-  // per-space guard so a limit of one never admits two, a retried trigger
-  // performs a fresh admission check, and no run observes a partially replaced
-  // index during a concurrent apply.
+  // Canonical index lookup, preparation, dedup, capacity admission, session
+  // creation, and run insert share one per-space guard. If apply wins first,
+  // this start uses the newly committed entry (or fails if it was removed);
+  // it can never admit a stale pre-apply digest.
   const guard = deps.guard ?? spaceRunGuard;
   return guard.with(input.space_id, async () => {
     if (input.idempotency_header) {
@@ -99,19 +80,51 @@ export async function startFlowRun(
       }
     }
 
+    const entry = await deps.studio.getFlowIndexEntry(
+      input.entry.flow_id,
+      input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id,
+    );
+    if (!entry) {
+      return {
+        ok: false,
+        error: { code: "FLOW_NOT_FOUND", message: "Flow not indexed in target space" },
+      };
+    }
+
+    const runKey = buildRunKey(
+      entry,
+      execContext.input as Record<string, unknown>,
+      input.idempotency_header,
+    );
     if (runKey) {
-      const existing = await deps.studio.findRunByFlowKey(input.entry.flow_id, runKey);
+      execContext._run_key = runKey;
+    }
+
+    const prepared = prepareFlowStart(entry, {
+      exec_context: execContext,
+      origin_space_id: input.space_id,
+      capabilities: input.capabilities,
+      flow_acl: input.flow_acl,
+      mode: input.mode,
+    });
+    if ("code" in prepared) {
+      return { ok: false, error: prepared };
+    }
+    const plan = prepared;
+
+    if (runKey) {
+      const existing = await deps.studio.findRunByFlowKey(entry.flow_id, runKey);
       if (existing) {
         const session = await deps.studio.getSession(existing.session_id);
         if (session) {
-          return dedupResult(session, existing.run_id, existing.flow_digest ?? input.entry.digest);
+          return dedupResult(session, existing.run_id, existing.flow_digest ?? entry.digest);
         }
       }
     }
 
     const admission = await admitFlowRun(deps.studio, {
       space_id: input.space_id,
-      flow_id: input.entry.flow_id,
+      flow_id: entry.flow_id,
     });
     if (!admission.ok) {
       return { ok: false, error: admission.error };
@@ -120,8 +133,8 @@ export async function startFlowRun(
     let sessionId = input.session_id;
     if (!sessionId) {
       const session = await createSession(deps, {
-        title: input.entry.name,
-        subject: input.entry.flow_id,
+        title: entry.name,
+        subject: entry.flow_id,
         actor_id: input.actor_id,
         token_id: input.token_id,
         space_id: input.space_id,
@@ -132,7 +145,7 @@ export async function startFlowRun(
     const runResult = await createRun(deps, {
       session_id: sessionId,
       space_id: input.space_id,
-      flow_id: input.entry.flow_id,
+      flow_id: entry.flow_id,
       flow_digest: plan.flow_digest,
       input_params: execContext,
       reference_run_ids: input.reference_run_ids,
@@ -161,7 +174,7 @@ export async function startFlowRun(
             }
           : ({
               session_id: sessionId as Session["session_id"],
-              title: input.entry.name,
+              title: entry.name,
               status: "active",
               created_by: { type: "actor", actor_id: input.actor_id },
               spaces_touched: [input.space_id as Session["spaces_touched"][number]],

@@ -168,11 +168,39 @@ describe("http/spaces/apply-quiescence", () => {
     expect(await flowInSpace(spaceQ, "flw_A")).toBe(false);
   });
 
+  test("headless API runs also block apply for the whole space", async () => {
+    const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({ title: "Headless apply guard", space_id: spaceQ }),
+    });
+    expect(sessionRes.status).toBe(201);
+    const session = (await sessionRes.json()) as { session_id: string };
+
+    const runRes = await fetch(`${baseUrl}/v1/sessions/${session.session_id}/runs`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({ space_id: spaceQ, flow_id: null, input: {} }),
+    });
+    expect(runRes.status).toBe(201);
+    const runBody = (await runRes.json()) as { run: { run_id: string } };
+
+    const blocked = await apply(spaceQ, [manualFlow("flw_C", "gamma", "sha256:gamma-1")]);
+    expect(blocked.status).toBe(409);
+    const blockedBody = await blocked.json();
+    expect(blockedBody.code).toBe("SPACE_HAS_ACTIVE_RUNS");
+    expect(blockedBody.active_run_ids).toContain(runBody.run.run_id);
+    expect(await flowInSpace(spaceQ, "flw_B")).toBe(true);
+    expect(await flowInSpace(spaceQ, "flw_C")).toBe(false);
+
+    await cancelRun(runBody.run.run_id);
+  });
+
   test("apply/start race: no partial index is visible (flow B is all-or-nothing)", async () => {
     const [startRes, applyRes] = await Promise.all([
       startFlow(spaceRace, "flw_A", { race: true }),
       apply(spaceRace, [
-        manualFlow("flw_A", "alpha", "sha256:alpha-1"),
+        manualFlow("flw_A", "alpha", "sha256:alpha-2"),
         manualFlow("flw_B", "beta", "sha256:beta-1"),
       ]),
     ]);
@@ -183,17 +211,19 @@ describe("http/spaces/apply-quiescence", () => {
     // The apply either committed before the run started (200) or was blocked by it (409).
     const applyStatus = applyRes.status;
     expect([200, 409]).toContain(applyStatus);
+    const startBody = await startRes.json();
 
     if (applyStatus === 200) {
-      // Apply won the race: flow B is fully indexed.
+      // Apply won the race: flow B is fully indexed and the run pins flow A v2.
       expect(await flowInSpace(spaceRace, "flw_B")).toBe(true);
+      expect(startBody.flow_digest).toBe("sha256:alpha-2");
     } else {
-      // Start won the race: apply was blocked, flow B is fully absent (no partial index).
+      // Start won the race: apply was blocked, flow B is absent and the run pins v1.
       expect(await flowInSpace(spaceRace, "flw_B")).toBe(false);
+      expect(startBody.flow_digest).toBe("sha256:alpha-1");
     }
 
     // Clean up the run started by the race.
-    const startBody = await startRes.json();
     await cancelRun(startBody.run_id);
   });
 });

@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
+import { basename, extname, join, normalize, relative, resolve } from "node:path";
 import type { ResolveStepArtifactOut, StepArtifactSlot } from "@murrmure/contracts";
-import { prefixedRunId, stepWorkdirPath } from "./step-contract-slice.js";
+import { runScratchDir, stepStableDirRel, stepWorkdirRel } from "./run-scratch-paths.js";
 
 export interface ResolvedStepArtifact {
   slot: string;
@@ -20,11 +20,11 @@ export const MAX_RUN_ARTIFACT_BYTES = 250 * 1024 * 1024;
 export const MAX_SPACE_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 
 export function stepStableDirRelPath(run_id: string, step_id: string): string {
-  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "steps", step_id);
+  return stepStableDirRel(run_id, step_id);
 }
 
 export function stepStableDirPath(space_root: string, run_id: string, step_id: string): string {
-  return join(space_root, stepStableDirRelPath(run_id, step_id));
+  return join(space_root, stepStableDirRel(run_id, step_id));
 }
 
 export function stableArtifactRelPath(
@@ -33,7 +33,7 @@ export function stableArtifactRelPath(
   slot: string,
   filename: string,
 ): string {
-  return join(stepStableDirRelPath(run_id, step_id), slot, filename);
+  return join(stepStableDirRel(run_id, step_id), slot, filename);
 }
 
 export async function ensureStepWorkdir(
@@ -41,7 +41,7 @@ export async function ensureStepWorkdir(
   run_id: string,
   step_id: string,
 ): Promise<string> {
-  const dir = stepWorkdirPath(space_root, run_id, step_id);
+  const dir = join(space_root, stepWorkdirRel(run_id, step_id));
   await mkdir(dir, { recursive: true });
   return dir;
 }
@@ -100,7 +100,7 @@ export async function promoteArtifactsOut(input: {
   artifact_slots: Record<string, StepArtifactSlot>;
   registerArtifact?: ArtifactRegisterFn;
 }): Promise<ResolvedStepArtifact[]> {
-  const workdir = stepWorkdirPath(input.space_root, input.run_id, input.step_id);
+  const workdir = join(input.space_root, stepWorkdirRel(input.run_id, input.step_id));
   const stableDir = stepStableDirPath(input.space_root, input.run_id, input.step_id);
   const prepared: Array<{
     out: ResolveStepArtifactOut;
@@ -156,7 +156,7 @@ export async function promoteArtifactsOut(input: {
   if (stepTotal > MAX_STEP_RESOLUTION_BYTES) {
     throw new Error("Artifacts exceed the 50 MiB step-resolution ceiling");
   }
-  const runDir = dirname(dirname(stableDir));
+  const runDir = runScratchDir(input.space_root, input.run_id);
   const runStored = await directoryBytes(runDir);
   if (runStored + stepTotal > MAX_RUN_ARTIFACT_BYTES) {
     throw new Error("Artifacts exceed the 250 MiB run ceiling");

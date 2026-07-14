@@ -174,6 +174,43 @@ describe("http/flows/run-capacity", () => {
     await cancelRun(runId);
   });
 
+  test("session API used by MCP enforces capacity and pins the indexed digest", async () => {
+    const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({ title: "API capacity", space_id: manualSpaceId }),
+    });
+    expect(sessionRes.status).toBe(201);
+    const session = (await sessionRes.json()) as { session_id: string };
+
+    const create = (input: Record<string, unknown>) =>
+      fetch(`${baseUrl}/v1/sessions/${session.session_id}/runs`, {
+        method: "POST",
+        headers: auth(),
+        body: JSON.stringify({
+          space_id: manualSpaceId,
+          flow_id: "flw_my_dev",
+          flow_digest: "sha256:caller-must-not-control-this",
+          input,
+        }),
+      });
+
+    const first = await create({ source: "api-1" });
+    expect(first.status).toBe(201);
+    const firstBody = (await first.json()) as {
+      run: { run_id: string; flow_digest?: string };
+    };
+    expect(firstBody.run.flow_digest).toBe("sha256:mydev-1");
+
+    const denied = await create({ source: "api-2" });
+    expect(denied.status).toBe(409);
+    const deniedBody = await denied.json();
+    expect(deniedBody.code).toBe("FLOW_CONCURRENCY_LIMIT");
+    expect(deniedBody.active_run_ids).toEqual([firstBody.run.run_id]);
+
+    await cancelRun(firstBody.run.run_id);
+  });
+
   test("unbounded flow admits concurrent runs (no policy)", async () => {
     const a = await startFlow(manualSpaceId, "flw_unbounded", { n: 1 });
     const b = await startFlow(manualSpaceId, "flw_unbounded", { n: 2 });

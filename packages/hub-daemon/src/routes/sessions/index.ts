@@ -5,6 +5,7 @@ import {
   JOURNAL_EVENT_TYPES,
   FLOW_CONCURRENCY_LIMIT,
   type Capability,
+  type FlowIndexEntry,
   type HandlerComplete,
   type HandlerSpec,
   type Session,
@@ -205,12 +206,30 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       : auth.space_id !== "bootstrap"
         ? prefixedSpaceId(bareSpaceId(auth.space_id))
         : undefined;
+    const requestedFlowId =
+      typeof body.flow_id === "string" && body.flow_id.length > 0 ? body.flow_id : null;
+    let indexedFlow: FlowIndexEntry | null = null;
+    if (requestedFlowId) {
+      if (!space_id) {
+        return c.json(
+          { code: "FLOW_SPACE_REQUIRED", message: "space_id is required when flow_id is provided" },
+          400,
+        );
+      }
+      indexedFlow = await murrmurePersistence.getFlowIndexEntry(
+        requestedFlowId,
+        bareSpaceId(space_id),
+      );
+      if (!indexedFlow) {
+        return c.json({ code: "FLOW_NOT_FOUND", message: "Flow not found in space index" }, 404);
+      }
+    }
 
     const result = await admitAndCreateRun(deps(), {
       session_id,
       space_id,
-      flow_id: body.flow_id ?? null,
-      flow_digest: body.flow_digest,
+      flow_id: requestedFlowId,
+      flow_digest: indexedFlow?.digest,
       input_params: body.input,
       reference_run_ids: body.reference_run_ids,
       actor_id: auth.actor_id,
@@ -228,16 +247,16 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json(err, err.code === "SCOPE_ENFORCEMENT_FAILURE" ? 403 : 404);
     }
 
-    if (body.flow_id && space_id) {
+    if (requestedFlowId && space_id) {
       const { dispatchFlowSteps } = await import("../../flow-dispatch.js");
       const { prepareFlowStart } = await import("@murrmure/hub-core");
-      const entry = await murrmurePersistence.getFlowIndexEntry(
-        String(body.flow_id),
+      const currentFlow = await murrmurePersistence.getFlowIndexEntry(
+        requestedFlowId,
         bareSpaceId(space_id),
       );
-      if (entry?.ir) {
+      if (currentFlow?.ir) {
         const execContext = { input: (body.input as Record<string, unknown>) ?? {} };
-        const prep = prepareFlowStart(entry, {
+        const prep = prepareFlowStart(currentFlow, {
           exec_context: execContext,
           origin_space_id: space_id,
           capabilities: effective,

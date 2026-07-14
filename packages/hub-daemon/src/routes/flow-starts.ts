@@ -43,7 +43,7 @@ async function runFlowHandler(
   const scopedSpaceId = bareSpaceId(space_id);
   const entry = await ctx.murrmurePersistence.getFlowIndexEntry(flow_id, scopedSpaceId);
   if (!entry) {
-    return new Response(JSON.stringify({ code: "flow_not_found", message: "Flow not indexed" }), {
+    return new Response(JSON.stringify({ code: "FLOW_NOT_FOUND", message: "Flow not indexed" }), {
       status: 404,
       headers: { "content-type": "application/json" },
     });
@@ -71,9 +71,11 @@ async function runFlowHandler(
     const status =
       result.error.code === "SCOPE_ENFORCEMENT_FAILURE"
         ? 403
-        : result.error.code === "FLOW_CONCURRENCY_LIMIT"
-          ? 409
-          : 400;
+        : result.error.code === "FLOW_NOT_FOUND"
+          ? 404
+          : result.error.code === "FLOW_CONCURRENCY_LIMIT"
+            ? 409
+            : 400;
     return new Response(JSON.stringify(result.error), { status, headers: { "content-type": "application/json" } });
   }
 

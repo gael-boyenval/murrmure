@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@murrmure/hub-core": "workspace:*",
     "@murrmure/runtime-contracts": "workspace:*"
   },
   "devDependencies": {

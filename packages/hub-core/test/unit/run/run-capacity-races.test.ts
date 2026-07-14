@@ -50,6 +50,7 @@ async function installPolicy(
   const snapshot = await studio.getSpaceIndexSnapshot(SPACE);
   await studio.replaceSpaceIndex(SPACE, {
     ...snapshot,
+    flows: [{ ...entry, payload_json: JSON.stringify(entry) }],
     run_policies: buildRunPolicyRows([
       {
         flow: entry.name,
@@ -59,6 +60,17 @@ async function installPolicy(
         flow_digest: entry.digest,
       },
     ]),
+  });
+}
+
+async function installFlow(
+  studio: MemoryStudioPersistence,
+  entry: FlowIndexEntry,
+): Promise<void> {
+  const snapshot = await studio.getSpaceIndexSnapshot(SPACE);
+  await studio.replaceSpaceIndex(SPACE, {
+    ...snapshot,
+    flows: [{ ...entry, payload_json: JSON.stringify(entry) }],
   });
 }
 
@@ -119,6 +131,7 @@ describe("run-capacity atomic races via startFlowRun", () => {
     const studio = await freshStudio();
     const guard = new SpaceConcurrencyGuard();
     const entry = makeEntry("flw_free", "free");
+    await installFlow(studio, entry);
     const deps = makeDeps(studio, guard);
 
     const results = await Promise.all(Array.from({ length: 4 }, () => start(deps, entry)));
@@ -162,6 +175,33 @@ describe("run-capacity atomic races via startFlowRun", () => {
     expect(third.ok).toBe(true);
   });
 
+  test("start queued behind apply resolves the newly committed flow digest", async () => {
+    const studio = await freshStudio();
+    const guard = new SpaceConcurrencyGuard();
+    const oldEntry = makeEntry("flw_refresh", "refresh");
+    await installFlow(studio, oldEntry);
+    const newEntry = { ...oldEntry, digest: "sha256:refresh-v2" };
+    const deps = makeDeps(studio, guard);
+
+    const applyWon = guard.with(ORIGIN, async () => {
+      const snapshot = await studio.getSpaceIndexSnapshot(SPACE);
+      await studio.replaceSpaceIndex(SPACE, {
+        ...snapshot,
+        flows: [{ ...newEntry, payload_json: JSON.stringify(newEntry) }],
+      });
+    });
+    const started = start(deps, oldEntry);
+
+    await applyWon;
+    const result = await started;
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.flow_digest).toBe(newEntry.digest);
+      const run = await studio.getRun(result.run_id);
+      expect(run?.flow_digest).toBe(newEntry.digest);
+    }
+  });
+
   test("headless run (flow_id null) bypasses capacity but still holds the guard", async () => {
     const studio = await freshStudio();
     const guard = new SpaceConcurrencyGuard();
@@ -185,15 +225,40 @@ describe("run-capacity atomic races via startFlowRun", () => {
     );
 
     const { admitAndCreateRun } = await import("../../../src/run/service.js");
-    const r1 = await admitAndCreateRun(deps, {
+    let releaseGuard!: () => void;
+    let markEntered!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      markEntered = resolve;
+    });
+    const held = guard.with(ORIGIN, async () => {
+      markEntered();
+      await new Promise<void>((resolve) => {
+        releaseGuard = resolve;
+      });
+    });
+    await entered;
+
+    let settled = false;
+    const pending = admitAndCreateRun(deps, {
       session_id: "ses_headless",
       space_id: ORIGIN,
       flow_id: null,
       actor_id: "actor_alice",
       token_id: "tok_1",
       capabilities: ["action:invoke"],
+    }).then((result) => {
+      settled = true;
+      return result;
     });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    releaseGuard();
+    await held;
+    const r1 = await pending;
     expect("run" in r1).toBe(true);
+
     const r2 = await admitAndCreateRun(deps, {
       session_id: "ses_headless",
       space_id: ORIGIN,

@@ -311,19 +311,33 @@ export async function admitAndCreateRun(
 ) {
   const spaceId = input.space_id;
   const flowId = input.flow_id;
-  if (!spaceId || !flowId) {
+  if (!spaceId) {
     return createRun(deps, input);
   }
   const guard = deps.guard ?? spaceRunGuard;
   return guard.with(spaceId, async () => {
-    const admission = await admitFlowRun(deps.studio, {
-      space_id: spaceId,
-      flow_id: flowId,
-    });
-    if (!admission.ok) {
-      return { error: admission.error } as const;
+    let flowDigest = input.flow_digest;
+    if (flowId) {
+      const entry = await deps.studio.getFlowIndexEntry(
+        flowId,
+        spaceId.startsWith("spc_") ? spaceId.slice(4) : spaceId,
+      );
+      if (!entry) {
+        return {
+          error: { code: "FLOW_NOT_FOUND", message: "Flow not indexed in target space" },
+        } as const;
+      }
+      flowDigest = entry.digest;
+
+      const admission = await admitFlowRun(deps.studio, {
+        space_id: spaceId,
+        flow_id: flowId,
+      });
+      if (!admission.ok) {
+        return { error: admission.error } as const;
+      }
     }
-    return createRun(deps, input);
+    return createRun(deps, { ...input, flow_digest: flowDigest });
   });
 }
 

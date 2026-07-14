@@ -17,29 +17,27 @@ import {
   buildArtifactMurrmureBindings,
   runArtifactsFromExecContext,
 } from "./step-artifacts.js";
-
-export function bareRunId(run_id: string): string {
-  return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-}
-
-export function prefixedRunId(run_id: string): string {
-  return run_id.startsWith("run_") ? run_id : `run_${run_id}`;
-}
+import {
+  activeContractPath,
+  bareRunId,
+  prefixedRunId,
+  stepWorkdirRel,
+} from "./run-scratch-paths.js";
 
 export function activeStepContractRelPath(run_id: string): string {
   return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "active-step-contract.json");
 }
 
 export function activeStepContractPath(space_root: string, run_id: string): string {
-  return join(space_root, activeStepContractRelPath(run_id));
+  return activeContractPath(space_root, run_id);
 }
 
 export function stepWorkdirRelPath(run_id: string, step_id: string): string {
-  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "steps", step_id, "work");
+  return stepWorkdirRel(run_id, step_id);
 }
 
 export function stepWorkdirPath(space_root: string, run_id: string, step_id: string): string {
-  return join(space_root, stepWorkdirRelPath(run_id, step_id));
+  return join(space_root, stepWorkdirRel(run_id, step_id));
 }
 
 export function renderThenHint(routes: StepCatalogRoute[]): string {

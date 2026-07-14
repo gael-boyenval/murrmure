@@ -106,7 +106,7 @@ export function prepareFlowStart(
   }
 
   return {
-    flow_digest: entry.ir.digest,
+    flow_digest: entry.digest,
     dispatch,
   };
 }

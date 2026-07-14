@@ -90,6 +90,22 @@ describe("admitFlowRun", () => {
     }
   });
 
+  test("overflow reports every active blocker, not only enough to reach the limit", async () => {
+    const studio = await freshStudio();
+    await installPolicy(studio, FLOW, 1);
+    await insertRun(studio, "r_active_1", "working");
+    await insertRun(studio, "r_active_2", "input-required");
+
+    const denied = await admitFlowRun(studio, { space_id: `spc_${SPACE}`, flow_id: FLOW });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) {
+      expect([...denied.error.active_run_ids].sort()).toEqual([
+        "run_r_active_1",
+        "run_r_active_2",
+      ]);
+    }
+  });
+
   test("limit 2: admits up to two, denies the third (exact boundary)", async () => {
     const studio = await freshStudio();
     await installPolicy(studio, FLOW, 2);

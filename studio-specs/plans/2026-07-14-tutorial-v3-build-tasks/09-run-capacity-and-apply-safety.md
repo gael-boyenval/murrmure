@@ -87,3 +87,9 @@ Give a space deterministic control over concurrent runs while preserving immutab
 - Runs and journals pin the configuration they actually used.
 - Portable flows contain no concurrency policy.
 
+## Handoff
+
+| Turn | Agent | Model | Status | Summary | Evidence | Next |
+|------|-------|-------|--------|---------|----------|------|
+| build | build | gpt-5.6-sol-high | complete | Assessed Task 09 at HEAD `c81b42d`. The bulk of the implementation was co-committed in `495435e` under Task 05: run-policy schema/resolution/indexing, atomic flow admission, apply quiescence, the shared space guard, typed CLI/API/client errors, trigger-denial journaling, tutorial policy, ADR-011, docs/skills/changelogs, and focused tests. This turn closed the remaining apply/start races by resolving and preparing the canonical indexed flow inside the shared guard, routing headless API, hook/handler, and orchestration-attach run creation through that guard, pinning the applied index digest rather than the compiled-IR or caller-supplied digest, and returning every active blocker ID; added focused regression coverage; and synced the HTTP API reference. | Done gate satisfied. Task 09 focused suites: 6 files, 46 tests passed (`run-policy` 16, `admission` 10, `run-capacity-races` 6, `space-guard` 5, HTTP `run-capacity` 5, HTTP `apply-quiescence` 4). Digest-preparation unit regressions: 10 passed. Guard-adapter regressions: 4 passed, 4 pre-existing orchestration tests skipped. `@murrmure/hub-core` and `@murrmure/hub-daemon` typechecks passed; edited-file lints clean. | Review Task 09 separately; this turn intentionally performed build completion only, not a full review. |
+

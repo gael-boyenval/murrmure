@@ -199,7 +199,7 @@ Shell UI: open checkpoint **views** in **ViewCanvasHost** at `/sessions/:session
 | `GET` | `/v1/sessions` | `space:read` or `journal:read` | List sessions (`?status=`, `?space_id=`) |
 | `GET` | `/v1/sessions/{id}` | `space:read` | Session detail + derived status |
 | `GET` | `/v1/sessions/{id}/runs` | `space:read` | Runs in session |
-| `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` dispatches indexed flow |
+| `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` must exist in the target space index, dispatches that flow, and pins its indexed `flow_digest` (caller-supplied digests are ignored) |
 | `POST` | `/v1/sessions/{id}/cancel` | `gate:resolve` | Cancel all active runs in session |
 | `POST` | `/v1/sessions/{id}/orchestration/attach` | `flow:run` | Agent-push `murrmure.flow.attach/v1`; creates orchestration gate |
 

@@ -13,11 +13,15 @@ import {
   buildInvokeTemplateBindings,
   resolveInvokePrompt,
 } from "./invoke-shell-prompt.js";
+import { resolveSafeShellCommand } from "./shell-command.js";
+
+export { shellQuote } from "./shell-command.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const TERMINATION_GRACE_MS = 5_000;
 /** Keep MURRMURE_PROMPT in env only for small prompts — large values blow ARG_MAX / env limits. */
 const MAX_ENV_PROMPT_CHARS = 32_000;
-const PROMPT_PLACEHOLDER_RE = /"(\{\{prompt\}\})"|'(\{\{prompt\}\})'|\{\{prompt\}\}/g;
+const POSIX_SHELL = "/bin/sh";
 
 export interface ShellInvocation {
   command: string;
@@ -46,15 +50,6 @@ export interface ShellSpawnDeps {
   onProcessStart?: (input: { run_id?: string; step_id: string; child: ReturnType<typeof spawn> }) => void;
   onOutputChunk?: (input: ShellStreamChunk) => void;
   onShellComplete?: (input: ShellCompleteInput) => void | Promise<void>;
-}
-
-/** Single-quoted string safe for /bin/sh -c. */
-export function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
-}
-
-export function stripPromptPlaceholder(command: string): string {
-  return command.replace(PROMPT_PLACEHOLDER_RE, "").replace(/\s+/g, " ").trim();
 }
 
 function shouldDeliverPromptViaStdin(command: string, promptTemplate?: string): boolean {
@@ -122,26 +117,10 @@ export function resolveShellInvocation(
   const resolvedPrompt = resolveInvokePrompt(templateContext, context.action.prompt);
   const viaStdin = shouldDeliverPromptViaStdin(command, context.action.prompt);
 
-  let resolved = command.replace(/\{\{space_root\}\}/g, context.space_root ?? ".");
-  if (viaStdin) {
-    resolved = stripPromptPlaceholder(resolved);
-  } else {
-    resolved = resolved.replace(PROMPT_PLACEHOLDER_RE, () => shellQuote(resolvedPrompt));
-    resolved = resolved.replace(/\{\{prompt\}\}/g, () => shellQuote(resolvedPrompt));
-  }
-
-  resolved = resolved.replace(/\{\{([\w.]+)\}\}/g, (_match, key: string) => {
-    if (key === "prompt") {
-      return viaStdin ? "" : shellQuote(resolvedPrompt);
-    }
-    const value = bindings[key];
-    if (!value) return "";
-    return shellQuote(value);
-  });
-
-  if (viaStdin) {
-    resolved = resolved.replace(/\s+/g, " ").trim();
-  }
+  const resolved = resolveSafeShellCommand(command, bindings, {
+    stripPrompt: viaStdin,
+    promptText: resolvedPrompt,
+  }).script;
 
   return {
     command: resolved,

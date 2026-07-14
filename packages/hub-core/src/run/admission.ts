@@ -73,7 +73,6 @@ export async function admitFlowRun(
     space_id: spaceBare,
     flow_id: input.flow_id,
     lifecycles: NON_TERMINAL_LIFECYCLES,
-    limit: policy.max_concurrent_runs,
   });
 
   if (active.length >= policy.max_concurrent_runs) {
@@ -111,7 +110,6 @@ export async function assertSpaceQuiescent(
   const active = await studio.listRuns({
     space_id: spaceBare,
     lifecycles: NON_TERMINAL_LIFECYCLES,
-    limit: 1000,
   });
   if (active.length === 0) return { ok: true };
   return {

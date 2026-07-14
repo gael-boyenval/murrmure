@@ -3,7 +3,7 @@ import { JOURNAL_EVENT_TYPES, FLOW_CONCURRENCY_LIMIT } from "@murrmure/contracts
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
-import { createRun, createSession, type SessionRunDeps } from "../run/service.js";
+import { admitAndCreateRun, createSession, type SessionRunDeps } from "../run/service.js";
 import { startFlowRun, type FlowRunServiceDeps } from "../flow-engine/run-service.js";
 import { resolveTemplateString, resolveStepParams } from "../flow-engine/templates.js";
 import type { HookSourceEvent } from "./matcher.js";
@@ -113,7 +113,7 @@ export async function dispatchHook(
 
       if ("invoke" in action) {
         if (!runId) {
-          const created = await createRun(deps, {
+          const created = await admitAndCreateRun(deps, {
             session_id: sessionId,
             space_id: hookSpace,
             flow_id: null,
@@ -200,7 +200,7 @@ export async function dispatchHook(
     }
 
     if (!sessionId || !runId) {
-      const created = await createRun(deps, {
+      const created = await admitAndCreateRun(deps, {
         session_id: sessionId!,
         space_id: hookSpace,
         flow_id: null,
@@ -268,7 +268,7 @@ async function dispatchEventHandler(
     space_id: hookSpace,
     created_by: { type: "hook", hook_id: input.handler.id },
   });
-  const created = await createRun(deps, {
+  const created = await admitAndCreateRun(deps, {
     session_id: session.session_id,
     space_id: hookSpace,
     flow_id: null,
