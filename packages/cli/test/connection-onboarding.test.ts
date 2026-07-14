@@ -15,7 +15,9 @@ import {
 } from "../src/lib/connection-adapters.js";
 import {
   readActiveConnection,
+  readStoredConnection,
   writeActiveConnection,
+  writeStoredConnection,
 } from "../src/lib/connection-store.js";
 
 const temporaryDirectories: string[] = [];
@@ -112,5 +114,22 @@ describe("local connection onboarding", () => {
     for (const path of [activePath, resumePath]) {
       expect(readFileSync(path, "utf8")).not.toMatch(/tok_|MURRMURE_HUB_TOKEN/);
     }
+  });
+
+  test("tracks active and revoked local descriptors without credentials", () => {
+    const homePath = temporaryDirectory();
+    const connection = {
+      hub_id: "http://127.0.0.1:8787",
+      connection_id: "con_local",
+      space_id: "spc_local",
+      profile: "tutorial-builder/v1",
+      status: "active" as const,
+    };
+    const path = writeStoredConnection(connection, homePath);
+    expect(readStoredConnection("con_local", homePath)).toEqual(connection);
+
+    writeStoredConnection({ ...connection, status: "revoked" }, homePath);
+    expect(readStoredConnection("con_local", homePath)?.status).toBe("revoked");
+    expect(readFileSync(path, "utf8")).not.toMatch(/tok_|MURRMURE_HUB_TOKEN/);
   });
 });

@@ -32,7 +32,6 @@ function FlowRow({
       view_id: string;
       shell_route?: string;
     };
-    start?: { requires_view?: string | null };
   };
   spaceId: string;
   onRun: () => void;
@@ -134,18 +133,16 @@ export function SpaceHomePage() {
     flow_id: string;
     name: string;
     view_ref?: SpaceHomeFlowRow["view_ref"];
-    requires_view?: string | null;
   } | null>(null);
 
   type SpaceHomeFlowRow = NonNullable<typeof homeQuery.data>["your_flows"][number];
 
   const handleRun = (flow: SpaceHomeFlowRow) => {
-    if (flow.view_ref || flow.start?.requires_view) {
+    if (flow.view_ref) {
       setViewFlow({
         flow_id: flow.flow_id,
         name: flow.name,
         view_ref: flow.view_ref,
-        requires_view: flow.start?.requires_view ?? null,
       });
       return;
     }

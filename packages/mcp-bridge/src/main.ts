@@ -7,7 +7,10 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { discoverHubEndpoint } from "./discovery.js";
+import {
+  discoverHubEndpoint,
+  resolveSharedDiscoveryPath,
+} from "./discovery.js";
 import {
   callTool,
   fetchCatalog,
@@ -51,6 +54,14 @@ function argumentValue(argv: string[], name: string): string | undefined {
   return value || undefined;
 }
 
+function normalizeHubId(value: string): string {
+  const parsed = new URL(value);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Local --hub must be an http(s) Hub URL.");
+  }
+  return parsed.toString().replace(/\/$/, "");
+}
+
 function maxSeq(messages: ControlMessage[]): number {
   let max = 0;
   for (const message of messages) {
@@ -88,8 +99,11 @@ export function resolveBridgeConfig(options?: {
   readCredential?: (hubId: string, connectionId: string) => string;
 }): BridgeConfig {
   const argv = options?.argv ?? process.argv.slice(2);
-  const discovery = discoverHubEndpoint({ homePath: options?.homePath });
   if (argv.includes("--headless-ci")) {
+    const explicitHub = argumentValue(argv, "--hub");
+    const discovery = explicitHub
+      ? null
+      : discoverHubEndpoint({ homePath: options?.homePath });
     const token = process.env.MURRMURE_HUB_TOKEN?.trim() ?? "";
     if (!token) {
       throw new Error(
@@ -97,9 +111,10 @@ export function resolveBridgeConfig(options?: {
       );
     }
     return {
-      hubUrl: argumentValue(argv, "--hub") ?? discovery.endpoint,
+      hubUrl: explicitHub ? normalizeHubId(explicitHub) : discovery!.endpoint,
       token,
-      discoveryPath: discovery.sharedPath,
+      discoveryPath:
+        discovery?.sharedPath ?? resolveSharedDiscoveryPath(options?.homePath),
       authMode: "headless-ci",
     };
   }
@@ -111,14 +126,18 @@ export function resolveBridgeConfig(options?: {
       "Local mode requires --hub <hub-id> and --connection <connection-id>; run mrmr connection create.",
     );
   }
+  if (!connectionId.startsWith("con_")) {
+    throw new Error("Local --connection must begin with con_.");
+  }
+  const hubUrl = normalizeHubId(hubId);
   const token = (options?.readCredential ?? readMacOsConnectionToken)(
-    hubId,
+    hubUrl,
     connectionId,
   );
   return {
-    hubUrl: discovery.endpoint,
+    hubUrl,
     token,
-    discoveryPath: discovery.sharedPath,
+    discoveryPath: resolveSharedDiscoveryPath(options?.homePath),
     connectionId,
     authMode: "local",
   };

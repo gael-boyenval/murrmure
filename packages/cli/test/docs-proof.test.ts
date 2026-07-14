@@ -386,16 +386,38 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(scanned, "JSON fixture flow manifests scanned").toBeGreaterThan(0);
   });
 
-  test("VS-9 — Task 03 flow docs ban removed authoring fields in fenced blocks", () => {
-    const docs = [
-      "studio-specs/current/bridges/step-contract.md",
-      "studio-specs/current/bridges/flow-engine.md",
-      "apps/docs/guide/creating-flows.md",
-      "packages/cli/skill-developer/reference/flow-authoring.md",
+  /**
+   * V2 tutorial directories are deferred to T13 (full v2 sweep). Normative specs,
+   * bridges, active guide docs, and the v3 tutorial must be clean now.
+   */
+  const V2_TUTORIAL_DIRS = [
+    "apps/docs/guide/tutorials/01-local-preview-review/",
+    "apps/docs/guide/tutorials/02-multi-agent-brief/",
+    "apps/docs/guide/tutorials/03-daily-brief-trigger/",
+  ];
+
+  function collectV3CleanDocs(): string[] {
+    const roots = [
+      join(REPO_ROOT, "studio-specs/current"),
+      join(REPO_ROOT, "apps/docs/guide"),
+      join(REPO_ROOT, "packages/cli/skill-developer/reference"),
     ];
+    const out: string[] = [];
+    for (const root of roots) {
+      for (const file of collectMarkdownFiles(root)) {
+        const rel = file.replace(`${REPO_ROOT}/`, "");
+        if (V2_TUTORIAL_DIRS.some((dir) => rel.startsWith(dir))) continue;
+        out.push(file);
+      }
+    }
+    return out;
+  }
+
+  test("VS-9 — repo docs ban removed authoring fields in fenced blocks (normative + active guide; v2 tutorials deferred to T13)", () => {
     let scanned = 0;
-    for (const rel of docs) {
-      const text = readFileSync(join(REPO_ROOT, rel), "utf-8");
+    for (const file of collectV3CleanDocs()) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const text = readFileSync(file, "utf-8");
       for (const block of extractFencedYamlJson(text)) {
         scanned += 1;
         expect(
@@ -405,6 +427,33 @@ describe("phase 10 docs proof (10-T*)", () => {
       }
     }
     expect(scanned, "fenced blocks scanned").toBeGreaterThan(0);
+  });
+
+  test("VS-9 — repo docs ban removed `gate.requires_view` / `start.*` constructs in prose", () => {
+    // Dotted field paths that only appear as stale prescriptions, never in
+    // legitimate removal/migration descriptions (which name the bare token).
+    const REMOVED_PROSE_CONSTRUCTS =
+      /gate\.requires_view\b|start\.(requires_view|flow_call|manual|event|schedule)\b/;
+    for (const file of collectV3CleanDocs()) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const text = readFileSync(file, "utf-8");
+      expect(text, `${rel}: prescribes removed construct`).not.toMatch(
+        REMOVED_PROSE_CONSTRUCTS,
+      );
+    }
+  });
+
+  test("VS-9 — v3 shell types and space-home route ban removed `requires_view`", () => {
+    const surfaces = [
+      "packages/shell-client/src/types.ts",
+      "packages/shell-web/src/routes/SpaceHomePage.tsx",
+    ];
+    for (const rel of surfaces) {
+      const text = readFileSync(join(REPO_ROOT, rel), "utf-8");
+      expect(text, `${rel}: removed \`requires_view\` field`).not.toMatch(
+        /requires_view/,
+      );
+    }
   });
 
   test("DOC-LAYOUT-01 — guide docs use .mrmr/ not murrmure/ as canonical layout", () => {

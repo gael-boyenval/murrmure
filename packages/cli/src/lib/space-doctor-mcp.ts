@@ -711,6 +711,9 @@ function resolveProbeToken(
   context: SpaceDoctorMcpContext,
   auth?: HubAuth,
 ): string | undefined {
+  if (auth?.token) {
+    return auth.token;
+  }
   const configured = inspectConfiguredTokenSources(context);
   if (configured.inlineToken) {
     return configured.inlineToken;
@@ -718,7 +721,7 @@ function resolveProbeToken(
   if (configured.resolvedFromReference) {
     return configured.resolvedFromReference;
   }
-  return auth?.token;
+  return undefined;
 }
 
 async function fetchCatalogTools(options: {
@@ -817,40 +820,41 @@ export async function probeMcpLiveHealth(
     process.env.MURRMURE_TOKEN?.trim() ||
     process.env.MURRMURE_DEPLOY_TOKEN?.trim();
   const credentialsToken = readCredentials()?.token?.trim();
-  const tokenConfigured =
+  const activeConnection = readActiveConnection();
+  const authenticationConfigured =
+    Boolean(activeConnection) ||
     Boolean(envToken) ||
     Boolean(credentialsToken) ||
     configuredTokens.hasEnvReference ||
     configuredTokens.hasInlineToken;
-  if (!tokenConfigured) {
+  if (!authenticationConfigured) {
     pushIssue(issues, {
-      code: "MCP_TOKEN_SET",
+      code: "MCP_CONNECTION_SET",
       severity: "warning",
-      message:
-        "MURRMURE_HUB_TOKEN is not configured for MCP (expected env var, credentials token, or ${env:…} reference in mcp.json)",
-      fix: "Set MURRMURE_HUB_TOKEN and keep mcp.json token as ${env:MURRMURE_HUB_TOKEN}",
+      message: "No active local connection is available for MCP.",
+      fix: "Run mrmr connection create, then reload the selected integration context",
     });
   }
 
   if (options.linkedSpaceId) {
     if (!options.auth) {
       pushIssue(issues, {
-        code: "MCP_TOKEN_SPACE_MATCH",
+        code: "MCP_CONNECTION_SPACE_MATCH",
         severity: "warning",
         message:
-          "Cannot verify token space against .mrmr/space/space.yaml because hub auth is not configured",
+          "Cannot verify connection space against .mrmr/space/space.yaml because hub auth is not configured",
         path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
-        fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
+        fix: "Run mrmr connection create or activate the matching locally stored connection",
       });
     } else {
       const whoami = await fetchWhoami(options.auth);
       if ("error" in whoami) {
         pushIssue(issues, {
-          code: "MCP_TOKEN_SPACE_MATCH",
+          code: "MCP_CONNECTION_SPACE_MATCH",
           severity: "warning",
-          message: `Could not verify token space for ISSUE-07 check — ${whoami.error}`,
+          message: `Could not verify connection space for ISSUE-07 check — ${whoami.error}`,
           path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
-          fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
+          fix: "Run mrmr connection create or activate the matching locally stored connection",
         });
       } else {
         const tokenSpaces = Array.isArray((whoami as { spaces?: unknown }).spaces)
@@ -860,19 +864,19 @@ export async function probeMcpLiveHealth(
           : [];
         if (tokenSpaces.length === 0) {
           pushIssue(issues, {
-            code: "MCP_TOKEN_SPACE_MATCH",
+            code: "MCP_CONNECTION_SPACE_MATCH",
             severity: "warning",
-            message: "Could not read token space list from /v1/auth/whoami for ISSUE-07 check",
+            message: "Could not read connection space list from /v1/auth/whoami for ISSUE-07 check",
             path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
-            fix: `Run mrmr grant use --space ${options.linkedSpaceId}`,
+            fix: "Run mrmr connection create or activate the matching locally stored connection",
           });
         } else if (!tokenSpaces.includes(options.linkedSpaceId)) {
           pushIssue(issues, {
-            code: "MCP_TOKEN_SPACE_MATCH",
+            code: "MCP_CONNECTION_SPACE_MATCH",
             severity: "warning",
-            message: `Token grants ${tokenSpaces.join(", ")} but workspace is linked to ${options.linkedSpaceId} (ISSUE-07)`,
+            message: `Connection grants ${tokenSpaces.join(", ")} but workspace is linked to ${options.linkedSpaceId} (ISSUE-07)`,
             path: relative(options.projectPath, join(options.projectPath, ".mrmr", "space", "space.yaml")),
-            fix: `Run mrmr grant use --space ${options.linkedSpaceId} (or mint a grant for that space)`,
+            fix: "Activate a connection for the linked space or create a second trust-boundary connection",
           });
         }
       }
@@ -976,11 +980,11 @@ export async function probeMcpLiveHealth(
         code: "MCP_PROBE_INVOKE",
         severity: "warning",
         message: denied
-          ? `murrmure_space_status probe denied (HTTP ${invokeRes.status}) — token may be revoked or bound to another space`
+          ? `murrmure_space_status probe denied (HTTP ${invokeRes.status}) — the connection may be revoked or bound to another space`
           : `murrmure_space_status probe failed with HTTP ${invokeRes.status} — ${summarizeBody(body)}`,
         fix: options.linkedSpaceId
-          ? `Run mrmr grant use --space ${options.linkedSpaceId} and retry`
-          : "Verify grant scopes and token validity with mrmr whoami",
+          ? "Activate a connection for the linked space and retry"
+          : "Verify connection capabilities and status with mrmr connection list",
       });
     }
   } catch (error) {
@@ -1025,8 +1029,8 @@ export async function probeMcpCatalog(options: {
     pushIssue(issues, {
       code: "MCP_CATALOG_EMPTY",
       severity: "warning",
-      message: "Hub MCP catalog is empty — check grant scopes and space apply",
-      fix: "mrmr grant mint --space <spc_…>",
+      message: "Hub MCP catalog is empty — check connection capabilities and space apply",
+      fix: "mrmr connection create --space <spc_…>",
     });
   }
   return issues;

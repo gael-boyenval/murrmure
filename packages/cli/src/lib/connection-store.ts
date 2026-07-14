@@ -35,6 +35,10 @@ export interface ActiveConnection {
   profile: string;
 }
 
+export interface StoredConnection extends ActiveConnection {
+  status: "active" | "revoked";
+}
+
 function accountFor(hubId: string, connectionId: string): string {
   return `${encodeURIComponent(hubId)}::${connectionId}`;
 }
@@ -151,6 +155,49 @@ export function deleteConnectionToken(hubId: string, connectionId: string): void
 
 export function activeConnectionPath(homePath: string = homedir()): string {
   return join(homePath, ".murrmure", "connections", "active.json");
+}
+
+function storedConnectionPath(
+  connectionId: string,
+  homePath: string = homedir(),
+): string {
+  return join(homePath, ".murrmure", "connections", "by-id", `${connectionId}.json`);
+}
+
+export function writeStoredConnection(
+  connection: StoredConnection,
+  homePath: string = homedir(),
+): string {
+  const path = storedConnectionPath(connection.connection_id, homePath);
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(connection, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(temporary, 0o600);
+  renameSync(temporary, path);
+  return path;
+}
+
+export function readStoredConnection(
+  connectionId: string,
+  homePath: string = homedir(),
+): StoredConnection | null {
+  const path = storedConnectionPath(connectionId, homePath);
+  if (!existsSync(path)) return null;
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")) as Partial<StoredConnection>;
+    if (
+      value.connection_id !== connectionId ||
+      typeof value.hub_id !== "string" ||
+      typeof value.space_id !== "string" ||
+      typeof value.profile !== "string" ||
+      (value.status !== "active" && value.status !== "revoked")
+    ) {
+      return null;
+    }
+    return value as StoredConnection;
+  } catch {
+    return null;
+  }
 }
 
 export function writeActiveConnection(

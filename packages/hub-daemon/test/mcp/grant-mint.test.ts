@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-describe("mcp/murrmure_grant_mint", () => {
+describe("removed mcp/murrmure_grant_mint", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let bootstrapToken: string;
@@ -49,7 +49,7 @@ describe("mcp/murrmure_grant_mint", () => {
     "Content-Type": "application/json",
   });
 
-  test("murrmure_grant_mint succeeds with admin scope", async () => {
+  test("rejects the removed tool for an admin token", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
       method: "POST",
       headers: auth(),
@@ -59,12 +59,12 @@ describe("mcp/murrmure_grant_mint", () => {
         arguments: { space_id: spaceId, label: "test-agent", scopes: ["space:read"] },
       }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.result.token).toBeDefined();
+    expect(body.result).toBeUndefined();
   });
 
-  test("murrmure_grant_mint rejects cross-space bypass with scoped admin", async () => {
+  test("rejects the removed tool for a scoped admin token", async () => {
     const other = await fetch(`${baseUrl}/v1/spaces`, {
       method: "POST",
       headers: auth(),
@@ -93,9 +93,8 @@ describe("mcp/murrmure_grant_mint", () => {
         arguments: { space_id: otherSpaceId, label: "cross-space", scopes: ["space:read"] },
       }),
     });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.message).toContain("Token not valid");
     expect(body.result).toBeUndefined();
   });
 

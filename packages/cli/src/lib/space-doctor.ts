@@ -332,7 +332,7 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
 
   if (workspace.murrmure_present && !workspace.link_present && !result.space_id) {
     steps.push({
-      command: "mrmr space onboard",
+      command: "mrmr space link --path . --create && mrmr space apply",
       why: "link existing murrmure/ and apply index",
     });
   }
@@ -434,35 +434,31 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
       });
     }
 
-    if (mcpCodes.has("MCP_TOKEN_SET")) {
+    if (mcpCodes.has("MCP_CONNECTION_SET")) {
       if (result.space_id) {
         addUniqueStep({
-          command: `mrmr grant mint --space ${result.space_id} --label cursor-agent`,
-          why: "mint MURRMURE_HUB_TOKEN for MCP bridge",
+          command: `mrmr connection create --space ${result.space_id}`,
+          why: "create one least-privilege local connection",
         });
       }
-      addUniqueStep({
-        command: "# export MURRMURE_HUB_TOKEN=<grant token>",
-        why: "make token visible to murrmure-mcp runtime",
-      });
     }
 
-    if (mcpCodes.has("MCP_TOKEN_SPACE_MATCH") && linkedSpaceId) {
+    if (mcpCodes.has("MCP_CONNECTION_SPACE_MATCH") && linkedSpaceId) {
       addUniqueStep({
-        command: `mrmr grant use --space ${linkedSpaceId}`,
-        why: "align active grant with linked space (ISSUE-07)",
+        command: `mrmr connection create --space ${linkedSpaceId}`,
+        why: "align the active connection with the linked space (ISSUE-07)",
       });
     }
 
     if (mcpCodes.has("MCP_CATALOG_LIVE") || mcpCodes.has("MCP_PROBE_INVOKE")) {
       addUniqueStep({
         command: "mrmr whoami",
-        why: "verify active token scopes and linked spaces",
+        why: "verify active connection capabilities and linked spaces",
       });
       if (linkedSpaceId) {
         addUniqueStep({
-          command: `mrmr grant use --space ${linkedSpaceId}`,
-          why: "switch to the grant expected by this workspace",
+          command: `mrmr connection create --space ${linkedSpaceId}`,
+          why: "create or activate the connection expected by this workspace",
         });
       }
     }
@@ -916,9 +912,9 @@ export async function runSpaceDoctor(options: {
     pushIssue(issues, {
       code: "SPACE_UNLINKED",
       severity: "warning",
-      message: "No linked space — run `mrmr space onboard` or `mrmr space link`",
+      message: "No linked space — run `mrmr setup` or `mrmr space link`",
       fix: workspace.murrmure_present
-        ? `cd ${projectPath} && mrmr space onboard`
+        ? `cd ${projectPath} && mrmr space link --path . --create && mrmr space apply`
         : `cd ${projectPath} && mrmr setup`,
     });
   }

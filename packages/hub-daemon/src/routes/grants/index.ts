@@ -26,6 +26,7 @@ export function mountGrantV2Routes(app: Hono, ctx: DaemonContext): void {
         scopes: body.scopes,
         capabilities: rawCaps,
         template: body.template,
+        profile: body.profile,
         flow_acl: body.flow_acl,
         expires_in_days: body.expires_in_days,
       },

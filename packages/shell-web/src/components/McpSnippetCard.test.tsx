@@ -3,15 +3,21 @@ import { buildMcpSnippet } from "./McpSnippetCard.js";
 
 describe("McpSnippetCard", () => {
   test("buildMcpSnippet returns thin murrmure-mcp config shape", () => {
-    const snippet = buildMcpSnippet({ token: "tok_test_123" });
+    const snippet = buildMcpSnippet({
+      hubId: "http://127.0.0.1:8787",
+      connectionId: "con_test",
+    });
 
     expect(snippet).toEqual({
       mcpServers: {
         murrmure: {
           command: "murrmure-mcp",
-          env: {
-            MURRMURE_HUB_TOKEN: "tok_test_123",
-          },
+          args: [
+            "--hub",
+            "http://127.0.0.1:8787",
+            "--connection",
+            "con_test",
+          ],
         },
       },
     });
@@ -21,15 +27,22 @@ describe("McpSnippetCard", () => {
     expect(serialized).not.toContain("MURRMURE_SPACE_ID");
   });
 
-  test("buildMcpSnippet falls back to token placeholder", () => {
-    const snippet = buildMcpSnippet({});
+  test("buildMcpSnippet supports the stable launcher command", () => {
+    const snippet = buildMcpSnippet({
+      command: "/Users/test/.murrmure/bin/murrmure-mcp",
+      hubId: "http://127.0.0.1:8787",
+      connectionId: "con_test",
+    });
     expect(snippet).toEqual({
       mcpServers: {
         murrmure: {
-          command: "murrmure-mcp",
-          env: {
-            MURRMURE_HUB_TOKEN: "tok_<replace_with_grant_token>",
-          },
+          command: "/Users/test/.murrmure/bin/murrmure-mcp",
+          args: [
+            "--hub",
+            "http://127.0.0.1:8787",
+            "--connection",
+            "con_test",
+          ],
         },
       },
     });

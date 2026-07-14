@@ -67,11 +67,13 @@ MCP agents connect through `murrmure-mcp` (`@murrmure/mcp-bridge`) with thin con
 
 | Field / variable | Required | Notes |
 |------------------|----------|-------|
-| `command` | ✅ | Bundled absolute path when Desktop runs (from `shared.json` → `mcp_bridge.command`); else `"murrmure-mcp"` on PATH |
-| `MURRMURE_HUB_TOKEN` | ✅ | Required bearer token for MCP catalog/call |
-| `MURRMURE_SPACE_ID` | ❌ | Not required; token claims define space identity |
+| `command` | ✅ | Stable Desktop-installed `murrmure-mcp` launcher |
+| `--hub <hub-id>` | ✅ | Public hub descriptor |
+| `--connection <connection-id>` | ✅ | Public local connection descriptor |
 
-MCP config keeps `command` + `MURRMURE_HUB_TOKEN` only — no hub URL or space pinning in MCP env.
+Local MCP config contains IDs only. The bridge reads its credential from the OS
+credential store. An explicit `--headless-ci` process may instead receive
+`MURRMURE_HUB_TOKEN` from a CI secret manager at runtime.
 
 ## Migration from mcp_wake
 

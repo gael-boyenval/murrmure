@@ -237,16 +237,21 @@ that action is valid.
 | Key | Type | Meaning |
 |-----|------|---------|
 | `manual` | boolean | A human or CLI may request a run (Desktop **Run**, `mrmr flow run`) |
-| `flow_call` | boolean | Another flow may start this one as a sub-flow (`start_flow` step) |
+| `flow_call` | boolean | **Advertisements** that the flow may be started as a sub-flow via a `start_flow` step. Authorized `start_flow` is gated by `flow:run` + ACL inheritance, not by this flag — see below. |
 | `events` | list | Event types that may start the flow, e.g. `{ type: "spec.published", source: "webhook" }` |
 | `schedule` | string or `null` | Cron expression for scheduled starts; `null` = not schedulable |
 | `idempotency` | string | Optional dedup key template for event/schedule starts |
 
-`triggers: {}` means **invoke-only**: no independent CLI / Desktop / schedule /
-external-event start, but authorized orchestration invocation (`flow_call`,
-`start_flow`) remains valid. Manual eligibility (`triggers.manual !== false`) and
-flow-call eligibility (`triggers.flow_call === true`) are enforced consistently on
-every start path — CLI and Desktop agree.
+`triggers: {}` means **invoke-only** for independent start surfaces: no
+independent CLI / Desktop / schedule / external-event start. Authorized
+orchestration invocation (`flow_call` / `start_flow` from a parent run with
+`flow:run`) remains valid for **every** flow, including `triggers: {}` — it is
+gated by authorization (`canExecuteFlow` / `canInvokeFlowCall`) and ACL
+inheritance, not by `triggers.flow_call`. Independent-surface eligibility is
+enforced consistently on every start path: manual start requires
+`triggers.manual === true`; `triggers.flow_call === true` only **advertises**
+the flow as callable to independent surfaces and does **not** gate authorized
+`start_flow`. CLI and Desktop agree.
 
 ---
 

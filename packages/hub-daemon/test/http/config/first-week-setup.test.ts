@@ -74,23 +74,42 @@ describe("http/config/first-week-setup", () => {
     expect(body.summary?.actions).toBe(1);
   });
 
-  test("mint worker grant", async () => {
+  test("mint tutorial-builder/v1 connection profile", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/grants`, {
       method: "POST",
       headers: bootstrapAuth(bootstrapToken),
       body: JSON.stringify({
         label: "Dev Cursor — ui-sandbox worker",
         harness: "cursor-local",
-        template: "worker",
-        flow_acl: ["preview-review"],
+        profile: "tutorial-builder/v1",
+        scopes: ["space:read", "action:invoke"],
         expires_in_days: 90,
       }),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.token).toMatch(/^tok_/);
-    expect(body.capabilities).toContain("flow:run");
-    expect(body.capabilities).toContain("action:invoke");
+    expect(body.capabilities).toEqual([
+      "space:read",
+      "flow:read",
+      "flow:run",
+      "step:resolve",
+    ]);
+    expect(body.scopes).toEqual(body.capabilities);
+  });
+
+  test("reject unknown connection profiles", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/grants`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+      body: JSON.stringify({
+        label: "Unknown profile",
+        profile: "tutorial-builder/v2",
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("unknown_connection_profile");
   });
 
   test("verify space readable", async () => {

@@ -264,9 +264,6 @@ export async function runSetupWizard(options: {
 
     if (connectTools) {
       try {
-        const connection = await wizardCreateConnection(auth, linkedSpaceId, {
-          label: `Local tools on ${hostname()}`,
-        });
         const detected = detectedConnectionAdapters({ projectPath });
         let selectedIds = options.contexts;
         if (!selectedIds && !json && !yes) {
@@ -279,11 +276,17 @@ export async function runSetupWizard(options: {
             initialValues: detected.length === 1 ? [detected[0]!.id] : [],
             required: true,
           });
-          if (!p.isCancel(selected)) {
-            selectedIds = selected as string[];
+          if (p.isCancel(selected)) {
+            throw new Error(
+              "Setup paused before connection creation; run mrmr setup again to continue.",
+            );
           }
+          selectedIds = selected as string[];
         }
         selectedIds ??= detected.map((adapter) => adapter.id);
+        const connection = await wizardCreateConnection(auth, linkedSpaceId, {
+          label: `Local tools on ${hostname()}`,
+        });
         const installs = selectedIds.map((id) => {
           const adapter = findConnectionAdapter(id);
           if (!adapter) throw new Error(`Unknown integration context: ${id}`);

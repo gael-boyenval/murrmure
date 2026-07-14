@@ -43,7 +43,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "demo",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -100,7 +100,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "demo",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -242,7 +242,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "a",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -253,7 +253,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "b",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -275,7 +275,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "a",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [{ id: "c", start_flow: { flow_id: "flw_b", input: {} } }],
           },
         },
@@ -286,7 +286,7 @@ describe("index/apply-index", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "b",
-            start: { flow_call: true },
+            triggers: { flow_call: true },
             steps: [{ id: "c", start_flow: { flow_id: "flw_a", input: {} } }],
           },
         },

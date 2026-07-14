@@ -27,20 +27,23 @@ The wizard runs steps in order. Here is **why each exists**:
 | **Link** | Binds this folder → space id | Hub knows which disk path is this space |
 | **Apply** | Indexes `.mrmr/` (empty flows OK for now) | Desktop **Run** appears after you add a flow |
 | **Skill** | `mrmr skill install` | Platform skills — Murrmure tools, gates, runs |
-| **Grant** | Mints agent token + MCP JSON snippet | Cursor gets hub access |
+| **Connection** | Creates one `tutorial-builder/v1` connection and installs selected adapters | Local tools get least-privilege hub access |
 
 ### MCP snippet — purpose
 
-Paste into `.cursor/mcp.json`:
+The Cursor adapter writes an ID-only entry to `.cursor/mcp.json`:
 
 | Variable | Purpose |
 |----------|---------|
-| `command: "murrmure-mcp"` | Launches the MCP bridge |
-| `MURRMURE_HUB_TOKEN` | Agent identity (space and ACL come from token claims) |
+| `command: "murrmure-mcp"` | Launches the stable bundled bridge |
+| `--hub <hub-id>` | Selects the local hub |
+| `--connection <connection-id>` | Selects the OS-stored credential |
 
 Reload Cursor. Test: *"Call murrmure_space_status."*
 
-Grant must include **`action:invoke`**, **`step:resolve`**, **`space:read`**, and **`journal:read`**. Add **`event:emit`** if your space will emit cross-space events later.
+The fixed `tutorial-builder/v1` profile includes **`space:read`**,
+**`flow:read`**, **`flow:run`**, and **`step:resolve`**. The token is stored in
+macOS Keychain and never appears in this file or the UI.
 
 ### Split platform skills — purpose
 

@@ -31,10 +31,12 @@ function entry(triggers: FlowManifest["triggers"], flowId = "flw_test"): FlowInd
 const RUN_CAPS = ["flow:run"] as const;
 
 describe("flow-engine/start — invoke-only eligibility", () => {
-  test("triggers: {} is invoke-only: no manual, no flow_call, no events", () => {
+  test("triggers: {} is invoke-only for independent surfaces (manual/events blocked)", () => {
     const e = entry({});
     expect(isManualStartAllowed(e)).toBe(false);
+    // `flow_call` is not *advertised* as a trigger for an empty-triggers flow...
     expect(isFlowCallStartAllowed(e)).toBe(false);
+    // ...and no event triggers match.
     expect(matchesFlowStartEvent(e, { type: "anything" })).toBe(false);
   });
 
@@ -42,7 +44,7 @@ describe("flow-engine/start — invoke-only eligibility", () => {
     expect(isManualStartAllowed(entry({ manual: true }))).toBe(true);
   });
 
-  test("triggers: { flow_call: true } is invoke-only for manual clients", () => {
+  test("triggers: { flow_call: true } advertises flow_call and is invoke-only for manual clients", () => {
     const e = entry({ flow_call: true });
     expect(isManualStartAllowed(e)).toBe(false);
     expect(isFlowCallStartAllowed(e)).toBe(true);
@@ -70,15 +72,48 @@ describe("flow-engine/start — invoke-only eligibility", () => {
     if ("code" in result) expect(result.code).toBe("MANUAL_START_DISABLED");
   });
 
-  test("prepareFlowStart rejects flow_call start for triggers: {} with FLOW_CALL_DISABLED", () => {
+  test("prepareFlowStart allows authorized flow_call invocation for triggers: {}", () => {
     const result = prepareFlowStart(entry({}), {
       exec_context: {},
       origin_space_id: "spc_origin",
       capabilities: [...RUN_CAPS],
       mode: "flow_call",
     });
+    expect("code" in result).toBe(false);
+    if (!("code" in result)) expect(result.flow_digest).toMatch(/^sha256:/);
+  });
+
+  test("prepareFlowStart allows authorized flow_call invocation for flow_call-advertised flow", () => {
+    const result = prepareFlowStart(entry({ flow_call: true }), {
+      exec_context: {},
+      origin_space_id: "spc_origin",
+      capabilities: [...RUN_CAPS],
+      mode: "flow_call",
+    });
+    expect("code" in result).toBe(false);
+    if (!("code" in result)) expect(result.flow_digest).toMatch(/^sha256:/);
+  });
+
+  test("prepareFlowStart allows authorized flow_call invocation for a manual flow", () => {
+    const result = prepareFlowStart(entry({ manual: true }), {
+      exec_context: {},
+      origin_space_id: "spc_origin",
+      capabilities: [...RUN_CAPS],
+      mode: "flow_call",
+    });
+    expect("code" in result).toBe(false);
+    if (!("code" in result)) expect(result.flow_digest).toMatch(/^sha256:/);
+  });
+
+  test("prepareFlowStart rejects flow_call invocation when unauthorized (no flow:run)", () => {
+    const result = prepareFlowStart(entry({}), {
+      exec_context: {},
+      origin_space_id: "spc_origin",
+      capabilities: [],
+      mode: "flow_call",
+    });
     expect("code" in result).toBe(true);
-    if ("code" in result) expect(result.code).toBe("FLOW_CALL_DISABLED");
+    if ("code" in result) expect(result.code).toBe("SCOPE_ENFORCEMENT_FAILURE");
   });
 
   test("prepareFlowStart allows manual start when triggers.manual is true", () => {

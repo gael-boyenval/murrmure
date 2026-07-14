@@ -56,7 +56,7 @@ describe("flow-runtime/mcp-wake", () => {
 
   afterAll(() => cleanup?.());
 
-  test("murrmure_invoke_action replaces mcp_wake route", async () => {
+  test("removed murrmure_invoke_action is rejected", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -69,8 +69,8 @@ describe("flow-runtime/mcp-wake", () => {
         },
       }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.result).toBeDefined();
+    expect(body.result).toBeUndefined();
   });
 });

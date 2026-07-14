@@ -307,7 +307,7 @@ describe("runSpaceDoctor", () => {
     expect(text).not.toContain("LEGACY_STUDIO_PACKAGE");
     expect(text).toContain("Legacy Studio v1 detected");
     expect(text).toContain("Try this");
-    expect(text).toContain("mrmr space onboard");
+    expect(text).toContain("mrmr space link --path . --create");
 
     rmSync(legacyDir, { recursive: true, force: true });
   });
@@ -316,8 +316,8 @@ describe("runSpaceDoctor", () => {
     const expectedCommandByCode: Array<[string, string]> = [
       ["MCP_DISCOVERY", "mrmr login --hub-url"],
       ["MCP_CONFIG_SHAPE", "mrmr space doctor --fix"],
-      ["MCP_TOKEN_SET", "mrmr grant mint --space spc_demo --label cursor-agent"],
-      ["MCP_TOKEN_SPACE_MATCH", "mrmr grant use --space spc_demo"],
+      ["MCP_CONNECTION_SET", "mrmr connection create --space spc_demo"],
+      ["MCP_CONNECTION_SPACE_MATCH", "mrmr connection create --space spc_demo"],
       ["MCP_CATALOG_LIVE", "mrmr whoami"],
       ["MCP_SCHEMA_PRESENT", "update/restart hub daemon"],
       ["MCP_PROBE_INVOKE", "mrmr whoami"],

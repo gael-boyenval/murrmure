@@ -230,7 +230,7 @@ Deployables (later):
 
 ### MCP platform tools (rev-1)
 
-Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Agents connect via `murrmure-mcp` with `MURRMURE_HUB_TOKEN` only (no env space pinning). When Murrmure Desktop hosts the hub, discovery records the bundled bridge path at `mcp_bridge.command` (see Part 13).
+Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Local participants connect through the stable `murrmure-mcp` launcher with `--hub` and `--connection` ID arguments; the bridge resolves the credential from the OS store. Desktop discovery records the stable launcher at `mcp_bridge.command` plus the bundled bridge entry and runtime (see Part 13). `MURRMURE_HUB_TOKEN` is reserved for explicit headless CI runtime injection.
 
 | Tool | Required capability | HTTP / behavior |
 |------|---------------------|-----------------|

@@ -140,7 +140,8 @@ describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
     for (const removed of ["get_space_state", "transition", "wait_for_state", "emit_event", "contract_versions"]) {
       expect(names).not.toContain(removed);
     }
-    expect(names).toContain("murrmure_invoke_action");
+    expect(names).not.toContain("murrmure_invoke_action");
+    expect(names).not.toContain("murrmure_grant_mint");
     expect(names).toContain("murrmure_emit_event");
   });
 

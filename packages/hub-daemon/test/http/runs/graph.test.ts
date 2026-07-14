@@ -40,20 +40,6 @@ describe("runs/graph", () => {
       })
     ).json()).space_id;
 
-    token = (
-      await (
-        await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
-          method: "POST",
-          headers: bootstrap(),
-          body: JSON.stringify({
-            label: "graph-agent",
-            scopes: ["space:read", "flow:run", "action:invoke"],
-            flow_acl: ["flw_morning_brief"],
-          }),
-        })
-      ).json()
-    ).token;
-
     await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
       method: "POST",
       headers: bootstrap(),
@@ -94,6 +80,19 @@ describe("runs/graph", () => {
         },
       }),
     });
+
+    token = (
+      await (
+        await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+          method: "POST",
+          headers: bootstrap(),
+          body: JSON.stringify({
+            label: "graph-agent",
+            scopes: ["space:read", "flow:run", "action:invoke"],
+          }),
+        })
+      ).json()
+    ).token;
   });
 
   afterAll(() => cleanup?.());

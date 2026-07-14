@@ -30,7 +30,7 @@ export function createMockShellClient(
       flow_id: "flw_demo",
       name: "Demo flow",
       digest: "sha256:demo",
-      start: {},
+      triggers: { manual: true },
       steps: [],
     }),
     runFlow: async () => ({

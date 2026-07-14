@@ -218,7 +218,7 @@ describe("probeMcpLiveHealth", () => {
     expect(issues.some((issue) => issue.code === "MCP_CONFIG_SHAPE")).toBe(true);
   });
 
-  test("flags MCP_TOKEN_SET when no MCP token source is configured", async () => {
+  test("flags MCP_CONNECTION_SET when no local connection is configured", async () => {
     mockLiveFetch();
     delete process.env.MURRMURE_HUB_TOKEN;
     writeFileSync(
@@ -238,13 +238,13 @@ describe("probeMcpLiveHealth", () => {
     );
 
     const issues = await runLiveProbe();
-    expect(issues.some((issue) => issue.code === "MCP_TOKEN_SET")).toBe(true);
+    expect(issues.some((issue) => issue.code === "MCP_CONNECTION_SET")).toBe(true);
   });
 
-  test("flags MCP_TOKEN_SPACE_MATCH for ISSUE-07 linked-space mismatch", async () => {
+  test("flags MCP_CONNECTION_SPACE_MATCH for ISSUE-07 linked-space mismatch", async () => {
     mockLiveFetch({ whoamiSpaces: ["spc_other"] });
     const issues = await runLiveProbe();
-    expect(issues.some((issue) => issue.code === "MCP_TOKEN_SPACE_MATCH")).toBe(true);
+    expect(issues.some((issue) => issue.code === "MCP_CONNECTION_SPACE_MATCH")).toBe(true);
   });
 
   test("flags MCP_CATALOG_LIVE when required tools are missing", async () => {

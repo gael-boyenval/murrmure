@@ -6,7 +6,7 @@
 
 Items here are **deliberate non-goals or future slices**, not bugs. For **known gaps** (manifest features that compile but the engine does not dispatch yet), see the [active plan](../../plans/product/plan/index.md) and [known-gaps](../../../apps/docs/guide/known-gaps.md).
 
-> **North star:** nothing below defers **custom views as the primary human interface**. `gate.requires_view` + **ViewCanvasHost** are required — [plan phase 06](../../plans/product/plan/06-gate-requires-view.md). Deferred here = hub registry infrastructure and admin-shell polish only.
+> **North star:** nothing below defers **custom views as the primary human interface**. Views bound through the space (`handlers.yaml` + `.mrmr/views/`) and rendered in **ViewCanvasHost** are required — [plan phase 06](../../plans/product/plan/06-gate-requires-view.md). Deferred here = hub registry infrastructure and admin-shell polish only.
 
 ---
 

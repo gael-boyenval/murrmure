@@ -12,23 +12,17 @@ async function seedRun(studio: MemoryStudioPersistence) {
   const manifest = {
     apiVersion: "murrmure.flow/v1" as const,
     name: "linear-resolve",
-    start: { manual: true },
+    triggers: { manual: true },
     steps: [
       {
         id: "intake",
-        presentation: { view: "intake-view" },
         branches: {
-          continue: { schema: { type: "object", required: ["topic"] }, next: "work" },
-          cancel: { schema: { type: "object" }, fail_run: true },
+          continue: { schema: { type: "object", required: ["topic"] }, route: { step: "work" } },
+          cancel: { schema: { type: "object" }, route: { run: "failed" } },
         },
       },
       {
         id: "work",
-        executor: { action: "do_work" },
-        branches: {
-          completed: { schema: { type: "object" }, next: null },
-          failed: { schema: { type: "object" }, fail_run: true },
-        },
       },
     ],
   };
@@ -51,7 +45,7 @@ async function seedRun(studio: MemoryStudioPersistence) {
         origin_space_id: "spc_demo",
         digest: ir.digest,
         name: "linear",
-        start: { manual: true },
+        triggers: { manual: true },
         step_spaces: ["spc_demo"],
         grants_required: [],
         ir,
@@ -88,7 +82,7 @@ async function seedRun(studio: MemoryStudioPersistence) {
   await studio.upsertRunStepMemo({
     run_id: "run_run1",
     step_id: "intake",
-    status: "awaiting_human",
+    status: "working",
     started_at: clock.nowIso(),
   });
 }

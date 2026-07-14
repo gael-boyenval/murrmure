@@ -18,6 +18,13 @@ const GRANT_TEMPLATES: Record<string, Capability[]> = {
   ],
   admin: ["hub:admin", "space:read", "space:enter", "space:write", "flow:read"],
 };
+const TUTORIAL_BUILDER_PROFILE = "tutorial-builder/v1";
+const TUTORIAL_BUILDER_CAPABILITIES: Capability[] = [
+  "space:read",
+  "flow:read",
+  "flow:run",
+  "step:resolve",
+];
 
 export class ConfigHandler {
   constructor(
@@ -364,11 +371,19 @@ export class ConfigHandler {
       scopes?: string[];
       capabilities?: Capability[];
       template?: string;
+      profile?: string;
       flow_acl?: string[];
       expires_in_days?: number;
     },
     provenance: StudioProvenance,
   ): Promise<CommandResult> {
+    if (body.profile !== undefined && body.profile !== TUTORIAL_BUILDER_PROFILE) {
+      return denialResult(
+        "unknown_connection_profile",
+        { message: `Unknown connection profile: ${body.profile}` },
+        HTTP_SEMANTIC.BAD_REQUEST,
+      );
+    }
     if (body.flow_acl?.length) {
       const installs = await this.studio.listFlowInstalls(stripSpaceId(space_id));
       const canonicalFlowIds = new Set(installs.map((install) => install.flow_id));
@@ -387,12 +402,13 @@ export class ConfigHandler {
     const grant_id = this.ids.ulid();
     const token_id = this.ids.ulid();
     const templateCaps = GRANT_TEMPLATES[body.template ?? "worker"] ?? GRANT_TEMPLATES.worker;
-    const capabilities =
-      body.capabilities ??
-      (body.scopes?.length
-        ? resolveEffectiveCapabilities({ scopes: body.scopes })
-        : templateCaps);
-    const scopes = body.scopes ?? capabilities;
+    const capabilities = body.profile
+      ? [...TUTORIAL_BUILDER_CAPABILITIES]
+      : body.capabilities ??
+        (body.scopes?.length
+          ? resolveEffectiveCapabilities({ scopes: body.scopes })
+          : templateCaps);
+    const scopes = body.profile ? [...capabilities] : body.scopes ?? capabilities;
     const ts = this.clock.nowIso();
     const expires_at = body.expires_in_days
       ? new Date(Date.now() + body.expires_in_days * 86400000).toISOString()

@@ -4,7 +4,11 @@ import {
   buildConnectionDescriptor,
   type ConnectionDescriptor,
 } from "../lib/connection-adapters.js";
-import { storeConnectionToken, writeActiveConnection } from "../lib/connection-store.js";
+import {
+  storeConnectionToken,
+  writeActiveConnection,
+  writeStoredConnection,
+} from "../lib/connection-store.js";
 import {
   TUTORIAL_BUILDER_CAPABILITIES,
   TUTORIAL_BUILDER_PROFILE,
@@ -31,6 +35,7 @@ export async function wizardCreateConnection(
     harness?: string;
     storeCredential?: (hubId: string, connectionId: string, token: string) => void;
     activate?: typeof writeActiveConnection;
+    register?: typeof writeStoredConnection;
   },
 ): Promise<WizardConnectionResult> {
   const label = options?.label ?? "Local tools";
@@ -60,12 +65,28 @@ export async function wizardCreateConnection(
     );
   }
   const connection_id = publicConnectionId(grant_id);
-  (options?.storeCredential ?? storeConnectionToken)(auth.hubUrl, connection_id, token);
+  try {
+    (options?.storeCredential ?? storeConnectionToken)(auth.hubUrl, connection_id, token);
+  } catch (error) {
+    await hubFetch(
+      auth,
+      `/v1/spaces/${spaceId}/grants/${grant_id}/revoke`,
+      { method: "POST" },
+    ).catch(() => undefined);
+    throw error;
+  }
   (options?.activate ?? writeActiveConnection)({
     hub_id: auth.hubUrl,
     connection_id,
     space_id: spaceId,
     profile: TUTORIAL_BUILDER_PROFILE.id,
+  });
+  (options?.register ?? writeStoredConnection)({
+    hub_id: auth.hubUrl,
+    connection_id,
+    space_id: spaceId,
+    profile: TUTORIAL_BUILDER_PROFILE.id,
+    status: "active",
   });
   const descriptor = buildConnectionDescriptor({
     hubId: auth.hubUrl,

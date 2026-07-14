@@ -10,15 +10,17 @@ import {
 } from "../lib/connection-adapters.js";
 import {
   deleteConnectionToken,
+  readActiveConnection,
   readConnectionToken,
+  readStoredConnection,
   storeConnectionToken,
   writeActiveConnection,
+  writeStoredConnection,
 } from "../lib/connection-store.js";
 import { globalArgs, parseGlobalFlags } from "../lib/flags.js";
 import { emitHubConfigJson, parseCommaList } from "../lib/space-output.js";
 import { printErr, printOk, cliConsola, exitUsage } from "../lib/output.js";
 import { runScopePreflight } from "../lib/preflight.js";
-import { assertSpaceId } from "../lib/space-id.js";
 import {
   TUTORIAL_BUILDER_CAPABILITIES,
   TUTORIAL_BUILDER_PROFILE,
@@ -95,6 +97,11 @@ const createCommand = defineCommand({
     try {
       storeConnectionToken(auth.hubUrl, connectionId, token);
     } catch (error) {
+      await hubFetch(
+        auth,
+        `/v1/spaces/${spaceId}/grants/${toGrantId(connectionId)}/revoke`,
+        { method: "POST" },
+      ).catch(() => undefined);
       printErr(
         "CREDENTIAL_STORE_WRITE_FAILED",
         error instanceof Error ? error.message : "Could not store connection credential",
@@ -105,6 +112,13 @@ const createCommand = defineCommand({
       connection_id: connectionId,
       space_id: spaceId,
       profile: TUTORIAL_BUILDER_PROFILE.id,
+    });
+    writeStoredConnection({
+      hub_id: auth.hubUrl,
+      connection_id: connectionId,
+      space_id: spaceId,
+      profile: TUTORIAL_BUILDER_PROFILE.id,
+      status: "active",
     });
     const descriptor = buildConnectionDescriptor({
       hubId: auth.hubUrl,
@@ -182,10 +196,18 @@ const activateCommand = defineCommand({
     if (!connectionId.startsWith("con_")) {
       exitUsage("Expected a connection id beginning with con_.");
     }
-    const spaceId = assertSpaceId(flags);
-    const auth = await runScopePreflight(flags, "space:read");
+    const stored = readStoredConnection(connectionId);
+    if (!stored) {
+      printErr(
+        "CONNECTION_UNKNOWN",
+        `No locally stored connection descriptor exists for ${connectionId}.`,
+      );
+    }
+    if (stored.status === "revoked") {
+      printErr("CONNECTION_REVOKED", `Connection ${connectionId} has been revoked.`);
+    }
     try {
-      readConnectionToken(auth.auth.hubUrl, connectionId);
+      readConnectionToken(stored.hub_id, connectionId);
     } catch (error) {
       printErr(
         "CONNECTION_CREDENTIAL_UNAVAILABLE",
@@ -193,13 +215,13 @@ const activateCommand = defineCommand({
       );
     }
     const path = writeActiveConnection({
-      hub_id: auth.auth.hubUrl,
+      hub_id: stored.hub_id,
       connection_id: connectionId,
-      space_id: spaceId,
-      profile: TUTORIAL_BUILDER_PROFILE.id,
+      space_id: stored.space_id,
+      profile: stored.profile,
     });
     if (flags.json) {
-      printOk({ connection_id: connectionId, space_id: spaceId, active_path: path });
+      printOk({ connection_id: connectionId, space_id: stored.space_id, active_path: path });
       return;
     }
     cliConsola.success(`Active connection: ${connectionId}`);
@@ -226,6 +248,79 @@ const listCommand = defineCommand({
         })
       : [];
     printOk({ connections: grants });
+  },
+}) as CommandDef;
+
+const verifyCommand = defineCommand({
+  meta: {
+    name: "verify",
+    description: "Verify the active connection after reloading local tools (Requires: space:read)",
+  },
+  args: globalArgs,
+  async run({ args }) {
+    const flags = parseGlobalFlags(args);
+    const active = readActiveConnection();
+    if (!active) {
+      printErr("CONNECTION_MISSING", "No active local connection is available.");
+    }
+    const { auth, spaceId } = await runScopePreflight(flags, "space:read");
+    if (
+      active.hub_id !== auth.hubUrl ||
+      active.space_id !== spaceId
+    ) {
+      printErr(
+        "CONNECTION_ASSOCIATION_MISMATCH",
+        "The active connection does not match the selected Hub and space.",
+      );
+    }
+
+    const statusResponse = await hubFetch(auth, "/v1/mcp/tools/call", {
+      method: "POST",
+      json: {
+        name: "murrmure_space_status",
+        space_id: spaceId,
+        arguments: {},
+      },
+    });
+    await emitHubConfigJson(statusResponse);
+
+    const catalogResponse = await hubFetch(
+      auth,
+      `/v1/mcp/catalog?space_id=${encodeURIComponent(spaceId)}`,
+    );
+    const catalog = await emitHubConfigJson(catalogResponse);
+    const tools = Array.isArray(catalog.tools)
+      ? catalog.tools
+          .map((entry) =>
+            entry && typeof entry === "object"
+              ? (entry as Record<string, unknown>).name
+              : undefined,
+          )
+          .filter((name): name is string => typeof name === "string")
+      : [];
+    if (!tools.includes("murrmure_resolve_step")) {
+      printErr(
+        "CONNECTION_CAPABILITY_MISMATCH",
+        "The active connection does not expose the authorized resolve capability.",
+      );
+    }
+    const descriptor = buildConnectionDescriptor({
+      hubId: active.hub_id,
+      connectionId: active.connection_id,
+      spaceId: active.space_id,
+    });
+    const resumePath = writeSetupResume({
+      descriptor,
+      adapters: [],
+      next: "complete",
+    });
+    printOk({
+      connection_id: active.connection_id,
+      space_id: spaceId,
+      status: "verified",
+      checks: ["murrmure_space_status", "murrmure_resolve_step"],
+      resume_path: resumePath,
+    });
   },
 }) as CommandDef;
 
@@ -257,12 +352,33 @@ function lifecycleCommand(action: "revoke" | "rotate"): CommandDef {
       const body = await emitHubConfigJson(response);
       if (action === "revoke") {
         deleteConnectionToken(auth.hubUrl, connectionId);
+        writeStoredConnection({
+          hub_id: auth.hubUrl,
+          connection_id: connectionId,
+          space_id: spaceId,
+          profile: TUTORIAL_BUILDER_PROFILE.id,
+          status: "revoked",
+        });
         printOk({ connection_id: connectionId, status: "revoked" });
         return;
       }
       const rotated = parseConnectionResponse(body);
       storeConnectionToken(auth.hubUrl, rotated.connectionId, rotated.token);
       deleteConnectionToken(auth.hubUrl, connectionId);
+      writeStoredConnection({
+        hub_id: auth.hubUrl,
+        connection_id: connectionId,
+        space_id: spaceId,
+        profile: TUTORIAL_BUILDER_PROFILE.id,
+        status: "revoked",
+      });
+      writeStoredConnection({
+        hub_id: auth.hubUrl,
+        connection_id: rotated.connectionId,
+        space_id: spaceId,
+        profile: TUTORIAL_BUILDER_PROFILE.id,
+        status: "active",
+      });
       writeActiveConnection({
         hub_id: auth.hubUrl,
         connection_id: rotated.connectionId,
@@ -282,6 +398,7 @@ export const connectionCommand = defineCommand({
   subCommands: {
     create: createCommand,
     activate: activateCommand,
+    verify: verifyCommand,
     list: listCommand,
     revoke: lifecycleCommand("revoke"),
     rotate: lifecycleCommand("rotate"),

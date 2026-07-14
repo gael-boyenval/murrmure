@@ -56,7 +56,7 @@ export function printScopeError(err: ScopeError): never {
   switch (err.code) {
     case "SCOPE_MISSING":
       printErr(err.code, `${err.message} (${err.requiredScope})`, {
-        tip: "Run mrmr whoami · mint a new grant with mrmr grant mint",
+        tip: "Run mrmr whoami · create a local connection with mrmr connection create",
         required_scope: err.requiredScope,
         space_id: err.spaceId,
       });

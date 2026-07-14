@@ -226,6 +226,7 @@ describe("wizard space ops", () => {
       {
         storeCredential: vi.fn(),
         activate: vi.fn(),
+        register: vi.fn(),
       },
     );
     expect(grant.connection_id).toBe("con_test");

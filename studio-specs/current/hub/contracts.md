@@ -125,7 +125,7 @@ Ports wired in `@murrmure/hub-core`: PolicyPort, RulesPort (v2 bridge), Conditio
 | Variable | Purpose |
 |----------|---------|
 | `MURRMURE_HUB_URL` | Hub base URL (CLI and shell) |
-| `MURRMURE_HUB_TOKEN` | Bearer token for CLI and MCP agents |
+| `MURRMURE_HUB_TOKEN` | Explicit headless CI or short-lived handler token; local connections use the OS credential store |
 | `MURRMURE_SPACE_ID` | Optional CLI default `--space` fallback |
 | `MURRMURE_DEPLOY_TOKEN` | CI push attestation |
 | `MURRMURE_INSTALL_ID` | Worker spawn context |

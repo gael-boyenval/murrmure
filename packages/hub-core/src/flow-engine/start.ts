@@ -23,6 +23,13 @@ export function isManualStartAllowed(entry: FlowIndexEntry): boolean {
   return entry.triggers.manual === true;
 }
 
+/**
+ * Whether the flow advertises `flow_call` as a start trigger. This is an
+ * advertisement/surfacing predicate only: authorized orchestration invocation
+ * (`flow_call` / `start_flow` from a parent run with `flow:run`) remains valid
+ * for *every* flow, including invoke-only `triggers: {}` flows, and is gated by
+ * authorization (`canExecuteFlow`), not by this flag.
+ */
 export function isFlowCallStartAllowed(entry: FlowIndexEntry): boolean {
   return entry.triggers.flow_call === true;
 }
@@ -82,9 +89,10 @@ export function prepareFlowStart(
     return { code: "MANUAL_START_DISABLED", message: "Flow does not allow manual start" };
   }
 
-  if (input.mode === "flow_call" && !isFlowCallStartAllowed(entry)) {
-    return { code: "FLOW_CALL_DISABLED", message: "Flow does not allow flow_call invocation" };
-  }
+  // `flow_call` mode is authorized orchestration invocation (a parent run
+  // invoking a child via `start_flow`). It remains valid for invoke-only
+  // `triggers: {}` flows; authorization is enforced by `canExecuteFlow` below
+  // and by `canInvokeFlowCall` at the call site — not by `triggers.flow_call`.
 
   if (!canExecuteFlow(input.capabilities, input.flow_acl, entry.flow_id)) {
     return { code: "SCOPE_ENFORCEMENT_FAILURE", message: "Grant lacks flow:run for this flow" };

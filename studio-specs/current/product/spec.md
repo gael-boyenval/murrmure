@@ -68,7 +68,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 | **Handler** | Space-owned execution unit in `.mrmr/space/handlers.yaml` — keyed by **`contract_keys`**, dispatched on `step.opened` / events. Replaces actions + executors + hooks for default spaces. |
 | **contract_key** | Protocol address `{flow_ref}.{qualified_step_id}` — binds flow steps to space handlers at apply time. |
 | **View** | **Primary human interface** — full custom UI packages in `.mrmr/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. Built-in forms = fallback only. |
-| **Gate** | Run in `input-required`; **`gate.requires_view`** opens author's view canvas (primary). Built-in gate form = fallback when view bundle missing. |
+| **Gate** | Run in `input-required`; the bound View (resolved from the space's `handlers.yaml` + `.mrmr/views/`) opens the author's view canvas (primary). Built-in gate form = fallback when no view binding exists. |
 | **Journal** | CloudEvents-compatible append-only log. `subject` carries session/run correlation path. |
 | **Headless delivery** | Every hub trigger/hook delivery **must** create Session (if needed) + Run. No silent executions. |
 | **Flow vs UI** | Flows declare orchestration; **views are the human OS surface**. Authors ship flow + view together; human gates **require** custom view canvas in finished product (phase 06). |
@@ -581,7 +581,7 @@ No per-space "install" UX — index refresh only.
 - Step type `start_flow` with explicit `flow_id` + input mapping
 - Cycle detection + max depth (default 8)
 - ACL inheritance: child run checks `flow:run` on target flow
-- Child opt-in: `start.flow_call: true` (GHA `workflow_call` semantics)
+- Child advertisement: `triggers.flow_call: true` (GHA `workflow_call` semantics) — surfaces the flow as callable to independent surfaces. Authorized `start_flow` from a parent run remains valid for **every** flow (invoke-only `triggers: {}` included), gated by `flow:run` + ACL inheritance — not by this flag.
 
 See [bridges/flow-engine.md](../bridges/flow-engine.md) and `packages/hub-core/src/flow-engine/start-flow.ts`.
 
@@ -619,17 +619,18 @@ interface Gate {
 
 ### 6.2 Custom view at gates (primary UX)
 
-Human gates use **`gate.requires_view`** → shell loads the author’s view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Shell = observer chrome; domain UI = 100% the view bundle.
+Human gates are served by the bound View — resolved from the space's `handlers.yaml` + `.mrmr/views/` at run time (no flow-level `requires_view`; the manifest carries only `gate: { form?, assignees? }`). The shell loads the author's view package in **ViewCanvasHost** (full main-area sandboxed iframe via `@murrmure/view-sdk`). Shell = observer chrome; domain UI = 100% the view bundle.
 
 ```yaml
 steps:
   - id: review
     gate:
-      requires_view: preview-review
       assignees: ["{{input.reviewer}}"]
 ```
 
-**Fallback only:** if view bundle missing at apply, shell uses embedded `GateFormSchema` (`GateResolvePanel`) — not the primary path.
+View binding lives in the space, not the portable flow (see §5.4).
+
+**Fallback only:** if no view binding exists for the step at run time, the shell uses the embedded `GateFormSchema` (`GateResolvePanel`) — not the primary path.
 
 **Not acceptable:** narrow side drawer (`ViewDrawer` / `Sheet max-w-lg`) as the default human gate or review surface.
 

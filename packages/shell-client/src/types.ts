@@ -110,6 +110,14 @@ export interface JournalEntryItem {
   data: Record<string, unknown>;
 }
 
+export interface FlowStartConditions {
+  manual?: boolean;
+  flow_call?: boolean;
+  events?: Array<{ type: string; source?: string }>;
+  schedule?: string | null;
+  idempotency?: string;
+}
+
 export interface SpaceHomeFlowRow {
   flow_id: string;
   name: string;
@@ -117,7 +125,7 @@ export interface SpaceHomeFlowRow {
   can_run: boolean;
   can_preview: boolean;
   manual: boolean;
-  start?: { requires_view?: string | null };
+  triggers: FlowStartConditions;
   view_ref?: {
     view_id: string;
     origin_space_id?: string;
@@ -220,7 +228,7 @@ export interface FlowPreviewPayload {
   flow_id: string;
   name: string;
   digest: string;
-  start: Record<string, unknown>;
+  triggers: FlowStartConditions;
   steps: Array<{ id: string; kind: string; invoke?: { space: string; action: string }; gate?: { form?: string } }>;
   view_ref?: {
     view_id: string;
