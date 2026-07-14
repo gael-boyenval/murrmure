@@ -16,4 +16,5 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-009](./ADR-009-space-owned-view-resolver-and-hardened-host.md) | accepted | Space-owned view resolvers and hardened host-only View execution |
 | [ADR-010](./ADR-010-branch-contract-artifact-upload-boundary.md) | accepted | Branch contract artifact upload boundary |
 | [ADR-011](./ADR-011-space-owned-flow-admission-and-apply-quiescence.md) | accepted | Space-owned flow admission and apply-quiescence concurrency boundary |
+| [ADR-012](./ADR-012-safe-shell-handler-interpolation-and-credentials.md) | accepted | Safe shell handler interpolation, execution, and assignment credentials |
 

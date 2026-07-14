@@ -1,5 +1,45 @@
 # Changelog
 
+## Tutorial v3 Task 06 — safe shell handler copies a verified run-scoped artifact (2026-07-15)
+
+### Added
+
+- Shell handlers now resolve with a strict **complete-argument grammar**:
+  every dynamic placeholder must occupy one whole unquoted argument and the
+  runtime shell-quotes it exactly once. Spaces, apostrophes, `$()`, backticks,
+  newlines, leading dashes, and Unicode in filenames or content stay literal
+  data and can no longer become shell fragments.
+- Author-quoted placeholders (`'{{x}}'`, `"{{x}}"`), embedded forms
+  (`--flag={{x}}`, `pre{{x}}post`), and unknown placeholders are rejected
+  before spawn. A missing/null binding fails fast with
+  `HANDLER_BINDING_VALUE_MISSING`; a schema-valid empty string remains one
+  empty argument.
+- A singleton artifact `.path` token (for example
+  `{{murrmure.step.intake.artifact.spec.path}}`) resolves to a **verified,
+  digest-checked, run-scoped consumer copy** at
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`.
+  The original artifact is never mutated; traversal and digest mismatch refuse
+  the copy before any consumer bytes are written.
+- Canonical `runScratchPaths` helpers centralize every run-scoped path
+  (run dir, step workdir, stable dir, consumer inputs, active contract).
+- Multiline handler commands run as `/bin/sh -e -c "<script>"` with no login
+  profile and no silent shell fallback; omitted `cwd` defaults to the space
+  root and omitted `delivery` defaults to fail-fast.
+- Timeout, cancellation, external resolution, yield, run terminal, or
+  Desktop shutdown terminates the **whole process group** with `SIGTERM`, waits
+  five seconds, then `SIGKILL`, and records exactly one terminal result.
+- Each spawned handler receives an **ephemeral run/step-scoped credential**
+  in its environment, never the persistent machine connection; the dispatch
+  audit records only command/prompt/cwd, so credentials never reach the
+  journal or public surfaces.
+
+### Breaking
+
+- Authored `kill_on` is removed; process termination is owned by the runtime.
+- Raw `{{key}}` interpolation that silently emptied unknown/missing bindings is
+  gone — handlers with unresolved placeholders now fail before spawn with a
+  typed error instead of running a malformed command.
+
 ## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
 
 ### Added

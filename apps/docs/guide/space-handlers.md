@@ -69,6 +69,48 @@ Human-step keys may appear in `contract_keys` for **scope/documentation** on sub
 
 Lint warns when `complete: cli` handlers lack `mrmr step resolve` in the command string.
 
+## Shell command grammar and tokens
+
+A `shell_spawn` `command` runs under a strict, safe execution model so dynamic
+values can never become shell fragments and the runtime owns process lifecycle.
+
+- **One complete argument.** Every dynamic placeholder must occupy one whole
+  unquoted argument, and the runtime shell-quotes it exactly once. Spaces,
+  apostrophes, quotes, `$()`, backticks, newlines, leading dashes, and Unicode in
+  a resolved value stay literal data.
+
+  ```yaml
+  # correct — placeholder is one complete argument
+  command: |
+    mkdir -p specs/current
+    cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md
+  ```
+
+- **Rejected forms** (apply/runtime fails before spawn): author-quoted
+  placeholders (`'{{x}}'`, `"{{x}}"`), embedded forms (`--flag={{x}}`,
+  `pre{{x}}post`, `{{a}}{{b}}`), and unknown placeholders. A missing or null
+  binding fails with `HANDLER_BINDING_VALUE_MISSING`; a schema-valid empty
+  string remains one empty argument.
+- **`{{prompt}}`** is delivered via stdin (stripped from the command) for
+  prompt-scoped handlers, or substituted as one quoted argument otherwise.
+  **`{{space_root}}`** is resolved in the `cwd` field as a path, not shell-quoted.
+- **Artifact path tokens** like `{{murrmure.step.{producer}.artifact.{slot}.path}}`
+  resolve only for local execution to a **verified, digest-checked, run-scoped
+  consumer copy** at
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`. The
+  original artifact is never mutated.
+- **Execution.** Multiline commands run as `/bin/sh -e -c "<script>"` with no
+  login profile and no silent shell fallback. Omitted `cwd` defaults to the
+  space root; omitted `delivery` defaults to fail fast.
+- **Timeout and termination.** `timeout_ms` (default 30000) caps the run. On
+  timeout, cancellation, external resolution, yield, run terminal, or Desktop
+  shutdown the runtime sends process-group `SIGTERM`, waits five seconds, then
+  `SIGKILL`, and records one terminal result. Authored `kill_on` is removed.
+- **Credentials.** Each spawned handler receives a short-lived run/step-scoped
+  `MURRMURE_HUB_TOKEN` (resolve capability only), never the persistent machine
+  connection. The journal and public APIs never receive a local path or
+  credential.
+
 ## `mrmr step resolve` (operator / shell path)
 
 For `complete: cli` handlers, or shell scripts that need hub resolve without MCP:

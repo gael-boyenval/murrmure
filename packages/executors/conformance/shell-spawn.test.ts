@@ -165,7 +165,13 @@ describe("shell-spawn helpers", () => {
 
   test("injects resolve token and hub url into shell env", async () => {
     let capturedEnv: NodeJS.ProcessEnv | undefined;
-    const spawnStub = ((command: string, options: { env?: NodeJS.ProcessEnv }) => {
+    let capturedArgs: string[] | undefined;
+    const spawnStub = ((
+      binary: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv },
+    ) => {
+      capturedArgs = args;
       capturedEnv = options.env;
       const child = new EventEmitter() as EventEmitter & {
         stdout: EventEmitter;
@@ -177,7 +183,7 @@ describe("shell-spawn helpers", () => {
         child.stdout.emit("data", Buffer.from('{"ok":true}'));
         child.emit("close", 0);
       });
-      void command;
+      void binary;
       return child as never;
     }) as unknown as typeof import("node:child_process").spawn;
 
@@ -210,6 +216,9 @@ describe("shell-spawn helpers", () => {
 
     const outcome = await executor.dispatch(invoke, context);
     expect(outcome.status).toBe("dispatched");
+    expect(capturedArgs?.[0]).toBe("-e");
+    expect(capturedArgs?.[1]).toBe("-c");
+    expect(capturedArgs?.[2]).toBe('node -e "process.stdout.write(\'{}\')"');
     expect(capturedEnv?.MURRMURE_HUB_TOKEN).toBe("tok_run_scoped");
     expect(capturedEnv?.MURRMURE_HUB_URL).toBe("http://127.0.0.1:8787");
     expect(capturedEnv?.MURRMURE_RUN_ID).toBe("run_demo");

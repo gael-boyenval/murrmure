@@ -2,7 +2,7 @@
 
 **Status:** Normative — **shipped** (HANDLER-CUTOVER 2026-07-09; VIEW-RESOLVER cutover 2026-07-14)
 **Plan:** [2026-07-09-space-handlers-contract-keys-plan.md](../../plans/2026-07-09-space-handlers-contract-keys-plan.md), [Tutorial v3 Task 04](../../plans/2026-07-14-tutorial-v3-build-tasks/04-intake-view.md)
-**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md)
+**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md), [ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md)
 
 Spaces own execution via **handlers**. A step handler binds to a resolver-agnostic
 step with `on: step.opened::{flow_name}.{qualified_step_id}` (the **`on::key`
@@ -168,6 +168,71 @@ for the hardened host boundary.
 
 ---
 
+## Shell handler execution model
+
+A `shell_spawn` handler runs a `command` string under a strict, safe execution
+model so authored dynamic values can never become shell fragments and the
+runtime owns process lifecycle. See
+[ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md).
+
+### Command grammar and quoting
+
+- Every dynamic placeholder occupies **one complete unquoted argument** and the
+  runtime shell-quotes it **exactly once**. Spaces, apostrophes, quotes, `$()`,
+  backticks, newlines, leading dashes, and Unicode in a resolved value stay
+  literal data.
+- Author-quoted placeholders (`'{{x}}'`, `"{{x}}"`), embedded forms
+  (`--flag={{x}}`, `pre{{x}}post`, `{{a}}{{b}}`), and unknown placeholders are
+  rejected before spawn.
+- A missing or null binding fails before process creation with
+  `HANDLER_BINDING_VALUE_MISSING`; a schema-valid empty string remains one empty
+  argument.
+- `{{prompt}}` is stripped (delivered via stdin) when the handler uses prompt
+  delivery, otherwise substituted as one quoted argument. `{{space_root}}` is
+  resolved in the `cwd` field as a path, not shell-quoted.
+
+### Artifact consumer copy
+
+- A singleton artifact `.path` token (for example
+  `{{murrmure.step.intake.artifact.spec.path}}`) resolves only for local
+  execution to an **absolute, digest-verified, run-scoped consumer copy** at
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`.
+- The original artifact is never mutated; the source must be a regular file
+  inside the run scratch tree (traversal rejected) and is read once. The copy
+  is written to a temp sibling and atomically renamed, so a partial file is
+  never observable. A digest mismatch refuses the copy before any consumer
+  bytes are written.
+- Public APIs, Views, journals, and remote handlers receive **references,
+  never local paths**.
+
+### POSIX execution and defaults
+
+- Multiline commands run as `/bin/sh -e -c "<script>"` on supported POSIX
+  systems without login profiles or a silent shell fallback. Omitted `cwd`
+  defaults to the space root; omitted `delivery` defaults to fail-fast.
+
+### Process lifecycle and credentials
+
+- Timeout, cancellation, external resolution, yield, run terminal, or Desktop
+  shutdown sends process-group `SIGTERM`, waits five seconds, then `SIGKILL`,
+  and records exactly one terminal result. Authored `kill_on` is removed.
+- Each spawned handler receives an **ephemeral run/step-scoped credential**
+  (`MURRMURE_HUB_TOKEN`) in its environment, never the persistent machine
+  connection. The dispatch audit records only command/prompt/cwd — never the
+  environment — so credentials never reach the journal or public surfaces.
+
+### `complete:auto` outcomes
+
+| Exit / stdout | Outcome |
+|---------------|---------|
+| Exit 0, parseable stdout | `completed` |
+| Nonzero exit | `failed` — `SHELL_EXIT_NONZERO` |
+| Unparseable stdout (when `response_schema` set) | `failed` — `RESPONSE_NOT_JSON` |
+| Spawn failure | `failed` — `SHELL_SPAWN_FAILED` |
+| Timeout / termination | `failed` — `ACTION_TIMED_OUT` |
+
+---
+
 ## Decision record
 
 Decisions below are **entry gates** for implementation slices VS-1+.
@@ -237,4 +302,5 @@ See [ADR-009](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md).
 - [triggers.md](./triggers.md) — event handlers in the same file
 - [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
 - [ADR-011 — Space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md)
+- [ADR-012 — Safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md)
 - [product/philosophy.md](../product/philosophy.md) § Arc 5 — space owns execution

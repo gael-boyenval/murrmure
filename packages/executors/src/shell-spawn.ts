@@ -14,6 +14,7 @@ import {
   resolveInvokePrompt,
 } from "./invoke-shell-prompt.js";
 import { resolveSafeShellCommand } from "./shell-command.js";
+import { materializeConsumerCopy, type RunArtifactsBag } from "@murrmure/hub-core";
 
 export { shellQuote } from "./shell-command.js";
 
@@ -103,9 +104,57 @@ function buildTemplateContext(invoke: InvokeRequest, context: DispatchContext) {
   };
 }
 
+const ARTIFACT_PATH_PLACEHOLDER_RE =
+  /\{\{murrmure\.step\.([A-Za-z0-9._-]+)\.artifact\.([A-Za-z0-9._-]+)\.path\}\}/g;
+
+/**
+ * Materialize verified local consumer copies for every `{{murrmure.step.{p}.
+ * artifact.{slot}.path}}` placeholder the command references, and return the
+ * binding overrides (absolute consumer paths) the safe resolver should use.
+ *
+ * A referenced producer/slot that is absent from the run artifacts bag is
+ * returned as `null` so the resolver fails fast with a missing-binding error
+ * before any process is spawned.
+ */
+export async function materializeArtifactBindings(input: {
+  command: string;
+  runArtifacts: RunArtifactsBag;
+  space_root: string;
+  run_id?: string;
+  consumer_step: string;
+}): Promise<Record<string, string | null>> {
+  const overrides: Record<string, string | null> = {};
+  const referenced = new Set<string>();
+  for (const match of input.command.matchAll(ARTIFACT_PATH_PLACEHOLDER_RE)) {
+    referenced.add(`${match[1]}::${match[2]}`);
+  }
+  for (const ref of referenced) {
+    const [producer, slot] = ref.split("::");
+    const key = `murrmure.step.${producer}.artifact.${slot}.path`;
+    const record = input.runArtifacts[producer]?.[slot];
+    if (!record || !input.run_id) {
+      overrides[key] = null;
+      continue;
+    }
+    const source_path = join(input.space_root, record.path);
+    const copy = await materializeConsumerCopy({
+      space_root: input.space_root,
+      run_id: input.run_id,
+      consumer_step: input.consumer_step,
+      slot,
+      source_path,
+      filename: record.name,
+      expected_digest: record.digest,
+    });
+    overrides[key] = copy.path;
+  }
+  return overrides;
+}
+
 export function resolveShellInvocation(
   invoke: InvokeRequest,
   context: DispatchContext,
+  artifactBindings?: Record<string, string | null>,
 ): ShellInvocation {
   const command = context.action.command;
   if (!command) {
@@ -113,7 +162,10 @@ export function resolveShellInvocation(
   }
 
   const templateContext = buildTemplateContext(invoke, context);
-  const bindings = buildInvokeTemplateBindings(templateContext);
+  const bindings = {
+    ...buildInvokeTemplateBindings(templateContext),
+    ...(artifactBindings ?? {}),
+  };
   const resolvedPrompt = resolveInvokePrompt(templateContext, context.action.prompt);
   const viaStdin = shouldDeliverPromptViaStdin(command, context.action.prompt);
 
@@ -199,6 +251,47 @@ function attachStreamListeners(
   });
 }
 
+function terminateProcessGroup(
+  child: ReturnType<typeof spawn>,
+  signal: "SIGTERM" | "SIGKILL" = "SIGTERM",
+): void {
+  const pid = child.pid;
+  if (typeof pid === "number") {
+    try {
+      process.kill(-pid, signal);
+    } catch {
+      // Process group may have already exited; fall back to direct signal.
+      try {
+        child.kill(signal);
+      } catch {
+        /* already gone */
+      }
+    }
+    return;
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    /* already gone */
+  }
+}
+
+function spawnShellScript(
+  spawnFn: typeof spawn,
+  script: string,
+  cwd: string,
+  extraEnv: Record<string, string>,
+  stdinPrompt?: string,
+): ReturnType<typeof spawn> {
+  return spawnFn(POSIX_SHELL, ["-e", "-c", script], {
+    cwd,
+    shell: false,
+    detached: true,
+    env: { ...process.env, ...extraEnv },
+    stdio: stdinPrompt ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+  });
+}
+
 function runCommand(
   command: string,
   cwd: string,
@@ -211,12 +304,7 @@ function runCommand(
   stdinPrompt?: string,
 ): Promise<ShellRunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawnFn(command, {
-      cwd,
-      shell: true,
-      env: { ...process.env, ...extraEnv },
-      stdio: stdinPrompt ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
-    });
+    const child = spawnShellScript(spawnFn, command, cwd, extraEnv, stdinPrompt);
 
     onProcessStart?.({
       run_id: processMeta?.run_id,
@@ -232,18 +320,25 @@ function runCommand(
     const buffers = { stdout: "", stderr: "" };
     attachStreamListeners(child, { run_id: processMeta?.run_id, step_id: processMeta?.step_id ?? "unknown", onOutputChunk }, buffers);
 
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimers = () => {
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+    };
+
     const timer = setTimeout(() => {
-      child.kill("SIGTERM");
+      terminateProcessGroup(child, "SIGTERM");
+      killTimer = setTimeout(() => terminateProcessGroup(child, "SIGKILL"), TERMINATION_GRACE_MS);
       reject(new Error("SHELL_TIMEOUT"));
     }, timeoutMs);
 
     child.on("error", (err) => {
-      clearTimeout(timer);
+      clearTimers();
       reject(err);
     });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
+      clearTimers();
       resolve({ stdout: buffers.stdout, stderr: buffers.stderr, code });
     });
   });
@@ -252,18 +347,15 @@ function runCommand(
 function runCommandDetached(
   command: string,
   cwd: string,
+  timeoutMs: number,
   spawnFn: typeof spawn,
   extraEnv: Record<string, string>,
   deps: Pick<ShellSpawnDeps, "onProcessStart" | "onOutputChunk" | "onShellComplete">,
   processMeta: { run_id?: string; step_id: string; action_name: string },
   stdinPrompt?: string,
 ): void {
-  const child = spawnFn(command, {
-    cwd,
-    shell: true,
-    env: { ...process.env, ...extraEnv },
-    stdio: stdinPrompt ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
-  });
+  const child = spawnShellScript(spawnFn, command, cwd, extraEnv, stdinPrompt);
+  child.unref?.();
 
   deps.onProcessStart?.({
     run_id: processMeta.run_id,
@@ -283,7 +375,18 @@ function runCommandDetached(
     buffers,
   );
 
+  let settled = false;
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearKillTimer = () => {
+    if (killTimer) {
+      clearTimeout(killTimer);
+      killTimer = undefined;
+    }
+  };
   const finish = (outcome: DispatchOutcome) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
     void deps.onShellComplete?.({
       run_id: processMeta.run_id,
       step_id: processMeta.step_id,
@@ -292,7 +395,20 @@ function runCommandDetached(
     });
   };
 
+  const timer = setTimeout(() => {
+    terminateProcessGroup(child, "SIGTERM");
+    killTimer = setTimeout(() => terminateProcessGroup(child, "SIGKILL"), TERMINATION_GRACE_MS);
+    finish({
+      status: "failed",
+      run_id: processMeta.run_id,
+      step_id: processMeta.step_id,
+      error_code: "ACTION_TIMED_OUT",
+      detail: `Command timed out after ${timeoutMs}ms`,
+    });
+  }, timeoutMs);
+
   child.on("error", (err) => {
+    clearKillTimer();
     finish({
       status: "failed",
       run_id: processMeta.run_id,
@@ -303,6 +419,7 @@ function runCommandDetached(
   });
 
   child.on("close", (code) => {
+    clearKillTimer();
     if (code !== 0) {
       finish({
         status: "failed",
@@ -440,7 +557,28 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
       }
 
       try {
-        const invocation = resolveShellInvocation(invoke, context);
+        const command = context.action.command;
+        if (!command) {
+          return {
+            status: "failed",
+            run_id: invoke.run_id,
+            step_id,
+            error_code: "SHELL_SPAWN_FAILED",
+            detail: `Action '${context.action.name}' has no command for shell_spawn`,
+          };
+        }
+
+        const runArtifacts: RunArtifactsBag = context.step_contract?.run_artifacts_json
+          ? (JSON.parse(context.step_contract.run_artifacts_json) as RunArtifactsBag)
+          : {};
+        const artifactBindings = await materializeArtifactBindings({
+          command,
+          runArtifacts,
+          space_root: context.space_root,
+          run_id: invoke.run_id,
+          consumer_step: step_id,
+        });
+        const invocation = resolveShellInvocation(invoke, context, artifactBindings);
         const prompt = resolveShellPrompt(invoke, context);
 
         const invokeEnv: Record<string, string> = {
@@ -478,6 +616,7 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           runCommandDetached(
             invocation.command,
             invocation.cwd,
+            timeoutMs,
             spawnFn,
             invokeEnv,
             deps,

@@ -78,6 +78,40 @@ handlers:
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. `view_resolver` forbids `command`/`prompt`/`params`/`cwd`. |
 | `kill_on` | **Removed** — authored `kill_on` is rejected; assignment termination is runtime-owned |
 
+### Shell command grammar (safe interpolation)
+
+A `shell_spawn` `command` runs under a strict grammar so dynamic values can
+never become shell fragments:
+
+- **One complete unquoted argument per placeholder**, shell-quoted once by the
+  runtime. Spaces, apostrophes, `$()`, backticks, newlines, leading dashes, and
+  Unicode stay literal data.
+- **Rejected before spawn**: author-quoted placeholders (`'{{x}}'`,
+  `"{{x}}"`), embedded forms (`--flag={{x}}`, `pre{{x}}post`), and unknown
+  placeholders. Missing/null → `HANDLER_BINDING_VALUE_MISSING`; empty string
+  stays one empty argument.
+- **`{{prompt}}`** is delivered via stdin (stripped) for prompt-scoped handlers;
+  **`{{space_root}}`** is resolved in `cwd` as a path.
+- **Artifact path tokens** (`{{murrmure.step.{producer}.artifact.{slot}.path}}`)
+  resolve to a verified, digest-checked consumer copy under
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}` —
+  the original artifact is never mutated.
+- Multiline commands run as `/bin/sh -e -c "<script>"` (no login profile, no
+  silent fallback); omitted `cwd` defaults to the space root, omitted
+  `delivery` defaults to `fail_fast`. `timeout_ms` caps the run; on timeout the
+  whole process group is terminated (SIGTERM → 5s → SIGKILL).
+
+```yaml
+  - id: write_spec_copy
+    on: step.opened::my-flow.write_spec
+    type: shell_spawn
+    complete: auto
+    command: |
+      mkdir -p specs/current
+      cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md
+    timeout_ms: 10000
+```
+
 ### Event handlers (not hooks chains)
 
 Declare event reactions in the same `handlers.yaml` namespace:

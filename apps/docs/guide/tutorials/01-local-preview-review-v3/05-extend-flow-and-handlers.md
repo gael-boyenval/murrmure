@@ -82,9 +82,9 @@ Handlers do not read the manifest for file paths. They read **run state** built 
 
 1. Part 4 — you submitted **`~/Documents/spec.md`** on branch **`continue`**.
 2. The hub promoted it under the run scratch tree (`.mrmr/dev/runs/…/steps/intake/spec/`).
-3. When **`write_spec`** opens, the hub expands <code v-pre>{{murrmure.step.intake.artifact.spec.path}}</code> to that **absolute path** on disk.
+3. When **`write_spec`** opens, the hub materializes a **verified, digest-checked consumer copy** under the consumer step's inputs (`.mrmr/dev/runs/…/steps/write_spec/inputs/spec/spec.md`) and expands <code v-pre>{{murrmure.step.intake.artifact.spec.path}}</code> to that **absolute path** on disk.
 
-So the command creates `specs/current/` in your repo and copies the intake file there as `specs/current/spec.md`.
+So the command creates `specs/current/` in your repo and copies the **consumer copy** there as `specs/current/spec.md`. The original submitted artifact is never mutated — your handler only ever reads its own verified input. Filenames and content containing spaces, apostrophes, or shell metacharacters stay literal data; the runtime shell-quotes each value exactly once.
 
 **`complete` modes:** `auto` — hub resolves on shell exit 0 (this handler). `explicit` — agent calls **`murrmure_resolve_step`** when done (Step 4 — **`build`**). `cli` — your script calls **`mrmr step resolve`** before exit. Full reference: [Space handlers](../../space-handlers).
 

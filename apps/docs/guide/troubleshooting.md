@@ -24,6 +24,11 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | `FLOW_CONCURRENCY_LIMIT` (409) | The flow already has `max_concurrent_runs` non-terminal runs in this space. Wait for an active run to terminate (or cancel it), then retry — the retry performs a fresh admission check. The denial lists the active blocking run IDs. |
 | `SPACE_HAS_ACTIVE_RUNS` (409) on `mrmr space apply` | An apply cannot swap a space's configuration while a non-terminal run depends on it. Wait for all runs to terminate (or cancel them), then re-apply; the prior index is preserved. No partial replacement is visible. |
 | `RUN_POLICY_UNKNOWN_FLOW` / `RUN_POLICY_AMBIGUOUS_FLOW` / `RUN_POLICY_DUPLICATE` (apply) | A `run_policies.flow` alias does not match exactly one applied flow name. Fix the alias in `handlers.yaml` to match the applied flow's `name`, then re-apply. |
+| `HANDLER_BINDING_VALUE_MISSING` (before spawn) | A placeholder in `command` has no binding or is null. Bind the value (or fix the token) and re-apply; a missing artifact slot means the producer step did not submit it. |
+| `HANDLER_PLACEHOLDER_QUOTED` / `HANDLER_PLACEHOLDER_EMBEDDED` / `HANDLER_UNKNOWN_PLACEHOLDER` (before spawn) | A placeholder must be one complete unquoted argument. Remove author quotes (`'{{x}}'`), split embedded forms (`--flag={{x}}` → `--flag {{x}}`), and confirm the token key exists. |
+| `ARTIFACT_DIGEST_MISMATCH` / `ARTIFACT_PATH_TRAVERSAL` (before spawn) | The producer artifact changed after submission or the source escapes the run scratch tree. Re-submit the artifact on the producer step; the consumer copy is digest-verified. |
+| `ACTION_TIMED_OUT` | The command exceeded `timeout_ms`. Raise `timeout_ms` for slow scripts, or fix a hanging child — the runtime terminates the whole process group (SIGTERM → 5s → SIGKILL). |
+| `SHELL_EXIT_NONZERO` | The script exited nonzero. Read `stderr` in the run journal; `/bin/sh -e -c` stops at the first failing command. |
 
 ## MCP tools not showing in Cursor
 
