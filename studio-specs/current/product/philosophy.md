@@ -254,7 +254,7 @@ Murrmure validates **delivery, digest, ACL, TTL** — not file semantics.
 **Triggers and flows:**
 
 - Triggers **can start a flow** or **create/extend a session** without a declared graph.
-- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, optional `requires_view`.
+- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, `flow_call` — declared under the single `triggers` field. Flow-level `requires_view` is removed; Views bind through the space.
 - Agent may **MCP-push session-scoped orchestration** → **human gate** before bind. Long-lived flows: write files + CLI push.
 
 **Notifications:** global header **Needs you**, notification center, `/notifications` — gates primary; separate from logs.
@@ -367,7 +367,7 @@ A **flow** is **declarative orchestration** — a thin step graph for a workflow
 | **Local flows** | Declared in a project space — repo-specific pipeline |
 | **Global flows** | `scope: global` in any space — recommended catalog pattern; grants control access |
 | **Generalize** | Move flow/view files to another space via CLI when local → shared |
-| **Trigger modes** | Like GitHub Actions: manual, event, schedule; optional `requires_view` |
+| **Trigger modes** | Like GitHub Actions: manual, event, schedule, flow_call — under `triggers` (no flow-level `requires_view`) |
 | **Initiation** | Shell (if allowed), CLI, trigger, agent MCP (session-scoped + human gate) |
 
 Flows declare **steps and contracts**, not implementation:

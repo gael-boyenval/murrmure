@@ -455,14 +455,9 @@ description: Spec intake → write → build (review loop) → archive → commi
 triggers:
   manual: true
 
-start:
-  manual: true
-
 steps:
   - id: intake
     description: Human attaches spec markdown.
-    presentation:
-      view: preview-review-intake
     branches:
       continue:
         schema:
@@ -471,74 +466,46 @@ steps:
         artifact_slots:
           spec:
             description: Attached spec markdown file
-        next: write_spec
+        route: { step: write_spec }
       cancel:
         schema: { type: object }
-        next: null
-        fail_run: true
+        route: { run: failed }
 
   - id: write_spec
     description: Agent writes spec to repo.
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: build
-      failed:
-        schema: { type: object }
-        next: null
-        fail_run: true
 
   - id: build
     description: Build site and human review loop until validated.
-    role: agent
-    orchestration: engine-routed
     steps:
       - id: build-loop
-        role: agent
+        description: Implement site; resolve when preview URL ready.
         branches:
           completed:
             schema:
               type: object
               required: [preview_url]
-            goto: review
+            route: { step: build.review }
           failed:
             schema: { type: object }
-            fail: true
+            route: { run: failed }
       - id: review
-        presentation:
-          view: preview-review
-          assignees: ["{{input.reviewer}}"]
+        description: Human validates preview — wait; do not resolve yourself.
         branches:
           validated:
             schema: { type: object }
-            complete: parent
+            resume: build
           changes_required:
             schema: { type: object }
-            continue: parent
-            goto: build-loop
-    branches:
-      completed:
-        schema: { type: object }
-        next: archive
-      failed:
-        schema: { type: object }
-        next: null
-        fail_run: true
+            route: { step: build.build-loop }
+          cancel:
+            schema: { type: object }
+            route: { run: failed }
 
   - id: archive
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: commit
+    description: Archive the built site.
 
   - id: commit
-    role: agent
-    branches:
-      completed:
-        schema: { type: object }
-        next: null
+    description: Commit the archived result.
 ```
 
 **Execution binding:** Space handlers map `contract_keys` such as `preview-review.write_spec`, `preview-review.build.build-loop` — see [bridges/handlers.md](../bridges/handlers.md). Flow manifest carries **no** `invoke:` blocks.
@@ -596,19 +563,14 @@ interface FlowIndexEntry {
   origin_space_id: string;   // space that hosts manifest files
   digest: string;            // manifest hash
   name: string;
-  start: FlowStartConditions;
+  triggers: FlowStartConditions; // the only start-condition field; `start` is rejected
   step_spaces: string[];     // spaces with handlers for this flow's contract_keys
   grants_required: string[]; // hints for expand preview
-  view_ref?: {               // when start.requires_view set — NOT a hub view entity
-    view_id: string;
-    origin_space_id: string;
-    entry_url?: string;      // bundled static or dev server
-    shell_route?: string;    // built-in shell route if registered client-side
-  };
+  step_contract_catalog: StepContractCatalog; // compiled per flow at apply time
 }
 ```
 
-**View resolution (closed 2026-06-30):** on `space apply`, parse `.mrmr/views/{view_id}/view.manifest.yaml` from flow origin space and denormalize into `view_ref`. Shell reads flow index — **no hub view registry**. If view missing at run time → fallback to `GateFormSchema`-style param form on run create.
+**View binding (clean cutover):** flow manifests carry no `requires_view` and the flow index carries no `view_ref`. Views bind to steps through the **space** (`handlers.yaml` + `.mrmr/views/`), not the portable flow; the shell reads `open_steps[]` and the space's view bindings at run time. There is **no hub view registry** and no flow-level form fallback.
 
 No per-space "install" UX — index refresh only.
 
@@ -1277,7 +1239,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | P4 | `queue_poll` ownership | **External worker contract only** — poll API §4.6; no in-hub queue runtime |
 | P5 | Hook vs run idempotency | **Propagate** hook `dedup_key` → run `idempotency_key` (§4.5) |
 | P6 | Retry-from-step | **New Run**, same Session, `reference_run_ids` (§3.6) |
-| U1 | `requires_view` resolution | **`view_ref`** on flow index from space files; form fallback (§5.4) |
+| U1 | `requires_view` resolution | **Removed** — flow-level `requires_view` is rejected; Views bind through the space (`handlers.yaml`) and run detail exposes `open_steps[]` |
 | U2 | Agent orchestration push schema | **`murrmure.flow.attach/v1`** = same manifest as files (§6.3) |
 | U3 | Landing space API | **`PATCH /v1/me`**; suggest on first link, never auto-set (§10.6) |
 | U4 | Hosted web SSE auth | Cookie or short-lived **SSE ticket** — not Bearer on EventSource (§10.3) |

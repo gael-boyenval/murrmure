@@ -264,6 +264,31 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
+  test("VS-9 — shipped flow manifests ban removed authoring fields and routing keys", () => {
+    // Distinctive removed tokens that never appear in a clean step-contract
+    // manifest. Branch names such as `continue`/`completed` are NOT matched;
+    // only the superseded routing keys (`continue: parent`, `complete: parent`)
+    // and modality/kind fields are banned.
+    const REMOVED_MANIFEST_PATTERN =
+      /(^|\n)\s*start:|requires_view|deriveRole|role:\s*(agent|human)\b|presentation:\s*(\r?\n|$)|\binvoke:\s|\bcheckpoint:\s|\bgate:\s|\bnext:\s|fail_run:\s|goto:\s|complete:\s*parent|continue:\s*parent|fail:\s*true|payload:\s|outcome:\s/m;
+    const roots = [
+      join(REPO_ROOT, "test-utils/spaces"),
+      join(REPO_ROOT, "studio-specs/current/fixtures"),
+    ];
+    for (const root of roots) {
+      if (!existsSync(root)) continue;
+      const flowManifests = collectFiles(
+        root,
+        (entry) => entry.endsWith("flow.manifest.yaml") || entry.endsWith("flow.manifest.yml"),
+      );
+      for (const file of flowManifests) {
+        const rel = file.replace(`${REPO_ROOT}/`, "");
+        const content = readFileSync(file, "utf-8");
+        expect(content, rel).not.toMatch(REMOVED_MANIFEST_PATTERN);
+      }
+    }
+  });
+
   test("DOC-LAYOUT-01 — guide docs use .mrmr/ not murrmure/ as canonical layout", () => {
     const guideRoot = join(REPO_ROOT, "apps/docs/guide");
     const files = collectMarkdownFiles(guideRoot);
