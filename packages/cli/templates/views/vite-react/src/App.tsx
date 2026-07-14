@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useViewContract, isViewContractError, type ViewContractError } from "@murrmure/view-sdk/app";
 
 export function App() {
-  const { context: ctx, ready, submitBranch, cancel } = useViewContract();
+  const { context: ctx, ready, submitBranch, cancel, submission } = useViewContract();
   const [note, setNote] = useState("");
   const [error, setError] = useState<ViewContractError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,10 +22,10 @@ export function App() {
     setBusy(true);
     try {
       const params = note.trim() ? { note: note.trim() } : {};
-      await submitBranch(branch, params);
+      await submitBranch(branch, { payload: params });
     } catch (err) {
       if (isViewContractError(err)) setError(err);
-      else setError({ code: "VIEW_BRANCH_VALIDATION_FAILED", message: String(err) });
+      else setError({ code: "VIEW_BRANCH_VALIDATION_FAILED", message: String(err), errors: [] });
     } finally {
       setBusy(false);
     }
@@ -38,7 +38,7 @@ export function App() {
       await cancel();
     } catch (err) {
       if (isViewContractError(err)) setError(err);
-      else setError({ code: "VIEW_CANCEL_REJECTED", message: String(err) });
+      else setError({ code: "VIEW_CANCEL_REJECTED", message: String(err), errors: [] });
     } finally {
       setBusy(false);
     }
@@ -104,6 +104,18 @@ export function App() {
           Cancel
         </button>
       </div>
+
+      {submission.status !== "idle" ? (
+        <div style={{ marginTop: "1rem" }}>
+          <progress value={submission.uploadedBytes} max={submission.totalBytes || 1} />
+          <span style={{ marginLeft: "0.5rem" }}>{submission.status}</span>
+          {submission.status === "uploading" ? (
+            <button type="button" onClick={submission.cancel} style={{ marginLeft: "0.5rem" }}>
+              Cancel upload
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? (
         <p role="alert" style={{ marginTop: "1rem", color: "#b91c1c", fontSize: "0.875rem" }}>

@@ -220,14 +220,20 @@ describe("view-sdk app bridge", () => {
       value: { postMessage },
     });
 
-    const promise = submitBranch(sampleContext, "approve", { note: "ship it" });
+    const promise = submitBranch(
+      sampleContext,
+      "approve",
+      { payload: { note: "ship it" } },
+      { submissionId: "sub-1" },
+    );
 
     await vi.waitFor(() =>
       expect(postMessage).toHaveBeenCalledWith(
         {
           type: "murrmure.view.submit_branch",
+          submission_id: "sub-1",
           branch: "approve",
-          params: { note: "ship it" },
+          input: { payload: { note: "ship it" } },
           v: VIEW_TRANSPORT_VERSION,
           nonce: NONCE,
         },
@@ -241,6 +247,7 @@ describe("view-sdk app bridge", () => {
           type: "murrmure.view.ack",
           ok: true,
           kind: "submit_branch",
+          submission_id: "sub-1",
           v: VIEW_TRANSPORT_VERSION,
           nonce: NONCE,
         },
@@ -264,6 +271,54 @@ describe("view-sdk app bridge", () => {
       branch: "nope",
     });
     expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it("useViewContract rejects a double submit before posting twice", async () => {
+    const postMessage = vi.fn();
+    Object.defineProperty(window, "parent", {
+      configurable: true,
+      value: { postMessage },
+    });
+    __setViewContextForTests(sampleContext);
+    let contract: ReturnType<typeof useViewContract> | undefined;
+    function ProbeApp() {
+      contract = useViewContract();
+      return null;
+    }
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(createElement(ProbeApp));
+    });
+
+    const first = contract!.submitBranch("approve", { payload: { note: "ship" } });
+    await expect(
+      contract!.submitBranch("approve", { payload: { note: "ship twice" } }),
+    ).rejects.toMatchObject({
+      code: "VIEW_SUBMISSION_IN_PROGRESS",
+    });
+    const submitCall = postMessage.mock.calls.find(
+      ([message]) => message.type === "murrmure.view.submit_branch",
+    );
+    expect(postMessage.mock.calls.filter(
+      ([message]) => message.type === "murrmure.view.submit_branch",
+    )).toHaveLength(1);
+    window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "murrmure.view.ack",
+        ok: true,
+        kind: "submit_branch",
+        submission_id: submitCall?.[0].submission_id,
+        v: VIEW_TRANSPORT_VERSION,
+        nonce: NONCE,
+      },
+      origin: "http://127.0.0.1:8787",
+      source: window.parent,
+    }));
+    await expect(first).resolves.toBeUndefined();
+    await act(async () => root.unmount());
+    container.remove();
   });
 
   it("ViewProvider re-renders when context prop updates", async () => {

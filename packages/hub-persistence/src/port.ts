@@ -13,6 +13,7 @@ import type {
   RunStepMemo,
   SessionCreatedBy,
   SessionStatus,
+  ResolvedRunPolicy,
 } from "@murrmure/contracts";
 
 export interface TokenRow {
@@ -242,6 +243,7 @@ export interface StudioPersistencePort {
   listIndexedHooks(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>>;
+  listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]>;
   listFlowIndex(space_id: string): Promise<FlowIndexEntry[]>;
   getFlowIndexEntry(flow_id: string, origin_space_id?: string): Promise<FlowIndexEntry | null>;
 

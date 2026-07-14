@@ -8,6 +8,7 @@ import type {
   StepCatalogBranch,
   StepCatalogRoute,
 } from "@murrmure/contracts";
+import { assertSupportedPayloadSchema, partitionRequiredFields } from "@murrmure/contracts";
 import { computeContentDigest } from "../index/digest.js";
 import type { ParseResult } from "../index/parse-result.js";
 
@@ -496,9 +497,41 @@ function compileCatalogEntries(
       const routes = lowered.length > 0
         ? lowered
         : resolveTopLevelDefaultRoutes(name, row, warnings, flowId);
+      const schema = typeof def.schema === "object" ? def.schema : undefined;
+      const artifactSlots = def.artifact_slots ?? {};
+      const { payload_required, artifact_required } = partitionRequiredFields(schema, artifactSlots);
+      const properties =
+        schema?.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)
+          ? (schema.properties as Record<string, unknown>)
+          : {};
+      for (const slot of Object.keys(artifactSlots)) {
+        if (Object.hasOwn(properties, slot)) {
+          warnings.push({
+            flow_id: flowId,
+            step_id: row.qualifiedId,
+            code: "PAYLOAD_ARTIFACT_NAME_COLLISION",
+            message: `Branch '${name}' declares '${slot}' as both a payload property and artifact slot`,
+          });
+        }
+      }
+      if (schema) {
+        try {
+          assertSupportedPayloadSchema(schema);
+        } catch (error) {
+          warnings.push({
+            flow_id: flowId,
+            step_id: row.qualifiedId,
+            code: "INVALID_BRANCH_SCHEMA",
+            message: error instanceof Error ? error.message : `Branch '${name}' schema is invalid`,
+          });
+        }
+      }
       branches[name] = {
         schema_ref: schemaRefForBranch(name, def),
-        schema: typeof def.schema === "object" ? def.schema : undefined,
+        schema,
+        payload_required,
+        artifact_required,
+        artifact_slots: artifactSlots,
         routes,
       };
     }
@@ -507,10 +540,6 @@ function compileCatalogEntries(
       parent_id: row.parentId,
       description: row.step.description,
       branches,
-      artifact_slots: Object.values(row.step.branches ?? {}).reduce(
-        (acc, branch) => ({ ...acc, ...branch.artifact_slots }),
-        {} as Record<string, Record<string, unknown>>,
-      ),
     };
   });
 }

@@ -38,6 +38,7 @@ export async function upsertEphemeralFlowEntry(
       { ...entry, payload_json: JSON.stringify(entry) } as FlowIndexRow,
     ],
     views: current.views ?? [],
+    run_policies: current.run_policies ?? [],
   };
   await studio.replaceSpaceIndex(bare, next);
 }

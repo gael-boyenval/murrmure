@@ -45,7 +45,9 @@ function writeContractSnapshots(projectPath: string, bundle: Awaited<ReturnType<
         flow_ref: flowRef,
         step_id: entry.step_id,
         branches: Object.keys(entry.branches),
-        artifact_slots: Object.keys(entry.artifact_slots ?? {}),
+        artifact_slots: Array.from(
+          new Set(Object.values(entry.branches).flatMap((branch) => Object.keys(branch.artifact_slots))),
+        ),
       });
     }
   }

@@ -15,6 +15,7 @@ function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    guard: ctx.spaceRunGuard,
     invokeAction: async (input) => {
       const result = await ctx.invokeService.invokeAction({
         space_id: input.space_id,

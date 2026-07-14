@@ -34,6 +34,7 @@ import {
   parseFlowManifest,
 } from "@murrmure/hub-core";
 import type { FlowManifest } from "@murrmure/contracts";
+import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const FIXTURE_ROOT = join(REPO_ROOT, "test-utils/spaces/tutorial-v3");
@@ -131,6 +132,17 @@ describe("Tutorial v3 harness", () => {
       );
     }
   });
+
+  test("Task 05 — the exact Part 3 View typechecks and builds", () => {
+    const fixture = createTemporaryTutorialSpace(3);
+    try {
+      const viewDir = join(fixture.spaceRoot, ".mrmr", "views", "spec-intake");
+      buildScaffoldedView(viewDir);
+      expect(existsSync(join(viewDir, "dist", "index.html"))).toBe(true);
+    } finally {
+      fixture.cleanup();
+    }
+  }, 120_000);
 
   test("Task 03 — progressive contract keys flow through every downstream representation", () => {
     // Exact progressive fixture assertion: as tutorial stages activate, the
@@ -336,7 +348,6 @@ describe("Tutorial v3 harness", () => {
       "packages/hub-daemon/test/http/tutorial-v3-http.test.ts",
       "packages/mcp-bridge/test/tutorial-v3-mcp.test.ts",
       "packages/cli/test/tutorial-v3-cli.test.ts",
-      "packages/view-sdk/test/tutorial-v3-view.test.ts",
       "packages/hub-core/test/tutorial-v3-handler.test.ts",
       "packages/executors/conformance/tutorial-v3-repository.test.ts",
       "packages/shell-web/src/tutorial-v3-shell-ui.test.tsx",

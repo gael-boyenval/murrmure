@@ -175,6 +175,13 @@ git status --short
 `git status --short` must be empty before the run starts. `.mrmr/dev` remains
 ignored and is never staged.
 
+> **Apply while a run is active?** An apply replaces the whole space config at
+> once, so the hub refuses it while any non-terminal run (`working` /
+> `input-required`) is still using the current handlers — you get
+> `409 SPACE_HAS_ACTIVE_RUNS` and the prior index is kept. Wait for the run to
+> finish (or cancel it) and re-apply; no partial replacement is ever visible.
+> See [Space handlers → Apply quiescence](../../space-handlers#apply-quiescence).
+
 ## Step 3 — Run the full pipeline
 
 Same **`~/Documents/spec.md`** from Part 4. Desktop → **Run** → Submit.

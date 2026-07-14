@@ -56,17 +56,21 @@ unknown or unbuilt View fails apply and preserves the prior index.
 import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const { context, ready, submitBranch, cancel } = useViewContract();
+  const { context, ready, submitBranch, cancel, submission } = useViewContract();
   if (!ready) return null;
 
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={() => submitBranch("continue", { reviewer, specFilename })}
-    >
-      Submit {context.step.step_id}
-    </button>
+    <>
+      <button onClick={() => submitBranch("continue", { files: { spec } })}>
+        Submit {context.step.step_id}
+      </button>
+      {submission.status === "uploading" ? (
+        <>
+          <progress value={submission.uploadedBytes} max={submission.totalBytes} />
+          <button onClick={submission.cancel}>Cancel upload</button>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -79,10 +83,11 @@ createViewMount({ App });
 |--------|------|
 | `createViewMount({ App, boundary? })` | Mount to `#root`; subscribe for context; post `murrmure.view.ready` |
 | `ViewProvider` | Internal — wraps app with context |
-| `useViewContract()` | `{ context, ready, submitBranch, cancel }` |
-| `submitBranch(context, branch, params)` | Post `submit_branch`; await host ACK; throw `ViewContractError` on rejection |
-| `cancel(context)` | Post `cancel`; await host ACK |
-| `validateBranchResolve(context, branch, params)` | Client-side branch validation helper |
+| `useViewContract()` | `{ context, ready, branches, validate, submitBranch, cancel, submission }` |
+| `submitBranch(context, branch, { payload?, files? })` | Post browser files to the trusted host; await resolve result |
+| `cancel(context)` | Resolve the workflow `cancel` branch; this is not upload cancellation |
+| `submission.cancel()` | Abort the active pre-commit upload; temporary bytes are removed and the step stays open |
+| `validateBranchResolve(context, branch, input)` | Fast iframe preflight; the trusted host and Hub perform full validation |
 | `isViewContractError(e)` / `ViewContractError` | Typed submission error |
 | `ViewErrorBoundary` | Optional error UI (used by default in `createViewMount`) |
 
@@ -102,7 +107,7 @@ interface ViewAppContext {
   run_id?: string;
   step: {
     step_id: string;
-    branches: ViewBranchContract[];   // { branch, schema?, schema_ref?, artifact_slots? }
+    branches: ViewBranchContract[];   // complete selected-branch contracts
   };
   steps?: Record<string, { output?: Record<string, unknown>; status?: string }>;
   input?: Record<string, unknown>;
@@ -122,13 +127,26 @@ verifies source window, origin, transport version, and nonce on every message.
 |-----------|---------|---------|
 | Host → view | `murrmure.view.context` (with envelope) | Step context |
 | View → host | `murrmure.view.ready` | View mounted |
-| View → host | `murrmure.view.submit_branch` `{ branch, params }` | Resolve a branch |
+| View → host | `murrmure.view.submit_branch` `{ submission_id, branch, input }` | Validate, upload, and resolve |
+| View → host | `murrmure.view.cancel_submission` `{ submission_id }` | Abort pre-commit submission |
 | View → host | `murrmure.view.cancel` | Human dismissed |
 | View → host | `murrmure.view.resolved` | View observed resolution |
 | Host → view | `murrmure.view.ack` `{ ok }` | Acknowledge submit/cancel |
+| Host → view | `murrmure.view.submission` | Monotonic validating/uploading/resolving progress |
 
 `submitBranch`/`cancel` resolve when the host ACKs `{ ok: true }` and reject
 with `ViewContractError` on `{ ok: false }`.
+
+`ViewContractError.errors` is the transport-neutral
+`CONTRACT_VALIDATION_FAILED` array: `{ source, path, rule, message }`, where
+`path` is an RFC 6901 JSON Pointer. Content, credentials, validator internals,
+and host paths are never exposed.
+
+Production submission is host-only: the iframe sends `File`/`Blob` objects,
+while the shell privately obtains Hub upload intents and streams bytes. Intent
+IDs and Hub credentials never cross into the iframe. Dev mode runs the same
+contract checks and reports a sanitized, non-mutating intent locally; it makes
+no upload or resolve request.
 
 ## Dev loop
 
@@ -156,7 +174,10 @@ import { ViewHostFrame } from "@murrmure/view-sdk";
 <ViewHostFrame
   src={entryUrl}
   context={viewAppContext}
-  onSubmitBranch={async (branch, params) => resolveStep(branch, params)}
+  onSubmitBranch={async (branch, input, submission) =>
+    uploadAndResolve(branch, input, submission)
+  }
+  onCancelSubmission={cancelUpload}
   onCancel={async () => closeCanvas()}
   onResolved={onResolved}
 />

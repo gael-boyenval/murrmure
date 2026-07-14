@@ -204,4 +204,55 @@ describe("flow-engine/step-contract-compile", () => {
     expect(a?.digest).toBe(b?.digest);
     expect(a?.graph_digest).toBe(b?.graph_digest);
   });
+
+  test("compiles independent branch resolve contracts and rejects payload/artifact collisions", () => {
+    const manifest: FlowManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "files",
+      triggers: { manual: true },
+      steps: [{
+        id: "intake",
+        branches: {
+          file_only: {
+            schema: { type: "object", required: ["spec"] },
+            artifact_slots: { spec: { min_bytes: 1, max_bytes: 10 } },
+            route: { run: "completed" },
+          },
+          mixed: {
+            schema: {
+              type: "object",
+              required: ["reviewer", "attachment"],
+              properties: { reviewer: { type: "string" } },
+            },
+            artifact_slots: { attachment: {} },
+            route: { run: "completed" },
+          },
+        },
+      }],
+    };
+    const compiled = compileStepContractCatalog(manifest, "flw_files");
+    const branches = compiled.catalog!.entries[0]!.branches;
+    expect(branches.file_only).toMatchObject({
+      payload_required: [],
+      artifact_required: ["spec"],
+      artifact_slots: { spec: { min_bytes: 1, max_bytes: 10 } },
+    });
+    expect(branches.mixed).toMatchObject({
+      payload_required: ["reviewer"],
+      artifact_required: ["attachment"],
+    });
+    expect(compiled.catalog!.entries[0]).not.toHaveProperty("artifact_slots");
+
+    const collision = structuredClone(manifest);
+    collision.steps[0]!.branches!.file_only!.schema = {
+      type: "object",
+      required: ["spec"],
+      properties: { spec: { type: "string" } },
+    };
+    expect(
+      compileStepContractCatalog(collision, "flw_collision").warnings,
+    ).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "PAYLOAD_ARTIFACT_NAME_COLLISION" }),
+    ]));
+  });
 });

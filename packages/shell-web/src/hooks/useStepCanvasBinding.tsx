@@ -1,8 +1,14 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ViewContractError } from "@murrmure/view-sdk";
+import type {
+  ViewBranchSubmitInput,
+  ViewContractError,
+  ViewSubmissionState,
+} from "@murrmure/view-sdk";
+import { viewSubmitFileName } from "@murrmure/view-sdk";
 import type { RunDetailPayload, ShellClient } from "@murrmure/shell-client";
+import { ShellClientHttpError } from "@murrmure/shell-client";
 import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
 import { buildViewAppContextFromRun } from "../lib/view-app-context.js";
 import { mapBranchSubmitToResolveStep, mapCancelToResolveStep } from "../lib/view-resolve-adapter.js";
@@ -32,6 +38,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
   const title = input?.title;
   const adminHref = input?.adminHref;
   const closeHref = input?.closeHref;
+  const submissions = useRef(new Map<string, { controller: AbortController; intent_id?: string }>());
 
   const runId = run?.run_id;
   const sessionId = run?.session_id;
@@ -76,32 +83,132 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
   }, [invalidate, navigate, closeHref, runId, sessionId]);
 
   const onSubmitBranch = useCallback(
-    async (branch: string, params: Record<string, unknown>): Promise<Ack> => {
+    async (
+      branch: string,
+      viewInput: ViewBranchSubmitInput,
+      submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+    ): Promise<Ack> => {
       if (!client || !runId || !stepId) {
-        return { ok: false, error: { code: "VIEW_CONTEXT_MISMATCH", message: "No active step to resolve" } };
+        return { ok: false, error: { code: "VIEW_CONTEXT_MISMATCH", message: "No active step to resolve", errors: [] } };
       }
+      const controller = new AbortController();
+      const active = { controller, intent_id: undefined as string | undefined };
+      submissions.current.set(submission.submission_id, active);
       try {
-        const body = mapBranchSubmitToResolveStep(branch, params);
-        await client.runs.resolveStep(runId, stepId, body);
+        const branchContract = context?.step?.branches.find((candidate) => candidate.branch === branch);
+        if (!branchContract) {
+          return { ok: false, error: { code: "VIEW_UNKNOWN_BRANCH", message: `Unknown branch '${branch}'`, branch, errors: [] } };
+        }
+        const files = Object.entries(viewInput.files ?? {}).flatMap(([slot, value]) =>
+          (Array.isArray(value) ? value : [value]).map((file, index) => ({
+            slot,
+            file,
+            name: viewSubmitFileName(branchContract, slot, file, index),
+          })),
+        );
+        const totalBytes = files.reduce((sum, item) => sum + item.file.size, 0);
+        submission.report({ status: "validating", uploadedBytes: 0, totalBytes });
+        if (files.length === 0) {
+          const body = mapBranchSubmitToResolveStep(branch, viewInput.payload ?? {});
+          const request = {
+            ...body,
+            idempotency_key: submission.submission_id,
+          };
+          try {
+            await client.runs.resolveStep(runId, stepId, request);
+          } catch (error) {
+            if (controller.signal.aborted || error instanceof ShellClientHttpError) throw error;
+            await client.runs.resolveStep(runId, stepId, request);
+          }
+          submission.report({ status: "succeeded", uploadedBytes: 0, totalBytes: 0 });
+          await closeCheckpoint();
+          return { ok: true };
+        }
+        const intent = await client.runs.createUploadIntent(runId, stepId, {
+          branch,
+          payload: viewInput.payload,
+          files: files.map((item) => ({
+            slot: item.slot,
+            name: item.name,
+            media_type: item.file.type,
+            size_bytes: item.file.size,
+          })),
+          idempotency_key: submission.submission_id,
+        });
+        active.intent_id = intent.intent_id;
+        let completedBytes = 0;
+        let reportedBytes = 0;
+        submission.report({ status: "uploading", uploadedBytes: 0, totalBytes });
+        for (let index = 0; index < files.length; index += 1) {
+          const item = files[index]!;
+          await client.runs.uploadIntentFile(intent.intent_id, index, item.file, {
+            signal: controller.signal,
+            onProgress: (loaded) => {
+              reportedBytes = Math.max(reportedBytes, completedBytes + loaded);
+              submission.report({
+                status: "uploading",
+                uploadedBytes: Math.min(reportedBytes, totalBytes),
+                totalBytes,
+              });
+            },
+          });
+          completedBytes += item.file.size;
+          reportedBytes = Math.max(reportedBytes, completedBytes);
+          submission.report({ status: "uploading", uploadedBytes: reportedBytes, totalBytes });
+        }
+        submission.report({ status: "resolving", uploadedBytes: totalBytes, totalBytes });
+        const request = {
+          branch,
+          payload: viewInput.payload,
+          upload_intent_id: intent.intent_id,
+          idempotency_key: submission.submission_id,
+        };
+        try {
+          await client.runs.resolveStep(runId, stepId, request);
+        } catch (error) {
+          if (controller.signal.aborted || error instanceof ShellClientHttpError) throw error;
+          await client.runs.resolveStep(runId, stepId, request);
+        }
+        submission.report({ status: "succeeded", uploadedBytes: totalBytes, totalBytes });
         await closeCheckpoint();
         return { ok: true };
       } catch (err) {
+        if (active.intent_id) {
+          await client.runs.cancelUploadIntent(active.intent_id).catch(() => undefined);
+        }
+        const cancelled = controller.signal.aborted || (err instanceof DOMException && err.name === "AbortError");
+        const body =
+          err && typeof err === "object" && "body" in err
+            ? (err as { body?: { code?: string; message?: string; errors?: ViewContractError["errors"] } }).body
+            : undefined;
         return {
           ok: false,
           error: {
-            code: "VIEW_BRANCH_VALIDATION_FAILED",
-            message: err instanceof Error ? err.message : "Host rejected submit",
+            code: cancelled ? "VIEW_SUBMISSION_CANCELLED" : body?.code ?? "VIEW_BRANCH_VALIDATION_FAILED",
+            message: cancelled ? "Submission cancelled" : body?.message ?? (err instanceof Error ? err.message : "Host rejected submit"),
             branch,
+            errors: body?.errors ?? [],
           },
         };
+      } finally {
+        submissions.current.delete(submission.submission_id);
       }
     },
-    [client, runId, stepId, closeCheckpoint],
+    [client, runId, stepId, closeCheckpoint, context],
   );
+
+  const onCancelSubmission = useCallback(async (submissionId: string) => {
+    const active = submissions.current.get(submissionId);
+    if (!active) return;
+    active.controller.abort();
+    if (client && active.intent_id) {
+      await client.runs.cancelUploadIntent(active.intent_id).catch(() => undefined);
+    }
+  }, [client]);
 
   const onCancel = useCallback(async (): Promise<Ack> => {
     if (!client || !runId || !stepId) {
-      return { ok: false, error: { code: "VIEW_CANCEL_REJECTED", message: "No active step to cancel" } };
+      return { ok: false, error: { code: "VIEW_CANCEL_REJECTED", message: "No active step to cancel", errors: [] } };
     }
     try {
       const body = mapCancelToResolveStep();
@@ -111,7 +218,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     } catch (err) {
       return {
         ok: false,
-        error: { code: "VIEW_CANCEL_REJECTED", message: err instanceof Error ? err.message : "Host rejected cancel" },
+        error: { code: "VIEW_CANCEL_REJECTED", message: err instanceof Error ? err.message : "Host rejected cancel", errors: [] },
       };
     }
   }, [client, runId, stepId, closeCheckpoint]);
@@ -125,6 +232,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
         viewRef={viewRef}
         context={context}
         onSubmitBranch={onSubmitBranch}
+        onCancelSubmission={onCancelSubmission}
         onCancel={onCancel}
         onResolved={onResolved}
         adminHref={adminHref}
@@ -133,5 +241,5 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
       />
     ) : null;
 
-  return { showCanvas, canvas, onSubmitBranch, onCancel, onResolved, context };
+  return { showCanvas, canvas, onSubmitBranch, onCancelSubmission, onCancel, onResolved, context };
 }

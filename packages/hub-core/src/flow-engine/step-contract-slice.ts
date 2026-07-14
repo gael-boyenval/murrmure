@@ -64,6 +64,9 @@ function buildSliceBranches(entry: StepContractCatalogEntry): Record<string, Ste
     branches[name] = {
       schema_ref: branch.schema_ref,
       schema: branch.schema,
+      payload_required: branch.payload_required,
+      artifact_required: branch.artifact_required,
+      artifact_slots: branch.artifact_slots,
       then: renderThenHint(branch.routes),
     };
   }
@@ -179,12 +182,7 @@ export function renderAgentStepContractMarkdown(slice: StepContractSlice): strin
   lines.push("");
 
   for (const [branchName, branch] of Object.entries(slice.branches)) {
-    const required =
-      branch.schema &&
-      typeof branch.schema === "object" &&
-      Array.isArray((branch.schema as { required?: unknown }).required)
-        ? ((branch.schema as { required: string[] }).required ?? [])
-        : [];
+    const required = branch.payload_required;
     const payloadHint =
       required.length > 0
         ? `{ ${required.map((k) => `${k}: …`).join(", ")} }`
@@ -194,6 +192,9 @@ export function renderAgentStepContractMarkdown(slice: StepContractSlice): strin
     );
     if (required.length > 0) {
       lines.push(`Required payload: ${required.join(", ")}`);
+    }
+    if (branch.artifact_required.length > 0) {
+      lines.push(`Required artifacts: ${branch.artifact_required.join(", ")}`);
     }
     lines.push(`Then: ${branch.then}`);
     lines.push("");
@@ -225,15 +226,13 @@ function renderScopeEntryMarkdown(input: {
   if (slice.parent_id) lines.push(`Parent: ${slice.parent_id}`);
   if (slice.description) lines.push(slice.description);
   for (const [branchName, branch] of Object.entries(slice.branches)) {
-    const required =
-      branch.schema &&
-      typeof branch.schema === "object" &&
-      Array.isArray((branch.schema as { required?: unknown }).required)
-        ? ((branch.schema as { required: string[] }).required ?? [])
-        : [];
+    const required = branch.payload_required;
     lines.push(`- Branch \`${branchName}\`: ${branch.then}`);
     if (required.length > 0) {
       lines.push(`  Required payload: ${required.join(", ")}`);
+    }
+    if (branch.artifact_required.length > 0) {
+      lines.push(`  Required artifacts: ${branch.artifact_required.join(", ")}`);
     }
   }
   return lines.join("\n");

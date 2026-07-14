@@ -23,14 +23,26 @@ export function isViewContextMessage(data: unknown): data is ViewContextOutbound
 
 export function isViewHostInboundMessage(data: unknown): data is ViewHostInboundMessage {
   if (!isEnvelope(data)) return false;
-  const msg = data as { type?: string; branch?: unknown; params?: unknown };
+  const msg = data as {
+    type?: string;
+    branch?: unknown;
+    input?: unknown;
+    submission_id?: unknown;
+  };
   switch (msg.type) {
     case "murrmure.view.ready":
     case "murrmure.view.cancel":
     case "murrmure.view.resolved":
       return true;
+    case "murrmure.view.cancel_submission":
+      return typeof msg.submission_id === "string";
     case "murrmure.view.submit_branch":
-      return typeof msg.branch === "string" && typeof msg.params === "object" && msg.params !== null;
+      return (
+        typeof msg.branch === "string" &&
+        typeof msg.submission_id === "string" &&
+        typeof msg.input === "object" &&
+        msg.input !== null
+      );
     default:
       return false;
   }
@@ -51,31 +63,42 @@ export function createViewContextMessage(
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel";
+  kind: "submit_branch" | "cancel" | "submission_cancel";
+  submission_id?: string;
   ok: true;
 }): ViewHostOutboundMessage;
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel";
+  kind: "submit_branch" | "cancel" | "submission_cancel";
+  submission_id?: string;
   ok: false;
   error: import("../types.js").ViewContractError;
 }): ViewHostOutboundMessage;
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel";
+  kind: "submit_branch" | "cancel" | "submission_cancel";
+  submission_id?: string;
   ok: boolean;
   error?: import("../types.js").ViewContractError;
 }): ViewHostOutboundMessage {
   if (input.ok) {
-    return { type: "murrmure.view.ack", v: input.transport_version, nonce: input.nonce, kind: input.kind, ok: true };
+    return {
+      type: "murrmure.view.ack",
+      v: input.transport_version,
+      nonce: input.nonce,
+      kind: input.kind,
+      ...(input.submission_id ? { submission_id: input.submission_id } : {}),
+      ok: true,
+    };
   }
   return {
     type: "murrmure.view.ack",
     v: input.transport_version,
     nonce: input.nonce,
     kind: input.kind,
+    ...(input.submission_id ? { submission_id: input.submission_id } : {}),
     ok: false,
     error: input.error!,
   };

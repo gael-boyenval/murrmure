@@ -283,15 +283,34 @@ describe("http/artifacts/transfer", () => {
       expect(runRes.status).toBe(201);
       const { run_id } = await runRes.json();
 
-      const upload = await fetch(`${baseUrl}/v1/runs/${run_id}/steps/intake/work/upload`, {
+      const artifactBytes = Buffer.from("# Spec\n", "utf-8");
+      const intent = await fetch(`${baseUrl}/v1/runs/${run_id}/steps/intake/upload-intents`, {
         method: "POST",
         headers: agentAuth,
         body: JSON.stringify({
-          filename: "spec.md",
-          content_base64: Buffer.from("# Spec\n", "utf-8").toString("base64"),
+          branch: "continue",
+          payload: { topic: "demo" },
+          files: [{
+            slot: "spec",
+            name: "spec.md",
+            media_type: "text/markdown",
+            size_bytes: artifactBytes.length,
+          }],
+          idempotency_key: "artifact-step-resolve",
         }),
       });
-      expect(upload.status).toBe(201);
+      const intentBody = await intent.json();
+      expect(intent.status, JSON.stringify(intentBody)).toBe(201);
+      const { intent_id } = intentBody;
+      const upload = await fetch(`${baseUrl}/v1/upload-intents/${intent_id}/files/0`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${agentToken}`,
+          "Content-Type": "application/octet-stream",
+        },
+        body: artifactBytes,
+      });
+      expect(upload.status).toBe(200);
 
       const resolve = await fetch(`${baseUrl}/v1/runs/${run_id}/steps/intake/resolve`, {
         method: "POST",
@@ -299,7 +318,8 @@ describe("http/artifacts/transfer", () => {
         body: JSON.stringify({
           branch: "continue",
           payload: { topic: "demo" },
-          artifacts_out: [{ slot: "spec", path: "spec.md" }],
+          upload_intent_id: intent_id,
+          idempotency_key: "artifact-step-resolve",
         }),
       });
       expect(resolve.status).toBe(200);

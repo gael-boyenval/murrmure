@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TriangleAlert } from "lucide-react";
-import type { ViewAppContext, ViewContractError } from "@murrmure/view-sdk";
-import { ViewHostFrame, resolveViewEntryUrl } from "@murrmure/view-sdk";
+import type {
+  ViewAppContext,
+  ViewBranchSubmitInput,
+  ViewContractError,
+  ViewSubmissionState,
+} from "@murrmure/view-sdk";
+import {
+  ViewHostFrame,
+  resolveViewEntryUrl,
+  validateHostBranchResolve,
+  viewSubmitFileName,
+} from "@murrmure/view-sdk";
 import { Badge, Button, cn } from "@murrmure/shell-ui";
 import type { ViewRefLike } from "../lib/view-app-context.js";
 import { DataTableView } from "./DataTableView.js";
@@ -21,7 +31,12 @@ export interface ViewCanvasHostProps {
   iframeSrc?: string;
   context: ViewAppContext;
   /** Host-mediated v3 submit. Resolves the branch + params through the hub. */
-  onSubmitBranch: (branch: string, params: Record<string, unknown>) => Promise<Ack>;
+  onSubmitBranch: (
+    branch: string,
+    input: ViewBranchSubmitInput,
+    submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+  ) => Promise<Ack>;
+  onCancelSubmission?: (submission_id: string) => Promise<void> | void;
   /** Host-mediated v3 cancel. */
   onCancel?: () => Promise<Ack>;
   onResolved?: () => void;
@@ -51,6 +66,7 @@ export function ViewCanvasHost({
   context,
   onSubmitBranch,
   onCancel,
+  onCancelSubmission,
   onResolved,
   devMode,
   fixtureTabs,
@@ -72,19 +88,39 @@ export function ViewCanvasHost({
       : undefined);
 
   const [devLog, setDevLog] = useState<string | null>(null);
-  const [devPayload, setDevPayload] = useState<{ branch: string; params: Record<string, unknown> } | null>(null);
+  const [devPayload, setDevPayload] = useState<Record<string, unknown> | null>(null);
 
   const handleSubmitBranch = useCallback(
-    async (branch: string, params: Record<string, unknown>): Promise<Ack> => {
+    async (
+      branch: string,
+      input: ViewBranchSubmitInput,
+      submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+    ): Promise<Ack> => {
+      const validation = validateHostBranchResolve(context, branch, input);
+      if (validation) return { ok: false, error: validation };
       if (devMode) {
+        const branchContract = context.step?.branches.find((candidate) => candidate.branch === branch)!;
+        const files = Object.fromEntries(
+          Object.entries(input.files ?? {}).map(([slot, value]) => [
+            slot,
+            (Array.isArray(value) ? value : [value]).map((file, index) => ({
+              name: viewSubmitFileName(branchContract, slot, file, index),
+              media_type: file.type,
+              size_bytes: file.size,
+            })),
+          ]),
+        );
+        const totalBytes = Object.values(files).flat().reduce((sum, file) => sum + file.size_bytes, 0);
+        submission.report({ status: "validating", uploadedBytes: 0, totalBytes });
         setDevLog("[dev] submit_branch");
-        setDevPayload({ branch, params });
-        console.info("[dev] submit_branch", branch, params);
+        setDevPayload({ branch, payload: input.payload ?? {}, files, mutating: false });
+        submission.report({ status: "succeeded", uploadedBytes: totalBytes, totalBytes });
+        console.info("[dev] submit_branch", branch, { payload: input.payload ?? {}, files, mutating: false });
         return { ok: true };
       }
-      return onSubmitBranch(branch, params);
+      return onSubmitBranch(branch, input, submission);
     },
-    [devMode, onSubmitBranch],
+    [context, devMode, onSubmitBranch],
   );
 
   const handleCancel = useCallback(async (): Promise<Ack> => {
@@ -165,6 +201,7 @@ export function ViewCanvasHost({
             src={iframeSrc}
             context={context}
             onSubmitBranch={handleSubmitBranch}
+            onCancelSubmission={onCancelSubmission}
             onCancel={handleCancel}
             onResolved={onResolved}
             className="absolute inset-0 h-full w-full border-0 bg-background"
@@ -189,7 +226,7 @@ export function ViewCanvasHost({
         >
           <p className="mb-1 font-mono">{devLog}</p>
           {devPayload ? (
-            <DataTableView value={{ branch: devPayload.branch, params: devPayload.params }} />
+            <DataTableView value={devPayload} />
           ) : (
             <span className="font-mono">{devLog}</span>
           )}

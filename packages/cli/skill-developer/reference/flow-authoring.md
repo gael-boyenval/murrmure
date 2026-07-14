@@ -108,6 +108,19 @@ Agents, views, and authorized protocol clients call **`murrmure_resolve_step`**:
 
 Branch names must match manifest `branches:` keys. Payload must validate against the branch schema. A token without `step:resolve` is denied.
 
+Required names that match same-branch `artifact_slots` are artifact
+requirements, not payload properties. Do not add a fake
+`schema.properties.spec`. Each branch owns its slots independently; alternate
+branches inherit nothing. Payload/artifact name collisions fail apply.
+
+Artifact slots support `media_types`, normalized `extensions`, `min_bytes`,
+`max_bytes`, `min_files`, `max_files` (default 1), and `max_total_bytes`.
+Views submit browser files with
+`submitBranch("continue", { files: { spec } })`; never base64-encode files or
+call Hub upload/resolve APIs from a View. Use `submission` for progress and
+`submission.cancel()` to abort an in-flight upload while leaving the step open.
+Top-level `cancel()` resolves the workflow cancel branch.
+
 ## Workflow
 
 ```bash
@@ -137,6 +150,8 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
 | `DEAD_STEP` | Step unreachable from flow entry |
 | `HANDLER_ORPHAN_KEY` | Handler `contract_key` not in flow catalog |
+| `PAYLOAD_ARTIFACT_NAME_COLLISION` | Same branch declares one name as payload property and artifact slot |
+| `INVALID_BRANCH_SCHEMA` | Schema uses unsupported Draft 2020-12 features, remote refs, or an unapproved format |
 
 ## Grants
 

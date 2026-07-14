@@ -27,13 +27,23 @@ export type StepBranchRoute = z.infer<typeof StepBranchRouteSchema>;
  */
 export const StepArtifactSlotSchema = z.object({
   description: z.string().optional(),
-  media_types: z.array(z.string()).optional(),
-  extensions: z.array(z.string()).optional(),
+  media_types: z.array(z.string().transform((value) => value.toLowerCase())).optional(),
+  extensions: z.array(z.string().transform((value) => {
+    const normalized = value.toLowerCase();
+    return normalized.startsWith(".") ? normalized : `.${normalized}`;
+  })).optional(),
   min_bytes: z.number().int().nonnegative().optional(),
   max_bytes: z.number().int().positive().optional(),
   min_files: z.number().int().nonnegative().optional(),
   max_files: z.number().int().positive().optional(),
   max_total_bytes: z.number().int().positive().optional(),
+}).superRefine((slot, ctx) => {
+  if (slot.max_bytes !== undefined && slot.min_bytes !== undefined && slot.min_bytes > slot.max_bytes) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "min_bytes must not exceed max_bytes" });
+  }
+  if (slot.max_files !== undefined && slot.min_files !== undefined && slot.min_files > slot.max_files) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "min_files must not exceed max_files" });
+  }
 });
 
 export type StepArtifactSlot = z.infer<typeof StepArtifactSlotSchema>;
@@ -51,7 +61,24 @@ export const StepBranchDefinitionSchema = z.object({
   artifact_slots: z.record(StepArtifactSlotSchema).optional(),
   route: StepBranchRouteSchema.optional(),
   resume: z.string().optional(),
-}).strict();
+}).strict().superRefine((branch, ctx) => {
+  if (!branch.artifact_slots || !branch.schema || typeof branch.schema !== "object") return;
+  const properties =
+    branch.schema.properties &&
+    typeof branch.schema.properties === "object" &&
+    !Array.isArray(branch.schema.properties)
+      ? (branch.schema.properties as Record<string, unknown>)
+      : {};
+  for (const slot of Object.keys(branch.artifact_slots)) {
+    if (Object.hasOwn(properties, slot)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifact_slots", slot],
+        message: `Payload property and artifact slot '${slot}' collide`,
+      });
+    }
+  }
+});
 
 export type StepBranchDefinition = z.infer<typeof StepBranchDefinitionSchema>;
 
@@ -95,6 +122,9 @@ export type StepCatalogRoute = z.infer<typeof StepCatalogRouteSchema>;
 export const StepCatalogBranchSchema = z.object({
   schema_ref: z.string().optional(),
   schema: z.record(z.unknown()).optional(),
+  payload_required: z.array(z.string()),
+  artifact_required: z.array(z.string()),
+  artifact_slots: z.record(StepArtifactSlotSchema),
   routes: z.array(StepCatalogRouteSchema).min(1),
 });
 
@@ -109,6 +139,9 @@ export interface BranchResolveContract {
   branch: string;
   schema_ref?: string;
   schema?: Record<string, unknown>;
+  payload_required: string[];
+  artifact_required: string[];
+  artifact_slots: Record<string, StepArtifactSlot>;
   routes: StepCatalogRoute[];
 }
 
@@ -117,7 +150,6 @@ export const StepContractCatalogEntrySchema = z.object({
   parent_id: z.string().nullable(),
   description: z.string().optional(),
   branches: z.record(StepCatalogBranchSchema),
-  artifact_slots: z.record(StepArtifactSlotSchema).optional(),
 });
 
 export type StepContractCatalogEntry = z.infer<typeof StepContractCatalogEntrySchema>;
@@ -136,6 +168,9 @@ export type StepContractCatalog = z.infer<typeof StepContractCatalogSchema>;
 export const StepContractSliceBranchSchema = z.object({
   schema_ref: z.string().optional(),
   schema: z.record(z.unknown()).optional(),
+  payload_required: z.array(z.string()),
+  artifact_required: z.array(z.string()),
+  artifact_slots: z.record(StepArtifactSlotSchema),
   then: z.string(),
 });
 

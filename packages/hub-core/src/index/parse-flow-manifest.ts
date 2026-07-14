@@ -1,4 +1,9 @@
-import { FlowManifestSchema, type FlowManifest, type FlowStep } from "@murrmure/contracts";
+import {
+  FlowManifestSchema,
+  assertSupportedPayloadSchema,
+  type FlowManifest,
+  type FlowStep,
+} from "@murrmure/contracts";
 import type { ParseResult } from "./parse-result.js";
 import {
   findLegacyStepKinds,
@@ -150,6 +155,30 @@ export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
       details: parsed.error,
     };
   }
+  const validateSchemas = (steps: FlowStep[]): ParseResult<FlowManifest> | null => {
+    for (const step of steps) {
+      for (const [branchName, branch] of Object.entries(step.branches ?? {})) {
+        if (branch.schema && typeof branch.schema === "object") {
+          try {
+            assertSupportedPayloadSchema(branch.schema);
+          } catch (error) {
+            return {
+              ok: false,
+              code: "INVALID_BRANCH_SCHEMA",
+              message: `Step '${step.id}' branch '${branchName}' schema is invalid: ${error instanceof Error ? error.message : "unsupported schema"}`,
+            };
+          }
+        }
+      }
+      if (step.steps?.length) {
+        const nested = validateSchemas(step.steps);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+  const schemaError = validateSchemas(parsed.data.steps);
+  if (schemaError) return schemaError;
   return { ok: true, value: parsed.data };
 }
 

@@ -2,8 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- `mapHubDenial` surfaces the Hub's typed `code` and `message` for non-2xx
+  responses (including `409 FLOW_CONCURRENCY_LIMIT` and
+  `409 SPACE_HAS_ACTIVE_RUNS`) instead of collapsing them to a generic
+  `HUB_ERROR`.
+
 ### Breaking Changes
 
+- Step resolve now prints the Hub's normalized branch-contract errors in both
+  human and JSON output instead of collapsing them to a generic message. New
+  View scaffolds typecheck before bundling and include upload progress/cancel.
 - Local tool authorization uses `mrmr connection`; removed public `grant`,
   `space grant`, `space onboard`, and legacy action command paths without
   aliases. Local MCP files contain Hub/connection IDs only, while credentials

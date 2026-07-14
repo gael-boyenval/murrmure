@@ -64,6 +64,16 @@ step.resolved(intake, cancel)
 
 That is correct behavior: **Cancel** means “abort this run.”
 
+::: info Retry is always a fresh check
+A **failed/canceled run is terminal**, so it no longer counts against the flow's
+concurrent-run capacity. You can start a new run immediately — admission
+re-checks only **non-terminal** runs (`working` / `input-required`). Once
+[Part 5](./05-extend-flow-and-handlers) caps `my-dev-flow` at
+`max_concurrent_runs: 1`, a second **Run** while the first is still open would be
+rejected with `409 FLOW_CONCURRENCY_LIMIT` (and the blocking run id); after the
+first run terminates, the retry succeeds.
+:::
+
 ## Step 3 — Run again and submit the spec
 
 Start a **new** run the same way:
@@ -76,7 +86,11 @@ This time:
 1. Choose **`~/Documents/spec.md`** (or wherever you saved it)
 2. Click **Submit**
 
-The view validates against the branch contract, uploads the file, and resolves **`continue`** with the **`spec`** artifact.
+The view validates against the branch contract, shows aggregate upload progress,
+and resolves **`continue`** with the **`spec`** artifact. **Cancel upload** is
+available before resolve commit; it removes temporary bytes and leaves
+`intake` open so you can retry. Once resolve has committed, a late cancel
+reconciles to the successful result.
 
 **What you should see in Desktop:**
 
@@ -141,6 +155,8 @@ Part 5 adds **command** and **agent** steps after intake; [Part 6](./06-cleanup-
 | Blank intake view | View not built | `cd .mrmr/views/spec-intake && npm run build && mrmr space apply` |
 | First run “failed” after Cancel | Expected | That is `route: { run: failed }` — start a new run for Submit |
 | Submit errors in view | Contract validation | Fix file (required slot `spec`, max 1 MiB) before resolve |
+| `CONTRACT_VALIDATION_FAILED` | File is missing, empty, wrong MIME/extension, or oversized | Read each field error; select a non-empty `.md`, `.markdown`, or `.txt` file up to 1 MiB |
+| Upload cancelled | You clicked **Cancel upload** before commit | The step remains open; select or submit the file again |
 | No file under `runs/…/spec/` | Wrong run id | Use the **successful** second run, not the cancelled one |
 
 Full troubleshooting table: [Part 9 of the original tutorial](../01-local-preview-review/09-troubleshooting).

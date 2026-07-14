@@ -1,6 +1,33 @@
 import type { ShellClient, ShellClientOptions, SpaceSummary, SseTicketResponse, JournalSsePayload } from "./types.js";
 import { JOURNAL_SSE_EVENTS, parseSseMessage } from "./sse.js";
 
+export class ShellClientHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: {
+      code?: string;
+      message?: string;
+      errors?: unknown[];
+      active_run_ids?: string[];
+      max_concurrent_runs?: number;
+    },
+    fallback: string,
+  ) {
+    super(body.message ?? fallback);
+  }
+}
+
+async function throwHttpError(res: Response, fallback: string): Promise<never> {
+  const body = await res.json().catch(() => ({})) as {
+    code?: string;
+    message?: string;
+    errors?: unknown[];
+    active_run_ids?: string[];
+    max_concurrent_runs?: number;
+  };
+  throw new ShellClientHttpError(res.status, body, fallback);
+}
+
 function authHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -48,7 +75,7 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           headers: authHeaders(token),
           body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error(`spaces.runFlow failed: ${res.status}`);
+        if (!res.ok) await throwHttpError(res, `spaces.runFlow failed: ${res.status}`);
         return res.json() as Promise<{
           session: { session_id: string; title: string };
           run_id: string;
@@ -238,7 +265,7 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
             body: JSON.stringify(body),
           },
         );
-        if (!res.ok) throw new Error(`runs.resolveStep failed: ${res.status}`);
+        if (!res.ok) await throwHttpError(res, `runs.resolveStep failed: ${res.status}`);
         return res.json() as Promise<{
           ok: boolean;
           run_id: string;
@@ -246,6 +273,72 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           branch: string;
           status: string;
         }>;
+      },
+      async createUploadIntent(run_id, step_id, body) {
+        const res = await fetch(
+          `${base}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/upload-intents`,
+          {
+            method: "POST",
+            headers: authHeaders(token),
+            body: JSON.stringify(body),
+          },
+        );
+        if (!res.ok) await throwHttpError(res, `runs.createUploadIntent failed: ${res.status}`);
+        return res.json() as Promise<import("./types.js").UploadIntentResponse>;
+      },
+      async uploadIntentFile(intent_id, index, file, options = {}) {
+        const url = `${base}/v1/upload-intents/${encodeURIComponent(intent_id)}/files/${index}`;
+        if (typeof XMLHttpRequest !== "undefined") {
+          return new Promise<{ received_bytes: number }>((resolve, reject) => {
+            const request = new XMLHttpRequest();
+            request.open("PUT", url);
+            request.setRequestHeader("Authorization", `Bearer ${token}`);
+            request.setRequestHeader("Content-Type", "application/octet-stream");
+            request.upload.onprogress = (event) => {
+              options.onProgress?.(event.loaded, event.lengthComputable ? event.total : file.size);
+            };
+            request.onerror = () => reject(new Error("Upload network failure"));
+            request.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
+            request.onload = () => {
+              const body = JSON.parse(request.responseText || "{}") as {
+                received_bytes?: number;
+                code?: string;
+                message?: string;
+                errors?: unknown[];
+              };
+              if (request.status < 200 || request.status >= 300) {
+                reject(new ShellClientHttpError(request.status, body, `upload failed: ${request.status}`));
+                return;
+              }
+              resolve({ received_bytes: body.received_bytes ?? file.size });
+            };
+            const abort = () => request.abort();
+            options.signal?.addEventListener("abort", abort, { once: true });
+            request.onloadend = () => options.signal?.removeEventListener("abort", abort);
+            request.send(file);
+          });
+        }
+        const res = await fetch(url, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/octet-stream",
+          },
+          body: file,
+          signal: options.signal,
+        });
+        if (!res.ok) await throwHttpError(res, `upload failed: ${res.status}`);
+        options.onProgress?.(file.size, file.size);
+        return res.json() as Promise<{ received_bytes: number }>;
+      },
+      async cancelUploadIntent(intent_id) {
+        const res = await fetch(`${base}/v1/upload-intents/${encodeURIComponent(intent_id)}`, {
+          method: "DELETE",
+          headers: authHeaders(token),
+        });
+        if (!res.ok && res.status !== 410) {
+          await throwHttpError(res, `runs.cancelUploadIntent failed: ${res.status}`);
+        }
       },
       async retry(run_id, body = {}) {
         const res = await fetch(`${base}/v1/runs/${encodeURIComponent(run_id)}/retry`, {

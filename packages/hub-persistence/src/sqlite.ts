@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow } from "./port.js";
 
@@ -722,11 +722,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const views = this.db
       .prepare("SELECT name AS key, digest, payload_json FROM space_views WHERE space_id = ?")
       .all(bare) as IndexedResourceRow[];
+    const runPolicies = this.db
+      .prepare("SELECT flow_id AS key, flow_digest AS digest, payload_json FROM space_run_policies WHERE space_id = ?")
+      .all(bare) as IndexedResourceRow[];
     const flowRows = this.db
       .prepare("SELECT payload_json FROM flow_index WHERE origin_space_id = ?")
       .all(bare) as Array<{ payload_json: string }>;
     const flows = flowRows.map((row) => JSON.parse(row.payload_json) as SpaceIndexSnapshot["flows"][number]);
-    return { actions, executors, hooks, events, flows, views };
+    return { actions, executors, hooks, events, flows, views, run_policies: runPolicies };
   }
 
   async replaceSpaceIndex(space_id: string, snapshot: SpaceIndexSnapshot): Promise<void> {
@@ -737,6 +740,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       this.db.prepare("DELETE FROM space_hooks WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_events WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_views WHERE space_id = ?").run(bare);
+      this.db.prepare("DELETE FROM space_run_policies WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM flow_index WHERE origin_space_id = ?").run(bare);
 
       const insertAction = this.db.prepare(
@@ -785,6 +789,13 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
           row.payload_json,
         );
       }
+
+      const insertRunPolicy = this.db.prepare(
+        "INSERT INTO space_run_policies (space_id, flow_id, flow_digest, payload_json) VALUES (?, ?, ?, ?)",
+      );
+      for (const row of snapshot.run_policies ?? []) {
+        insertRunPolicy.run(bare, row.key, row.digest, row.payload_json);
+      }
     });
     tx();
   }
@@ -827,6 +838,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       .prepare("SELECT payload_json FROM space_views WHERE space_id = ? ORDER BY name")
       .all(bare) as Array<{ payload_json: string }>;
     return rows.map((r) => JSON.parse(r.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]> {
+    const bare = this.bareSpaceId(space_id);
+    const rows = this.db
+      .prepare("SELECT payload_json FROM space_run_policies WHERE space_id = ? ORDER BY flow_id")
+      .all(bare) as Array<{ payload_json: string }>;
+    return rows.map((r) => JSON.parse(r.payload_json) as ResolvedRunPolicy);
   }
 
   async listFlowIndex(space_id: string): Promise<FlowIndexEntry[]> {

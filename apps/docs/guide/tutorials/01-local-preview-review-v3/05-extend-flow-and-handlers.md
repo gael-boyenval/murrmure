@@ -341,6 +341,17 @@ handlers:
     timeout_ms: 3600000
 ```
 
+### Why `run_policies`?
+
+The catalog's `run_policies` entry caps `my-dev-flow` at **one non-terminal run
+at a time** in this space. The agent mutates the repo in `build`, so a second
+concurrent run would race the first. `flow` is the applied flow's `name`
+(`my-dev-flow`); `max_concurrent_runs: 1` means a second manual **Run** while the
+first is still in `build` is rejected with `409 FLOW_CONCURRENCY_LIMIT` (and the
+blocking run id) instead of silently stacking. No entry means unlimited — useful
+for read-only or parallel-safe flows. Full reference:
+[Space handlers → Run policies](../../space-handlers#run-policies).
+
 Re-apply:
 
 ```bash

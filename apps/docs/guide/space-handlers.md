@@ -12,6 +12,9 @@ Normative bridge: [handlers.md](https://github.com/murrmure/agentStudio/blob/mai
 
 ```yaml
 version: 1
+run_policies:
+  - flow: preview-review
+    max_concurrent_runs: 1
 handlers:
   - id: feature_write_spec
     contract_keys: [preview-review.write_spec]   # prompt-scope only
@@ -107,6 +110,37 @@ handlers:
 
 Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability).
 
+## Run policies
+
+`run_policies` declares how many **non-terminal runs** of a flow may exist at
+once in **this space**. It is space-owned — the portable flow carries no
+concurrency policy, so the same flow may serialize in one space and run
+unbounded in another.
+
+```yaml
+run_policies:
+  - flow: preview-review
+    max_concurrent_runs: 1
+```
+
+| Field | Notes |
+|-------|-------|
+| `flow` | Authored alias: the applied flow's `name` (not a `flow_id`). Resolved at apply against the fully merged flow set (local + bound + preserved). |
+| `max_concurrent_runs` | Integer ≥ 1. **Omitting a policy means unlimited** — concurrent runs are admitted. |
+
+Every start path (manual, trigger, API, MCP, federated) funnels through one
+atomic admission check. On overflow the start **creates no queue and no partial
+run** and returns `409 FLOW_CONCURRENCY_LIMIT` carrying the canonical flow
+identity, the configured limit, and the active blocking run IDs. A trigger that
+is denied at capacity is recorded as a `mrmr.flow.start_denied` journal event
+and a later retry performs a fresh admission check.
+
+Run-policy aliases are resolved at apply, so a policy for an unknown, ambiguous,
+or duplicate flow name fails apply atomically with a typed code
+(`RUN_POLICY_UNKNOWN_FLOW`, `RUN_POLICY_AMBIGUOUS_FLOW`,
+`RUN_POLICY_DUPLICATE`) and preserves the prior index. An admitted run and its
+journal events pin the applied `flow_digest` that was current at start.
+
 ## Legacy files (pre-cutover)
 
 `actions.yaml`, `hooks.yaml`, and `executors.yaml` under `.mrmr/space/` are accepted until HANDLER-CUTOVER but **new spaces should use `handlers.yaml` only**. Migrate step reactions to exact `on: step.opened::{flow_name}.{qualified_step_id}` bindings and journal reactions to `on: event:`.
@@ -119,7 +153,18 @@ mrmr space doctor             # handler lint, missing bindings, MCP hints
 mrmr space doctor --strict    # fail on worker spaces without bindings
 ```
 
-Common lint codes: `HANDLER_ORPHAN_KEY` (prompt-scope key with no matching step), `HANDLER_COMPLETE_CLI_NO_RESOLVE`, and the apply-time binding codes — `DUPLICATE_FLOW_NAME`, `HANDLER_ORPHAN_ALIAS`, `HANDLER_RESOLVER_CONFLICT`, `VIEW_RESOLVER_NOT_OPENED`, `VIEW_RESOLVER_VIEW_NOT_FOUND`, `VIEW_RESOLVER_BUILD_MISSING`. `HANDLER_MISSING` is removed: an unbound step is valid and observability-only.
+Common lint codes: `HANDLER_ORPHAN_KEY` (prompt-scope key with no matching step), `HANDLER_COMPLETE_CLI_NO_RESOLVE`, and the apply-time binding codes — `DUPLICATE_FLOW_NAME`, `HANDLER_ORPHAN_ALIAS`, `HANDLER_RESOLVER_CONFLICT`, `VIEW_RESOLVER_NOT_OPENED`, `VIEW_RESOLVER_VIEW_NOT_FOUND`, `VIEW_RESOLVER_BUILD_MISSING`, and the run-policy codes — `RUN_POLICY_UNKNOWN_FLOW`, `RUN_POLICY_AMBIGUOUS_FLOW`, `RUN_POLICY_DUPLICATE`. `HANDLER_MISSING` is removed: an unbound step is valid and observability-only.
+
+### Apply quiescence
+
+`mrmr space apply` replaces a space's whole configuration atomically. To keep an
+in-flight run from executing against handlers/Views that were swapped
+underneath it, **an apply succeeds only when the space has no non-terminal runs**
+(`working` or `input-required`). While any such run exists the apply returns
+`409 SPACE_HAS_ACTIVE_RUNS` with the blocking run IDs and **preserves the prior
+index** — no partial replacement is visible. Apply succeeds immediately once all
+runs become terminal (`completed` / `failed` / `canceled`). There is no force
+apply and no auto-abort; either wait for the run to finish or cancel it.
 
 ## Related
 

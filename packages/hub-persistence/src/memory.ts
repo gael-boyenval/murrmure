@@ -1,4 +1,4 @@
-import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
@@ -349,6 +349,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
         events: [],
         flows: [],
         views: [],
+        run_policies: [],
       }
     );
   }
@@ -390,6 +391,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {
     const snapshot = await this.getSpaceIndexSnapshot(space_id);
     return (snapshot.views ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]> {
+    const snapshot = await this.getSpaceIndexSnapshot(space_id);
+    return (snapshot.run_policies ?? []).map((row) => JSON.parse(row.payload_json) as ResolvedRunPolicy);
   }
 
   async listFlowIndex(space_id: string): Promise<FlowIndexEntry[]> {

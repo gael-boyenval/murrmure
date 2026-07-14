@@ -134,6 +134,7 @@ describe("preview-review-v2 reference example", () => {
     const writeSpecOnlyWarnings = lintHandlerCatalogCoverage({
       handlers: {
         version: 1,
+        run_policies: [],
         handlers: [
           {
             id: "write-spec",
@@ -151,6 +152,7 @@ describe("preview-review-v2 reference example", () => {
     const scopedWarnings = lintHandlerCatalogCoverage({
       handlers: {
         version: 1,
+        run_policies: [],
         handlers: [
           {
             id: "build-handoff",
@@ -219,7 +221,7 @@ describe("preview-review-v2 reference example", () => {
     expect(bundle.handlers?.file.handlers.length).toBeGreaterThan(0);
 
     const indexed = applyIndexDiff(
-      { actions: [], executors: [], hooks: [], events: [], flows: [], views: [] },
+      { actions: [], executors: [], hooks: [], events: [], flows: [], views: [], run_policies: [] },
       bundle,
       "spc_preview_review",
     );

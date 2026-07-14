@@ -15,10 +15,12 @@ export type SpaceIndexSnapshot = {
   events: IndexedResourceRow[];
   flows: FlowIndexRow[];
   views: IndexedResourceRow[];
+  /** Canonical run policies (`ResolvedRunPolicy` rows keyed by `flow_id`). */
+  run_policies: IndexedResourceRow[];
 };
 
 export type ApplyIndexChange = {
-  resource: "actions" | "executors" | "hooks" | "events" | "flows" | "views";
+  resource: "actions" | "executors" | "hooks" | "events" | "flows" | "views" | "run_policies";
   key: string;
   change: "added" | "updated" | "removed" | "unchanged";
   digest?: string;
@@ -33,6 +35,7 @@ export type ApplyIndexResult = {
     events: number;
     flows: number;
     views: number;
+    run_policies: number;
     changed: number;
   };
   next: SpaceIndexSnapshot;

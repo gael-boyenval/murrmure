@@ -1,5 +1,5 @@
 import { HandlerSpecSchema, type Capability, type HandlerSpec, type HookSpec } from "@murrmure/contracts";
-import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES, FLOW_CONCURRENCY_LIMIT } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
@@ -173,6 +173,25 @@ export async function dispatchHook(
           event_source: source,
         });
         if (!started.ok) {
+          if (started.error.code === FLOW_CONCURRENCY_LIMIT) {
+            await deps.handler
+              .appendSpaceJournal({
+                type: JOURNAL_EVENT_TYPES.FLOW_START_DENIED,
+                space_id: hookSpace,
+                actor_id: input.actor_id,
+                token_id: input.token_id,
+                data: {
+                  flow_id: entry.flow_id,
+                  flow_name: entry.name,
+                  mode: "event",
+                  event_type: input.event.event_type,
+                  event_source: source,
+                  max_concurrent_runs: started.error.max_concurrent_runs,
+                  active_run_ids: started.error.active_run_ids,
+                },
+              })
+              .catch(() => undefined);
+          }
           return { outcome: "failed", message: started.error.message };
         }
         sessionId = started.session.session_id;

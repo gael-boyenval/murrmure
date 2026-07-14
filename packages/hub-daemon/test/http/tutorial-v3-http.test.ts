@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { addTokenId } from "@murrmure/hub-core";
 import { createTemporaryHub } from "../../../../test-utils/tutorial-v3/helpers.js";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const PART_2_MANIFEST = {
   apiVersion: "murrmure.flow/v1",
@@ -182,7 +184,133 @@ describe("Tutorial v3 HTTP conformance", () => {
       await hub.stop();
     }
   });
-  test.skip("Task 05 — upload intent and resolve errors are transport-neutral", () => {});
+  test("Task 05 — upload intent enforces the selected branch and resolves once", async () => {
+    const hub = await createTemporaryHub();
+    try {
+      const spaceRoot = join(hub.root, "space");
+      mkdirSync(spaceRoot, { recursive: true });
+      const bootstrapAuth = {
+        Authorization: `Bearer ${addTokenId(hub.bootstrapToken)}`,
+        "Content-Type": "application/json",
+      };
+      const created = await fetch(`${hub.baseUrl}/v1/spaces`, {
+        method: "POST",
+        headers: bootstrapAuth,
+        body: JSON.stringify({ slug: "artifact-space", name: "Artifact Space" }),
+      });
+      const spaceId = ((await created.json()) as { space_id: string }).space_id;
+      expect((await fetch(`${hub.baseUrl}/v1/spaces/${spaceId}/link`, {
+        method: "POST",
+        headers: bootstrapAuth,
+        body: JSON.stringify({ path: spaceRoot, primary: true }),
+      })).status).toBe(200);
+      expect((await fetch(`${hub.baseUrl}/v1/spaces/${spaceId}/apply`, {
+        method: "POST",
+        headers: bootstrapAuth,
+        body: JSON.stringify({ bundle: part2Bundle() }),
+      })).status).toBe(200);
+      const grant = await fetch(`${hub.baseUrl}/v1/spaces/${spaceId}/grants`, {
+        method: "POST",
+        headers: bootstrapAuth,
+        body: JSON.stringify({
+          label: "view-host",
+          capabilities: ["space:read", "flow:run", "step:resolve"],
+        }),
+      });
+      const token = ((await grant.json()) as { token: string }).token;
+      const auth = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const start = await fetch(`${hub.baseUrl}/v1/flows/flw_my_dev_flow/run`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ space_id: spaceId, input: {} }),
+      });
+      const runId = ((await start.json()) as { run_id: string }).run_id;
+      const intentUrl = `${hub.baseUrl}/v1/runs/${runId}/steps/intake/upload-intents`;
+
+      const missing = await fetch(intentUrl, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({
+          branch: "continue",
+          payload: {},
+          files: [],
+          idempotency_key: "missing-file",
+        }),
+      });
+      expect(missing.status).toBe(400);
+      expect(await missing.json()).toMatchObject({
+        code: "CONTRACT_VALIDATION_FAILED",
+        errors: [{ source: "artifact", path: "/files/spec", rule: "min_files" }],
+      });
+
+      const bytes = Buffer.from("# Tutorial spec\n", "utf8");
+      const issued = await fetch(intentUrl, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({
+          branch: "continue",
+          payload: {},
+          files: [{
+            slot: "spec",
+            name: "spec.md",
+            media_type: "text/markdown",
+            size_bytes: bytes.length,
+          }],
+          idempotency_key: "submit-once",
+        }),
+      });
+      expect(issued.status).toBe(201);
+      const { intent_id } = (await issued.json()) as { intent_id: string };
+      const uploaded = await fetch(`${hub.baseUrl}/v1/upload-intents/${intent_id}/files/0`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+        body: bytes,
+      });
+      expect(uploaded.status).toBe(200);
+
+      const resolveBody = {
+        branch: "continue",
+        payload: {},
+        upload_intent_id: intent_id,
+        idempotency_key: "submit-once",
+      };
+      const resolved = await fetch(`${hub.baseUrl}/v1/runs/${runId}/steps/intake/resolve`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify(resolveBody),
+      });
+      expect(resolved.status).toBe(200);
+      const replay = await fetch(`${hub.baseUrl}/v1/runs/${runId}/steps/intake/resolve`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify(resolveBody),
+      });
+      expect(replay.status).toBe(200);
+      const stable = join(spaceRoot, ".mrmr", "dev", "runs", runId, "steps", "intake", "spec", "spec.md");
+      expect(existsSync(stable)).toBe(true);
+      expect(readFileSync(stable, "utf8")).toBe(bytes.toString("utf8"));
+      expect(existsSync(join(
+        spaceRoot,
+        ".mrmr",
+        "dev",
+        "runs",
+        runId,
+        "steps",
+        "intake",
+        "work",
+        "0-spec.md",
+      ))).toBe(false);
+
+      const removed = await fetch(`${hub.baseUrl}/v1/runs/${runId}/steps/intake/work/upload`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ filename: "x.md", content_base64: "eA==" }),
+      });
+      expect(removed.status).toBe(410);
+    } finally {
+      await hub.stop();
+    }
+  });
   test.skip("Task 09 — run admission and apply quiescence are atomic", () => {});
   test.skip("Task 11 — retained local artifacts never expose host paths", () => {});
 });

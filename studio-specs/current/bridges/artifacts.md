@@ -84,14 +84,49 @@ Before dispatch the hub materializes each artifact into the target space inbox a
 ## Step-scoped layout (v3 step contracts)
 
 ```text
-.mrmr.temp/runs/{run_id}/steps/{qualified}/work/     # scratch
-.mrmr.temp/runs/{run_id}/steps/{qualified}/{slot}/   # stable after resolve
+.mrmr/dev/runs/{run_id}/steps/{qualified}/work/     # active-step scratch
+.mrmr/dev/runs/{run_id}/steps/{qualified}/{slot}/   # stable after resolve
 ```
 
 | Operation | API |
 |-----------|-----|
-| Upload to scratch | `POST /v1/runs/{run_id}/steps/{step_id}/work/upload` |
-| Promote on resolve | `artifacts_out` on `POST …/resolve` |
+| Reserve + authorize | `POST /v1/runs/{run_id}/steps/{step_id}/upload-intents` |
+| Transfer one declared file | `PUT /v1/upload-intents/{intent_id}/files/{index}` |
+| Cancel before commit | `DELETE /v1/upload-intents/{intent_id}` |
+| Promote + consume | `upload_intent_id` on `POST …/resolve` |
+
+The removed JSON/base64 `POST …/work/upload` API returns
+`DIRECT_WORK_UPLOAD_REMOVED`; Views have no direct replacement. A trusted local
+agent bridge may submit a relative active-workdir path through `artifacts_out`.
+
+## Upload intent lifecycle
+
+An intent is issued only after the Hub verifies the active run and step,
+selected branch, actor/capability, ordered file metadata, branch slot contract,
+idempotency key, and quota reservation. The binding cannot be changed after
+issuance. Bytes with missing intents, metadata mismatches, stale leases, wrong
+actors, or replay mismatches are rejected.
+
+Fixed local ceilings:
+
+| Scope | Ceiling |
+|-------|---------|
+| File | 25 MiB |
+| One step resolution | 50 MiB |
+| Run | 250 MiB |
+| Space | 2 GiB |
+
+Uncommitted intents expire after exactly one idle hour. Only accepted file
+activity refreshes the lease. The Hub sweeps at startup and every 15 minutes,
+deletes temporary bytes, and releases reservations. Resolve promotes bytes,
+deletes transfer staging, and consumes the intent once. Pre-commit cancellation
+leaves the step open; a post-commit retry reconciles through resolve
+idempotency.
+
+Upload-attempt diagnostics contain only run, step, branch, slot, filename,
+declared MIME type, received byte count, hash when available, failure
+code/stage, actor, and timestamp. Rejected content, credentials, and host paths
+are never retained.
 
 ## GC
 

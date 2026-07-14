@@ -5,6 +5,7 @@ import {
   SessionIdSchema,
   SpaceIdSchema,
 } from "../ids.js";
+import type { StepArtifactSlot } from "./step-contract.js";
 
 export const RunLifecycleSchema = z.enum([
   "working",
@@ -89,6 +90,8 @@ export interface OpenStepResolverProjection {
     branch: string;
     schema_ref?: string;
     schema?: Record<string, unknown>;
-    artifact_slots?: Record<string, Record<string, unknown>>;
+    payload_required: string[];
+    artifact_required: string[];
+    artifact_slots: Record<string, StepArtifactSlot>;
   }>;
 }

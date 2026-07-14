@@ -232,9 +232,11 @@ export function registerPlatformMcpHandlers(
     );
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      throw new Error(
-        typeof data.message === "string" ? data.message : `Resolve step failed (${res.status})`,
-      );
+      throw new Error(JSON.stringify({
+        code: typeof data.code === "string" ? data.code : "RESOLVE_FAILED",
+        message: typeof data.message === "string" ? data.message : `Resolve step failed (${res.status})`,
+        ...(Array.isArray(data.errors) ? { errors: data.errors } : {}),
+      }));
     }
     return data;
   });

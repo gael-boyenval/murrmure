@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import {
   FlowManifestSchema,
   StepBranchDefinitionSchema,
+  StepCatalogBranchSchema,
   type FlowManifest,
 } from "@murrmure/contracts";
 
@@ -205,7 +206,24 @@ describe("Tutorial v3 canonical contracts", () => {
       manifestRejects({ ...PART_2_MANIFEST, apiVersion: "murrmure.flow/v2" }),
     ).toBe(true);
   });
-  test.skip("Task 05 — every branch compiles one BranchResolveContract", () => {});
+  test("Task 05 — every branch contract owns its payload and artifact requirements", () => {
+    const branch = StepCatalogBranchSchema.parse({
+      schema: { type: "object", required: ["spec"] },
+      payload_required: [],
+      artifact_required: ["spec"],
+      artifact_slots: {
+        spec: {
+          extensions: ["MD"],
+          min_bytes: 1,
+          max_bytes: 1048576,
+        },
+      },
+      routes: [{ engine: "advance" }],
+    });
+    expect(branch.payload_required).toEqual([]);
+    expect(branch.artifact_required).toEqual(["spec"]);
+    expect(branch.artifact_slots.spec?.extensions).toEqual([".md"]);
+  });
   test.skip("Task 11 — artifact collections retain local/federated boundaries", () => {});
 });
 

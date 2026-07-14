@@ -3,6 +3,19 @@ export interface ShellClientOptions {
   token: string;
 }
 
+export interface UploadIntentFileInput {
+  slot: string;
+  name: string;
+  media_type: string;
+  size_bytes: number;
+}
+
+export interface UploadIntentResponse {
+  intent_id: string;
+  expires_in_ms: number;
+  files: Array<{ index: number; size_bytes: number }>;
+}
+
 export interface SpaceSummary {
   space_id: string;
   slug?: string;
@@ -284,7 +297,9 @@ export interface RunDetailPayload {
       branch: string;
       schema_ref?: string;
       schema?: Record<string, unknown>;
-      artifact_slots?: Record<string, Record<string, unknown>>;
+      payload_required: string[];
+      artifact_required: string[];
+      artifact_slots: Record<string, Record<string, unknown>>;
     }>;
   }>;
 }
@@ -361,9 +376,27 @@ export interface ShellClient {
         branch: string;
         payload?: Record<string, unknown>;
         artifacts_out?: Array<{ slot: string; path: string }>;
+        upload_intent_id?: string;
         idempotency_key?: string;
       },
     ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
+    createUploadIntent(
+      run_id: string,
+      step_id: string,
+      body: {
+        branch: string;
+        payload?: Record<string, unknown>;
+        files: UploadIntentFileInput[];
+        idempotency_key: string;
+      },
+    ): Promise<UploadIntentResponse>;
+    uploadIntentFile(
+      intent_id: string,
+      index: number,
+      file: Blob,
+      options?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void },
+    ): Promise<{ received_bytes: number }>;
+    cancelUploadIntent(intent_id: string): Promise<void>;
     retry(run_id: string, body?: { from_step_id?: string; space_id?: string }): Promise<{ run: { run_id: string } }>;
     cancel(run_id: string, body?: { space_id?: string }): Promise<{ run: { run_id: string; lifecycle: string } }>;
   };

@@ -20,6 +20,7 @@ export const JOURNAL_EVENT_TYPES = {
   FLOW_ATTACHED: "mrmr.flow.attached",
   FLOW_CHILD_STARTED: "mrmr.flow.child_started",
   FLOW_CHILD_COMPLETED: "mrmr.flow.child_completed",
+  FLOW_START_DENIED: "mrmr.flow.start_denied",
   SPACE_INDEX_UPDATED: "mrmr.space.index_updated",
 } as const;
 

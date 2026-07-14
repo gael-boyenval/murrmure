@@ -114,6 +114,24 @@ export function createMockShellClient(
       lanes: [],
       step_memos: [],
     }),
+    resolveStep: async (_runId, stepId, body) => ({
+      ok: true,
+      run_id: "run_demo",
+      step_id: stepId,
+      branch: body.branch,
+      status: "completed",
+    }),
+    createUploadIntent: async (_runId, _stepId, body) => ({
+      ok: true,
+      intent_id: "upi_demo",
+      expires_in_ms: 3_600_000,
+      files: body.files.map((file, index) => ({ index, size_bytes: file.size_bytes })),
+    }),
+    uploadIntentFile: async (_intentId, _index, file, options) => {
+      options?.onProgress?.(file.size, file.size);
+      return { received_bytes: file.size };
+    },
+    cancelUploadIntent: async () => {},
     retry: async () => ({ run: { run_id: "run_retry" } }),
     cancel: async () => ({ run: { run_id: "run_demo", lifecycle: "cancelled" } }),
   },

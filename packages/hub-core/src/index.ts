@@ -18,6 +18,8 @@ export * from "./session/status.js";
 export * from "./session/index.js";
 export * from "./run/lifecycle.js";
 export * from "./run/service.js";
+export * from "./run/admission.js";
+export * from "./run/space-guard.js";
 export * from "./grants/migrate.js";
 export * from "./projections/step-memo.js";
 export * from "./projections/journal-replay.js";

@@ -85,14 +85,30 @@ export const HandlerSpecSchema = z.discriminatedUnion("type", [
 ]);
 
 /**
+ * Authored run policy — per-flow run capacity declared in `handlers.yaml`.
+ *
+ * `flow` is a readable alias (the applied flow's `name`) resolved during apply
+ * to canonical `{ origin_space_id, flow_id, flow_digest }`. No policy means a
+ * flow is unlimited. The portable flow manifest carries no concurrency policy;
+ * capacity is space-owned, like handler bindings.
+ */
+export const RunPolicySchema = z
+  .object({
+    flow: z.string().min(1),
+    max_concurrent_runs: z.number().int().min(1),
+  })
+  .strict();
+
+/**
  * `handlers.yaml`. The file object is intentionally permissive at the top level
  * so YAML anchors/aliases (`x-*`) used for prompt reuse are not rejected; each
  * handler is strict, so authored `kill_on` and unknown executor fields are
- * rejected. `run_policies` (per-flow run capacity) is owned by the run-capacity
- * slice and not validated here.
+ * rejected. `run_policies` carries space-owned per-flow run capacity; each
+ * policy is strict. Alias resolution and capacity validation happen at apply.
  */
 export const HandlersFileSchema = z.object({
   version: z.literal(1),
+  run_policies: z.array(RunPolicySchema).default([]),
   handlers: z.array(HandlerSpecSchema),
 });
 
@@ -102,6 +118,23 @@ export type HandlerType = z.infer<typeof HandlerTypeSchema>;
 export type HandlerComplete = z.infer<typeof HandlerCompleteSchema>;
 export type HandlerSpec = z.infer<typeof HandlerSpecSchema>;
 export type HandlersFile = z.infer<typeof HandlersFileSchema>;
+export type RunPolicy = z.infer<typeof RunPolicySchema>;
+
+/**
+ * Canonical run policy persisted in the space index after alias resolution.
+ * `flow` keeps the authored readable alias for operator display; the canonical
+ * identity (`origin_space_id`, `flow_id`, `flow_digest`) is what admission and
+ * audit use. A flow digest change invalidates a stale policy on the next apply.
+ */
+export const ResolvedRunPolicySchema = z.object({
+  flow: z.string(),
+  max_concurrent_runs: z.number().int().min(1),
+  origin_space_id: z.string(),
+  flow_id: z.string(),
+  flow_digest: z.string(),
+});
+
+export type ResolvedRunPolicy = z.infer<typeof ResolvedRunPolicySchema>;
 
 /** A parsed `step.(opened|resolved)::{alias}` binding. */
 export interface HandlerStepBinding {

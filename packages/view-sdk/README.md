@@ -20,12 +20,17 @@ cd .mrmr/views/my-view && npm install
 import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const { context, ready, submitBranch } = useViewContract();
+  const { context, ready, submitBranch, submission } = useViewContract();
   if (!ready) return null;
   return (
-    <button onClick={() => submitBranch("continue", {})}>
-      Continue {context.step.step_id}
-    </button>
+    <>
+      <button onClick={() => submitBranch("continue", { files: { spec } })}>
+        Continue {context.step.step_id}
+      </button>
+      {submission.status === "uploading"
+        ? <button onClick={submission.cancel}>Cancel upload</button>
+        : null}
+    </>
   );
 }
 

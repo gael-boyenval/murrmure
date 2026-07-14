@@ -50,21 +50,19 @@ export function mapWhoamiAuthError(
 }
 
 export function mapHubDenial(status: number, body: unknown): HubDenial {
-  if (status !== 403) {
-    return {
-      code: "HUB_ERROR",
-      message: `Hub request failed with status ${status}`,
-    };
-  }
-
   if (body && typeof body === "object") {
     const record = body as Record<string, unknown>;
-    const code = typeof record.code === "string" ? record.code : "HUB_FORBIDDEN";
+    const code = typeof record.code === "string" ? record.code : status === 403 ? "HUB_FORBIDDEN" : "HUB_ERROR";
     const message =
-      typeof record.message === "string" ? record.message : "Access denied by hub";
+      typeof record.message === "string"
+        ? record.message
+        : status === 403
+          ? "Access denied by hub"
+          : `Hub request failed with status ${status}`;
     const hint = record.hint;
     return hint !== undefined ? { code, message, hint } : { code, message };
   }
 
-  return { code: "HUB_FORBIDDEN", message: "Access denied by hub" };
+  if (status === 403) return { code: "HUB_FORBIDDEN", message: "Access denied by hub" };
+  return { code: "HUB_ERROR", message: `Hub request failed with status ${status}` };
 }

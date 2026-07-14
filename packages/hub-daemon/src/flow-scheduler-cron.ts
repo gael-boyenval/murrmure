@@ -5,6 +5,7 @@ import {
   matchesFlowStartEvent,
   type FlowRunServiceDeps,
 } from "@murrmure/hub-core";
+import { FLOW_CONCURRENCY_LIMIT, JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { InvokeService } from "./invoke-service.js";
 import { dispatchFlowSteps } from "./flow-dispatch.js";
@@ -99,7 +100,32 @@ export async function matchFlowEventStarts(
       input: { event_type: input.event_type, source: input.source },
     });
 
-    if (result.ok && !result.deduplicated && result.dispatch.length) {
+    if (!result.ok) {
+      // Record the typed denial so it is observable; a later retry performs a
+      // fresh admission check (capacity may have freed). Overflow creates no run.
+      if (result.error.code === FLOW_CONCURRENCY_LIMIT) {
+        await deps()
+          .handler.appendSpaceJournal({
+            type: JOURNAL_EVENT_TYPES.FLOW_START_DENIED,
+            space_id: prefixedSpaceId(bare),
+            actor_id: input.actor_id,
+            token_id: input.token_id,
+            data: {
+              flow_id: entry.flow_id,
+              flow_name: entry.name,
+              mode: "event",
+              event_type: input.event_type,
+              event_source: input.source,
+              max_concurrent_runs: result.error.max_concurrent_runs,
+              active_run_ids: result.error.active_run_ids,
+            },
+          })
+          .catch(() => undefined);
+      }
+      continue;
+    }
+
+    if (!result.deduplicated && result.dispatch.length) {
       await dispatchFlowSteps(invokeService, {
         dispatch: result.dispatch,
         session_id: result.session.session_id,
@@ -115,6 +141,7 @@ export function flowRunDeps(ctx: {
   murrmurePersistence: StudioPersistencePort;
   handler: import("@murrmure/hub-core").HubHandler;
   config: { cancelTimeoutMs?: number };
+  spaceRunGuard?: import("@murrmure/hub-core").SpaceConcurrencyGuard;
 }): FlowRunServiceDeps {
   return {
     studio: ctx.murrmurePersistence,
@@ -122,5 +149,6 @@ export function flowRunDeps(ctx: {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    guard: ctx.spaceRunGuard,
   };
 }

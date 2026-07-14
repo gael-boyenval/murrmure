@@ -1,12 +1,35 @@
 import type { Hono } from "hono";
 import { ResolveStepBodySchema } from "@murrmure/contracts";
-import { resolveFlowStep, type StepResolveJournal } from "@murrmure/hub-core";
+import {
+  resolveFlowStep,
+  resolveSpaceRoot,
+  resolveWorkdirRelativePath,
+  stepWorkdirPath,
+  type StepResolveJournal,
+} from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
 import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
 import { flowAdvanceDeps } from "../../flow-advance.js";
 import { broadcastSse } from "../../context.js";
+import { UploadIntentError } from "../../upload-intent-service.js";
+import { stat } from "node:fs/promises";
+import { basename, extname } from "node:path";
+
+function inferredMediaType(path: string): string {
+  switch (extname(path).toLowerCase()) {
+    case ".md":
+    case ".markdown":
+      return "text/markdown";
+    case ".txt":
+      return "text/plain";
+    case ".json":
+      return "application/json";
+    default:
+      return "application/octet-stream";
+  }
+}
 
 export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, handler } = ctx;
@@ -76,6 +99,75 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
       },
     };
 
+    let resolveBody = body.data;
+    if (!body.data.upload_intent_id && body.data.artifacts_out?.length && run.space_id) {
+      const bindings = await murrmurePersistence.getSpaceBindings(run.space_id);
+      const spaceRoot = resolveSpaceRoot(bindings);
+      if (!spaceRoot) {
+        return c.json({ code: "SPACE_ROOT_MISSING", message: "artifacts_out requires a linked space root path" }, 422);
+      }
+      const workdir = stepWorkdirPath(spaceRoot, run_id, step_id);
+      try {
+        resolveBody = {
+          ...body.data,
+          artifacts_out: await Promise.all(body.data.artifacts_out.map(async (artifact) => {
+            const localPath = resolveWorkdirRelativePath(workdir, artifact.path);
+            if (!localPath) throw new Error("Artifact path escapes the step workdir");
+            const details = await stat(localPath);
+            if (!details.isFile()) throw new Error("Artifact path is not a file");
+            return {
+              ...artifact,
+              name: artifact.name ?? basename(artifact.path),
+              media_type: artifact.media_type ?? inferredMediaType(artifact.path),
+              size_bytes: details.size,
+            };
+          })),
+        };
+      } catch {
+        return c.json({
+          code: "CONTRACT_VALIDATION_FAILED",
+          message: "Branch resolve contract validation failed",
+          errors: [{
+            source: "artifact",
+            path: "/files",
+            rule: "path",
+            message: "Artifact must be a readable file in the active step workdir",
+          }],
+        }, 400);
+      }
+    }
+    let preparedIntentId: string | undefined;
+    let prepareError: UploadIntentError | undefined;
+    if (body.data.upload_intent_id) {
+      try {
+        const prepared = await ctx.uploadIntentService.prepareResolve({
+          intent_id: body.data.upload_intent_id,
+          run_id,
+          step_id,
+          branch: body.data.branch,
+          actor_id: auth.actor_id,
+          token_id: auth.token_id,
+          idempotency_key: body.data.idempotency_key,
+        });
+        preparedIntentId = body.data.upload_intent_id;
+        resolveBody = { ...body.data, artifacts_out: prepared.artifacts_out };
+      } catch (error) {
+        if (
+          error instanceof UploadIntentError &&
+          (error.code === "UPLOAD_INTENT_NOT_FOUND" || error.code === "UPLOAD_INTENT_CONSUMED")
+        ) {
+          if (error.code === "UPLOAD_INTENT_CONSUMED") {
+            preparedIntentId = body.data.upload_intent_id;
+          }
+          prepareError = error;
+        } else if (error instanceof UploadIntentError) {
+          return c.json({ code: error.code, message: error.message }, error.http);
+        } else {
+          return c.json({ code: "UPLOAD_PREPARE_FAILED", message: "Could not prepare upload intent" }, 400);
+        }
+      }
+    }
+
     const deps = flowAdvanceDeps(ctx);
     const result = await resolveFlowStep(
       {
@@ -107,7 +199,7 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
       {
         run_id,
         step_id,
-        body: body.data,
+        body: resolveBody,
         actor_id: auth.actor_id,
         token_id: auth.token_id,
         space_id,
@@ -118,10 +210,24 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
     );
 
     if (!result.ok) {
+      if (preparedIntentId) {
+        await ctx.uploadIntentService.abandon(preparedIntentId, result.code, "resolve");
+      }
+      if (prepareError) {
+        return c.json({ code: prepareError.code, message: prepareError.message }, prepareError.http);
+      }
       return c.json(
-        { code: result.code, message: result.message },
+        {
+          code: result.code,
+          message: result.message,
+          ...(result.errors ? { errors: result.errors } : {}),
+        },
         result.http as 400 | 404 | 409 | 422,
       );
+    }
+
+    if (preparedIntentId) {
+      await ctx.uploadIntentService.consume(preparedIntentId);
     }
 
     return c.json(

@@ -41,10 +41,14 @@ describe("Tutorial v3 View conformance", () => {
     // Wire/validation parity: the SDK validation path consumes the dev fixture's
     // contracts. `continue` requires `spec`; `cancel` is open; unknown branches reject.
     const devContext: ViewAppContext = { ...BASE_CONTEXT, mode: "dev", step: fixture.step };
-    expect(validateBranchResolve(devContext, "continue", { spec: "spec.md" })).toBeNull();
+    expect(
+      validateBranchResolve(devContext, "continue", {
+        files: { spec: new Blob(["# Spec\n"], { type: "text/markdown" }) },
+      }),
+    ).toBeNull();
     expect(validateBranchResolve(devContext, "cancel", {})).toBeNull();
     expect(validateBranchResolve(devContext, "continue", {})).toMatchObject({
-      code: "VIEW_BRANCH_VALIDATION_FAILED",
+      code: "CONTRACT_VALIDATION_FAILED",
     });
     expect(validateBranchResolve(devContext, "ghost", {})).toMatchObject({
       code: "VIEW_UNKNOWN_BRANCH",
@@ -53,11 +57,31 @@ describe("Tutorial v3 View conformance", () => {
     // Production mode uses the same wire and validation semantics — only `mode`
     // differs, and a production mount never lets a fixture override the projection.
     const productionContext: ViewAppContext = { ...devContext, mode: "production" };
-    expect(validateBranchResolve(productionContext, "continue", { spec: "spec.md" })).toBeNull();
+    expect(
+      validateBranchResolve(productionContext, "continue", {
+        files: { spec: new Blob(["# Spec\n"], { type: "text/markdown" }) },
+      }),
+    ).toBeNull();
     expect(validateBranchResolve(productionContext, "ghost", {})).toMatchObject({
       code: "VIEW_UNKNOWN_BRANCH",
     });
   });
 
-  test.skip("Task 05 — submit, progress, cancellation, and errors use host mediation", () => {});
+  test("Task 05 — missing files use normalized field errors", () => {
+    const snapshot = loadTutorialSnapshot(3);
+    const fixture = JSON.parse(
+      snapshot.files[".mrmr/views/spec-intake/dev/fixtures/intake.json"],
+    ) as ViewAppContext;
+    const context: ViewAppContext = { ...BASE_CONTEXT, mode: "production", step: fixture.step };
+    expect(validateBranchResolve(context, "continue", {})).toMatchObject({
+      code: "CONTRACT_VALIDATION_FAILED",
+      errors: [
+        {
+          source: "artifact",
+          path: "/files/spec",
+          rule: "min_files",
+        },
+      ],
+    });
+  });
 });

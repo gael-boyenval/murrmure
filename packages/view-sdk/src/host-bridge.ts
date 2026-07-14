@@ -3,13 +3,63 @@ import type {
   ViewContractError,
   ViewHostInboundMessage,
   ViewHostOutboundMessage,
+  ViewBranchContract,
+  ViewBranchSubmitInput,
+  ViewSubmissionState,
 } from "./types.js";
 import { createViewContextMessage, createAckMessage, isViewHostInboundMessage } from "./app/messages.js";
 import { hubOriginsMatch } from "./hub-origin.js";
 import { isSandboxedOpaqueOrigin, resolveViewIframeOrigin, resolveViewIframeTargetOrigin } from "./iframe-origin.js";
+import { validateBranchContract } from "@murrmure/contracts";
 
 export { createViewContextMessage, createAckMessage, isViewHostInboundMessage } from "./app/messages.js";
 export { resolveViewIframeOrigin, isSandboxedOpaqueOrigin, resolveViewIframeTargetOrigin } from "./iframe-origin.js";
+
+export function viewSubmitFileName(
+  branch: ViewBranchContract,
+  slot: string,
+  file: Blob,
+  index: number,
+): string {
+  const supplied = (file as Blob & { name?: unknown }).name;
+  if (typeof supplied === "string" && supplied.length > 0) return supplied;
+  return `${slot}-${index}${branch.artifact_slots?.[slot]?.extensions?.[0] ?? ""}`;
+}
+
+export function validateHostBranchResolve(
+  context: ViewAppContext,
+  branchName: string,
+  input: ViewBranchSubmitInput,
+): ViewContractError | null {
+  const branch = context.step?.branches.find((candidate) => candidate.branch === branchName);
+  if (!branch) {
+    return {
+      code: "VIEW_UNKNOWN_BRANCH",
+      message: `Unknown branch '${branchName}'`,
+      branch: branchName,
+      errors: [],
+    };
+  }
+  const files = Object.fromEntries(
+    Object.entries(input.files ?? {}).map(([slot, value]) => [
+      slot,
+      (Array.isArray(value) ? value : [value]).map((file, index) => ({
+        name: viewSubmitFileName(branch, slot, file, index),
+        media_type: file.type,
+        size_bytes: file.size,
+      })),
+    ]),
+  );
+  const result = validateBranchContract(branch, { payload: input.payload, files });
+  return result.ok
+    ? null
+    : {
+        code: result.code,
+        message: "Branch resolve contract validation failed",
+        branch: branchName,
+        errors: result.errors,
+      };
+}
 
 /** Resolve relative view entry paths to hub-served asset URLs. External View
  * URLs are rejected — production Views are locally built and shell-hosted. */
@@ -30,7 +80,15 @@ export function resolveViewEntryUrl(
 
 export interface ViewHostBridgeHandlers {
   onReady?: () => void;
-  onSubmitBranch?: (branch: string, params: Record<string, unknown>) => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
+  onSubmitBranch?: (
+    branch: string,
+    input: ViewBranchSubmitInput,
+    submission: {
+      submission_id: string;
+      report: (state: ViewSubmissionState) => void;
+    },
+  ) => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
+  onCancelSubmission?: (submission_id: string) => Promise<void> | void;
   onCancel?: () => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
   onResolved?: () => void;
 }
@@ -76,24 +134,57 @@ export function attachViewHostBridge(
         handlers.onReady?.();
         break;
       case "murrmure.view.submit_branch": {
+        const report = (state: ViewSubmissionState) => {
+          iframe.contentWindow?.postMessage(
+            {
+              type: "murrmure.view.submission",
+              v: context.transport_version,
+              nonce: context.nonce,
+              submission_id: message.submission_id,
+              status: state.status,
+              uploaded_bytes: state.uploadedBytes,
+              total_bytes: state.totalBytes,
+            } satisfies ViewHostOutboundMessage,
+            targetOrigin,
+          );
+        };
         const result = handlers.onSubmitBranch
-          ? await handlers.onSubmitBranch(message.branch, message.params)
+          ? await handlers.onSubmitBranch(message.branch, message.input, {
+              submission_id: message.submission_id,
+              report,
+            })
           : ({ ok: true } as const);
         const ack = result.ok
           ? createAckMessage({
               nonce: context.nonce,
               transport_version: context.transport_version,
               kind: "submit_branch",
+              submission_id: message.submission_id,
               ok: true,
             })
           : createAckMessage({
               nonce: context.nonce,
               transport_version: context.transport_version,
               kind: "submit_branch",
+              submission_id: message.submission_id,
               ok: false,
               error: result.error,
             });
         iframe.contentWindow?.postMessage(ack, targetOrigin);
+        break;
+      }
+      case "murrmure.view.cancel_submission": {
+        await handlers.onCancelSubmission?.(message.submission_id);
+        iframe.contentWindow?.postMessage(
+          createAckMessage({
+            nonce: context.nonce,
+            transport_version: context.transport_version,
+            kind: "submission_cancel",
+            submission_id: message.submission_id,
+            ok: true,
+          }),
+          targetOrigin,
+        );
         break;
       }
       case "murrmure.view.cancel": {

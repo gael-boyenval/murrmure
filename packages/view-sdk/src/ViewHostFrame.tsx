@@ -1,11 +1,16 @@
 import { useEffect, useRef } from "react";
-import type { ViewAppContext } from "./types.js";
+import type { ViewAppContext, ViewBranchSubmitInput, ViewSubmissionState } from "./types.js";
 import { attachViewHostBridge } from "./host-bridge.js";
 
 export interface ViewHostFrameProps {
   src: string;
   context: ViewAppContext;
-  onSubmitBranch: (branch: string, params: Record<string, unknown>) => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
+  onSubmitBranch: (
+    branch: string,
+    input: ViewBranchSubmitInput,
+    submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+  ) => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
+  onCancelSubmission?: (submission_id: string) => Promise<void> | void;
   onCancel: () => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
   onResolved?: () => void;
   className?: string;
@@ -41,6 +46,7 @@ export function ViewHostFrame({
   context,
   onSubmitBranch,
   onCancel,
+  onCancelSubmission,
   onResolved,
   className,
   title,
@@ -56,10 +62,11 @@ export function ViewHostFrame({
     return attachViewHostBridge(iframe, context, {
       onReady,
       onSubmitBranch: onSubmitBranch,
+      onCancelSubmission,
       onCancel: onCancel,
       onResolved,
     });
-  }, [src, context, onSubmitBranch, onCancel, onResolved]);
+  }, [src, context, onSubmitBranch, onCancelSubmission, onCancel, onResolved]);
 
   return (
     <iframe

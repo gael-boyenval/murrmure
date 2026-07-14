@@ -140,6 +140,7 @@ export const stepResolveCommand = defineCommand({
         typeof body.message === "string"
           ? body.message
           : `Resolve step failed (${res.status})`,
+        Array.isArray(body.errors) ? { errors: body.errors } : undefined,
       );
     }
 

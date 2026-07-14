@@ -145,6 +145,7 @@ export function applyIndexDiff(
     events: [],
     flows: [],
     views: [],
+    run_policies: [],
   };
 
   const diffResource = <TRow extends { digest: string }>(
@@ -237,6 +238,16 @@ export function applyIndexDiff(
     next.views = current.views ?? [];
   }
 
+  // Run policies are space-owned and resolved against the fully merged
+  // post-apply flow set (local + bound + preserved) by the caller, which has
+  // the merged entries. When handlers are applied, reset to empty here and let
+  // the caller inject the resolved set; otherwise preserve the prior policies.
+  if (bundle.handlers !== undefined) {
+    next.run_policies = [];
+  } else {
+    next.run_policies = current.run_policies ?? [];
+  }
+
   const changed = changes.filter((c) => c.change !== "unchanged").length;
   return {
     changes,
@@ -247,6 +258,7 @@ export function applyIndexDiff(
       events: next.events.length,
       flows: next.flows.length,
       views: next.views.length,
+      run_policies: next.run_policies.length,
       changed,
     },
     next,
@@ -262,6 +274,7 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
       events: (snapshot.events ?? []).length,
       flows: snapshot.flows.length,
       views: (snapshot.views ?? []).length,
+      run_policies: (snapshot.run_policies ?? []).length,
     },
     digests: {
       actions: snapshot.actions[0]?.digest,
@@ -274,6 +287,14 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
         step_contract_catalog_digest: f.step_contract_catalog?.digest,
         step_contract_step_count: f.step_contract_catalog?.step_ids.length,
       })),
+      run_policies: (snapshot.run_policies ?? []).map((row) => {
+        const policy = JSON.parse(row.payload_json) as { flow: string; max_concurrent_runs: number; flow_id: string };
+        return {
+          flow: policy.flow,
+          flow_id: policy.flow_id,
+          max_concurrent_runs: policy.max_concurrent_runs,
+        };
+      }),
     },
   };
 }

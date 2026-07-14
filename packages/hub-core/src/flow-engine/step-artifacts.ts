@@ -1,5 +1,5 @@
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join, normalize, relative, resolve } from "node:path";
+import { copyFile, mkdir, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
 import type { ResolveStepArtifactOut, StepArtifactSlot } from "@murrmure/contracts";
 import { prefixedRunId, stepWorkdirPath } from "./step-contract-slice.js";
 
@@ -13,6 +13,11 @@ export interface ResolvedStepArtifact {
 }
 
 export type RunArtifactsBag = Record<string, Record<string, ResolvedStepArtifact>>;
+
+export const MAX_ARTIFACT_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_STEP_RESOLUTION_BYTES = 50 * 1024 * 1024;
+export const MAX_RUN_ARTIFACT_BYTES = 250 * 1024 * 1024;
+export const MAX_SPACE_ARTIFACT_BYTES = 2 * 1024 * 1024 * 1024;
 
 export function stepStableDirRelPath(run_id: string, step_id: string): string {
   return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "steps", step_id);
@@ -97,51 +102,129 @@ export async function promoteArtifactsOut(input: {
 }): Promise<ResolvedStepArtifact[]> {
   const workdir = stepWorkdirPath(input.space_root, input.run_id, input.step_id);
   const stableDir = stepStableDirPath(input.space_root, input.run_id, input.step_id);
-  await mkdir(stableDir, { recursive: true });
-
-  const promoted: ResolvedStepArtifact[] = [];
+  const prepared: Array<{
+    out: ResolveStepArtifactOut;
+    bytes: Buffer;
+    filename: string;
+    srcAbs: string;
+  }> = [];
+  const counts = new Map<string, number>();
+  const totals = new Map<string, number>();
+  const names = new Map<string, Set<string>>();
+  let stepTotal = 0;
 
   for (const out of input.artifacts_out) {
     const slotDef = input.artifact_slots[out.slot];
     if (!slotDef) continue;
-
     const srcAbs = resolveWorkdirRelativePath(workdir, out.path);
     if (!srcAbs) {
       throw new Error(`Artifact path '${out.path}' escapes step workdir`);
     }
-
     const bytes = await readFile(srcAbs);
-    if (slotDef.max_bytes && bytes.length > slotDef.max_bytes) {
+    const filename = basename(out.name ?? out.path) || out.slot;
+    const normalizedName = filename.toLowerCase();
+    const slotNames = names.get(out.slot) ?? new Set<string>();
+    if (slotNames.has(normalizedName)) {
+      throw new Error(`Artifact slot '${out.slot}' contains duplicate filename '${filename}'`);
+    }
+    slotNames.add(normalizedName);
+    names.set(out.slot, slotNames);
+    const count = (counts.get(out.slot) ?? 0) + 1;
+    const total = (totals.get(out.slot) ?? 0) + bytes.length;
+    counts.set(out.slot, count);
+    totals.set(out.slot, total);
+    stepTotal += bytes.length;
+
+    if (bytes.length > MAX_ARTIFACT_FILE_BYTES) {
+      throw new Error(`Artifact '${filename}' exceeds the 25 MiB file ceiling`);
+    }
+    if (slotDef.min_bytes !== undefined && bytes.length < slotDef.min_bytes) {
+      throw new Error(`Artifact slot '${out.slot}' is smaller than min_bytes (${slotDef.min_bytes})`);
+    }
+    if (slotDef.max_bytes !== undefined && bytes.length > slotDef.max_bytes) {
       throw new Error(`Artifact slot '${out.slot}' exceeds max_bytes (${slotDef.max_bytes})`);
     }
-
-    const filename = basename(out.path) || out.slot;
-    const slotDir = join(stableDir, out.slot);
-    await mkdir(slotDir, { recursive: true });
-    const destAbs = join(slotDir, filename);
-    await copyFile(srcAbs, destAbs);
-
-    const relPath = stableArtifactRelPath(input.run_id, input.step_id, out.slot, filename);
-
-    let transfer_id: string | undefined;
-    let digest: string | undefined;
-    if (input.registerArtifact) {
-      const reg = await input.registerArtifact({ name: filename, bytes, slot: out.slot });
-      transfer_id = reg.transfer_id;
-      digest = reg.digest;
+    if (slotDef.media_types?.length && (!out.media_type || !slotDef.media_types.includes(out.media_type.toLowerCase()))) {
+      throw new Error(`Artifact '${filename}' has unsupported media type '${out.media_type ?? ""}'`);
     }
-
-    promoted.push({
-      slot: out.slot,
-      path: relPath,
-      name: filename,
-      transfer_id,
-      digest,
-      size_bytes: bytes.length,
-    });
+    if (slotDef.extensions?.length && !slotDef.extensions.includes(extname(filename).toLowerCase())) {
+      throw new Error(`Artifact '${filename}' has an unsupported extension`);
+    }
+    prepared.push({ out, bytes, filename, srcAbs });
   }
 
+  if (stepTotal > MAX_STEP_RESOLUTION_BYTES) {
+    throw new Error("Artifacts exceed the 50 MiB step-resolution ceiling");
+  }
+  const runDir = dirname(dirname(stableDir));
+  const runStored = await directoryBytes(runDir);
+  if (runStored + stepTotal > MAX_RUN_ARTIFACT_BYTES) {
+    throw new Error("Artifacts exceed the 250 MiB run ceiling");
+  }
+  const spaceStored = await directoryBytes(join(input.space_root, ".mrmr", "dev", "runs"));
+  if (spaceStored + stepTotal > MAX_SPACE_ARTIFACT_BYTES) {
+    throw new Error("Artifacts exceed the 2 GiB space ceiling");
+  }
+  for (const [slot, slotDef] of Object.entries(input.artifact_slots)) {
+    const count = counts.get(slot) ?? 0;
+    const total = totals.get(slot) ?? 0;
+    if (slotDef.min_files !== undefined && count < slotDef.min_files) {
+      throw new Error(`Artifact slot '${slot}' requires at least ${slotDef.min_files} file(s)`);
+    }
+    if (count > (slotDef.max_files ?? 1)) {
+      throw new Error(`Artifact slot '${slot}' accepts at most ${slotDef.max_files ?? 1} file(s)`);
+    }
+    if (slotDef.max_total_bytes !== undefined && total > slotDef.max_total_bytes) {
+      throw new Error(`Artifact slot '${slot}' exceeds max_total_bytes (${slotDef.max_total_bytes})`);
+    }
+  }
+
+  await mkdir(stableDir, { recursive: true });
+  const promoted: ResolvedStepArtifact[] = [];
+  try {
+    for (const item of prepared) {
+      const slotDir = join(stableDir, item.out.slot);
+      await mkdir(slotDir, { recursive: true });
+      const destAbs = join(slotDir, item.filename);
+      await copyFile(item.srcAbs, destAbs);
+      const relPath = stableArtifactRelPath(input.run_id, input.step_id, item.out.slot, item.filename);
+      let transfer_id: string | undefined;
+      let digest: string | undefined;
+      if (input.registerArtifact) {
+        const reg = await input.registerArtifact({
+          name: item.filename,
+          bytes: item.bytes,
+          slot: item.out.slot,
+        });
+        transfer_id = reg.transfer_id;
+        digest = reg.digest;
+      }
+      promoted.push({
+        slot: item.out.slot,
+        path: relPath,
+        name: item.filename,
+        transfer_id,
+        digest,
+        size_bytes: item.bytes.length,
+      });
+    }
+  } catch (error) {
+    await rm(stableDir, { recursive: true, force: true });
+    throw error;
+  }
+  await Promise.all(prepared.map((item) => unlink(item.srcAbs).catch(() => undefined)));
   return promoted;
+}
+
+async function directoryBytes(path: string): Promise<number> {
+  const entries = await readdir(path, { withFileTypes: true }).catch(() => []);
+  let total = 0;
+  for (const entry of entries) {
+    const entryPath = join(path, entry.name);
+    if (entry.isDirectory()) total += await directoryBytes(entryPath);
+    else if (entry.isFile()) total += (await stat(entryPath)).size;
+  }
+  return total;
 }
 
 export function mergeArtifactsIntoExecContext(

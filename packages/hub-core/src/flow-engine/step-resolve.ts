@@ -5,8 +5,9 @@ import type {
   StepCatalogRoute,
   StepContractCatalog,
   StepContractCatalogEntry,
+  ContractValidationError,
 } from "@murrmure/contracts";
-import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES, validateBranchContract } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { failRunWithNotification, type SessionRunDeps } from "../run/service.js";
@@ -58,20 +59,6 @@ export interface StepResolveDeps extends SessionRunDeps {
 
 function bareRunId(run_id: string): string {
   return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-}
-
-function validatePayloadSchema(
-  schema: Record<string, unknown> | undefined,
-  payload: Record<string, unknown>,
-): string | null {
-  if (!schema || schema.type !== "object") return null;
-  const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
-  for (const key of required) {
-    if (payload[key] === undefined || payload[key] === null) {
-      return `Missing required field '${key}' in resolve payload`;
-    }
-  }
-  return null;
 }
 
 function branchRoutes(entry: StepContractCatalogEntry, branch: string): StepCatalogRoute[] {
@@ -272,7 +259,7 @@ export async function resolveFlowStep(
   },
 ): Promise<
   | { ok: true; step_id: string; branch: string; run_id: string; status: RunStepMemo["status"] }
-  | { ok: false; code: string; message: string; http: number }
+  | { ok: false; code: string; message: string; http: number; errors?: ContractValidationError[] }
 > {
   const runBare = bareRunId(input.run_id);
   const run = await deps.studio.getRun(runBare);
@@ -281,6 +268,23 @@ export async function resolveFlowStep(
   }
 
   if (run.lifecycle === "completed" || run.lifecycle === "failed" || run.lifecycle === "cancelled") {
+    if (input.body.idempotency_key) {
+      const terminalMemo = (await deps.studio.listRunStepMemos(input.run_id)).find(
+        (memo) =>
+          memo.step_id === input.step_id &&
+          memo.idempotency_key === input.body.idempotency_key &&
+          (memo.status === "completed" || memo.status === "failed"),
+      );
+      if (terminalMemo) {
+        return {
+          ok: true,
+          step_id: input.step_id,
+          branch: input.body.branch,
+          run_id: input.run_id,
+          status: terminalMemo.status,
+        };
+      }
+    }
     return {
       ok: false,
       code: "RUN_TERMINAL",
@@ -349,14 +353,31 @@ export async function resolveFlowStep(
   }
 
   const payload = input.body.payload ?? {};
-  const schemaError = validatePayloadSchema(branchDef.schema, payload);
-  if (schemaError) {
-    return { ok: false, code: "INVALID_PAYLOAD", message: schemaError, http: 400 };
-  }
-
-  const artifactError = validateArtifactsOut(input.body.artifacts_out, entry.artifact_slots);
+  const artifactError = validateArtifactsOut(input.body.artifacts_out, branchDef.artifact_slots);
   if (artifactError) {
     return { ok: false, code: "INVALID_ARTIFACTS", message: artifactError, http: 400 };
+  }
+  const files = Object.fromEntries(
+    Object.keys(branchDef.artifact_slots).map((slot) => [
+      slot,
+      (input.body.artifacts_out ?? [])
+        .filter((artifact) => artifact.slot === slot)
+        .map((artifact) => ({
+          name: artifact.name ?? artifact.path,
+          media_type: artifact.media_type ?? "",
+          size_bytes: artifact.size_bytes ?? 0,
+        })),
+    ]),
+  );
+  const contractValidation = validateBranchContract(branchDef, { payload, files });
+  if (!contractValidation.ok) {
+    return {
+      ok: false,
+      code: contractValidation.code,
+      message: "Branch resolve contract validation failed",
+      errors: contractValidation.errors,
+      http: 400,
+    };
   }
 
   const ts = deps.clock.nowIso();
@@ -377,7 +398,7 @@ export async function resolveFlowStep(
     completed_at: ts,
   });
 
-  if (input.body.artifacts_out?.length && entry.artifact_slots) {
+  if (input.body.artifacts_out?.length) {
     const spaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
     const bindings = await deps.studio.getSpaceBindings(spaceBare);
     const space_root = resolveSpaceRoot(bindings);
@@ -395,7 +416,7 @@ export async function resolveFlowStep(
         run_id: input.run_id,
         step_id: input.step_id,
         artifacts_out: input.body.artifacts_out,
-        artifact_slots: entry.artifact_slots,
+        artifact_slots: branchDef.artifact_slots,
         registerArtifact: deps.registerArtifact,
       });
       execContext = mergeArtifactsIntoExecContext(execContext, input.step_id, promoted);

@@ -202,6 +202,14 @@ export function migrateStudio(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_flow_index_origin ON flow_index(origin_space_id);
 
+    CREATE TABLE IF NOT EXISTS space_run_policies (
+      space_id TEXT NOT NULL,
+      flow_id TEXT NOT NULL,
+      flow_digest TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      PRIMARY KEY (space_id, flow_id)
+    );
+
     CREATE TABLE IF NOT EXISTS artifacts (
       transfer_id TEXT PRIMARY KEY,
       source_space_id TEXT NOT NULL,

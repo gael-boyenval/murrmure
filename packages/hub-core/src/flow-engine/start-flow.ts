@@ -109,7 +109,7 @@ export async function executeStartFlowStep(
   });
 
   const started = await startFlowRun(
-    { studio: deps.studio, handler: deps.handler, ids: deps.ids, clock: deps.clock, cancelTimeoutMs: deps.cancelTimeoutMs },
+    { studio: deps.studio, handler: deps.handler, ids: deps.ids, clock: deps.clock, cancelTimeoutMs: deps.cancelTimeoutMs, guard: deps.guard },
     {
       entry,
       space_id: input.spaceId,

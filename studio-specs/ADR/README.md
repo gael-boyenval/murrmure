@@ -13,4 +13,7 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-006](./ADR-006-clean-first-boot.md) | accepted | Clean first boot, explicit test fixtures, and opaque space IDs |
 | [ADR-007](./ADR-007-resolver-agnostic-step-contracts.md) | accepted | Resolver-agnostic step contracts and trigger-only clean cutover |
 | [ADR-008](./ADR-008-local-connection-credentials-and-launcher.md) | accepted | Local connection credentials, neutral adapters, and stable bundled launcher |
+| [ADR-009](./ADR-009-space-owned-view-resolver-and-hardened-host.md) | accepted | Space-owned view resolvers and hardened host-only View execution |
+| [ADR-010](./ADR-010-branch-contract-artifact-upload-boundary.md) | accepted | Branch contract artifact upload boundary |
+| [ADR-011](./ADR-011-space-owned-flow-admission-and-apply-quiescence.md) | accepted | Space-owned flow admission and apply-quiescence concurrency boundary |
 

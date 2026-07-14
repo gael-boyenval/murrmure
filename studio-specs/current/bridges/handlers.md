@@ -2,7 +2,7 @@
 
 **Status:** Normative — **shipped** (HANDLER-CUTOVER 2026-07-09; VIEW-RESOLVER cutover 2026-07-14)
 **Plan:** [2026-07-09-space-handlers-contract-keys-plan.md](../../plans/2026-07-09-space-handlers-contract-keys-plan.md), [Tutorial v3 Task 04](../../plans/2026-07-14-tutorial-v3-build-tasks/04-intake-view.md)
-**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md)
 
 Spaces own execution via **handlers**. A step handler binds to a resolver-agnostic
 step with `on: step.opened::{flow_name}.{qualified_step_id}` (the **`on::key`
@@ -25,6 +25,9 @@ spaces should use handlers only. Flow steps must not declare `executor.action`.
 
 ```yaml
 version: 1
+run_policies:
+  - flow: my-dev-flow
+    max_concurrent_runs: 1
 handlers:
   # Executor handler — binds the write_spec step, prompts an agent.
   - id: write-spec
@@ -51,6 +54,32 @@ handlers:
 | `complete` | `auto` \| `cli` \| `explicit` — who calls `resolve_step` after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
 | `kill_on` | **Removed.** Assignment termination is runtime-owned; authored `kill_on` is rejected. |
+
+---
+
+## Run policies
+
+`run_policies` is a space-owned list of `{ flow, max_concurrent_runs }` entries
+that caps how many **non-terminal** runs of a single flow may exist at once. The
+flow stays portable — the policy lives in the space, never in the flow manifest.
+
+- `flow` is an authored readable alias (the applied flow's `name`), resolved at
+  apply to canonical `{ origin_space_id, flow_id, flow_digest }` against the fully
+  merged post-apply flow set (local + bound + preserved).
+- `max_concurrent_runs` is an integer ≥ 1. **No policy means unlimited** — an
+  unbounded flow may run concurrently with itself and with any limited flow.
+- Every manual, trigger, API, MCP, and federated start funnels through one atomic
+  admission check. Overflow creates **no queue and no partial run**; the start
+  fails immediately with `409 FLOW_CONCURRENCY_LIMIT` carrying the canonical flow
+  identity, the configured limit, and the active blocking run IDs.
+- Trigger delivery records the same typed denial (`mrmr.flow.start_denied`) so it
+  is observable; a later retry always performs a fresh admission check.
+- Runs and journals pin the configuration they actually used (the applied
+  `flow_digest` admitted at start).
+
+Apply-time resolution fails apply atomically (prior index preserved) with typed
+codes — see the table below. See
+[ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md).
 
 **`view_resolver` is executor-free.** A `view_resolver` handler carries `view`
 and binds `step.opened::…` only. It forbids `command`, `prompt`, `params`,
@@ -81,8 +110,9 @@ multi-key subgraph-owner handlers; they are never dispatched on `step.opened`.
 
 ## Apply-time binding validation
 
-`validateHandlerBindings` runs on the fully resolved post-apply state and fails
-apply atomically (the prior index is preserved) with typed codes:
+`validateHandlerBindings` and run-policy resolution run on the fully resolved
+post-apply state and fail apply atomically (the prior index is preserved) with
+typed codes:
 
 | Code | Condition |
 |------|-----------|
@@ -92,6 +122,29 @@ apply atomically (the prior index is preserved) with typed codes:
 | `VIEW_RESOLVER_NOT_OPENED` | A `view_resolver` is not bound to `step.opened::…` |
 | `VIEW_RESOLVER_VIEW_NOT_FOUND` | `view_id` is unknown to the space index |
 | `VIEW_RESOLVER_BUILD_MISSING` | The bound View's build (`dist/`) is missing |
+| `RUN_POLICY_UNKNOWN_FLOW` | A `run_policies` alias references no applied flow (unknown or stale) |
+| `RUN_POLICY_AMBIGUOUS_FLOW` | A `run_policies` alias matches duplicate flow names |
+| `RUN_POLICY_DUPLICATE` | Two `run_policies` entries target the same canonical flow |
+
+---
+
+## Apply quiescence
+
+An apply may replace a space's configuration only when the **entire space has no
+non-terminal runs** (lifecycle `working` or `input-required`). This prevents a run
+from observing a partially replaced index or executing against configuration that
+was changed underneath it.
+
+- Apply and run start share one **per-space guard** so the admission count+insert
+  (start) and the quiescence check+commit (apply) are each atomic. No force apply,
+  auto-abort, hot swap, migration, or per-run handler snapshot is added.
+- A conflicting apply returns `409 SPACE_HAS_ACTIVE_RUNS` with the blocking run
+  IDs; the prior index is preserved. Apply succeeds immediately once all runs
+  become terminal (`completed`, `failed`, or `cancelled`).
+- Capacity denial and apply quiescence are distinct: `FLOW_CONCURRENCY_LIMIT` is
+  per-flow at start; `SPACE_HAS_ACTIVE_RUNS` is whole-space at apply.
+
+See [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md).
 
 ---
 
@@ -183,4 +236,5 @@ See [ADR-009](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md).
 - [action-invoke.md](./action-invoke.md) — headless invoke (operator path)
 - [triggers.md](./triggers.md) — event handlers in the same file
 - [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+- [ADR-011 — Space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md)
 - [product/philosophy.md](../product/philosophy.md) § Arc 5 — space owns execution

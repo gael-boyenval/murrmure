@@ -1,5 +1,36 @@
 # Changelog
 
+## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
+
+### Added
+
+- Space-owned `run_policies: [{ flow, max_concurrent_runs }]` in
+  `handlers.yaml`. `flow` is an authored alias resolved at apply to canonical
+  `{ origin_space_id, flow_id, flow_digest }`; `max_concurrent_runs` is an
+  integer ≥ 1; no policy means unlimited. The portable flow carries no
+  concurrency policy.
+- One atomic run-capacity admission check shared by every start path (manual,
+  trigger, API, MCP, federated). Overflow creates no queue/partial run and
+  returns `409 FLOW_CONCURRENCY_LIMIT` with the canonical flow identity, the
+  configured limit, and the active blocking run IDs.
+- Apply quiescence: an apply replaces a space's configuration only when the
+  whole space has no non-terminal runs; otherwise `409 SPACE_HAS_ACTIVE_RUNS`
+  with the blocking run IDs and the prior index preserved.
+- A shared per-space guard serializes admission (count + insert) and apply
+  (quiescence check + commit) so a limit of one never admits two and no run
+  observes a partially replaced index.
+- Trigger delivery records a typed `mrmr.flow.start_denied` journal event; a
+  later retry performs a fresh admission check.
+- Typed run-policy apply failures (`RUN_POLICY_UNKNOWN_FLOW`,
+  `RUN_POLICY_AMBIGUOUS_FLOW`, `RUN_POLICY_DUPLICATE`) preserve the prior index.
+- Runs and journals pin the applied `flow_digest` admitted at start.
+
+### Breaking
+
+- None. Existing `handlers.yaml` files without `run_policies` behave as before
+  (unlimited). An invalid `run_policies` entry now hard-fails apply with a typed
+  code instead of being ignored.
+
 ## Tutorial v3 Task 02 — local connections and bundled bridge (2026-07-14)
 
 ### Breaking

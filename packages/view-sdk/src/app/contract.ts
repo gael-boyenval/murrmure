@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   isViewContractError,
   type ViewAppContext,
   type ViewBranchContract,
+  type ViewBranchSubmitInput,
   type ViewContractError,
+  type ViewContractValidationError,
   type ViewHostOutboundMessage,
+  type ViewSubmissionState,
 } from "../types.js";
 import { postViewMessage } from "./messages.js";
 import { resolveHubOrigin } from "../hub-origin.js";
@@ -14,61 +17,99 @@ import { peekPendingViewContext, subscribeViewContext } from "./context-channel.
 export function validateBranchResolve(
   context: ViewAppContext,
   branch: string,
-  params: Record<string, unknown>,
+  input: ViewBranchSubmitInput,
 ): ViewContractError | null {
   const branches = context.step?.branches ?? [];
   const contract = branches.find((b) => b.branch === branch);
   if (!contract) {
-    return { code: "VIEW_UNKNOWN_BRANCH", message: `Unknown branch '${branch}'`, branch };
+    return { code: "VIEW_UNKNOWN_BRANCH", message: `Unknown branch '${branch}'`, branch, errors: [] };
   }
-  const error = validateBranchParams(contract, params);
-  if (error) return { ...error, branch };
-  return null;
-}
-
-function validateBranchParams(
-  contract: ViewBranchContract,
-  params: Record<string, unknown>,
-): ViewContractError | null {
-  const schema = contract.schema;
-  if (!schema || typeof schema !== "object") return null;
-  const type = (schema as { type?: unknown }).type;
-  if (type === "object") {
-    const required = (schema as { required?: unknown[] }).required;
-    if (Array.isArray(required)) {
-      for (const field of required) {
-        if (typeof field !== "string") continue;
-        if (params[field] === undefined || params[field] === null || params[field] === "") {
-          return {
-            code: "VIEW_BRANCH_VALIDATION_FAILED",
-            message: `Branch '${contract.branch}' requires field '${field}'`,
-          };
-        }
-      }
+  const errors: ViewContractValidationError[] = [];
+  const slots = contract.artifact_slots ?? {};
+  const schemaRequired = Array.isArray(contract.schema?.required)
+    ? contract.schema.required.filter((name): name is string => typeof name === "string")
+    : [];
+  const artifactRequired =
+    contract.artifact_required ?? schemaRequired.filter((name) => Object.hasOwn(slots, name));
+  const payloadRequired =
+    contract.payload_required ?? schemaRequired.filter((name) => !Object.hasOwn(slots, name));
+  for (const field of payloadRequired) {
+    const value = input.payload?.[field];
+    if (value === undefined || value === null || value === "") {
+      errors.push({
+        source: "payload",
+        path: `/${field.replace(/~/g, "~0").replace(/\//g, "~1")}`,
+        rule: "required",
+        message: `must have required property '${field}'`,
+      });
     }
   }
-  return null;
+  for (const slot of artifactRequired) {
+    const supplied = input.files?.[slot];
+    const files = supplied ? (Array.isArray(supplied) ? supplied : [supplied]) : [];
+    if (files.length === 0) {
+      errors.push({
+        source: "artifact",
+        path: `/files/${slot.replace(/~/g, "~0").replace(/\//g, "~1")}`,
+        rule: "min_files",
+        message: `Artifact slot '${slot}' requires at least 1 file(s)`,
+      });
+    }
+  }
+  return errors.length > 0
+    ? {
+        code: "CONTRACT_VALIDATION_FAILED",
+        message: "Branch resolve contract validation failed",
+        branch,
+        errors,
+      }
+    : null;
 }
 
 interface AckStore {
-  pending: { resolve: (ok: boolean, error?: ViewContractError) => void; kind: string } | null;
+  pending: Map<string, {
+    resolve: (ok: boolean, error?: ViewContractError) => void;
+    nonce: string;
+    transportVersion: number;
+    onProgress?: (state: ViewSubmissionState) => void;
+  }>;
+  cancel: { resolve: (ok: boolean, error?: ViewContractError) => void; nonce: string; transportVersion: number } | null;
 }
 
-const ackStore: AckStore = { pending: null };
+const ackStore: AckStore = { pending: new Map(), cancel: null };
 let ackListenerWired = false;
 
-function ensureAckListener(nonce: string, transportVersion: number): void {
+function ensureAckListener(): void {
   if (ackListenerWired) return;
   ackListenerWired = true;
   window.addEventListener("message", (event: MessageEvent) => {
     if (event.source !== window.parent) return;
     const data = event.data as ViewHostOutboundMessage | undefined;
-    if (!data || data.type !== "murrmure.view.ack") return;
-    if (data.v !== transportVersion || data.nonce !== nonce) return;
-    const pending = ackStore.pending;
-    if (!pending || pending.kind !== data.kind) return;
-    ackStore.pending = null;
-    pending.resolve(data.ok, data.ok ? undefined : data.error);
+    if (!data) return;
+    if (data.type === "murrmure.view.submission") {
+      const pending = ackStore.pending.get(data.submission_id);
+      if (!pending || data.v !== pending.transportVersion || data.nonce !== pending.nonce) return;
+      pending.onProgress?.({
+        status: data.status,
+        uploadedBytes: data.uploaded_bytes,
+        totalBytes: data.total_bytes,
+      });
+      return;
+    }
+    if (data.type !== "murrmure.view.ack") return;
+    if (data.kind === "submit_branch" && data.submission_id) {
+      const pending = ackStore.pending.get(data.submission_id);
+      if (!pending || data.v !== pending.transportVersion || data.nonce !== pending.nonce) return;
+      ackStore.pending.delete(data.submission_id);
+      pending.resolve(data.ok, data.ok ? undefined : data.error);
+      return;
+    }
+    if (data.kind === "cancel") {
+      const pending = ackStore.cancel;
+      if (!pending || data.v !== pending.transportVersion || data.nonce !== pending.nonce) return;
+      ackStore.cancel = null;
+      pending.resolve(data.ok, data.ok ? undefined : data.error);
+    }
   });
 }
 
@@ -77,37 +118,50 @@ function ensureAckListener(nonce: string, transportVersion: number): void {
 export function submitBranch(
   context: ViewAppContext,
   branch: string,
-  params: Record<string, unknown>,
+  input: ViewBranchSubmitInput,
+  options?: { submissionId?: string; onProgress?: (state: ViewSubmissionState) => void },
 ): Promise<void> {
-  const validation = validateBranchResolve(context, branch, params);
+  const validation = validateBranchResolve(context, branch, input);
   if (validation) return Promise.reject(validation);
 
-  ensureAckListener(context.nonce, context.transport_version);
+  ensureAckListener();
+  const submissionId = options?.submissionId ?? globalThis.crypto?.randomUUID?.() ?? `submission-${Date.now()}`;
   return new Promise<void>((resolve, reject) => {
-    ackStore.pending = {
-      kind: "submit_branch",
+    ackStore.pending.set(submissionId, {
+      nonce: context.nonce,
+      transportVersion: context.transport_version,
+      onProgress: options?.onProgress,
       resolve: (ok, error) => {
         if (ok) resolve();
-        else reject(error ?? { code: "VIEW_BRANCH_VALIDATION_FAILED", message: "Host rejected submit" });
+        else reject(error ?? { code: "VIEW_BRANCH_VALIDATION_FAILED", message: "Host rejected submit", errors: [] });
       },
-    };
+    });
     postViewMessage(
-      { type: "murrmure.view.submit_branch", branch, params },
+      { type: "murrmure.view.submit_branch", submission_id: submissionId, branch, input },
       context.hub_base_url,
       context.nonce,
     );
   });
 }
 
+export function cancelSubmission(context: ViewAppContext, submissionId: string): void {
+  postViewMessage(
+    { type: "murrmure.view.cancel_submission", submission_id: submissionId },
+    context.hub_base_url,
+    context.nonce,
+  );
+}
+
 /** Post a `cancel` intent and resolve when the host acks. */
 export function cancel(context: ViewAppContext): Promise<void> {
-  ensureAckListener(context.nonce, context.transport_version);
+  ensureAckListener();
   return new Promise<void>((resolve, reject) => {
-    ackStore.pending = {
-      kind: "cancel",
+    ackStore.cancel = {
+      nonce: context.nonce,
+      transportVersion: context.transport_version,
       resolve: (ok, error) => {
         if (ok) resolve();
-        else reject(error ?? { code: "VIEW_CANCEL_REJECTED", message: "Host rejected cancel" });
+        else reject(error ?? { code: "VIEW_CANCEL_REJECTED", message: "Host rejected cancel", errors: [] });
       },
     };
     postViewMessage({ type: "murrmure.view.cancel" }, context.hub_base_url, context.nonce);
@@ -120,8 +174,11 @@ export type { ViewContractError };
 export interface ViewContract {
   context: ViewAppContext | null;
   ready: boolean;
-  submitBranch: (branch: string, params: Record<string, unknown>) => Promise<void>;
+  branches: ViewBranchContract[];
+  validate: (branch: string, input: ViewBranchSubmitInput) => ViewContractError | null;
+  submitBranch: (branch: string, input: ViewBranchSubmitInput) => Promise<void>;
   cancel: () => Promise<void>;
+  submission: ViewSubmissionState & { cancel: () => void };
 }
 
 class ChannelContextStore {
@@ -190,6 +247,12 @@ export function __resetViewContractForTests(): void {
 export function useViewContract(): ViewContract {
   const { context } = useSyncExternalStore(channelStore.subscribe, channelStore.getSnapshot);
   const [ready, setReady] = useState(false);
+  const [submission, setSubmission] = useState<ViewSubmissionState>({
+    status: "idle",
+    uploadedBytes: 0,
+    totalBytes: 0,
+  });
+  const activeSubmission = useRef<string | null>(null);
 
   useEffect(() => {
     if (!context || ready) return;
@@ -198,24 +261,70 @@ export function useViewContract(): ViewContract {
   }, [context, ready]);
 
   const submit = useCallback(
-    (branch: string, params: Record<string, unknown>) => {
+    async (branch: string, input: ViewBranchSubmitInput) => {
       if (!context) {
-        return Promise.reject({ code: "VIEW_CONTEXT_MISMATCH", message: "No view context" } satisfies ViewContractError);
+        throw { code: "VIEW_CONTEXT_MISMATCH", message: "No view context", errors: [] } satisfies ViewContractError;
       }
-      return submitBranch(context, branch, params);
+      if (activeSubmission.current) {
+        throw {
+          code: "VIEW_SUBMISSION_IN_PROGRESS",
+          message: "A branch submission is already in progress",
+          branch,
+          errors: [],
+        } satisfies ViewContractError;
+      }
+      const submissionId = globalThis.crypto?.randomUUID?.() ?? `submission-${Date.now()}`;
+      activeSubmission.current = submissionId;
+      setSubmission({ status: "validating", uploadedBytes: 0, totalBytes: 0 });
+      try {
+        await submitBranch(context, branch, input, {
+          submissionId,
+          onProgress: setSubmission,
+        });
+        setSubmission((state) => ({ ...state, status: "succeeded" }));
+      } catch (error) {
+        const cancelled = isViewContractError(error) && error.code === "VIEW_SUBMISSION_CANCELLED";
+        setSubmission((state) => ({
+          ...state,
+          status: cancelled ? "idle" : "failed",
+        }));
+        throw error;
+      } finally {
+        activeSubmission.current = null;
+      }
     },
+    [context],
+  );
+  const validate = useCallback(
+    (branch: string, input: ViewBranchSubmitInput) =>
+      context
+        ? validateBranchResolve(context, branch, input)
+        : ({ code: "VIEW_CONTEXT_MISMATCH", message: "No view context", errors: [] } satisfies ViewContractError),
     [context],
   );
   const doCancel = useCallback(() => {
     if (!context) {
-      return Promise.reject({ code: "VIEW_CONTEXT_MISMATCH", message: "No view context" } satisfies ViewContractError);
+      return Promise.reject({ code: "VIEW_CONTEXT_MISMATCH", message: "No view context", errors: [] } satisfies ViewContractError);
     }
     return cancel(context);
   }, [context]);
+  const cancelActiveSubmission = useCallback(() => {
+    if (!context || !activeSubmission.current) return;
+    cancelSubmission(context, activeSubmission.current);
+    setSubmission({ status: "idle", uploadedBytes: 0, totalBytes: 0 });
+  }, [context]);
 
   return useMemo(
-    () => ({ context, ready: ready && Boolean(context), submitBranch: submit, cancel: doCancel }),
-    [context, ready, submit, doCancel],
+    () => ({
+      context,
+      ready: ready && Boolean(context),
+      branches: context?.step?.branches ?? [],
+      validate,
+      submitBranch: submit,
+      cancel: doCancel,
+      submission: { ...submission, cancel: cancelActiveSubmission },
+    }),
+    [context, ready, validate, submit, doCancel, submission, cancelActiveSubmission],
   );
 }
 

@@ -1,5 +1,5 @@
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
-import type { HubHandler } from "@murrmure/hub-core";
+import type { HubHandler, SpaceConcurrencyGuard } from "@murrmure/hub-core";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { ControlBus } from "./control-bus.js";
@@ -10,6 +10,7 @@ import type { ArtifactService } from "./artifact-service.js";
 import type { ExecutorPollStore } from "@murrmure/hub-core";
 import type { OutOfShellService } from "./out-of-shell-service.js";
 import type { FederationPort } from "@murrmure/hub-core";
+import type { UploadIntentService } from "./upload-intent-service.js";
 
 export interface DaemonConfig {
   databasePath: string;
@@ -40,6 +41,9 @@ export interface DaemonContext {
   executorPollStore: ExecutorPollStore;
   outOfShellService: OutOfShellService;
   federationPort: FederationPort;
+  uploadIntentService: UploadIntentService;
+  /** Per-space guard shared by run admission and apply (apply quiescence). */
+  spaceRunGuard: SpaceConcurrencyGuard;
 }
 
 export type SseOutboundEvent =

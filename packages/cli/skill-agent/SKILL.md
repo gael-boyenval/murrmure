@@ -112,7 +112,16 @@ When granted `event:emit`:
 
 ### Artifacts
 
-When branch schema defines `artifact_slots`, pass `artifacts_out` on resolve with transfer refs. Read prior step artifact paths from contract context (`{{murrmure.step.*}}` in handler params).
+Each selected branch carries its own `artifact_slots`, `payload_required`, and
+`artifact_required`. A required name matching a same-branch slot is a file
+requirement, not a payload field. Before resolving, create every required output
+inside `MURRMURE_STEP_WORKDIR`, then pass a relative
+`artifacts_out: [{ "slot": "spec", "path": "spec.md" }]`. The local bridge
+verifies the path stays inside that workdir, derives bounded metadata, and the
+Hub applies the same slot, quota, promotion, and idempotency rules as a View.
+Remote agents cannot submit machine-local paths; use artifact references or the
+authorized upload protocol exposed by their bridge. Read prior step artifact
+paths from contract context (`{{murrmure.step.*}}` in handler params).
 
 ### Federation reads
 
@@ -138,8 +147,28 @@ emission permissions are advanced and are not default.
 |---------|--------|
 | `EXECUTOR_UNAVAILABLE` / handler timeout | Check handler command, `cwd`, timeout_ms; verify apply indexed handlers |
 | Resolve rejected (schema) | Re-read `murrmure_list_step_contracts`; match branch + payload to schema |
+| `CONTRACT_VALIDATION_FAILED` | Match each `{ source, path, rule }`; required artifacts belong in `artifacts_out`, not payload |
+| `ARTIFACT_QUOTA_EXCEEDED` | Reduce output to the branch limit and fixed file/step/run/space ceilings; retry with the same idempotency key only for the same metadata |
 | Missing handler for step | Author space needs handler + `on::key` binding — switch to developer skill / human |
 | Stale contract in long shell | Re-read `MURRMURE_ACTIVE_STEP_CONTRACT_PATH` or call `murrmure_list_step_contracts` |
+| `FLOW_CONCURRENCY_LIMIT` (start/run rejected) | The flow already has `max_concurrent_runs` non-terminal runs in this space. **Do not queue or retry in a tight loop.** Wait for an active run to terminate (the denial lists `active_run_ids`) or cancel one via the run lifecycle, then start again — the retry runs a fresh admission check. Trigger-denied starts are journaled as `mrmr.flow.start_denied`. |
+| `SPACE_HAS_ACTIVE_RUNS` (apply rejected) | An apply cannot swap handlers/Views while a non-terminal run depends on them. Wait for all runs to terminate (or cancel them), then re-apply; the prior index is preserved. This is **not** a capacity denial — it protects the whole space. |
+
+### Run capacity & apply quiescence
+
+- A space may cap a flow's concurrent **non-terminal** runs via `run_policies`
+  in `handlers.yaml` (`flow` = applied flow name, `max_concurrent_runs` ≥ 1).
+  No policy means unlimited — unrelated flows still run concurrently.
+- Every start path (manual, trigger, MCP `create_run`, hook, federated) uses one
+  atomic admission check, so a limit of one never admits two. Overflow returns
+  `409 FLOW_CONCURRENCY_LIMIT` with the active blocking run IDs — there is no
+  queue and no partial run. A headless invoke (`flow_id` null) skips capacity.
+- An apply succeeds only when the **whole space** has no non-terminal runs; it
+  returns `409 SPACE_HAS_ACTIVE_RUNS` (with `active_run_ids`) otherwise and keeps
+  the prior index. No force apply / auto-abort exists.
+- Runs and journal events pin the applied `flow_digest` admitted at start, so
+  live and historical run metadata reflects the configuration actually used.
+
 
 ## Core MCP tools
 

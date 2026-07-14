@@ -44,7 +44,7 @@ export function buildOpenStepProjections(
 ): OpenStepResolverProjection[] {
   if (!catalog) return [];
   const index = context?.handlers
-    ? buildHandlerIndex({ version: 1, handlers: context.handlers })
+    ? buildHandlerIndex({ version: 1, run_policies: [], handlers: context.handlers })
     : null;
   const viewsById = new Map<string, ProjectedViewRow>();
   for (const view of context?.views ?? []) {
@@ -91,6 +91,9 @@ export function buildOpenStepProjections(
         branch,
         schema_ref: def.schema_ref,
         schema: def.schema,
+        payload_required: def.payload_required,
+        artifact_required: def.artifact_required,
+        artifact_slots: def.artifact_slots,
       })),
     });
   }

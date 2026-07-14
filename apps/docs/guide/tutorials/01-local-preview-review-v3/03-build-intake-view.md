@@ -54,14 +54,13 @@ import { useState } from "react";
 import { isViewContractError, useViewContract } from "@murrmure/view-sdk/app";
 
 export function App() {
-  const { submitBranch, cancel } = useViewContract();
+  const { submitBranch, cancel, submission } = useViewContract();
   const [specFile, setSpecFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const busy = ["validating", "uploading", "resolving"].includes(submission.status);
 
   async function handleSubmit() {
     if (!specFile) return;
-    setSubmitting(true);
     setErrors([]);
     try {
       await submitBranch("continue", { files: { spec: specFile } });
@@ -71,7 +70,6 @@ export function App() {
       } else {
         setErrors([err instanceof Error ? err.message : "Submit failed"]);
       }
-      setSubmitting(false);
     }
   }
 
@@ -95,13 +93,24 @@ export function App() {
         </ul>
       ) : null}
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-        <button type="button" disabled={!specFile || submitting} onClick={handleSubmit}>
-          {submitting ? "Uploading…" : "Submit"}
+        <button type="button" disabled={!specFile || busy} onClick={handleSubmit}>
+          {busy ? `${submission.status}…` : "Submit"}
         </button>
-        <button type="button" onClick={() => cancel()} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          onClick={() => busy ? submission.cancel() : cancel()}
+          disabled={submission.status === "resolving"}
+        >
+          {busy ? "Cancel upload" : "Cancel"}
         </button>
       </div>
+      {submission.totalBytes > 0 ? (
+        <progress
+          value={submission.uploadedBytes}
+          max={submission.totalBytes}
+          style={{ width: "100%", marginTop: "1rem" }}
+        />
+      ) : null}
     </main>
   );
 }
@@ -124,6 +133,11 @@ On **Submit**, `submitBranch("continue", { files: { spec } })`:
 3. If validation passes → the trusted host obtains an upload intent and streams the browser `File`; the View receives no intent or Hub credential.
 4. The host resolves branch **`continue`** with an empty payload and the uploaded artifact reference.
 5. Hub atomically validates, promotes, and resolves the selected branch.
+
+`submission.status` moves through `validating` → `uploading` → `resolving` →
+`succeeded`; byte progress is aggregate and monotonic. `submission.cancel()`
+aborts only an in-flight submission, removes temporary bytes, and leaves the
+step open. The top-level `cancel()` resolves the workflow's `cancel` branch.
 
 **Cancel** calls `cancel()` → branch **`cancel`**, whose contract routes the run
 to failure. No file validation on cancel.

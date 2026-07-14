@@ -13,11 +13,17 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
 | Checkpoint shows no view (observability-only) | Rebuild view `dist/`; strict-apply so the `view_resolver` binds the step |
 | `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |
+| `CONTRACT_VALIDATION_FAILED` on submit | Read each `{ source, path, rule }`; payload fields and selected-branch file slots are validated independently |
+| `ARTIFACT_QUOTA_EXCEEDED` | Reduce file/count/total size; fixed ceilings are 25 MiB/file, 50 MiB/resolution, 250 MiB/run, 2 GiB/space |
+| Upload cancelled or expired | The step remains open; reselect files and submit again. Uncommitted uploads expire after one idle hour |
 | Handler not dispatched | Check the `on::key` binding (`on: step.opened::{flow}.{step}`) in `handlers.yaml`; `mrmr space doctor` |
 | `contract_key` mismatch | `contract_keys` is prompt-scope only; binding uses `on::key` — align the alias with the StepContractCatalog step id |
 | Missing `handlers.yaml` entry | Add handler for dispatched step; re-apply |
 | Trigger did not wake agent | Confirm event handler in `handlers.yaml` + apply; check delivery log |
 | Cross-space `QUERY_POLICY_DENIED` | Fix inbound allowlist on target space |
+| `FLOW_CONCURRENCY_LIMIT` (409) | The flow already has `max_concurrent_runs` non-terminal runs in this space. Wait for an active run to terminate (or cancel it), then retry — the retry performs a fresh admission check. The denial lists the active blocking run IDs. |
+| `SPACE_HAS_ACTIVE_RUNS` (409) on `mrmr space apply` | An apply cannot swap a space's configuration while a non-terminal run depends on it. Wait for all runs to terminate (or cancel them), then re-apply; the prior index is preserved. No partial replacement is visible. |
+| `RUN_POLICY_UNKNOWN_FLOW` / `RUN_POLICY_AMBIGUOUS_FLOW` / `RUN_POLICY_DUPLICATE` (apply) | A `run_policies.flow` alias does not match exactly one applied flow name. Fix the alias in `handlers.yaml` to match the applied flow's `name`, then re-apply. |
 
 ## MCP tools not showing in Cursor
 

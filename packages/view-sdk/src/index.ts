@@ -12,6 +12,10 @@ export type {
   ViewBranchArtifactSlot,
   ViewStepContext,
   ViewContractError,
+  ViewContractValidationError,
+  ViewBranchSubmitInput,
+  ViewSubmitFile,
+  ViewSubmissionState,
 } from "./types.js";
 export {
   VIEW_HOST_MESSAGE_ORIGIN,
@@ -27,5 +31,7 @@ export {
   resolveViewIframeOrigin,
   isSandboxedOpaqueOrigin,
   resolveViewIframeTargetOrigin,
+  validateHostBranchResolve,
+  viewSubmitFileName,
 } from "./host-bridge.js";
 export { ViewHostFrame, type ViewHostFrameProps } from "./ViewHostFrame.js";

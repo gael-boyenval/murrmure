@@ -14,6 +14,8 @@ import { cancelRunExecutors, terminateRunExecutors } from "../invoke/run-executo
 import { instanceStateToLifecycle, runIdToInstanceId } from "./lifecycle.js";
 import { toRunDto, refreshSessionStatus, toSessionDto } from "../session/index.js";
 import { deriveSessionStatus } from "../session/status.js";
+import { SpaceConcurrencyGuard, spaceRunGuard } from "./space-guard.js";
+import { admitFlowRun, type FlowAdmissionError } from "./admission.js";
 
 export interface SessionRunDeps {
   studio: StudioPersistencePort;
@@ -22,6 +24,8 @@ export interface SessionRunDeps {
   clock: { nowIso: () => string };
   cancelTimeoutMs?: number;
   executorPollStore?: ExecutorPollStore;
+  /** Per-space coordination guard shared with apply; defaults to the in-process singleton. */
+  guard?: SpaceConcurrencyGuard;
 }
 
 function bare(id: string): string {
@@ -185,22 +189,24 @@ export async function createSession(
   });
 }
 
+export interface CreateRunInput {
+  session_id: string;
+  space_id?: string;
+  flow_id?: string | null;
+  flow_digest?: string;
+  input_params?: Record<string, unknown>;
+  reference_run_ids?: string[];
+  actor_id: string;
+  token_id: string;
+  capabilities: Capability[];
+  contract_ref_id?: string;
+  metadata?: Record<string, unknown>;
+  from_step_id?: string;
+}
+
 export async function createRun(
   deps: SessionRunDeps,
-  input: {
-    session_id: string;
-    space_id?: string;
-    flow_id?: string | null;
-    flow_digest?: string;
-    input_params?: Record<string, unknown>;
-    reference_run_ids?: string[];
-    actor_id: string;
-    token_id: string;
-    capabilities: Capability[];
-    contract_ref_id?: string;
-    metadata?: Record<string, unknown>;
-    from_step_id?: string;
-  },
+  input: CreateRunInput,
 ) {
   const sessionBare = bare(input.session_id);
   const session = await deps.studio.getSession(sessionBare);
@@ -291,6 +297,34 @@ export async function createRun(
     }),
     instance_id: instanceBare ? runIdToInstanceId(`run_${run_id}`) : undefined,
   };
+}
+
+/**
+ * Capacity admission + run insert inside the per-space guard. Every flow start
+ * funnels through here so admission (count + insert) is atomic across start
+ * paths and coordinated with apply. A null `flow_id` (headless invoke) skips
+ * capacity admission but still holds the guard so apply quiescence is sound.
+ */
+export async function admitAndCreateRun(
+  deps: SessionRunDeps,
+  input: CreateRunInput,
+) {
+  const spaceId = input.space_id;
+  const flowId = input.flow_id;
+  if (!spaceId || !flowId) {
+    return createRun(deps, input);
+  }
+  const guard = deps.guard ?? spaceRunGuard;
+  return guard.with(spaceId, async () => {
+    const admission = await admitFlowRun(deps.studio, {
+      space_id: spaceId,
+      flow_id: flowId,
+    });
+    if (!admission.ok) {
+      return { error: admission.error } as const;
+    }
+    return createRun(deps, input);
+  });
 }
 
 export async function cancelRun(
@@ -430,7 +464,7 @@ export async function retryRun(
     return { error: { code: "RUN_NOT_RETRYABLE", message: "Only failed or cancelled runs can be retried" } } as const;
   }
 
-  return createRun(deps, {
+  return admitAndCreateRun(deps, {
     session_id: `ses_${failed.session_id}`,
     space_id: input.space_id ?? (failed.space_id ? addSpaceId(failed.space_id) : undefined),
     flow_id: failed.flow_id,
@@ -606,7 +640,7 @@ export async function ensureSessionAndRun(
   }
 
   if (!runId) {
-    const created = await createRun(deps, {
+    const created = await admitAndCreateRun(deps, {
       session_id: sessionId,
       space_id: input.space_id,
       flow_id: null,

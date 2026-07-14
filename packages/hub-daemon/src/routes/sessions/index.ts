@@ -3,6 +3,7 @@ import { ulid } from "ulid";
 import {
   HandlerSpecSchema,
   JOURNAL_EVENT_TYPES,
+  FLOW_CONCURRENCY_LIMIT,
   type Capability,
   type HandlerComplete,
   type HandlerSpec,
@@ -12,7 +13,7 @@ import {
 import {
   cancelRun,
   cancelSession,
-  createRun,
+  admitAndCreateRun,
   createSession,
   getSessionWithStatus,
   listSessionsFiltered,
@@ -49,6 +50,7 @@ function sessionRunDeps(ctx: DaemonContext) {
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
     executorPollStore: ctx.executorPollStore,
+    guard: ctx.spaceRunGuard,
     dispatchSteps: async (input: {
       dispatch: import("@murrmure/hub-core").FlowStepDispatch[];
       session_id: string;
@@ -106,7 +108,7 @@ function resolveStepCompleteMode(input: {
   if (handlers.length === 0) return "explicit";
 
   const matches = matchStepOpenedHandlers(
-    buildHandlerIndex({ version: 1, handlers }),
+    buildHandlerIndex({ version: 1, run_policies: [], handlers }),
     `${input.flow_name}.${input.step_id}`,
   );
   if (matches.length !== 1) return "explicit";
@@ -204,7 +206,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
         ? prefixedSpaceId(bareSpaceId(auth.space_id))
         : undefined;
 
-    const result = await createRun(deps(), {
+    const result = await admitAndCreateRun(deps(), {
       session_id,
       space_id,
       flow_id: body.flow_id ?? null,
@@ -220,6 +222,9 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
 
     if ("error" in result) {
       const err = result.error ?? { code: "UNKNOWN", message: "Request failed" };
+      if (err.code === FLOW_CONCURRENCY_LIMIT) {
+        return c.json(err, 409);
+      }
       return c.json(err, err.code === "SCOPE_ENFORCEMENT_FAILURE" ? 403 : 404);
     }
 

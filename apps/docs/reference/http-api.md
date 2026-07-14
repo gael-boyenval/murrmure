@@ -39,7 +39,10 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/sessions/{id}` | Get session |
 | `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
 | `GET` | `/v1/runs/{id}/step-contracts` | `space:read` | Active step-contract slice + `graph_digest` |
-| `POST` | `/v1/runs/{id}/steps/{step_id}/resolve` | `step:resolve` | Resolve step `{ branch, payload, artifacts_out? }` |
+| `POST` | `/v1/runs/{id}/steps/{step_id}/resolve` | `step:resolve` | Resolve selected branch `{ branch, payload?, upload_intent_id?, artifacts_out?, idempotency_key? }` |
+| `POST` | `/v1/runs/{id}/steps/{step_id}/upload-intents` | `step:resolve` | Pre-authorize ordered artifact metadata and reserve quota |
+| `PUT` | `/v1/upload-intents/{intent_id}/files/{index}` | `step:resolve` | Transfer one raw file declared by the intent |
+| `DELETE` | `/v1/upload-intents/{intent_id}` | `step:resolve` | Cancel an uncommitted upload and release bytes/quota |
 | `GET` | `/v1/runs/{id}/graph` | Run flowchart graph (manifest overlay + step memo) |
 | `POST` | `/v1/runs/{id}/cancel` | Cancel run |
 | `POST` | `/v1/runs/{id}/retry` | Retry failed run from step |
@@ -57,6 +60,11 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 :::
 
 Mutating requests: optional `Idempotency-Key` header.
+
+Branch-contract failures are `400 CONTRACT_VALIDATION_FAILED` with
+`errors: [{ source, path, rule, message }]`; `path` is an RFC 6901 JSON Pointer.
+The Hub does not return content, credentials, validator internals, schema paths,
+or host paths. The JSON/base64 `/work/upload` route is removed.
 
 Path `space_id` must match token scope (unless admin bootstrap on self-hosted).
 

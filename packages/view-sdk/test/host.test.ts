@@ -8,6 +8,7 @@ import {
   resolveViewEntryUrl,
   resolveViewIframeOrigin,
   resolveViewIframeTargetOrigin,
+  validateHostBranchResolve,
 } from "../src/host-bridge.js";
 import { VIEW_TRANSPORT_VERSION, type ViewAppContext } from "../src/types.js";
 
@@ -26,6 +27,45 @@ function makeContext(over: Partial<ViewAppContext> = {}): ViewAppContext {
 }
 
 describe("view-sdk host protocol", () => {
+  it("validates Draft 2020-12 payload and Blob metadata with normalized errors", () => {
+    const context = makeContext({
+      step: {
+        step_id: "intake",
+        branches: [{
+          branch: "continue",
+          schema: {
+            type: "object",
+            required: ["reviewer", "spec"],
+            properties: { reviewer: { type: "string", format: "email" } },
+          },
+          payload_required: ["reviewer"],
+          artifact_required: ["spec"],
+          artifact_slots: {
+            spec: {
+              media_types: ["text/markdown"],
+              extensions: [".md"],
+              min_bytes: 1,
+            },
+          },
+        }],
+      },
+    });
+    expect(validateHostBranchResolve(context, "continue", {
+      payload: { reviewer: "invalid" },
+      files: { spec: new Blob(["x"], { type: "text/plain" }) },
+    })).toMatchObject({
+      code: "CONTRACT_VALIDATION_FAILED",
+      errors: expect.arrayContaining([
+        expect.objectContaining({ source: "payload", path: "/reviewer", rule: "format" }),
+        expect.objectContaining({ source: "artifact", path: "/files/spec/0", rule: "media_type" }),
+      ]),
+    });
+    expect(validateHostBranchResolve(context, "continue", {
+      payload: { reviewer: "dev@example.com" },
+      files: { spec: new Blob(["# Spec"], { type: "text/markdown" }) },
+    })).toBeNull();
+  });
+
   it("isViewHostInboundMessage validates submit_branch payload with envelope", () => {
     expect(
       isViewHostInboundMessage({ type: "murrmure.view.ready", v: 1, nonce: NONCE }),
@@ -39,8 +79,9 @@ describe("view-sdk host protocol", () => {
     expect(
       isViewHostInboundMessage({
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: { topic: "news" },
+        input: { payload: { topic: "news" } },
         v: 1,
         nonce: NONCE,
       }),
@@ -159,8 +200,9 @@ describe("view-sdk host protocol", () => {
     const event = new MessageEvent("message", {
       data: {
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: { topic: "ai" },
+        input: { payload: { topic: "ai" } },
         v: VIEW_TRANSPORT_VERSION,
         nonce: NONCE,
       },
@@ -169,7 +211,13 @@ describe("view-sdk host protocol", () => {
     });
     window.dispatchEvent(event);
 
-    await vi.waitFor(() => expect(onSubmitBranch).toHaveBeenCalledWith("approve", { topic: "ai" }));
+    await vi.waitFor(() =>
+      expect(onSubmitBranch).toHaveBeenCalledWith(
+        "approve",
+        { payload: { topic: "ai" } },
+        expect.objectContaining({ submission_id: "sub-1" }),
+      ),
+    );
     await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
     expect(postMessage.mock.calls.at(-1)?.[1]).toBe("*");
     cleanup();
@@ -195,8 +243,9 @@ describe("view-sdk host protocol", () => {
     const event = new MessageEvent("message", {
       data: {
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: {},
+        input: {},
         v: VIEW_TRANSPORT_VERSION,
         nonce: NONCE,
       },
@@ -272,8 +321,9 @@ describe("view-sdk host protocol", () => {
     const event = new MessageEvent("message", {
       data: {
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: { topic: "ai" },
+        input: { payload: { topic: "ai" } },
         v: VIEW_TRANSPORT_VERSION,
         nonce: NONCE,
       },
@@ -282,7 +332,13 @@ describe("view-sdk host protocol", () => {
     });
     window.dispatchEvent(event);
 
-    await vi.waitFor(() => expect(onSubmitBranch).toHaveBeenCalledWith("approve", { topic: "ai" }));
+    await vi.waitFor(() =>
+      expect(onSubmitBranch).toHaveBeenCalledWith(
+        "approve",
+        { payload: { topic: "ai" } },
+        expect.objectContaining({ submission_id: "sub-1" }),
+      ),
+    );
     await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
     const ack = postMessage.mock.calls.at(-1)?.[0];
     expect(ack).toMatchObject({ type: "murrmure.view.ack", ok: true, kind: "submit_branch" });
@@ -319,8 +375,9 @@ describe("view-sdk host protocol", () => {
     const event = new MessageEvent("message", {
       data: {
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: {},
+        input: {},
         v: VIEW_TRANSPORT_VERSION,
         nonce: "wrong-nonce",
       },
@@ -344,8 +401,9 @@ describe("view-sdk host protocol", () => {
     const event = new MessageEvent("message", {
       data: {
         type: "murrmure.view.submit_branch",
+        submission_id: "sub-1",
         branch: "approve",
-        params: { topic: "ai" },
+        input: { payload: { topic: "ai" } },
         v: VIEW_TRANSPORT_VERSION,
         nonce: NONCE,
       },
@@ -354,7 +412,13 @@ describe("view-sdk host protocol", () => {
     });
     window.dispatchEvent(event);
 
-    await vi.waitFor(() => expect(onSubmitBranch).toHaveBeenCalledWith("approve", { topic: "ai" }));
+    await vi.waitFor(() =>
+      expect(onSubmitBranch).toHaveBeenCalledWith(
+        "approve",
+        { payload: { topic: "ai" } },
+        expect.objectContaining({ submission_id: "sub-1" }),
+      ),
+    );
     cleanup();
     iframe.remove();
   });

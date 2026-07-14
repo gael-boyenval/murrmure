@@ -96,6 +96,33 @@ Declare event reactions in the same `handlers.yaml` namespace:
 
 Do **not** add separate `hooks.yaml` invoke chains or `invoke:` flow steps — those patterns are retired.
 
+### Run policies (space-owned concurrency)
+
+`run_policies` caps how many **non-terminal runs** of a flow may exist at once
+in **this space**. The portable flow carries no concurrency policy, so add it
+here — not to the flow manifest.
+
+```yaml
+version: 1
+run_policies:
+  - flow: my-dev-flow            # authored alias = applied flow name
+    max_concurrent_runs: 1       # integer >= 1; omit for unlimited
+handlers: [ … ]
+```
+
+- `flow` is the applied flow's `name`, resolved at apply against the fully merged
+  flow set (local + bound + preserved). A limit of `1` serializes repo-mutating
+  flows; a second start while the first is non-terminal returns
+  `409 FLOW_CONCURRENCY_LIMIT` with the blocking run IDs — no queue, no partial
+  run.
+- **No entry means unlimited.** Omit the policy for read-only or parallel-safe
+  flows; unrelated unbounded flows keep running concurrently.
+- Apply resolves aliases atomically; unknown/ambiguous/duplicate names fail apply
+  with `RUN_POLICY_UNKNOWN_FLOW` / `RUN_POLICY_AMBIGUOUS_FLOW` /
+  `RUN_POLICY_DUPLICATE` and preserve the prior index.
+- Admitted runs pin the applied `flow_digest`; do not add `max_concurrent_runs`
+  (or any execution policy) to `flow.manifest.yaml`.
+
 ## Contract keys
 
 ```text
@@ -131,9 +158,22 @@ Common apply lint codes:
 | `VIEW_RESOLVER_NOT_OPENED` | `view_resolver` must bind `step.opened::…` |
 | `VIEW_RESOLVER_VIEW_NOT_FOUND` | `view_id` unknown to the space index |
 | `VIEW_RESOLVER_BUILD_MISSING` | Build the View (`npm run build`) before apply |
+| `RUN_POLICY_UNKNOWN_FLOW` | `run_policies.flow` does not match an applied flow name — fix the alias |
+| `RUN_POLICY_AMBIGUOUS_FLOW` | `run_policies.flow` matches more than one applied flow — disambiguate (rename a flow) |
+| `RUN_POLICY_DUPLICATE` | Two `run_policies` entries target the same flow — keep one |
 | `UNSUPPORTED_STEP_KIND` | Remove legacy `invoke:` / `checkpoint:` kinds — use step contracts |
 
 `HANDLER_MISSING` is removed: an unbound step is valid and observability-only.
+
+### Apply quiescence
+
+`mrmr space apply` replaces the whole space config at once, so it is **refused
+while any non-terminal run** (`working` / `input-required`) still relies on the
+current handlers/Views — it returns `409 SPACE_HAS_ACTIVE_RUNS` with the
+blocking run IDs and preserves the prior index (no partial replacement is
+visible). Wait for runs to terminate (or cancel them), then re-apply. There is
+no force apply and no auto-abort. This is distinct from a per-flow
+`FLOW_CONCURRENCY_LIMIT` at start.
 
 ## View authoring (`view_resolver`)
 
@@ -145,16 +185,25 @@ credential, host-mediated submit/cancel:
 import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const { context, ready, submitBranch, cancel } = useViewContract();
+  const { context, ready, submitBranch, cancel, submission } = useViewContract();
   if (!ready) return null;
   // context.step.branches[] carries each branch's schema + artifact_slots
-  return <button onClick={() => submitBranch("continue", { reviewer })}>Submit</button>;
+  return <>
+    <button onClick={() => submitBranch("continue", { files: { spec } })}>Submit</button>
+    {submission.status === "uploading"
+      ? <button onClick={submission.cancel}>Cancel upload</button>
+      : <button onClick={cancel}>Cancel workflow</button>}
+  </>;
 }
 createViewMount({ App });
 ```
 
 Dev loop: `mrmr view dev <id>` loads `dev/fixtures/*.json` (`mode: "dev"`); submit
-logs non-mutating intents only. See [View SDK](../../apps/docs/reference/view-sdk.md).
+validates and logs sanitized non-mutating intents only. Production Views pass
+`File`/`Blob` objects to the host and never receive upload intent IDs or Hub
+credentials. `submission` reports monotonic aggregate progress;
+`submission.cancel()` aborts pre-commit upload while top-level `cancel()` selects
+the workflow cancel branch. See [View SDK](../../apps/docs/reference/view-sdk.md).
 
 ## Flow & view init
 

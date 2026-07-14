@@ -30,13 +30,17 @@ export interface ViewBranchArtifactSlot {
   extensions?: string[];
   min_bytes?: number;
   max_bytes?: number;
+  min_files?: number;
+  max_files?: number;
+  max_total_bytes?: number;
 }
 
 export interface ViewBranchContract {
   branch: string;
   schema_ref?: string;
   schema?: Record<string, unknown>;
-  /** Per-branch artifact slots (Task 05 owns formal catalog slots). */
+  payload_required?: string[];
+  artifact_required?: string[];
   artifact_slots?: Record<string, ViewBranchArtifactSlot>;
 }
 
@@ -77,6 +81,27 @@ export interface ViewContractError {
     | (string & {});
   message: string;
   branch?: string;
+  errors: ViewContractValidationError[];
+}
+
+export interface ViewContractValidationError {
+  source: "payload" | "artifact";
+  path: string;
+  rule: string;
+  message: string;
+}
+
+export type ViewSubmitFile = File | Blob;
+
+export interface ViewBranchSubmitInput {
+  payload?: Record<string, unknown>;
+  files?: Record<string, ViewSubmitFile | ViewSubmitFile[]>;
+}
+
+export interface ViewSubmissionState {
+  status: "idle" | "validating" | "uploading" | "resolving" | "succeeded" | "failed";
+  uploadedBytes: number;
+  totalBytes: number;
 }
 
 export function isViewContractError(value: unknown): value is ViewContractError {
@@ -94,7 +119,13 @@ export interface ViewMessageEnvelope {
 /** Inbound payload without the envelope — what views post to the host. */
 export type ViewHostInboundPayload =
   | { type: "murrmure.view.ready" }
-  | { type: "murrmure.view.submit_branch"; branch: string; params: Record<string, unknown> }
+  | {
+      type: "murrmure.view.submit_branch";
+      submission_id: string;
+      branch: string;
+      input: ViewBranchSubmitInput;
+    }
+  | { type: "murrmure.view.cancel_submission"; submission_id: string }
   | { type: "murrmure.view.cancel" }
   | { type: "murrmure.view.resolved" };
 
@@ -107,13 +138,22 @@ export type ViewHostOutboundMessage =
   | (ViewMessageEnvelope & {
       type: "murrmure.view.ack";
       ok: true;
-      kind: "submit_branch" | "cancel";
+      kind: "submit_branch" | "cancel" | "submission_cancel";
+      submission_id?: string;
     })
   | (ViewMessageEnvelope & {
       type: "murrmure.view.ack";
       ok: false;
-      kind: "submit_branch" | "cancel";
+      kind: "submit_branch" | "cancel" | "submission_cancel";
+      submission_id?: string;
       error: ViewContractError;
+    })
+  | (ViewMessageEnvelope & {
+      type: "murrmure.view.submission";
+      submission_id: string;
+      status: ViewSubmissionState["status"];
+      uploaded_bytes: number;
+      total_bytes: number;
     });
 
 export type ViewHostMessage = ViewHostInboundMessage | ViewHostOutboundMessage;

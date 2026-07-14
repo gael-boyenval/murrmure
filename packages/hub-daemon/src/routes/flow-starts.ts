@@ -68,7 +68,12 @@ async function runFlowHandler(
   });
 
   if (!result.ok) {
-    const status = result.error.code === "SCOPE_ENFORCEMENT_FAILURE" ? 403 : 400;
+    const status =
+      result.error.code === "SCOPE_ENFORCEMENT_FAILURE"
+        ? 403
+        : result.error.code === "FLOW_CONCURRENCY_LIMIT"
+          ? 409
+          : 400;
     return new Response(JSON.stringify(result.error), { status, headers: { "content-type": "application/json" } });
   }
 

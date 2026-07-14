@@ -304,8 +304,8 @@ POST /v1/runs/{run_id}/steps/{step_id}/resolve
 ```json
 {
   "branch": "continue",
-  "payload": { "spec": "spec.md" },
-  "artifacts_out": [{ "slot": "spec", "path": "work/spec.md" }],
+  "payload": {},
+  "upload_intent_id": "upi_…",
   "idempotency_key": "optional"
 }
 ```
@@ -325,24 +325,60 @@ a token without `step:resolve` is denied (403). Journal events: `mrrmure.step.op
 |-----------|----------|
 | Monotonic memos | Terminal step memos (`completed` / `failed`) never regress via journal replay |
 | Terminal run reject | `POST …/resolve` on `failed` / `completed` / `cancelled` runs → **409** `RUN_TERMINAL` |
-| Late resolve reject | Resolving an already-terminal step → **409** `STEP_TERMINAL` (idempotent if `idempotency_key` matches) |
+| Late resolve reject | Resolving an already-terminal step → **409** `STEP_TERMINAL`; the same `idempotency_key` reconciles to the original terminal result, including after the run terminates |
 | Handler cancel | Run failure cancels in-flight shell subprocesses and queued handler tasks |
 
 ---
 
 ## Step artifacts
 
-Per-step scratch and stable artifact paths under `.mrmr.temp/runs/{run_id}/steps/{qualified}/`.
+Per-step scratch and stable artifact paths under `.mrmr/dev/runs/{run_id}/steps/{qualified}/`.
 
 | Path | Role |
 |------|------|
 | `steps/{qualified}/work/` | Scratch while step is active |
 | `steps/{qualified}/{slot}/{name}` | Stable after resolve promotes `artifacts_out` |
 
-Declare `artifact_slots` on branches; resolve with `artifacts_out: [{ slot, path }]`
-where `path` is relative to the step workdir. Views upload via `POST …/work/upload`
-then resolve. Prompt tokens: `{{murrmure.step.{qualified}.artifact.{slot}.path}}` and
-`.transfer_id`.
+Every branch owns a complete resolve contract:
+
+- `schema` is Draft 2020-12;
+- required names matching same-branch `artifact_slots` become
+  `artifact_required`; the rest become `payload_required`;
+- a payload property and artifact slot may not share a name;
+- optional slots may be omitted, but supplied files receive all slot checks;
+- slots support normalized `media_types`, `extensions`, `min_bytes`,
+  `max_bytes`, `min_files`, `max_files` (default 1), and `max_total_bytes`.
+
+The shared trusted-runtime Ajv 8 wrapper enables only `date`, `time`,
+`date-time`, `duration`, `email`, `hostname`, `ipv4`, `ipv6`, `uuid`, `uri`,
+and `uri-reference`. Remote `$ref` loading and custom executable formats are
+rejected.
+
+Views submit `File`/`Blob` objects to the trusted host. The host creates a
+Hub-issued upload intent before bytes and consumes it atomically with resolve;
+intent IDs and credentials never enter the iframe. Trusted local agent clients
+may resolve `artifacts_out: [{ slot, path }]` only for paths inside the active
+step workdir. Prompt tokens:
+`{{murrmure.step.{qualified}.artifact.{slot}.path}}` and `.transfer_id`.
+
+Contract failures use:
+
+```json
+{
+  "code": "CONTRACT_VALIDATION_FAILED",
+  "errors": [
+    {
+      "source": "artifact",
+      "path": "/files/spec",
+      "rule": "min_files",
+      "message": "Artifact slot 'spec' requires at least 1 file(s)"
+    }
+  ]
+}
+```
+
+Paths are RFC 6901 JSON Pointers. Raw validator internals, content, credentials,
+schema paths, and host paths are never returned.
 
 ---
 
@@ -372,6 +408,7 @@ and no migration**:
 
 - [handlers.md](./handlers.md) — space execution binding (primary)
 - [ADR-007 — resolver-agnostic step contracts](../../ADR/ADR-007-resolver-agnostic-step-contracts.md)
+- [ADR-010 — branch contracts and host-mediated artifact submission](../../ADR/ADR-010-branch-contract-artifact-upload-boundary.md)
 - [Tutorial v3 Task 03](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md)
 - [action-invoke.md](./action-invoke.md) — headless invoke only (not flow steps)
 - [flow-engine.md](./flow-engine.md)

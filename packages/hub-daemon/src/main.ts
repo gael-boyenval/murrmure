@@ -7,7 +7,7 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard } from "@murrmure/hub-core";
 import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -25,6 +25,7 @@ import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./
 import { registerArtifactGcCron } from "./artifact-gc-cron.js";
 import { createOutOfShellService, wrapHandlerForOutOfShell } from "./out-of-shell-service.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
+import { UploadIntentService } from "./upload-intent-service.js";
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 
@@ -144,6 +145,9 @@ export async function startHubDaemon(config: DaemonConfig) {
   const triggerDispatcher = new TriggerDispatcher(murrmurePersistence, handler);
   const executorPollStore = createInProcessExecutorPollStore();
   const federationPort = createDaemonFederationPort(murrmurePersistence);
+  const spaceRunGuard = new SpaceConcurrencyGuard();
+  const uploadIntentService = new UploadIntentService(config.dataDir);
+  await uploadIntentService.start();
 
   const ctx: DaemonContext = {
     handler,
@@ -158,6 +162,8 @@ export async function startHubDaemon(config: DaemonConfig) {
     triggerDispatcher,
     executorPollStore,
     federationPort,
+    uploadIntentService,
+    spaceRunGuard,
     invokeService: undefined as never,
     artifactService: undefined as never,
     outOfShellService: undefined as never,
@@ -263,6 +269,7 @@ export async function startHubDaemon(config: DaemonConfig) {
       stopArtifactGc();
       stopFlowScheduler();
       stopTimeoutSweep();
+      uploadIntentService.stop();
       releaseLock(config);
       await closeServerGracefully(server);
       await kernelPersistence.close();
