@@ -6,10 +6,10 @@ import type {
 } from "./types.js";
 import { createViewContextMessage, createAckMessage, isViewHostInboundMessage } from "./app/messages.js";
 import { hubOriginsMatch } from "./hub-origin.js";
-import { resolveViewIframeOrigin } from "./iframe-origin.js";
+import { isSandboxedOpaqueOrigin, resolveViewIframeOrigin, resolveViewIframeTargetOrigin } from "./iframe-origin.js";
 
 export { createViewContextMessage, createAckMessage, isViewHostInboundMessage } from "./app/messages.js";
-export { resolveViewIframeOrigin } from "./iframe-origin.js";
+export { resolveViewIframeOrigin, isSandboxedOpaqueOrigin, resolveViewIframeTargetOrigin } from "./iframe-origin.js";
 
 /** Resolve relative view entry paths to hub-served asset URLs. External View
  * URLs are rejected — production Views are locally built and shell-hosted. */
@@ -56,9 +56,18 @@ export function attachViewHostBridge(
 ): () => void {
   const iframeOrigin = resolveViewIframeOrigin(iframe, context.hub_base_url);
   const hubBaseUrl = context.hub_base_url;
+  // Sandboxed opaque-origin iframes (allow-scripts without allow-same-origin)
+  // arrive with event.origin === "null" and can only be reached via "*". The
+  // nonce-bound envelope and exact source-window binding remain the trust gate.
+  const opaque = isSandboxedOpaqueOrigin(iframe);
+  const targetOrigin = resolveViewIframeTargetOrigin(iframe, hubBaseUrl);
 
   const onMessage = async (event: MessageEvent) => {
-    if (event.origin !== iframeOrigin && !hubOriginsMatch(event.origin, hubBaseUrl)) return;
+    if (opaque) {
+      if (event.origin !== "null") return;
+    } else if (event.origin !== iframeOrigin && !hubOriginsMatch(event.origin, hubBaseUrl)) {
+      return;
+    }
     if (!isMatchingInbound(event, iframe, context)) return;
     const message = event.data as ViewHostInboundMessage;
 
@@ -84,7 +93,7 @@ export function attachViewHostBridge(
               ok: false,
               error: result.error,
             });
-        iframe.contentWindow?.postMessage(ack, iframeOrigin);
+        iframe.contentWindow?.postMessage(ack, targetOrigin);
         break;
       }
       case "murrmure.view.cancel": {
@@ -103,7 +112,7 @@ export function attachViewHostBridge(
               ok: false,
               error: result.error,
             });
-        iframe.contentWindow?.postMessage(ack, iframeOrigin);
+        iframe.contentWindow?.postMessage(ack, targetOrigin);
         break;
       }
       case "murrmure.view.resolved":
@@ -117,7 +126,7 @@ export function attachViewHostBridge(
   const sendContext = () => {
     iframe.contentWindow?.postMessage(
       createViewContextMessage(context, context.nonce) as ViewHostOutboundMessage,
-      iframeOrigin,
+      targetOrigin,
     );
   };
 

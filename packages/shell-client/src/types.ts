@@ -126,13 +126,6 @@ export interface SpaceHomeFlowRow {
   can_preview: boolean;
   manual: boolean;
   triggers: FlowStartConditions;
-  view_ref?: {
-    view_id: string;
-    origin_space_id?: string;
-    entry_url?: string;
-    shell_route?: string;
-    params_schema?: string;
-  };
 }
 
 export interface SpaceHomeRunRow {
@@ -230,13 +223,6 @@ export interface FlowPreviewPayload {
   digest: string;
   triggers: FlowStartConditions;
   steps: Array<{ id: string; kind: string; invoke?: { space: string; action: string }; gate?: { form?: string } }>;
-  view_ref?: {
-    view_id: string;
-    origin_space_id?: string;
-    entry_url?: string;
-    shell_route?: string;
-    params_schema?: string;
-  };
 }
 
 export interface RunGraphLane {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TriangleAlert } from "lucide-react";
 import type { ViewAppContext, ViewContractError } from "@murrmure/view-sdk";
@@ -198,17 +198,3 @@ export function ViewCanvasHost({
     </div>
   );
 }
-
-// Kept for backwards compatibility with any external importer; the checkpoint
-// canvas no longer renders built-in forms (Task 04).
-export const ViewCanvasFallbackBanner: ComponentType = function ViewCanvasFallbackBanner() {
-  return (
-    <div
-      role="alert"
-      className="mx-auto flex max-w-lg gap-2 rounded-md border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-200"
-    >
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <p>Custom view unavailable — using built-in fallback form (admin path only).</p>
-    </div>
-  );
-};

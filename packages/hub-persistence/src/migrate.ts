@@ -198,7 +198,6 @@ export function migrateStudio(db: Database.Database): void {
       flow_id TEXT NOT NULL,
       digest TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      view_ref_json TEXT,
       PRIMARY KEY (origin_space_id, flow_id)
     );
     CREATE INDEX IF NOT EXISTS idx_flow_index_origin ON flow_index(origin_space_id);
@@ -423,11 +422,10 @@ function migrateFlowIndexCompositeKey(db: Database.Database): void {
       flow_id TEXT NOT NULL,
       digest TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      view_ref_json TEXT,
       PRIMARY KEY (origin_space_id, flow_id)
     );
-    INSERT INTO flow_index_migrated (origin_space_id, flow_id, digest, payload_json, view_ref_json)
-      SELECT origin_space_id, flow_id, digest, payload_json, view_ref_json FROM flow_index;
+    INSERT INTO flow_index_migrated (origin_space_id, flow_id, digest, payload_json)
+      SELECT origin_space_id, flow_id, digest, payload_json FROM flow_index;
     DROP TABLE flow_index;
     ALTER TABLE flow_index_migrated RENAME TO flow_index;
     CREATE INDEX IF NOT EXISTS idx_flow_index_origin ON flow_index(origin_space_id);

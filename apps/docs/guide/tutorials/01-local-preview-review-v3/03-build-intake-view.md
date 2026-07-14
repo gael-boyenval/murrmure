@@ -119,7 +119,7 @@ export function App() {
 
 On **Submit**, `submitBranch("continue", { files: { spec } })`:
 
-1. SDK validates against `context.step.branches.continue` (required slot `spec`, `max_bytes`, empty payload).
+1. SDK validates against the `continue` entry of `context.step.branches` (required slot `spec`, `max_bytes`, empty payload).
 2. If validation fails → `ViewContractError` with field messages; **resolve is not called**.
 3. If validation passes → the trusted host obtains an upload intent and streams the browser `File`; the View receives no intent or Hub credential.
 4. The host resolves branch **`continue`** with an empty payload and the uploaded artifact reference.
@@ -156,25 +156,25 @@ This command **starts `npm run dev` in the view package for you** (same Vite ser
 
 Then in Desktop, open your space → **dev view** route (`/spaces/{space_id}/dev/views/spec-intake`). Desktop loads the Vite URL and injects fixture context — including `step.branches` from `dev/fixtures/*.json` — so `useViewContract()` behaves like a real run.
 
-In `.mrmr/views/spec-intake/dev/fixtures/*.json`, add **`step.branches`** inside the existing `step` object:
+In `.mrmr/views/spec-intake/dev/fixtures/*.json`, add **`step.branches`** inside the existing `step` object. `branches` is a **server-style array** of branch contracts — the same wire shape the shell projects in production, never an object map:
 
 ```diff
    "step": {
      "step_id": "intake",
-     "branch_names": ["continue", "cancel"],
-+    "branches": {
-+      "continue": {
++    "branches": [
++      {
++        "branch": "continue",
 +        "schema": { "type": "object", "required": ["spec"] },
 +        "artifact_slots": {
 +          "spec": { "description": "The spec markdown file", "max_bytes": 1048576 }
 +        }
 +      },
-+      "cancel": { "schema": { "type": "object" } }
-+    }
++      { "branch": "cancel", "schema": { "type": "object" } }
++    ]
    }
 ```
 
-The **`branches`** object must match your flow manifest from [Part 2](./02-build-minimal-flow).
+The **`branches`** array must match your flow manifest's branch names and schemas from [Part 2](./02-build-minimal-flow). The host merges this `step` over a runtime base context (real hub origin + fresh nonce), so the fixture only carries the projected contract — never `hub_base_url` or `nonce`.
 
 Submit in dev mode exercises validation and logs the resolve body — **no real run** until Part 4.
 

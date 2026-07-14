@@ -50,7 +50,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 
 **Does not supersede for:** v1 shipped behavior, hub kernel semantics in [hub/architecture.md](../../current/hub/architecture.md).
 
-**Post-1.0 amendment (2026-07-09 — handlers cutover):** Default spaces use **`.mrmr/`** layout and **handlers.yaml** keyed by **`contract_keys`**. Flow manifests are **protocol-only** (no `invoke:` / `executor.action`). See [bridges/handlers.md](../bridges/handlers.md).
+**Post-1.0 amendment (2026-07-09 — handlers cutover):** Default spaces use **`.mrmr/`** layout and **handlers.yaml** bound via **`on::key`** (`contract_keys` is prompt-scope only). Flow manifests are **protocol-only** (no `invoke:` / `executor.action`). See [bridges/handlers.md](../bridges/handlers.md).
 
 ---
 
@@ -65,7 +65,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 | **Session** | **Correlation context** — user-facing tracker spanning spaces, flows, and time. Mutable grouping only. |
 | **Run** | **Immutable execution unit** — lifecycle, step state, gates, exec context (worktree, preview URL). Parallel lanes = sibling Runs. |
 | **Flow** | Declarative orchestration — step graph. **Start conditions** on manifest (manual/event/schedule). Thin wiring only — **no executor refs**. |
-| **Handler** | Space-owned execution unit in `.mrmr/space/handlers.yaml` — keyed by **`contract_keys`**, dispatched on `step.opened` / events. Replaces actions + executors + hooks for default spaces. |
+| **Handler** | Space-owned execution unit in `.mrmr/space/handlers.yaml` — bound via **`on::key`** (dispatched on `step.opened::{alias}` / events); `contract_keys` is prompt-scope only. Replaces actions + executors + hooks for default spaces. |
 | **contract_key** | Protocol address `{flow_ref}.{qualified_step_id}` — binds flow steps to space handlers at apply time. |
 | **View** | **Primary human interface** — full custom UI packages in `.mrmr/views/`. Not a hub entity. **ViewCanvasHost** fills main content; shell chrome recedes. Built-in forms = fallback only. |
 | **Gate** | Run in `input-required`; the bound View (resolved from the space's `handlers.yaml` + `.mrmr/views/`) opens the author's view canvas (primary). Built-in gate form = fallback when no view binding exists. |
@@ -133,7 +133,7 @@ Concepts (not stored)
 | Noun | Owns |
 |------|------|
 | **Space** | Directory content; `.mrmr/` index; team artifacts |
-| **Handler** | Step/event dispatch: `contract_keys`, `on`, `type`, `complete`, prompt/command |
+| **Handler** | Step/event dispatch: `on::key`, `type`, `complete`, prompt/command (`contract_keys` is prompt-scope only) |
 | **Flow** | Declarative step graph; start conditions; branch schemas — **protocol only** |
 | **Action** *(legacy)* | Named callable in `actions.yaml` — accepted until HANDLER-CUTOVER |
 | **Executor** *(legacy)* | Reachability binding for legacy actions |
@@ -258,18 +258,16 @@ Hub owns the deadline; executors may ack faster.
 
 ---
 
-## 4. Handlers, contract keys, and invoke (legacy)
+## 4. Handlers, execution binding, and legacy invoke
 
-**Canonical (2026-07-09):** Spaces own execution via **handlers** in `.mrmr/space/handlers.yaml`, keyed by **`contract_keys`**. Flow manifests declare protocol shape only — `id`, optional `description`, optional `branches`, and optional nested `steps` — not `invoke:` or `executor.action`. Full field reference: [bridges/handlers.md](../bridges/handlers.md).
+**Canonical (2026-07-09, updated 2026-07-14 — `on::key` cutover):** Spaces own execution via **handlers** in `.mrmr/space/handlers.yaml`, bound by **`on: step.opened::{flow_name}.{qualified_step_id}`** (the `on::key` binding); `contract_keys` is **prompt-scope only**. Flow manifests declare protocol shape only — `id`, optional `description`, optional `branches`, and optional nested `steps` — not `invoke:` or `executor.action`. Full field reference: [bridges/handlers.md](../bridges/handlers.md).
 
 ```yaml
 # .mrmr/space/handlers.yaml
 version: 1
 handlers:
   - id: write-spec
-    contract_keys:
-      - preview-review.write_spec
-    on: step.opened
+    on: step.opened::preview-review.write_spec
     type: shell_spawn
     complete: explicit          # agent calls murrmure_resolve_step / mrmr step resolve
     prompt: |
@@ -280,12 +278,12 @@ handlers:
 | Field | Semantics |
 |-------|-----------|
 | `id` | Stable handler id; journal prefix `handler:{id}` |
-| `contract_keys` | `{flow_ref}.{qualified_step_id}` — empty for event-only handlers |
-| `on` | `step.opened` \| `step.resolved` \| `event: { type, source? }` |
-| `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` |
+| `on` | `step.(opened|resolved)::{flow_name}.{qualified_step_id}` \| `event: { type, source? }` |
+| `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after dispatch |
+| `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers — **not** the binding key |
 
-**contract_key** resolution:
+**`contract_keys` (prompt scope):**
 
 ```text
 contract_key := {flow_ref}.{qualified_step_id}
@@ -293,7 +291,7 @@ contract_key := {flow_ref}.{qualified_step_id}
 
 - `flow_ref` = apply-time resolved flow identity.
 - `qualified_step_id` = dot path from step catalog (e.g. `build.review`).
-- Matching: exact + explicit multi-key only (no wildcards in v1).
+- Prompt-scope documentation only; binding is via `on::key`, not `contract_keys`.
 - Human-step keys in multi-key handlers are **scope/documentation only** — never dispatched on `step.opened`.
 
 **Completion path:** Handler dispatch → agent/shell work → `murrmure_resolve_step` (MCP) or `mrmr step resolve` (CLI, env `MURRMURE_RUN_ID`, `MURRMURE_STEP_ID`, short-lived `MURRMURE_HUB_TOKEN`).
@@ -508,7 +506,7 @@ steps:
     description: Commit the archived result.
 ```
 
-**Execution binding:** Space handlers map `contract_keys` such as `preview-review.write_spec`, `preview-review.build.build-loop` — see [bridges/handlers.md](../bridges/handlers.md). Flow manifest carries **no** `invoke:` blocks.
+**Execution binding:** Space handlers bind via `on::key` such as `preview-review.write_spec`, `preview-review.build.build-loop` — see [bridges/handlers.md](../bridges/handlers.md). Flow manifest carries **no** `invoke:` blocks.
 
 **No `scope: local|global`.** Visibility = grants. File living in catalog space + `flow:run` grant to team = "global" behavior.
 
@@ -564,7 +562,7 @@ interface FlowIndexEntry {
   digest: string;            // manifest hash
   name: string;
   triggers: FlowStartConditions; // the only start-condition field; `start` is rejected
-  step_spaces: string[];     // spaces with handlers for this flow's contract_keys
+  step_spaces: string[];     // spaces with handlers bound to this flow's on::key aliases
   grants_required: string[]; // hints for expand preview
   step_contract_catalog: StepContractCatalog; // compiled per flow at apply time
 }

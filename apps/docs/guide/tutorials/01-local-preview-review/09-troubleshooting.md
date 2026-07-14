@@ -1,5 +1,9 @@
 # Part 9 — Troubleshooting
 
+::: warning Retired v2 handler model
+This page troubleshoots the **retired v2 handler model** (`contract_keys` dispatch, bare `on: step.opened`, `kill_on`). These are **rejected by current strict validation**. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)** and [Space handlers](../../space-handlers.md).
+:::
+
 Common issues when running Tutorial 1 with **handlers**, **contract keys**, and **v2.2 step contracts**.
 
 ## Setup & apply

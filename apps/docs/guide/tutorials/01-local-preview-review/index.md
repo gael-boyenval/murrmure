@@ -1,5 +1,9 @@
 # Tutorial 1b — Feature spec, build, live review, commit
 
+::: warning Retired handler model (v2)
+This tutorial describes the **retired v2 handler model** — `contract_keys` dispatch, bare `on: step.opened`, and authored `kill_on: step.resolved`. These are **rejected by current strict validation**. New spaces use the v3 `on::key` binding (`on: step.opened::{flow_name}.{qualified_step_id}`) with `contract_keys` as prompt-scope only and no `kill_on`. Follow **[Tutorial 1a — First flow (v3)](../01-local-preview-review-v3/)** instead; this tutorial is preserved for the build/review/archive/commit loop narrative and will be removed at the v2 cutover.
+:::
+
 Build a real workflow on a static site repo with **Cursor** as the agent. One human attaches a **spec from their computer**; the agent writes it into the repo, implements, loops on **live review in one long agent session**, then **archives** the spec and **commits**.
 
 ::: tip New to Murrmure?

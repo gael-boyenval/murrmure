@@ -102,8 +102,7 @@ version: 1
 
 handlers:
   - id: daily-brief-agent
-    contract_keys: [daily-brief.agent]
-    on: step.opened
+    on: step.opened::daily-brief.agent
     type: shell_spawn
     complete: explicit
     command: echo '{"wake":"handle_brief_requested"}'
@@ -115,8 +114,7 @@ handlers:
     timeout_ms: 30000
 
   - id: daily-brief-done
-    contract_keys: [daily-brief.done]
-    on: step.opened
+    on: step.opened::daily-brief.done
     type: shell_spawn
     complete: explicit
     command: echo '{"format":"markdown","body":"# Daily brief\\n\\n(stub)"}'

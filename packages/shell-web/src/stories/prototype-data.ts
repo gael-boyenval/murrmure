@@ -16,7 +16,6 @@ export const availableToRun: SpaceHomeFlowRow[] = [
     can_run: true,
     can_preview: true,
     manual: true,
-    view_ref: { view_id: "view_digest", origin_space_id: "spc_ops", shell_route: "murrmure/digest-params" },
   },
 ];
 
@@ -40,7 +39,6 @@ export const demoFlows: SpaceHomeFlowRow[] = [
     can_run: true,
     can_preview: true,
     manual: true,
-    view_ref: { view_id: "view_review", shell_route: "murrmure/review-params" },
   },
   {
     flow_id: "flw_feature_spec",

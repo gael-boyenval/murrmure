@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@murrmure/runtime-persistence": "workspace:*",
-    "tsx": "^4.19.3"
+    "tsx": "^4.19.3",
+    "vitest": "^3.2.4",
+    "yaml": "^2.7.0"
   }
 }

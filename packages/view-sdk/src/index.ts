@@ -24,6 +24,8 @@ export {
   createAckMessage,
   isViewHostInboundMessage,
   resolveViewEntryUrl,
+  resolveViewIframeOrigin,
+  isSandboxedOpaqueOrigin,
+  resolveViewIframeTargetOrigin,
 } from "./host-bridge.js";
 export { ViewHostFrame, type ViewHostFrameProps } from "./ViewHostFrame.js";
-export { paramsSchemaToGateForm, defaultRunParamsForm } from "./params-form.js";

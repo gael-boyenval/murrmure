@@ -775,7 +775,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       }
 
       const insertFlow = this.db.prepare(
-        "INSERT INTO flow_index (flow_id, origin_space_id, digest, payload_json, view_ref_json) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO flow_index (flow_id, origin_space_id, digest, payload_json) VALUES (?, ?, ?, ?)",
       );
       for (const row of snapshot.flows) {
         insertFlow.run(
@@ -783,7 +783,6 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
           bare,
           row.digest,
           row.payload_json,
-          row.view_ref ? JSON.stringify(row.view_ref) : null,
         );
       }
     });

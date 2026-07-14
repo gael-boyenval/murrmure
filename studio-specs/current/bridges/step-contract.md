@@ -7,7 +7,8 @@ Murrmure flow steps are **resolver-agnostic contracts**. A step is `id`, optiona
 `description`, optional `branches`, and optional nested `steps` — nothing else.
 There is no `role`, `presentation`, `deriveRole`, wait kind, or resolver modality on
 a step: spaces bind resolvers (handlers, views, agents) through
-[handlers.md](./handlers.md) (`contract_keys` in `.mrmr/space/handlers.yaml`).
+[handlers.md](./handlers.md) (the `on::key` binding in `.mrmr/space/handlers.yaml`;
+`contract_keys` is prompt-scope only).
 
 Flow manifests declare **protocol only** — no `executor.action`, no `invoke:` /
 `checkpoint:` / `gate:` runtime kinds. **`triggers`** is the only start-condition
@@ -68,8 +69,7 @@ steps:
 # .mrmr/space/handlers.yaml
 handlers:
   - id: feature_write_spec
-    contract_keys: [my-dev-flow.write_spec]
-    on: step.opened
+    on: step.opened::my-dev-flow.write_spec
     type: shell_spawn
     complete: explicit
     command: cursor agent -p --force {{prompt}}

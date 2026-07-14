@@ -4,8 +4,10 @@ import {
   attachViewHostBridge,
   createViewContextMessage,
   isViewHostInboundMessage,
+  isSandboxedOpaqueOrigin,
   resolveViewEntryUrl,
   resolveViewIframeOrigin,
+  resolveViewIframeTargetOrigin,
 } from "../src/host-bridge.js";
 import { VIEW_TRANSPORT_VERSION, type ViewAppContext } from "../src/types.js";
 
@@ -86,6 +88,126 @@ describe("view-sdk host protocol", () => {
     const iframe = document.createElement("iframe");
     iframe.src = "http://localhost:5173/";
     expect(resolveViewIframeOrigin(iframe, "http://127.0.0.1:8787")).toBe("http://localhost:5173");
+  });
+
+  it("isSandboxedOpaqueOrigin detects allow-scripts-without-same-origin", () => {
+    const none = document.createElement("iframe");
+    expect(isSandboxedOpaqueOrigin(none)).toBe(false);
+
+    const empty = document.createElement("iframe");
+    empty.setAttribute("sandbox", "");
+    expect(isSandboxedOpaqueOrigin(empty)).toBe(true);
+
+    const allowScripts = document.createElement("iframe");
+    allowScripts.setAttribute("sandbox", "allow-scripts");
+    expect(isSandboxedOpaqueOrigin(allowScripts)).toBe(true);
+
+    const allowScriptsSameOrigin = document.createElement("iframe");
+    allowScriptsSameOrigin.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    expect(isSandboxedOpaqueOrigin(allowScriptsSameOrigin)).toBe(false);
+  });
+
+  it("resolveViewIframeTargetOrigin uses wildcard for sandboxed opaque iframes", () => {
+    const opaque = document.createElement("iframe");
+    opaque.src = "http://localhost:5173/";
+    opaque.setAttribute("sandbox", "allow-scripts");
+    expect(resolveViewIframeTargetOrigin(opaque, "http://127.0.0.1:8787")).toBe("*");
+
+    const notSandboxed = document.createElement("iframe");
+    notSandboxed.src = "http://localhost:5173/";
+    expect(resolveViewIframeTargetOrigin(notSandboxed, "http://127.0.0.1:8787")).toBe(
+      "http://localhost:5173",
+    );
+  });
+
+  it("attachViewHostBridge posts context with wildcard targetOrigin for sandboxed opaque iframe", () => {
+    const iframe = document.createElement("iframe");
+    iframe.src = "http://localhost:5173/";
+    iframe.setAttribute("sandbox", "allow-scripts");
+    document.body.appendChild(iframe);
+
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe, "contentWindow", {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    const ctx = makeContext();
+    const cleanup = attachViewHostBridge(iframe, ctx, {});
+
+    expect(postMessage).toHaveBeenCalledWith(createViewContextMessage(ctx, NONCE), "*");
+
+    cleanup();
+    iframe.remove();
+  });
+
+  it("attachViewHostBridge accepts null origin submit_branch from sandboxed opaque iframe", async () => {
+    const iframe = document.createElement("iframe");
+    iframe.src = "http://localhost:5173/";
+    iframe.setAttribute("sandbox", "allow-scripts");
+    document.body.appendChild(iframe);
+
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe, "contentWindow", {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    const onSubmitBranch = vi.fn().mockResolvedValue({ ok: true } as const);
+    const cleanup = attachViewHostBridge(iframe, makeContext(), { onSubmitBranch });
+
+    const event = new MessageEvent("message", {
+      data: {
+        type: "murrmure.view.submit_branch",
+        branch: "approve",
+        params: { topic: "ai" },
+        v: VIEW_TRANSPORT_VERSION,
+        nonce: NONCE,
+      },
+      origin: "null",
+      source: iframe.contentWindow,
+    });
+    window.dispatchEvent(event);
+
+    await vi.waitFor(() => expect(onSubmitBranch).toHaveBeenCalledWith("approve", { topic: "ai" }));
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
+    expect(postMessage.mock.calls.at(-1)?.[1]).toBe("*");
+    cleanup();
+    iframe.remove();
+  });
+
+  it("attachViewHostBridge rejects non-null origin from sandboxed opaque iframe", () => {
+    const iframe = document.createElement("iframe");
+    iframe.src = "http://localhost:5173/";
+    iframe.setAttribute("sandbox", "allow-scripts");
+    document.body.appendChild(iframe);
+
+    Object.defineProperty(iframe, "contentWindow", {
+      configurable: true,
+      value: { postMessage: vi.fn() },
+    });
+
+    const onSubmitBranch = vi.fn();
+    const cleanup = attachViewHostBridge(iframe, makeContext(), { onSubmitBranch });
+
+    // A sandboxed opaque iframe cannot send a real origin; such a message is an
+    // impersonation attempt and must be ignored despite the correct nonce.
+    const event = new MessageEvent("message", {
+      data: {
+        type: "murrmure.view.submit_branch",
+        branch: "approve",
+        params: {},
+        v: VIEW_TRANSPORT_VERSION,
+        nonce: NONCE,
+      },
+      origin: "http://evil.example",
+      source: iframe.contentWindow,
+    });
+    window.dispatchEvent(event);
+
+    expect(onSubmitBranch).not.toHaveBeenCalled();
+    cleanup();
+    iframe.remove();
   });
 
   it("attachViewHostBridge posts context to dev iframe origin", () => {

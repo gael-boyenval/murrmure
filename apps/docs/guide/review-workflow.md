@@ -23,13 +23,13 @@ mrmr space apply --strict
 mrmr connection create --space spc_ui_sandbox
 ```
 
-Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`contract_keys`**.
+Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`on::key`** (`contract_keys` is prompt-scope only).
 
 ## Engine-routed nested build
 
 1. Desktop **Run** on **preview-review**
 2. Intake view — attach spec file
-3. **`feature_build`** handler dispatches shell spawn (one session, `kill_on: step.resolved`)
+3. **`feature_build`** handler dispatches shell spawn (one session; the subprocess stays alive until the parent **build** step resolves — runtime-owned, no authored `kill_on`)
 4. Agent resolves **`build.build-loop`** with `preview_url` via **`murrmure_resolve_step`**
 5. Engine opens **`build.review`** — human validates or sends feedback
 6. Feedback → engine reopens **`build.build-loop`** in same agent session

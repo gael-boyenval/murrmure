@@ -90,8 +90,7 @@ version: 1
 
 handlers:
   - id: team-brief-open
-    contract_keys: [team-brief.open]
-    on: step.opened
+    on: step.opened::team-brief.open
     type: shell_spawn
     complete: explicit
     command: echo '{"brief_id":"brf_local"}'
@@ -103,8 +102,7 @@ handlers:
     timeout_ms: 30000
 
   - id: team-brief-done
-    contract_keys: [team-brief.done]
-    on: step.opened
+    on: step.opened::team-brief.done
     type: shell_spawn
     complete: explicit
     command: echo '{"done":true}'

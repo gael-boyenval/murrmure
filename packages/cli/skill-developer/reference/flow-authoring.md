@@ -1,6 +1,6 @@
 # Flow authoring (v3, resolver-agnostic step contracts)
 
-Flows live in `.mrmr/flows/{name}/flow.manifest.yaml` — indexed via `mrmr space apply`. A flow is **protocol only**: it describes what happens, not how. Execution and human UI are wired separately in `.mrmr/space/handlers.yaml` via `contract_keys`.
+Flows live in `.mrmr/flows/{name}/flow.manifest.yaml` — indexed via `mrmr space apply`. A flow is **protocol only**: it describes what happens, not how. Execution and human UI are wired separately in `.mrmr/space/handlers.yaml` via the **`on::key`** binding (`contract_keys` is prompt-scope only).
 
 ## Triggers (when a run may start)
 
@@ -152,7 +152,7 @@ Mint: `mrmr grant mint --capabilities flow:run,flow:read,step:resolve`.
 
 - `apiVersion: murrmure.flow/v1` is the sole clean target (no dual parser)
 - **No inline script steps** — rejected at apply
-- **No `executor.action`** — use handlers + contract_keys
+- **No `executor.action`** — use handlers + `on::key` binding
 - **No `start`, `requires_view`, `role`, `presentation`** — rejected by the strict schema
 - Templates: `{{steps.id.output.field}}`, `{{input.*}}` in handler params
 

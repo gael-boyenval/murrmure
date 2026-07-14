@@ -56,10 +56,10 @@ describe("index/view", () => {
 
     const entries = buildFlowIndexEntries(bundle, "spc_demo");
     expect(entries[0]?.triggers).toEqual({ manual: true });
-    expect(entries[0]?.view_ref).toBeUndefined();
+    expect(entries[0]).not.toHaveProperty("view_ref");
   });
 
-  test("buildFlowIndexEntries omits view_ref when no views are bound", () => {
+  test("buildFlowIndexEntries carries no flow-level view_ref when no views are bound", () => {
     const bundle: SpaceApplyBundle = {
       flows: [
         {
@@ -78,6 +78,6 @@ describe("index/view", () => {
     };
 
     const entries = buildFlowIndexEntries(bundle, "spc_demo");
-    expect(entries[0]?.view_ref).toBeUndefined();
+    expect(entries[0]).not.toHaveProperty("view_ref");
   });
 });

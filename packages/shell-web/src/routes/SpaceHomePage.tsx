@@ -12,8 +12,7 @@ import {
 import { AppShell } from "../layout/AppShell.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { setActiveSpaceId } from "../hooks.js";
-import { useEffect, useState } from "react";
-import { ViewDrawer } from "../components/ViewDrawer.js";
+import { useEffect } from "react";
 import { DismissRunButton } from "../components/DismissRunButton.js";
 
 function FlowRow({
@@ -28,10 +27,6 @@ function FlowRow({
     manual: boolean;
     can_run: boolean;
     can_preview: boolean;
-    view_ref?: {
-      view_id: string;
-      shell_route?: string;
-    };
   };
   spaceId: string;
   onRun: () => void;
@@ -124,28 +119,13 @@ export function SpaceHomePage() {
       client!.spaces.runFlow(flow_id, { space_id: spaceId, input }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["space-home", spaceId] });
-      setViewFlow(null);
       navigate(`/sessions/${data.session.session_id}`);
     },
   });
 
-  const [viewFlow, setViewFlow] = useState<{
-    flow_id: string;
-    name: string;
-    view_ref?: SpaceHomeFlowRow["view_ref"];
-  } | null>(null);
-
   type SpaceHomeFlowRow = NonNullable<typeof homeQuery.data>["your_flows"][number];
 
   const handleRun = (flow: SpaceHomeFlowRow) => {
-    if (flow.view_ref) {
-      setViewFlow({
-        flow_id: flow.flow_id,
-        name: flow.name,
-        view_ref: flow.view_ref,
-      });
-      return;
-    }
     runMutation.mutate({ flow_id: flow.flow_id, input: {} });
   };
 
@@ -285,17 +265,6 @@ export function SpaceHomePage() {
           </CardContent>
         </Card>
       </div>
-
-      <ViewDrawer
-        open={Boolean(viewFlow)}
-        flow={viewFlow}
-        spaceId={spaceId!}
-        onClose={() => setViewFlow(null)}
-        onSubmit={(params) => {
-          if (viewFlow) runMutation.mutate({ flow_id: viewFlow.flow_id, input: params });
-        }}
-        submitting={runMutation.isPending}
-      />
     </AppShell>
   );
 }

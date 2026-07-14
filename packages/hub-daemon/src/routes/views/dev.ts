@@ -39,7 +39,7 @@ export function mountViewDevRoutes(app: Hono, ctx: DaemonContext): void {
     const spaceRoot = await readSpaceRoot(ctx, space_id);
     if (spaceRoot instanceof Response) return spaceRoot;
 
-    const sessionPath = join(spaceRoot, ".murrmure", "view-dev.json");
+    const sessionPath = join(spaceRoot, ".mrmr", "dev", "view-dev.json");
     if (!existsSync(sessionPath)) {
       return c.json({ code: "VIEW_DEV_SESSION_MISSING", message: "No active view dev session" }, 404);
     }
@@ -66,7 +66,7 @@ export function mountViewDevRoutes(app: Hono, ctx: DaemonContext): void {
     const spaceRoot = await readSpaceRoot(ctx, space_id);
     if (spaceRoot instanceof Response) return spaceRoot;
 
-    const fixturesDir = resolve(join(spaceRoot, "murrmure", "views", view_id, "dev", "fixtures"));
+    const fixturesDir = resolve(join(spaceRoot, ".mrmr", "views", view_id, "dev", "fixtures"));
     const target = normalize(resolve(fixturesDir, `${fixture_name}.json`));
     if (!target.startsWith(fixturesDir)) {
       return c.json({ code: "PATH_TRAVERSAL", message: "Invalid fixture path" }, 400);

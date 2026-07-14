@@ -56,7 +56,7 @@ Normative detail: [step-contract.md](./step-contract.md). Execution binding: [ha
 
 ### Nested runtime (preview-review)
 
-1. Engine opens **build** → dispatches handler `feature_build` (`contract_keys: preview-review.build, …`) → opens **build.build-loop**
+1. Engine opens **build** → dispatches handler `feature_build` (`on: step.opened::preview-review.build`) → opens **build.build-loop**
 2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`) → `route: { step: build.review }`
 3. Engine opens **build.review** (no bound handler) → appears in `open_steps[]` with `resolver: null`
 4. Human validates → `resume: build` → **build** completed → **archive**

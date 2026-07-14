@@ -17,7 +17,7 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | Layer | Role |
 |-------|------|
 | **Space directory** | `.mrmr/space/` — `handlers.yaml`, optional `bindings.yaml`, `events.yaml`; `.mrmr/flows/`, `.mrmr/views/` |
-| **Handler** | Space-owned execution bound to `contract_keys` (`{flow_ref}.{step_id}`) — dispatches shell/MCP on `step.opened` |
+| **Handler** | Space-owned execution bound via `on::key` (`on: step.opened::{flow_name}.{step_id}`) — dispatches shell/MCP; `contract_keys` is prompt-scope only |
 | **Hub index** | Compiled flow IR + handler digests after `mrmr space apply` |
 | **Session / Run** | Correlation + immutable execution; runs pin `flow_digest` |
 | **Step contract** | Active step slice — `id`, `description`, `branches` (`schema`, `route`/`resume`); resolver-agnostic; resolve via `murrmure_resolve_step` |
@@ -43,7 +43,7 @@ persistent local connection inside shell commands.
 ## Bootstrap (before operating a run)
 
 1. **`murrmure_space_health`** — index counts, handler coverage, apply warnings.
-2. **`murrmure_list_handlers`** — confirm handlers exist for expected `contract_keys`.
+2. **`murrmure_list_handlers`** — confirm handlers exist for expected `on::key` aliases.
 3. **`murrmure_list_emittable_events`** — when you may emit cross-space events (`event:emit` grant).
 4. Reload MCP after connection installation or `mrmr space apply`.
 
@@ -59,6 +59,7 @@ Example — list handlers:
   "handlers": [
     {
       "id": "feature_write_spec",
+      "on": "step.opened::preview-review.write_spec",
       "contract_keys": ["preview-review.write_spec"],
       "type": "shell_spawn"
     }
@@ -137,7 +138,7 @@ emission permissions are advanced and are not default.
 |---------|--------|
 | `EXECUTOR_UNAVAILABLE` / handler timeout | Check handler command, `cwd`, timeout_ms; verify apply indexed handlers |
 | Resolve rejected (schema) | Re-read `murrmure_list_step_contracts`; match branch + payload to schema |
-| Missing handler for step | Author space needs handler + `contract_keys` — switch to developer skill / human |
+| Missing handler for step | Author space needs handler + `on::key` binding — switch to developer skill / human |
 | Stale contract in long shell | Re-read `MURRMURE_ACTIVE_STEP_CONTRACT_PATH` or call `murrmure_list_step_contracts` |
 
 ## Core MCP tools

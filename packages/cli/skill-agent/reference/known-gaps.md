@@ -10,7 +10,7 @@ Read this before assuming declarative flows fully work. Normative backlog: [stud
 
 ---
 
-Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + contract_keys**, resolver-agnostic step contracts, `triggers`-only start, `open_steps[]` lifecycle, step outputs, flow scaffold, **ViewCanvasHost** at open steps) is **shipped**. Remaining items are **user-visible symptoms** — not the same numbering as backlog phases 01–08.
+Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + `on::key` binding**, resolver-agnostic step contracts, `triggers`-only start, `open_steps[]` lifecycle, step outputs, flow scaffold, **ViewCanvasHost** at open steps) is **shipped**. Remaining items are **user-visible symptoms** — not the same numbering as backlog phases 01–08.
 
 ## What works today
 
@@ -26,7 +26,7 @@ Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + contract_k
 | Step output templates | `steps.*` template syntax in handler params |
 | `shell_spawn` env | `MURRMURE_INPUT`, `MURRMURE_PROMPT`, `MURRMURE_STEP_CONTRACT`, run/session/step ids |
 | Step contract injection | `active-step-contract.json`, `{{murrmure.agentStepContract}}` |
-| Handler dispatch | `.mrmr/space/handlers.yaml` + `contract_keys` |
+| Handler dispatch | `.mrmr/space/handlers.yaml` + `on::key` binding |
 | Shell step resolve | `mrmr step resolve` (`complete: cli`) |
 | Orchestration gates | Gate API for attach approval (operator mode) |
 | Event handlers | `on: event:` in `handlers.yaml` + `murrmure_emit_event` |

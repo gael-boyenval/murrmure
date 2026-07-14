@@ -56,17 +56,30 @@ export function ViewDevPage() {
   const activeContext = initialFixture ? fixtureContexts[initialFixture] : undefined;
   const hubBase = getHubBaseUrl();
 
-  const context: ViewAppContext =
-    activeContext ??
-    ({
-      flow_id: "dev",
-      space_id: spaceId ?? "spc_dev",
-      hub_base_url: hubBase,
-      mode: "dev",
-      transport_version: VIEW_TRANSPORT_VERSION,
-      nonce,
-      step: { step_id: "review", branches: [{ branch: "validated" }] },
-    } satisfies ViewAppContext);
+  // Runtime base carries the real hub origin (so the child's origin check passes)
+  // and a fresh per-mount nonce (so the host↔view binding is unique). Dev fixtures
+  // only contribute the projected contract (step/input/steps) and a cosmetic
+  // flow_id — never hub_base_url or nonce — so they stay partial and portable.
+  const baseContext: ViewAppContext = {
+    flow_id: "dev",
+    space_id: spaceId ?? "spc_dev",
+    hub_base_url: hubBase,
+    mode: "dev",
+    transport_version: VIEW_TRANSPORT_VERSION,
+    nonce,
+    step: { step_id: "review", branches: [{ branch: "validated" }] },
+  };
+
+  const context: ViewAppContext = activeContext
+    ? {
+        ...baseContext,
+        flow_id: activeContext.flow_id ?? baseContext.flow_id,
+        step: activeContext.step ?? baseContext.step,
+        ...(activeContext.input ? { input: activeContext.input } : {}),
+        ...(activeContext.steps ? { steps: activeContext.steps } : {}),
+        nonce,
+      }
+    : baseContext;
 
   if (sessionQuery.isLoading) {
     return (

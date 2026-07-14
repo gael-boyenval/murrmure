@@ -61,7 +61,6 @@ export function buildFlowIndexEntries(
       triggers: flow.manifest.triggers,
       step_spaces: collectStepSpaces(flow.manifest, originSpaceId),
       grants_required,
-      view_ref: undefined,
       ir,
       step_contract_catalog: catalog ?? undefined,
     };

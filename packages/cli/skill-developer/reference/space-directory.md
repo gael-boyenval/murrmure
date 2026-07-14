@@ -55,4 +55,4 @@ Inside a `.mrmr/` repo, legacy `mrmr flow init` redirects to `mrmr space flow in
 | `murrmure/hooks.yaml` event chains | Event handlers in `handlers.yaml` (`on.event`) |
 | `murrmure/` root | `.mrmr/` root |
 | `invoke:` / `checkpoint:` step kinds | Resolver-agnostic step contracts (`branches`, `route`/`resume`) |
-| Per-step `executor.action` | Handler `contract_keys` |
+| Per-step `executor.action` | Handler `on::key` binding |

@@ -5,7 +5,7 @@ triggers:
   manual: true
 steps:
   - id: hello
-    description: Agent step — bind a handler with contract_keys [example-flow.hello]
+    description: Agent step — bind a handler with on: step.opened::example-flow.hello
     branches:
       completed:
         schema: { type: object }

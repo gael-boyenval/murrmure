@@ -44,12 +44,6 @@ function cloneBoundFlowEntry(input: {
   if (next.step_spaces.length === 0) {
     next.step_spaces = [input.target_space_id];
   }
-  if (next.view_ref) {
-    next.view_ref = {
-      ...next.view_ref,
-      origin_space_id: input.target_space_id,
-    };
-  }
   return next;
 }
 

@@ -1,7 +1,7 @@
 # Bridge — Headless action invoke
 
 **Status:** Normative — **operator / headless path only**  
-**Not for flow steps** — step-contract flows dispatch via [handlers.md](./handlers.md) on `step.opened`; agents complete steps with `murrmure_resolve_step` (`step:resolve`).
+**Not for flow steps** — step-contract flows dispatch via [handlers.md](./handlers.md) on `step.opened::{flow_name}.{qualified_step_id}` (the `on::key` binding); agents complete steps with `murrmure_resolve_step` (`step:resolve`).
 
 **HTTP:** `POST /v1/spaces/{space_id}/actions/{action_name}/invoke`  
 **MCP:** `murrmure_invoke_action` (`action:invoke` capability)  
@@ -13,7 +13,7 @@
 
 | Path | Use case |
 |------|----------|
-| **Handler dispatch** | Flow step opens → engine matches `contract_keys` → shell/MCP handler runs |
+| **Handler dispatch** | Flow step opens → engine matches the `on: step.opened::key` binding → shell/MCP handler runs |
 | **Headless invoke** (this doc) | CLI scripts, operator tools, legacy `actions.yaml` entries, debug — **no active flow step** |
 
 Headless invoke uses synthetic step id `action:{action_name}`.

@@ -1,5 +1,9 @@
 # Part 8 — Run the loop
 
+::: warning Retired v2 handler model
+This page references the **retired v2 handler model** (`kill_on: step.resolved`). Subprocess termination is now runtime-owned; authored `kill_on` is rejected. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)**.
+:::
+
 Walk through one full run: intake → write_spec → build (nested loop) → (optional feedback) → archive → commit.
 
 Open the space in Cursor (`cursor .`). Keep `agent.md` and **`skills/feature-build/SKILL.md`** in mind — the build agent should follow them for the whole session.

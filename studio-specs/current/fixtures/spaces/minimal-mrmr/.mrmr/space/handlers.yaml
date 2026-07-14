@@ -2,7 +2,6 @@ version: 1
 
 handlers:
   - id: hello
-    contract_keys: [minimal-flow.hello]
     on: step.opened::minimal-flow.hello
     type: shell_spawn
     complete: auto

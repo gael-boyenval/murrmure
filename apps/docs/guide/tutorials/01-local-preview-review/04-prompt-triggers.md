@@ -1,5 +1,9 @@
 # Part 4 — Space handlers
 
+::: warning Retired v2 handler model
+This page teaches the **retired v2 handler model** (`contract_keys` dispatch, bare `on: step.opened`, `kill_on: step.resolved`) — **rejected by current strict validation**. Use the v3 `on::key` binding instead. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)** and [Space handlers](../../space-handlers.md).
+:::
+
 **Handlers** wire execution to protocol steps. Each handler declares **`contract_keys`** that match steps in your flow manifest, **`on: step.opened`** to dispatch when a step opens, and **`complete: explicit`** so the agent (or `mrmr step resolve`) must resolve the step.
 
 The space owns *what runs* when Murrmure opens an agent step — not the flow manifest.

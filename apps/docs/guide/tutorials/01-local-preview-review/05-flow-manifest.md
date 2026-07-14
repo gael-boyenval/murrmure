@@ -1,5 +1,9 @@
 # Part 5 — Flow manifest
 
+::: warning Retired v2 handler model
+This page references the **retired v2 handler model** (`kill_on`, `contract_keys` dispatch). Use the v3 `on::key` binding instead. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)** and [Space handlers](../../space-handlers.md).
+:::
+
 The flow manifest is **protocol-only orchestration**: step ids, branches, param wiring, nested review under **build**. No build logic and **no `executor.action`** — execution lives in `.mrmr/space/handlers.yaml`.
 
 ## Step 1 — Create the file

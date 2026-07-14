@@ -132,6 +132,5 @@ export function sanitizeFlowPreview(entry: FlowIndexEntry) {
       gate: s.gate ? { form: s.gate.form } : undefined,
       start_flow: s.start_flow ? { flow_id: s.start_flow.flow_id } : undefined,
     })),
-    view_ref: entry.view_ref,
   };
 }

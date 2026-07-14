@@ -30,7 +30,6 @@ export interface SpaceHomeFlowRow {
   can_run: boolean;
   can_preview: boolean;
   manual: boolean;
-  view_ref?: FlowIndexEntry["view_ref"];
 }
 
 export interface SpaceHomeRunRow {
@@ -91,7 +90,6 @@ function flowRow(
     can_run,
     can_preview,
     manual: entry.triggers.manual === true,
-    view_ref: entry.view_ref,
   };
 }
 

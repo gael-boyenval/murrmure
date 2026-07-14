@@ -181,12 +181,12 @@ second fixture or merge an expected-failing test.
 
 Reference: [Tutorial 1b handlers](../../apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md) — full `handlers.yaml` snippet.
 
-| Handler | contract_keys | Role |
-|---------|---------------|------|
-| `feature_write_spec` | `preview-review.write_spec` | Copy intake spec to repo; resolve `completed` |
-| `feature_build` | `preview-review.build`, `preview-review.build.build-loop`, `preview-review.build.review` | Multi-key owner for build subgraph; prompt owns nested loop |
-| `feature_archive` | `preview-review.archive` | Move spec to archive |
-| `feature_commit` | `preview-review.commit` | Git commit + resolve with payload |
+| Handler | on::key | Role |
+|---------|---------|------|
+| `feature_write_spec` | `step.opened::preview-review.write_spec` | Copy intake spec to repo; resolve `completed` |
+| `feature_build` | `step.opened::preview-review.build` | Multi-key owner for build subgraph (`contract_keys` prompt-scope: `build`, `build.build-loop`, `build.review`); prompt owns nested loop |
+| `feature_archive` | `step.opened::preview-review.archive` | Move spec to archive |
+| `feature_commit` | `step.opened::preview-review.commit` | Git commit + resolve with payload |
 
 Flow manifest (`preview-review`) uses resolver-agnostic nested steps under `build`:
 
