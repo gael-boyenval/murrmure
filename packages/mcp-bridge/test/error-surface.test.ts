@@ -30,12 +30,48 @@ afterEach(() => {
 });
 
 describe("bridge error surfaces", () => {
-  test("resolveBridgeConfig requires MURRMURE_HUB_TOKEN", () => {
+  test("local mode requires a connection descriptor and does not use env fallback", () => {
     const homePath = makeTempHome("mcp-bridge-errors-config-");
     writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
-    delete process.env.MURRMURE_HUB_TOKEN;
+    process.env.MURRMURE_HUB_TOKEN = "tok_must_not_be_used";
 
-    expect(() => resolveBridgeConfig({ homePath })).toThrow(/Missing MURRMURE_HUB_TOKEN/);
+    expect(() => resolveBridgeConfig({ homePath, argv: [] })).toThrow(
+      /requires --hub .* --connection/,
+    );
+  });
+
+  test("local mode resolves the OS credential by Hub and connection ID", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-local-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    process.env.MURRMURE_HUB_TOKEN = "tok_must_not_be_used";
+    const config = resolveBridgeConfig({
+      homePath,
+      argv: [
+        "--hub",
+        "http://127.0.0.1:8787",
+        "--connection",
+        "con_local",
+      ],
+      readCredential: (hubId, connectionId) => {
+        expect(hubId).toBe("http://127.0.0.1:8787");
+        expect(connectionId).toBe("con_local");
+        return "tok_from_store";
+      },
+    });
+    expect(config.authMode).toBe("local");
+    expect(config.token).toBe("tok_from_store");
+  });
+
+  test("headless CI mode explicitly accepts runtime secret injection", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-ci-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    process.env.MURRMURE_HUB_TOKEN = "tok_ci";
+    const config = resolveBridgeConfig({
+      homePath,
+      argv: ["--headless-ci"],
+    });
+    expect(config.authMode).toBe("headless-ci");
+    expect(config.token).toBe("tok_ci");
   });
 
   test("fetchCatalog reports non-JSON responses", async () => {

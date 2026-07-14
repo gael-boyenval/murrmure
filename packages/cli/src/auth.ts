@@ -2,7 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readCredentials } from "./lib/auth-store.js";
-import { resolveActiveGrantToken } from "./lib/grant-store.js";
+import {
+  readActiveConnection,
+  readConnectionToken,
+} from "./lib/connection-store.js";
 
 export interface HubAuth {
   hubUrl: string;
@@ -53,13 +56,18 @@ function envAuth(): Partial<HubAuth> | null {
   };
 }
 
-function activeGrantAuth(): Partial<HubAuth> | null {
-  const activeGrant = resolveActiveGrantToken();
-  if (!activeGrant) return null;
-  return {
-    token: activeGrant.token,
-    defaultSpaceId: activeGrant.spaceId,
-  };
+function activeConnectionAuth(): Partial<HubAuth> | null {
+  const active = readActiveConnection();
+  if (!active) return null;
+  try {
+    return {
+      hubUrl: active.hub_id,
+      token: readConnectionToken(active.hub_id, active.connection_id),
+      defaultSpaceId: active.space_id,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function credentialsAuth(): Partial<HubAuth> | null {
@@ -117,16 +125,16 @@ export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: st
       ? { hubUrl: overrides.hubUrl, token: overrides.token }
       : null;
   const env = envAuth();
-  const activeGrant = activeGrantAuth();
+  const activeConnection = activeConnectionAuth();
   const credentials = credentialsAuth();
   const shared = sharedJsonAuth();
   const hubSources = [flagSource, env, credentials, shared];
-  const tokenSources = [flagSource, env, activeGrant, credentials, shared];
+  const tokenSources = [flagSource, env, activeConnection, credentials, shared];
 
   const hubUrl = pickField(hubSources, (source) => source.hubUrl);
   const token = pickField(tokenSources, (source) => source.token);
   const defaultSpaceId = pickField(
-    [env, activeGrant, credentials, shared],
+    [env, activeConnection, credentials, shared],
     (source) => source?.defaultSpaceId,
   );
 
@@ -136,7 +144,7 @@ export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: st
 
   return {
     error:
-      "Missing hub auth — run mrmr login, or set MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN (or MURRMURE_TOKEN / MURRMURE_DEPLOY_TOKEN), or activate a stored grant with mrmr grant use --space <spc_…>",
+      "Missing hub auth — run mrmr login, provide explicit headless/CI runtime auth, or activate a stored connection with mrmr connection activate <con_…> --space <spc_…>",
   };
 }
 

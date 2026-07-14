@@ -4,6 +4,13 @@
 
 ### Breaking Changes
 
+- Local tool authorization uses `mrmr connection`; removed public `grant`,
+  `space grant`, `space onboard`, and legacy action command paths without
+  aliases. Local MCP files contain Hub/connection IDs only, while credentials
+  are stored in macOS Keychain.
+- Added exact `tutorial-builder/v1` defaults, multi-context adapter installation,
+  generic no-write instructions, reload/resume state, connection rotation and
+  revocation, and stable bundled-launcher descriptors.
 - Flow manifests use `triggers` as the only start-condition field. The legacy
   `start` (including dual `start` + `triggers`), `requires_view`, `role`,
   `presentation`, `deriveRole`, and superseded routing keys (`next`, `fail_run`,
@@ -12,13 +19,13 @@
   `route`/`resume` semantics and receive injected `completed`/`failed` defaults
   when omitted. `mrmr space flow init` templates and docs-proof fixtures are
   migrated to the clean shape.
-- `mrmr setup` creates one user-named space instead of fixed development spaces
-  and stops before local-tool credential creation.
+- `mrmr setup` creates one user-named space and offers explicit local-tool
+  connection consent after apply.
 - `mrmr space init` derives its name/slug from the target folder, remains
   offline, and scaffolds no credential or MCP configuration.
 - Removed legacy `murrmure mcp` / `mrmr mcp` onboarding shape from docs and setup flows.
-- MCP onboarding now targets `@murrmure/mcp-bridge` (`murrmure-mcp`) with thin config (`MURRMURE_HUB_TOKEN` only).
-- Added grant token switching via `mrmr grant use --space <spc_...>` with per-space token storage under `~/.murrmure/grants/`.
+- MCP onboarding targets Desktop's stable
+  `~/.murrmure/bin/murrmure-mcp` launcher with ID-only arguments.
 
 ## 1.0.1
 

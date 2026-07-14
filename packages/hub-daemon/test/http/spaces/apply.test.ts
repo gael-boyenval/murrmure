@@ -541,4 +541,37 @@ describe("http/spaces/apply", () => {
     const body = await res.json();
     expect(body.code).toBe("LEGACY_STEP_KIND");
   });
+
+  test("apply rejects explicit branches: {} at parse (no persist, no warning)", async () => {
+    const emptyBranchesManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "empty-branches",
+      triggers: { manual: true },
+      steps: [{ id: "intake", description: "intake", branches: {} }],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_empty_branches",
+              rel_path: "flows/empty-branches/flow.manifest.yaml",
+              digest: "sha256:emptybranches",
+              manifest: emptyBranchesManifest,
+              raw: emptyBranchesManifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("EMPTY_BRANCHES");
+    // Not persisted: the flow is absent from the index.
+    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_empty_branches`, { headers: auth() });
+    expect(flowRes.status).toBe(404);
+  });
 });

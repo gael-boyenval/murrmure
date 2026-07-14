@@ -51,9 +51,8 @@ mrmr setup
 ```
 
 The wizard uses the already-running Desktop Hub authorization, then creates one
-named space, scaffolds, links, and applies in one guided pass. It does not write
-a login or create a local-tool connection, token, grant, or credential in this
-part.
+named space, scaffolds, links, applies, and offers to connect local tools in one
+guided pass.
 
 **Space** — asks for a human-readable name defaulted from the current folder,
 then shows an editable slug. Confirm `my-first-space` for both in this tutorial.
@@ -66,6 +65,23 @@ The Hub assigns a separate immutable `spc_…` ID.
 **Apply** — publishes `.mrmr/` so Desktop can see it. Watch the sidebar: your space should appear while the wizard runs.
 
 **Skill** — optional platform skills that teach tools how to use Murrmure.
+
+**Connection** — when asked **Connect tools on this computer?**, choose **Yes**.
+Select your detected integration context (or the generic portable-instructions
+option). Setup creates one `tutorial-builder/v1` connection for this computer
+and reuses it in every selected context. It stores the credential in macOS
+Keychain; generated configuration and project files contain only a `con_…` ID.
+
+Reload each selected tool when prompted, then call:
+
+```text
+murrmure_space_status
+```
+
+The response should identify `spc_…` for `my-first-space`.
+`murrmure_resolve_step` should also appear in the tool catalog. The default
+profile grants exactly `space:read`, `flow:read`, `flow:run`, and
+`step:resolve`; it does not grant raw journal or legacy action/gate access.
 
 The confirmed name and slug are written consistently during setup; no manual
 `space.yaml` repair or second apply is required.
@@ -116,6 +132,8 @@ Both should pass without errors.
 - [ ] After setup, **my-first-space** appears in the sidebar
 - [ ] `mrmr space status` shows your project folder linked
 - [ ] `.mrmr/` matches the layout above (empty handlers, no flows)
+- [ ] One `con_…` connection is installed in every selected context
+- [ ] After reload, `murrmure_space_status` succeeds and no generated file contains a token
 
 ## One-time reset for earlier development builds
 

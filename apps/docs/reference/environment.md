@@ -2,19 +2,17 @@
 
 Desktop users usually do not set env vars manually (bootstrap is automatic). This page is for CLI operators, MCP agent operators, handler shell spawns, and CI.
 
-## MCP agent env (token only)
+## Local MCP connections
 
-Thin MCP config uses `command: "murrmure-mcp"` and one env reference:
+Local MCP config uses the stable launcher plus ID arguments:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MURRMURE_HUB_TOKEN` | Yes | Grant token from `mrmr grant mint` (`tok_...`) |
+```text
+~/.murrmure/bin/murrmure-mcp --hub <hub-id> --connection <con-id>
+```
 
-Notes:
-
-- MCP config does **not** require `MURRMURE_SPACE_ID`. Space identity comes from token claims.
-- `MURRMURE_HUB_URL` is **not** required in MCP config. Bridge discovers hub endpoint from `~/.murrmure/hubs/shared.json`.
-- `mrmr grant use --space spc_...` sets a local active pointer for CLI auth resolution.
+No environment variable carries a local connection token. The bridge reads it
+from macOS Keychain. `MURRMURE_HUB_TOKEN` is accepted only with explicit
+`--headless-ci` and must be injected at process runtime by the CI provider.
 
 ## CLI / executor env
 
@@ -44,7 +42,9 @@ After `mrmr login`, credentials are stored in `~/.murrmure/credentials` (mode `0
 
 Auth resolution order:
 
-`--hub-url/--token` flags → env vars → active grant pointer (`~/.murrmure/grants/active`) → credentials → `~/.murrmure/hubs/shared.json`
+`--hub-url/--token` flags → explicit headless env → active connection
+(`~/.murrmure/connections/active.json`) + OS credential store → operator
+credentials → discovery
 
 ## `shell_spawn` child env (handlers + legacy actions)
 
@@ -71,6 +71,6 @@ Handler `command` / `prompt` templates may also resolve `&#123;&#123;space_root&
 ## Security
 
 - Never commit `MURRMURE_HUB_TOKEN` to git.
-- Revoke leaked tokens immediately with `mrmr grant revoke`.
+- Revoke or rotate a compromised connection immediately with `mrmr connection revoke|rotate`.
 - Browser session cookies are not API tokens.
-- Dispatch-injected `MURRMURE_HUB_TOKEN` is run-scoped — do not reuse as a long-lived grant.
+- Dispatch-injected `MURRMURE_HUB_TOKEN` is run-scoped — do not reuse as a persistent connection.

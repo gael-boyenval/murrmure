@@ -30,8 +30,6 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_apply_space", required_scope: "space:write", description: "Re-index murrmure/ files for a space" },
   { name: "murrmure_space_status", required_scope: "space:read", description: "Indexed digests and counts for a space" },
   { name: "murrmure_space_health", required_scope: "space:read", description: "Space health summary (index + handler coverage)" },
-  { name: "murrmure_grant_mint", required_scope: "space:admin", description: "Mint an agent grant (CLI preferred in v2)" },
-  { name: "murrmure_invoke_action", required_scope: "action:invoke", description: "Invoke a space-indexed action" },
   { name: "murrmure_resolve_step", required_scope: "step:resolve", description: "Resolve an active flow step (branch + payload + optional artifacts_out)" },
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
   { name: "murrmure_list_handlers", required_scope: "space:read", description: "List indexed step/event handlers for a space" },
@@ -45,7 +43,7 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_list_step_contracts", required_scope: "space:read", description: "List active step contract slice + graph_digest for a run" },
   { name: "murrmure_get_run_graph", required_scope: "flow:read", description: "Get run flowchart graph (manifest overlay + step memo)" },
   { name: "murrmure_attach_orchestration", required_scope: "flow:run", description: "Agent-push murrmure.flow.attach/v1; creates orchestration.validate gate" },
-  { name: "murrmure_cancel_run", required_scope: "gate:resolve", description: "Cancel an in-flight run" },
+  { name: "murrmure_cancel_run", required_scope: "flow:run", description: "Cancel an in-flight run" },
   { name: "murrmure_wait_for_run", required_scope: "space:read", description: "Long-poll until run reaches terminal lifecycle" },
   { name: "murrmure_journal_query", required_scope: "journal:read", description: "Query journal entries with filters" },
 ];

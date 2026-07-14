@@ -6,13 +6,12 @@ import { loginCommand, logoutCommand, whoamiCommand } from "./auth.js";
 import { doctorCommand } from "./doctor.js";
 import { healthCommand } from "./health.js";
 import { flowCommand } from "./flow/index.js";
-import { grantCommand } from "./grant.js";
+import { connectionCommand } from "./connection.js";
 import { hubCommand } from "./hub.js";
 import { runtimeCommand } from "./runtime.js";
 import { skillCommand } from "./skill.js";
 import { spaceCommand } from "./space/index.js";
 import { stepCommand } from "./step.js";
-import { actionCommand } from "./action/index.js";
 import { meCommand } from "./me/index.js";
 import { workerCommand } from "./worker/index.js";
 import { viewCommand } from "./view/index.js";
@@ -50,11 +49,10 @@ export const rootCommand = defineCommand({
     health: healthCommand,
     step: stepCommand,
     space: spaceCommand,
-    action: actionCommand,
     me: meCommand,
     worker: workerCommand,
     federation: federationCommand,
-    grant: grantCommand,
+    connection: connectionCommand,
     hub: hubCommand,
     runtime: runtimeCommand,
     flow: flowCommand,

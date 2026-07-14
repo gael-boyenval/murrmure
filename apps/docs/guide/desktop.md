@@ -55,14 +55,14 @@ The **`/spaces/new`** page and `mrmr setup` share the same handoff: after link +
 | Actor | How to authenticate |
 |-------|----------------------|
 | **Desktop human** | Bootstrap token auto-injected — no `/connect` paste |
-| **Agent (MCP)** | Explicit connection setup after space creation; `mrmr setup` does not mint credentials |
-| **CLI operator** | `mrmr login` (bootstrap first time, or a minted grant) → saved in `~/.murrmure/credentials` |
+| **Participant (MCP)** | Accept setup connection consent; credential stays in macOS Keychain |
+| **CLI operator** | `mrmr login` (bootstrap first time) → saved operator credentials |
 
 The **`/connect`** route exists for contributor debugging only. End users on Desktop never need it.
 
 ## App menu
 
-- **Copy MCP config** — thin `murrmure-mcp` snippet (`MURRMURE_HUB_TOKEN` placeholder)
+- **Copy MCP config** — stable launcher plus Hub/connection IDs; no token
 - **Open data folder** — opens `~/.murrmure`
 
 ## Out-of-shell notifications
@@ -109,6 +109,6 @@ CLI flow development is unchanged: keep Desktop open, then run `mrmr flow dev`, 
 ## Next
 
 - [Quick start](./quick-start) — Desktop → `mrmr setup` → Run
-- [CLI](./cli) — setup, grants, and automation
+- [CLI](./cli) — setup, connections, and automation
 - [Shell UI routes](./shell-routes) — observer screens inside Desktop
 - [Connect your agent](./agents-mcp)

@@ -37,25 +37,14 @@ cd ~/work/knowledge-base && mrmr space link --path . --space spc_knowledge && mr
 cd ~/work/dev-project && mrmr space link --path . --space spc_dev && mrmr space apply
 ```
 
-## 3) Cross-space grants
+## 3) Cross-space connections
 
-Each agent needs a token scoped to its space **and** the capabilities to participate in federation.
+Create a distinct connection for each space/trust boundary:
 
 ```bash
-# Orchestrator — runs flow, queries knowledge
-mrmr grant mint --space spc_orchestrator \
-  --capabilities flow:run,flow:read,query:ask,step:resolve,space:read \
-  --label orchestrator-agent
-
-# Knowledge — answers queries (no flow:run required for passive Q&A)
-mrmr grant mint --space spc_knowledge \
-  --capabilities space:read,query:respond \
-  --label knowledge-agent
-
-# Dev — receives wakes, resolves steps, queries orchestrator
-mrmr grant mint --space spc_dev \
-  --capabilities flow:run,flow:read,step:resolve,space:read,query:ask,event:emit \
-  --label dev-agent
+mrmr connection create --space spc_orchestrator
+mrmr connection create --space spc_knowledge
+mrmr connection create --space spc_dev
 ```
 
 Configure federation / inbound allowlists so dev can receive wakes from orchestrator events — see [Multi-agent feature spec](../../multi-agent-feature-spec).

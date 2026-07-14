@@ -239,14 +239,21 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       );
   }
 
+  async revokeToken(token_id: string): Promise<void> {
+    this.db
+      .prepare("UPDATE tokens SET status = 'revoked' WHERE token_id = ?")
+      .run(token_id);
+  }
+
   async insertGrant(row: GrantRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO grants (grant_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, flow_acl_json, expires_at, capabilities_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO grants (grant_id, token_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, flow_acl_json, expires_at, capabilities_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.grant_id,
+        row.token_id ?? null,
         row.space_id,
         row.actor_id,
         JSON.stringify(row.scopes),
@@ -268,6 +275,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     if (!row) return null;
     return {
       grant_id: row.grant_id,
+      token_id: row.token_id ?? undefined,
       space_id: row.space_id,
       actor_id: row.actor_id,
       scopes: parseJson(row.scopes_json),
@@ -283,7 +291,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
 
   async listGrants(space_id: string): Promise<GrantRow[]> {
     const rows = this.db
-      .prepare("SELECT grant_id FROM grants WHERE space_id = ? AND status = 'active'")
+      .prepare("SELECT grant_id FROM grants WHERE space_id = ? ORDER BY created_at DESC")
       .all(space_id) as Array<{ grant_id: string }>;
     const out: GrantRow[] = [];
     for (const r of rows) {

@@ -163,7 +163,7 @@ describe("stdio bridge proxy", () => {
         "--import",
         "tsx",
         "-e",
-        "import('./src/main.ts').then((m) => m.startMcpBridge())",
+        "import('./src/main.ts').then((m) => m.startMcpBridge({ bridgeArgv: ['--headless-ci'] }))",
       ],
       cwd: packageRoot,
       env: cleanEnv({

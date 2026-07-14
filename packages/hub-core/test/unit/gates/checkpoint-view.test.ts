@@ -3,18 +3,18 @@ import { resolveCheckpointViewRef } from "../../../src/gates/checkpoint-view.js"
 import { compileFlowIr } from "../../../src/flow-engine/compile.js";
 
 describe("gates/checkpoint-view", () => {
-  test("resolveCheckpointViewRef returns undefined for step_contract presentation steps", () => {
+  test("resolveCheckpointViewRef returns undefined for step_contract steps (no gate)", () => {
     const ir = compileFlowIr(
       {
         apiVersion: "murrmure.flow/v1",
         name: "gate-requires-view",
-        start: { manual: true },
+        triggers: { manual: true },
         steps: [
           {
             id: "review",
-            presentation: { view: "preview-review" },
+            description: "review",
             branches: {
-              continue: { schema: { type: "object" }, next: null },
+              continue: { schema: { type: "object" }, route: { run: "completed" } },
             },
           },
         ],

@@ -44,12 +44,19 @@ describe("resolveAuthSource", () => {
     expect(resolveAuthSource()).toBe("env");
   });
 
-  test("detects active grant source when env is absent", () => {
-    const grantsDir = join(testHomeRef.value, ".murrmure", "grants");
-    mkdirSync(grantsDir, { recursive: true });
-    writeFileSync(join(grantsDir, "spc_ui_sandbox.token"), "tok_space\n");
-    writeFileSync(join(grantsDir, "active"), "spc_ui_sandbox\n");
-    expect(resolveAuthSource()).toBe("active-grant");
+  test("detects active connection source when env is absent", () => {
+    const connectionsDir = join(testHomeRef.value, ".murrmure", "connections");
+    mkdirSync(connectionsDir, { recursive: true });
+    writeFileSync(
+      join(connectionsDir, "active.json"),
+      JSON.stringify({
+        hub_id: "http://127.0.0.1:8787",
+        connection_id: "con_local",
+        space_id: "spc_ui_sandbox",
+        profile: "tutorial-builder/v1",
+      }),
+    );
+    expect(resolveAuthSource()).toBe("active-connection");
   });
 });
 

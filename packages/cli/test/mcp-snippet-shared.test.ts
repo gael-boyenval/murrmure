@@ -5,10 +5,14 @@ import { buildThinMcpSnippet as buildShellWebSnippet } from "../../../packages/s
 
 describe("MCP snippet shared shape", () => {
   test("CLI, Desktop, and Shell Web snippets are identical thin shape", () => {
-    const tokenPlaceholder = "tok_<replace_with_grant_token>";
-    const cliSnippet = JSON.parse(buildCliSnippet({ token: tokenPlaceholder })) as Record<string, unknown>;
-    const desktopSnippet = JSON.parse(buildDesktopSnippet()) as Record<string, unknown>;
-    const shellWebSnippet = buildShellWebSnippet({ token: tokenPlaceholder });
+    const options = {
+      command: "/Users/test/.murrmure/bin/murrmure-mcp",
+      hubId: "http://127.0.0.1:8787",
+      connectionId: "con_test",
+    };
+    const cliSnippet = JSON.parse(buildCliSnippet(options)) as Record<string, unknown>;
+    const desktopSnippet = JSON.parse(buildDesktopSnippet(options)) as Record<string, unknown>;
+    const shellWebSnippet = buildShellWebSnippet(options);
 
     expect(cliSnippet).toEqual(desktopSnippet);
     expect(cliSnippet).toEqual(shellWebSnippet);
@@ -17,10 +21,13 @@ describe("MCP snippet shared shape", () => {
       {
         "mcpServers": {
           "murrmure": {
-            "command": "murrmure-mcp",
-            "env": {
-              "MURRMURE_HUB_TOKEN": "tok_<replace_with_grant_token>",
-            },
+            "args": [
+              "--hub",
+              "http://127.0.0.1:8787",
+              "--connection",
+              "con_test",
+            ],
+            "command": "/Users/test/.murrmure/bin/murrmure-mcp",
           },
         },
       }

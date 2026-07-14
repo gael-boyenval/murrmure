@@ -46,7 +46,8 @@ describe("scanMcpConfig", () => {
     writeFileSync(
       join(cursorDir, "mcp.json"),
       buildMcpConfigSnippet({
-        token: "${env:MURRMURE_HUB_TOKEN}",
+        hubId: "http://127.0.0.1:8787",
+        connectionId: "con_test",
       }),
     );
 
@@ -98,7 +99,8 @@ describe("scanMcpConfig", () => {
     writeFileSync(
       join(globalCursor, "mcp.json"),
       buildMcpConfigSnippet({
-        token: "${env:MURRMURE_HUB_TOKEN}",
+        hubId: "http://127.0.0.1:8787",
+        connectionId: "con_global",
       }),
     );
 
@@ -114,14 +116,18 @@ describe("scanMcpConfig", () => {
 
 describe("buildMcpConfigSnippet", () => {
   test("emits thin bridge shape only", () => {
-    const snippet = buildMcpConfigSnippet({ token: "tok_agent" });
+    const snippet = buildMcpConfigSnippet({
+      hubId: "http://127.0.0.1:8787",
+      connectionId: "con_agent",
+    });
     expect(snippet).toContain("\"command\": \"murrmure-mcp\"");
-    expect(snippet).not.toContain("\"args\"");
+    expect(snippet).toContain("\"args\"");
+    expect(snippet).not.toContain("tok_agent");
     expect(snippet).not.toContain("MURRMURE_HUB_URL");
     expect(snippet).not.toContain("MURRMURE_SPACE_ID");
   });
 
-  test("resolveMcpBridgeCommand prefers Desktop-bundled path from shared.json", () => {
+  test("resolveMcpBridgeCommand upgrades old bundle discovery to stable launcher", () => {
     const homePath = mkdtempSync(join(tmpdir(), "cli-mcp-bridge-home-"));
     testHomeRef.value = homePath;
     const hubsDir = join(homePath, ".murrmure", "hubs");
@@ -135,10 +141,10 @@ describe("buildMcpConfigSnippet", () => {
     );
 
     expect(resolveMcpBridgeCommand()).toBe(
-      "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js",
+      join(homePath, ".murrmure", "bin", "murrmure-mcp"),
     );
-    expect(buildMcpConfigSnippet({ token: "tok_agent" })).toContain(
-      "/Applications/Murrmure.app/Contents/Resources/mcp-bridge/main.js",
+    expect(buildMcpConfigSnippet()).toContain(
+      join(homePath, ".murrmure", "bin", "murrmure-mcp"),
     );
 
     rmSync(homePath, { recursive: true, force: true });
@@ -189,21 +195,22 @@ describe("rewriteFatMcpConfigFiles", () => {
 
     const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
       mcpServers: {
-        murrmure: { command: string; args?: unknown; env: Record<string, string> };
+        murrmure: { command: string; args?: unknown; env?: Record<string, string> };
       };
     };
     expect(parsed.mcpServers.murrmure.command).toBe("murrmure-mcp");
     expect(parsed.mcpServers.murrmure.args).toBeUndefined();
-    expect(parsed.mcpServers.murrmure.env).toEqual({
-      MURRMURE_HUB_TOKEN: "tok_space",
-    });
+    expect(parsed.mcpServers.murrmure.env).toBeUndefined();
   });
 
   test("keeps already-thin config unchanged", () => {
     const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });
     const configPath = join(cursorDir, "mcp.json");
-    const before = buildMcpConfigSnippet({ token: "${env:MURRMURE_HUB_TOKEN}" });
+    const before = buildMcpConfigSnippet({
+      hubId: "http://127.0.0.1:8787",
+      connectionId: "con_test",
+    });
     writeFileSync(configPath, before);
 
     const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });

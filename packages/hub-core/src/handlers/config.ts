@@ -369,6 +369,21 @@ export class ConfigHandler {
     },
     provenance: StudioProvenance,
   ): Promise<CommandResult> {
+    if (body.flow_acl?.length) {
+      const installs = await this.studio.listFlowInstalls(stripSpaceId(space_id));
+      const canonicalFlowIds = new Set(installs.map((install) => install.flow_id));
+      const unknown = body.flow_acl.filter((flowId) => !canonicalFlowIds.has(flowId));
+      if (unknown.length > 0) {
+        return denialResult(
+          "unknown_flow_acl",
+          {
+            message:
+              `Flow ACL accepts only already-applied canonical flow ids; unknown: ${unknown.join(", ")}`,
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
+    }
     const grant_id = this.ids.ulid();
     const token_id = this.ids.ulid();
     const templateCaps = GRANT_TEMPLATES[body.template ?? "worker"] ?? GRANT_TEMPLATES.worker;
@@ -386,6 +401,7 @@ export class ConfigHandler {
     await this.studio.insertGrant(
       {
         grant_id,
+        token_id,
         space_id: stripSpaceId(space_id),
         actor_id: provenance.actor_id,
         label: body.label,
@@ -426,7 +442,11 @@ export class ConfigHandler {
 
   async revokeGrant(space_id: string, grant_id: string) {
     const bare = grant_id.startsWith("grt_") ? grant_id.slice(4) : grant_id;
+    const grant = await this.studio.getGrant(bare);
     await this.studio.revokeGrant(bare);
+    if (grant?.token_id) {
+      await this.studio.revokeToken?.(grant.token_id);
+    }
     return { grant_id, status: "revoked" };
   }
 
@@ -434,7 +454,7 @@ export class ConfigHandler {
     const bare = grant_id.startsWith("grt_") ? grant_id.slice(4) : grant_id;
     const grant = await this.studio.getGrant(bare);
     if (!grant) return null;
-    await this.studio.revokeGrant(bare);
+    await this.revokeGrant(space_id, grant_id);
     return this.mintGrant(
       space_id,
       {

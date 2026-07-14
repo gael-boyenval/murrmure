@@ -2,6 +2,7 @@ import * as p from "@clack/prompts";
 import { defineCommand, type CommandDef } from "citty";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { homedir, hostname } from "node:os";
 import { globalArgs, parseGlobalFlags } from "../lib/flags.js";
 import { printErr, printOk } from "../lib/output.js";
 import { runGlobalScopePreflight } from "../lib/preflight.js";
@@ -11,6 +12,12 @@ import { installMurrmureSkill } from "../skill/install.js";
 import { confirmStep, promptText } from "../wizard/interactive.js";
 import { buildSetupJsonPlan, type WizardRunResult, type WizardStepResult } from "../wizard/json.js";
 import { printDesktopHandoff } from "../wizard/outro.js";
+import {
+  detectedConnectionAdapters,
+  findConnectionAdapter,
+  writeSetupResume,
+} from "../lib/connection-adapters.js";
+import { wizardCreateConnection } from "../wizard/grant.js";
 import {
   normalizeSpaceSlug,
   resolveSpaceIdentity,
@@ -96,6 +103,8 @@ export async function runSetupWizard(options: {
   json: boolean;
   name?: string;
   slug?: string;
+  connectTools?: boolean;
+  contexts?: string[];
 }): Promise<WizardRunResult> {
   const { projectPath, flags, yes, json } = options;
   const steps: WizardStepResult[] = [];
@@ -239,6 +248,93 @@ export async function runSetupWizard(options: {
   }
 
   if (linkedSpaceId) {
+    let connectTools = Boolean(options.connectTools);
+    if (!json && !yes && options.connectTools === undefined) {
+      const answer = await p.confirm({
+        message: "Connect tools on this computer?",
+        initialValue: true,
+      });
+      if (p.isCancel(answer)) {
+        p.cancel("Setup paused — run mrmr setup again to connect local tools");
+        connectTools = false;
+      } else {
+        connectTools = Boolean(answer);
+      }
+    }
+
+    if (connectTools) {
+      try {
+        const connection = await wizardCreateConnection(auth, linkedSpaceId, {
+          label: `Local tools on ${hostname()}`,
+        });
+        const detected = detectedConnectionAdapters({ projectPath });
+        let selectedIds = options.contexts;
+        if (!selectedIds && !json && !yes) {
+          const selected = await p.multiselect({
+            message: "Choose integration contexts",
+            options: detected.map((adapter) => ({
+              value: adapter.id,
+              label: adapter.label,
+            })),
+            initialValues: detected.length === 1 ? [detected[0]!.id] : [],
+            required: true,
+          });
+          if (!p.isCancel(selected)) {
+            selectedIds = selected as string[];
+          }
+        }
+        selectedIds ??= detected.map((adapter) => adapter.id);
+        const installs = selectedIds.map((id) => {
+          const adapter = findConnectionAdapter(id);
+          if (!adapter) throw new Error(`Unknown integration context: ${id}`);
+          return adapter.install(connection.descriptor, {
+            projectPath,
+            homePath: homedir(),
+          });
+        });
+        const resumePath = writeSetupResume({
+          descriptor: connection.descriptor,
+          adapters: selectedIds,
+          next: "reload-and-verify",
+        });
+        for (const install of installs) {
+          if (!json && install.instructions) {
+            p.note(install.instructions, install.adapter_id);
+          }
+        }
+        pushStep(steps, {
+          id: "connection",
+          ok: true,
+          detail: {
+            connection_id: connection.connection_id,
+            profile: connection.profile,
+            capabilities: [...connection.capabilities],
+            contexts: installs.map((install) => install.adapter_id),
+            resume_path: resumePath,
+            next: "reload-and-verify",
+          },
+        });
+        if (!json) {
+          p.log.success(
+            `Connected ${installs.length} context${installs.length === 1 ? "" : "s"} with ${connection.connection_id}`,
+          );
+          p.log.info("Reload each selected tool, then call murrmure_space_status.");
+        }
+      } catch (error) {
+        pushStep(steps, {
+          id: "connection",
+          ok: false,
+          error: wizardStepError(error),
+        });
+      }
+    } else {
+      pushStep(steps, { id: "connection", ok: true, skipped: true });
+    }
+  } else {
+    pushStep(steps, { id: "connection", ok: true, skipped: true });
+  }
+
+  if (linkedSpaceId) {
     try {
       const status = await wizardSpaceStatus(flags, projectPath, linkedSpaceId);
       pushStep(steps, { id: "status", ok: true, detail: { counts: status.counts } });
@@ -297,6 +393,14 @@ export const setupCommand = defineCommand({
       description: "Non-interactive — accept defaults (CI smoke)",
       default: false,
     },
+    "connect-tools": {
+      type: "boolean",
+      description: "Create and install one local connection in non-interactive setup",
+    },
+    contexts: {
+      type: "string",
+      description: "Comma-separated integration context ids (for example: cursor,generic)",
+    },
   },
   async run({ args }) {
     const flags = parseGlobalFlags(args);
@@ -310,6 +414,11 @@ export const setupCommand = defineCommand({
       json: flags.json,
       name: typeof args.name === "string" ? args.name : undefined,
       slug: typeof args.slug === "string" ? args.slug : undefined,
+      connectTools: args["connect-tools"] === true ? true : undefined,
+      contexts:
+        typeof args.contexts === "string"
+          ? args.contexts.split(",").map((entry) => entry.trim()).filter(Boolean)
+          : undefined,
     });
 
     if (flags.json) {

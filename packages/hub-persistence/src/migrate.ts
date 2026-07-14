@@ -338,6 +338,9 @@ export function migrateStudio(db: Database.Database): void {
   if (!grantColNames.has("capabilities_json")) {
     db.exec(`ALTER TABLE grants ADD COLUMN capabilities_json TEXT`);
   }
+  if (!grantColNames.has("token_id")) {
+    db.exec(`ALTER TABLE grants ADD COLUMN token_id TEXT`);
+  }
 
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
   const memberColNames = new Set(memberCols.map((c) => c.name));

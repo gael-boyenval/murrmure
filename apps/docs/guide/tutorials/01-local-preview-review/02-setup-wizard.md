@@ -78,12 +78,13 @@ slug: my-feature-site
 
 Your `space.yaml` should declare the slug and optional `link:` block once the space is linked — see Part 2 for the full file.
 
-## Already onboarded?
+## Already initialized?
 
 ```bash
-mrmr space onboard
+mrmr space link --path . --space spc_…
+mrmr space apply
 mrmr skill install --variant all
-mrmr grant mint --space spc_… --capabilities flow:run,flow:read,action:invoke,step:resolve,gate:resolve,journal:read,space:read --label cursor
+mrmr connection create --space spc_…
 ```
 
 ## Checkpoint

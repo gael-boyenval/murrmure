@@ -31,7 +31,7 @@ Flow:
 ## Prerequisites
 
 1. [Murrmure Desktop](./desktop) running with local hub
-2. **CLI operator** — you run `mrmr space` / `mrmr grant mint`, not curl
+2. **CLI operator** — you run `mrmr space` / `mrmr connection`, not curl
 3. On each agent machine: `npm install -g @murrmure/cli`
 4. Three directories:
 
@@ -70,20 +70,18 @@ mrmr space link --path . --space spc_orchestrator
 mrmr space apply --strict
 ```
 
-Mint grants with **`--capabilities flow:run,flow:read,query:ask`** so agents can invoke indexed actions and cross-space queries.
+Create one connection per space/trust boundary. Configure cross-space query
+policy separately from the local connection profile.
 
-### 1.3 Mint agent grants
+### 1.3 Create connections
 
 ```bash
-mrmr grant mint --space spc_orchestrator --label "Orchestrator Cursor" \
-  --template worker --flow-acl feature-spec
-
-mrmr grant mint --space spc_knowledge --label "Knowledge Cursor" --template worker
-
-mrmr grant mint --space spc_dev --label "Dev Cursor" --template worker
+mrmr connection create --space spc_orchestrator --flow-acl feature-spec
+mrmr connection create --space spc_knowledge
+mrmr connection create --space spc_dev
 ```
 
-Copy each **one-time token** immediately.
+Each credential is stored in the OS credential store; no token is printed.
 
 **Cross-space reads (recommended):** allow the Dev space to query the Orchestrator space:
 
@@ -120,44 +118,15 @@ Each row has terminal `outcome`: `success`, `failed`, or `deduped` (not `pending
 
 ## Part 2 — Connect each directory (MCP)
 
-Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
-
-Install bridge once:
-
-```bash
-npm install -g @murrmure/mcp-bridge
-```
-
-Use the same thin config in each folder:
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure-mcp",
-      "env": {
-        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Then, in each agent shell/window, export the matching token for that space:
+Open each folder in its own context. Install the matching connection descriptor
+created in Part 1; Desktop already bundles the bridge. To switch the active
+local connection:
 
 ```bash
-export MURRMURE_HUB_TOKEN=tok_ORCHESTRATOR_GRANT   # orchestrator window
-export MURRMURE_HUB_TOKEN=tok_KNOWLEDGE_GRANT      # knowledge window
-export MURRMURE_HUB_TOKEN=tok_DEV_GRANT            # dev window
+mrmr connection activate con_… --space spc_orchestrator
 ```
 
-Optional local pointer switch:
-
-```bash
-mrmr grant use --space spc_orchestrator
-```
-
-Repeat per space (`spc_knowledge`, `spc_dev`) on the machine that stores those grants.
+Repeat per space (`spc_knowledge`, `spc_dev`) on the machine that stores those connections.
 
 Reload MCP in every window.
 
@@ -276,10 +245,10 @@ sequenceDiagram
 | Mistake | Fix |
 |---------|-----|
 | One token in all three IDEs | Use three grants (one token per agent window) |
-| MCP tools missing | **`mrmr space apply --strict`**; **`mrmr grant mint`** with `flow:run` / `query:ask`; reload MCP |
+| MCP tools missing | **`mrmr space apply --strict`**; verify the active connection profile; reload MCP |
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
-| Wrong space context | Export the token minted for that space (or run `mrmr grant use --space ...`) |
+| Wrong space context | Activate the matching `con_…` for that space and reload |
 | Dev not woken after publish | Register **Spec published → wake dev** trigger; check `mrmr space trigger deliveries` |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |

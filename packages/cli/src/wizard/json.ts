@@ -5,7 +5,7 @@ export type WizardStepId =
   | "link"
   | "apply"
   | "skill"
-  | "grant"
+  | "connection"
   | "status"
   | "doctor";
 
@@ -42,12 +42,11 @@ export const SETUP_STEP_PLAN: WizardStepPlan[] = [
   { id: "link", command: "mrmr space link --path . --space <id>", description: "Register local path binding" },
   { id: "apply", command: "mrmr space apply", description: "Index local flows to hub" },
   { id: "skill", command: "mrmr skill install", description: "Optionally install Murrmure skills" },
-];
-
-export const ONBOARD_STEP_PLAN: WizardStepPlan[] = [
-  { id: "link", command: "mrmr space link --path . --create", description: "Link existing murrmure/ to hub space" },
-  { id: "apply", command: "mrmr space apply", description: "Index local flows to hub" },
-  { id: "status", command: "mrmr space status", description: "Show indexed counts and digests" },
+  {
+    id: "connection",
+    command: "mrmr connection create",
+    description: "Optionally connect selected local tools with one least-privilege connection",
+  },
 ];
 
 export function buildSetupJsonPlan(options?: { yes?: boolean }): {
@@ -62,14 +61,3 @@ export function buildSetupJsonPlan(options?: { yes?: boolean }): {
   };
 }
 
-export function buildOnboardJsonPlan(options?: { yes?: boolean }): {
-  wizard: "onboard";
-  interactive: boolean;
-  steps: WizardStepPlan[];
-} {
-  return {
-    wizard: "onboard",
-    interactive: !options?.yes,
-    steps: ONBOARD_STEP_PLAN,
-  };
-}

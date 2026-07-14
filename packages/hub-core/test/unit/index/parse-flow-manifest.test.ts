@@ -114,6 +114,40 @@ describe("index/parse-flow-manifest", () => {
     if (!result.ok) expect(result.code).toBe("INLINE_SCRIPT_STEP");
   });
 
+  test("rejects explicit branches: {} with EMPTY_BRANCHES", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [{ id: "a", branches: {} }],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("EMPTY_BRANCHES");
+  });
+
+  test("rejects explicit branches: {} on a nested step", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [
+        {
+          id: "build",
+          steps: [{ id: "build-loop", branches: {} }],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("EMPTY_BRANCHES");
+      expect(result.message).toContain("build.build-loop");
+    }
+  });
+
+  test("accepts omitted branches (defaults injected at compile, not parse)", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [{ id: "a", description: "no branches" }],
+    });
+    expect(result.ok).toBe(true);
+  });
+
   test("rejects inline script in parallel.lane", () => {
     const result = rejectInlineScriptSteps({
       ...VALID_MANIFEST,

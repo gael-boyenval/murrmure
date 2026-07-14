@@ -1,36 +1,15 @@
 # Part 3 — Connect agents
 
-Wire three MCP sessions — one grant per space — and map wake labels to agent behavior.
+Wire three MCP sessions — one connection per trust boundary — and map wake labels to participant behavior.
 
 ## MCP config pattern
 
-Each agent window gets its own MCP server entry (or env swap). Never reuse tokens across spaces.
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure-mcp",
-      "env": {
-        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Set a different `MURRMURE_HUB_TOKEN` per agent window/shell:
+Run `mrmr connection create` for each space and install the resulting
+connection into the matching context. Local descriptors use the stable launcher
+with `--hub` and `--connection`; they contain no token.
 
 ```bash
-export MURRMURE_HUB_TOKEN=tok_orchestrator_...
-# knowledge window -> tok_knowledge_...
-# dev window -> tok_dev_...
-```
-
-Optional local switch helper:
-
-```bash
-mrmr grant use --space spc_orchestrator
+mrmr connection activate con_… --space spc_orchestrator
 ```
 
 Reload the IDE after saving. See [Connect your agent (MCP)](../../agents-mcp).

@@ -106,6 +106,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     this.tokens.set(row.token_id, row);
   }
 
+  async revokeToken(token_id: string): Promise<void> {
+    const token = this.tokens.get(token_id);
+    if (token) this.tokens.set(token_id, { ...token, status: "revoked" });
+  }
+
   async insertGrant(row: GrantRow, _created_at: string): Promise<void> {
     this.grants.set(row.grant_id, row);
   }
@@ -115,7 +120,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   }
 
   async listGrants(space_id: string): Promise<GrantRow[]> {
-    return [...this.grants.values()].filter((g) => g.space_id === space_id && g.status === "active");
+    return [...this.grants.values()].filter((g) => g.space_id === space_id);
   }
 
   async listAllGrants(): Promise<GrantRow[]> {

@@ -78,6 +78,53 @@ export function rejectRemovedStartFields(raw: unknown): ParseResult<unknown> {
   return { ok: true, value: raw };
 }
 
+/**
+ * Reject explicit `branches: {}`. Omission receives `completed` / `failed`
+ * defaults; an explicit empty map is invalid (done gate). Walks top-level and
+ * nested `steps` (parallel/start_flow steps carry no `branches`).
+ */
+export function rejectEmptyBranches(raw: unknown): ParseResult<unknown> {
+  if (!raw || typeof raw !== "object") return { ok: true, value: raw };
+  const steps = (raw as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return { ok: true, value: raw };
+
+  const visit = (step: unknown, idPrefix: string | null): string | null => {
+    if (!step || typeof step !== "object") return null;
+    const record = step as Record<string, unknown>;
+    const stepId = typeof record.id === "string" ? record.id : "(unknown)";
+    const qualifiedId = idPrefix ? `${idPrefix}.${stepId}` : stepId;
+    const branches = record.branches;
+    if (
+      branches &&
+      typeof branches === "object" &&
+      !Array.isArray(branches) &&
+      Object.keys(branches as Record<string, unknown>).length === 0
+    ) {
+      return qualifiedId;
+    }
+    const children = record.steps;
+    if (Array.isArray(children)) {
+      for (const child of children) {
+        const hit = visit(child, qualifiedId);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  };
+
+  for (const step of steps) {
+    const hit = visit(step, null);
+    if (hit) {
+      return {
+        ok: false,
+        code: "EMPTY_BRANCHES",
+        message: `Step '${hit}' declares branches: {} — omit branches to receive defaults or declare at least one branch`,
+      };
+    }
+  }
+  return { ok: true, value: raw };
+}
+
 export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
   const guard = rejectInlineScriptSteps(raw);
   if (!guard.ok) return guard;
@@ -90,6 +137,9 @@ export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
 
   const legacy = rejectLegacyStepKinds(raw);
   if (!legacy.ok) return legacy;
+
+  const emptyBranches = rejectEmptyBranches(raw);
+  if (!emptyBranches.ok) return emptyBranches;
 
   const parsed = FlowManifestSchema.safeParse(raw);
   if (!parsed.success) {

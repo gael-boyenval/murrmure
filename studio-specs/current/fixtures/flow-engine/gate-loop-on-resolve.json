@@ -4,7 +4,6 @@
     "apiVersion": "murrmure.flow/v1",
     "name": "gate-loop-on-resolve",
     "triggers": { "manual": true },
-    "start": { "manual": true },
     "steps": [
       {
         "id": "intake",

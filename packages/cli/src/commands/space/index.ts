@@ -6,14 +6,12 @@ import {
   spaceShowCommand,
   spaceUpdateCommand,
 } from "./commands.js";
-import { grantCommand } from "./grant.js";
 import { spaceInitCommand } from "./init.js";
 import { spaceLinkCommand } from "./link.js";
 import { spaceApplyCommand } from "./apply.js";
 import { spaceStatusCommand } from "./status.js";
 import { spaceDoctorCommand } from "./doctor.js";
 import { spaceSetupCommand } from "./setup.js";
-import { spaceOnboardCommand } from "./onboard.js";
 import { memberCommand } from "./member.js";
 import { triggerCommand } from "./trigger.js";
 import { spaceViewCommand } from "./view.js";
@@ -24,7 +22,6 @@ export const spaceCommand = defineCommand({
   subCommands: {
     init: spaceInitCommand,
     setup: spaceSetupCommand,
-    onboard: spaceOnboardCommand,
     link: spaceLinkCommand,
     apply: spaceApplyCommand,
     status: spaceStatusCommand,
@@ -34,7 +31,6 @@ export const spaceCommand = defineCommand({
     create: spaceCreateCommand,
     update: spaceUpdateCommand,
     archive: spaceArchiveCommand,
-    grant: grantCommand,
     member: memberCommand,
     trigger: triggerCommand,
     view: spaceViewCommand,

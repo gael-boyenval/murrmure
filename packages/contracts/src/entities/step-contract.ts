@@ -55,6 +55,19 @@ export const StepBranchDefinitionSchema = z.object({
 
 export type StepBranchDefinition = z.infer<typeof StepBranchDefinitionSchema>;
 
+/**
+ * Branch map authoring field. Explicit `branches: {}` is invalid — omit
+ * `branches` to receive `completed` / `failed` defaults or declare at least one
+ * branch. The parser hard-rejects an empty map (`EMPTY_BRANCHES`); the schema
+ * refine keeps direct `FlowManifestSchema` parses honest too.
+ */
+export const StepBranchMapSchema = z
+  .record(StepBranchDefinitionSchema)
+  .refine((map) => Object.keys(map).length > 0, {
+    message:
+      "branches: {} is invalid — omit branches to receive defaults or declare at least one branch",
+  });
+
 export type StepContractManifestStep = {
   id: string;
   description?: string;
@@ -66,7 +79,7 @@ export const StepContractManifestStepSchema: z.ZodType<StepContractManifestStep>
   z.object({
     id: z.string().min(1),
     description: z.string().optional(),
-    branches: z.record(StepBranchDefinitionSchema).optional(),
+    branches: StepBranchMapSchema.optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
   }).strict(),
 );

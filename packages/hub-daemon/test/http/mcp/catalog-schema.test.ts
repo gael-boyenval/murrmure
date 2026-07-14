@@ -11,8 +11,6 @@ const PLATFORM_TOOL_NAMES = [
   "murrmure_apply_space",
   "murrmure_space_status",
   "murrmure_space_health",
-  "murrmure_grant_mint",
-  "murrmure_invoke_action",
   "murrmure_resolve_step",
   "murrmure_list_emittable_events",
   "murrmure_list_handlers",
@@ -39,7 +37,6 @@ const P0_REQUIRED: Record<string, string[]> = {
   murrmure_list_step_contracts: ["run_id"],
   murrmure_get_session: ["session_id"],
   murrmure_create_run: ["session_id"],
-  murrmure_invoke_action: ["action_name"],
   murrmure_journal_query: [],
   murrmure_space_status: [],
   murrmure_space_health: [],
@@ -61,11 +58,6 @@ const ALL_PLATFORM_CAPABILITIES = [
 interface CatalogTool {
   name: string;
   inputSchema?: Record<string, unknown>;
-}
-
-interface HandshakeBody {
-  handshake_ack_seq: number;
-  messages: Array<{ method: string; params: Record<string, unknown> }>;
 }
 
 function requiredKeys(schema: Record<string, unknown> | undefined): string[] {
@@ -154,25 +146,7 @@ describe("http/mcp/catalog-schema", () => {
     }
   });
 
-  test("handshake wake message includes pre-rendered prompt", async () => {
-    const clientId = "catalog-schema-client";
-
-    const hs1Res = await fetch(`${baseUrl}/v1/mcp/session/handshake`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${fullToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        space_id: spaceId,
-        client_id: clientId,
-        last_ack_seq: 0,
-      }),
-    });
-    expect(hs1Res.status).toBe(200);
-    const hs1 = (await hs1Res.json()) as HandshakeBody;
-    expect(hs1.handshake_ack_seq).toBeGreaterThan(0);
-
+  test("removed grant/action MCP paths have no public call surface", async () => {
     const invokeRes = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
       method: "POST",
       headers: {
@@ -191,36 +165,6 @@ describe("http/mcp/catalog-schema", () => {
         },
       }),
     });
-    expect(invokeRes.status).toBe(200);
-
-    const hs2Res = await fetch(`${baseUrl}/v1/mcp/session/handshake`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${fullToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        space_id: spaceId,
-        client_id: clientId,
-        last_ack_seq: hs1.handshake_ack_seq,
-      }),
-    });
-    expect(hs2Res.status).toBe(200);
-    const hs2 = (await hs2Res.json()) as HandshakeBody;
-
-    const invokeWake = hs2.messages.find(
-      (message) => message.method === "murrmure/control.invoke_action",
-    );
-    expect(invokeWake).toBeTruthy();
-
-    const prompt = invokeWake?.params.prompt;
-    expect(typeof prompt).toBe("string");
-    if (typeof prompt === "string") {
-      expect(prompt).toContain("Murrmure control wake: action invoke");
-      expect(prompt).toContain("Action: handle_spec_published");
-      expect(prompt).toContain("Instruction:");
-      expect(prompt).toContain("Implement schema checks for the new release.");
-      expect(prompt).toContain("ins_catalog_prompt");
-    }
+    expect(invokeRes.status).toBe(403);
   });
 });

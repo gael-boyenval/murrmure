@@ -15,9 +15,9 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 | B1 | Checkpoint steps dispatch | 03 | `fixtures/flow-engine/declarative-gate-chain.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
 | B2 | `{{steps.*}}` templates | 03 | `fixtures/flow-engine/step-output-chaining.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
 | B3 | `MURRMURE_INPUT` on shell_spawn | 03 | `fixtures/flow-engine/murrmure-input-env.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
-| B4 | ViewCanvasHost at checkpoints | 05 | `fixtures/flow-engine/gate-requires-view.json` | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
+| B4 | ViewCanvasHost at checkpoints | 05 | — (inline context) | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
 | B5 | Apply lint capabilities | 01 | `fixtures/space-apply/unsupported-step-kind.json` | `packages/cli/test/space-apply.test.ts` |
-| B6 | `space flow init` scaffold | 04 | `fixtures/space-flow-init-hello-gate.json` | `packages/cli/test/space-flow-init.test.ts` |
+| B6 | `space flow init` scaffold | 04 | — (snapshot tree) | `packages/cli/test/space-flow-init.test.ts` |
 | B7 | Split murrmure skills | 07 | `skill-agent/` + `skill-developer/` | `packages/cli/test/skill-install-variants.test.ts` |
 | B8 | Setup wizard | 08 | `fixtures/cli/wizard-onboard-smoke.json` | `packages/cli/test/wizard/setup.test.ts` |
 

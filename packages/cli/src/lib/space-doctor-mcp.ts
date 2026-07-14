@@ -4,6 +4,11 @@ import { dirname, join, relative, resolve } from "node:path";
 import type { HubAuth } from "../auth.js";
 import { fetchWhoami } from "./auth-context.js";
 import { readCredentials } from "./auth-store.js";
+import {
+  CredentialStoreError,
+  readActiveConnection,
+  readConnectionToken,
+} from "./connection-store.js";
 import type { SpaceDoctorIssue } from "./space-doctor.js";
 
 const LEGACY_MCP_COMMANDS = new Set(["studio-hub-mcp", "studio"]);
@@ -81,17 +86,25 @@ function pushIssue(issues: SpaceDoctorIssue[], issue: SpaceDoctorIssue): void {
 }
 
 export function resolveMcpBridgeCommand(options?: { homePath?: string }): string {
-  const sharedPath = join(options?.homePath ?? homedir(), SHARED_DISCOVERY_RELATIVE_PATH);
+  const homePath = options?.homePath ?? homedir();
+  const sharedPath = join(homePath, SHARED_DISCOVERY_RELATIVE_PATH);
   if (!existsSync(sharedPath)) {
     return "murrmure-mcp";
   }
   try {
     const parsed = JSON.parse(readFileSync(sharedPath, "utf-8")) as {
-      mcp_bridge?: { command?: unknown };
+      mcp_bridge?: { command?: unknown; entry?: unknown };
     };
     const command = parsed.mcp_bridge?.command;
     if (typeof command === "string" && command.trim()) {
-      return command.trim();
+      const trimmed = command.trim();
+      if (commandBasename(trimmed) === "murrmure-mcp") {
+        return trimmed;
+      }
+      // Earlier Desktop discovery exposed the app-bundle entry directly.
+      // Once a bundled bridge is advertised, generated config always targets
+      // the stable per-user launcher.
+      return join(homePath, ".murrmure", "bin", "murrmure-mcp");
     }
   } catch {
     // Fall back to PATH lookup name.
@@ -100,18 +113,23 @@ export function resolveMcpBridgeCommand(options?: { homePath?: string }): string
 }
 
 export function buildMcpConfigSnippet(options?: {
-  token?: string;
   command?: string;
+  hubId?: string;
+  connectionId?: string;
+  /** @deprecated Ignored. Local descriptors never embed credentials. */
+  token?: string;
 }): string {
   const command = options?.command ?? resolveMcpBridgeCommand();
+  const args =
+    options?.hubId && options?.connectionId
+      ? ["--hub", options.hubId, "--connection", options.connectionId]
+      : undefined;
   return JSON.stringify(
     {
       mcpServers: {
         murrmure: {
           command,
-          env: {
-            MURRMURE_HUB_TOKEN: options?.token ?? "${env:MURRMURE_HUB_TOKEN}",
-          },
+          ...(args ? { args } : {}),
         },
       },
     },
@@ -336,22 +354,46 @@ function validateMurrmureServer(server: McpServerEntry): SpaceDoctorIssue[] {
     });
   }
 
+  const connectionArgIndex = args.indexOf("--connection");
+  const hubArgIndex = args.indexOf("--hub");
+  const hasLocalConnectionDescriptor =
+    connectionArgIndex >= 0 &&
+    Boolean(args[connectionArgIndex + 1]) &&
+    hubArgIndex >= 0 &&
+    Boolean(args[hubArgIndex + 1]);
+  const isHeadlessCi = args.includes("--headless-ci");
   const token = server.env.MURRMURE_HUB_TOKEN;
-  if (!token) {
+  if (hasLocalConnectionDescriptor && token) {
     pushIssue(issues, {
-      code: "MCP_MISSING_TOKEN",
-      severity: "warning",
-      message: `${label} missing MURRMURE_HUB_TOKEN`,
+      code: "MCP_TOKEN_EXPOSED",
+      severity: "error",
+      message: `${label} contains MURRMURE_HUB_TOKEN beside a local connection descriptor`,
       path: relConfig,
-      fix: "Set MURRMURE_HUB_TOKEN (or ${env:MURRMURE_HUB_TOKEN})",
+      fix: `Remove the env block from ${relConfig}; the bridge reads the credential from the OS store`,
     });
-  } else if (PLACEHOLDER_TOKEN.test(token.trim())) {
+  } else if (!hasLocalConnectionDescriptor && !isHeadlessCi) {
+    pushIssue(issues, {
+      code: "MCP_CONNECTION_DESCRIPTOR_MISSING",
+      severity: "warning",
+      message: `${label} is missing --hub and --connection arguments`,
+      path: relConfig,
+      fix: "Run mrmr connection create and reinstall this integration context",
+    });
+  } else if (isHeadlessCi && !token) {
+    pushIssue(issues, {
+      code: "MCP_CI_TOKEN_MISSING",
+      severity: "warning",
+      message: `${label} uses explicit headless CI mode without runtime secret injection`,
+      path: relConfig,
+      fix: "Inject MURRMURE_HUB_TOKEN from the CI provider secret manager at process runtime",
+    });
+  } else if (isHeadlessCi && token && PLACEHOLDER_TOKEN.test(token.trim())) {
     pushIssue(issues, {
       code: "MCP_PLACEHOLDER_TOKEN",
       severity: "warning",
       message: `${label} still has a placeholder token`,
       path: relConfig,
-      fix: "Mint a grant token with mrmr grant mint --space <spc_…>",
+      fix: "Rotate the CI connection and update the provider secret",
     });
   }
 
@@ -369,7 +411,13 @@ function shouldRewriteToThinShape(server: RawMcpServer): boolean {
   const aliasPattern = /^mrmr[-_]mcp$/;
   const usesForbiddenAlias = aliasPattern.test(base) || aliasPattern.test(command?.split(/[/\\]/).pop() ?? "");
   const hasFatEnvKeys = FAT_MCP_ENV_KEYS.some((key) => Boolean(env[key]));
-  const hasAnyArgs = Array.isArray(server.args) ? server.args.length > 0 : server.args !== undefined;
+  const hasConnectionDescriptor =
+    Boolean(args?.includes("--hub")) && Boolean(args?.includes("--connection"));
+  const hasHeadlessCi = Boolean(args?.includes("--headless-ci"));
+  const hasUnexpectedArgs =
+    (Array.isArray(server.args) ? server.args.length > 0 : server.args !== undefined) &&
+    !hasConnectionDescriptor &&
+    !hasHeadlessCi;
   const hasUnexpectedCommand =
     Boolean(command) &&
     /murrmure|mrmr/.test(base) &&
@@ -379,7 +427,7 @@ function shouldRewriteToThinShape(server: RawMcpServer): boolean {
     usesForbiddenAlias ||
     commandLooksLegacy(command, args) ||
     hasFatEnvKeys ||
-    hasAnyArgs ||
+    hasUnexpectedArgs ||
     hasUnexpectedCommand ||
     !usesCanonicalBridge
   );
@@ -387,18 +435,10 @@ function shouldRewriteToThinShape(server: RawMcpServer): boolean {
 
 function normalizeToThinShape(
   server: RawMcpServer,
-  options?: { tokenFallback?: string },
+  _options?: { tokenFallback?: string },
 ): RawMcpServer {
-  const env = asStringRecord(server.env);
-  const token =
-    env.MURRMURE_HUB_TOKEN?.trim() ||
-    options?.tokenFallback?.trim() ||
-    "${env:MURRMURE_HUB_TOKEN}";
   return {
     command: "murrmure-mcp",
-    env: {
-      MURRMURE_HUB_TOKEN: token,
-    },
   };
 }
 
@@ -485,9 +525,35 @@ export function scanMcpConfig(options: {
     }
   }
 
+  const activeConnection = readActiveConnection();
+  if (activeConnection) {
+    try {
+      readConnectionToken(
+        activeConnection.hub_id,
+        activeConnection.connection_id,
+      );
+    } catch (error) {
+      const locked =
+        error instanceof CredentialStoreError &&
+        error.code === "credential_store_locked";
+      pushIssue(issues, {
+        code: locked ? "MCP_CREDENTIAL_STORE_LOCKED" : "MCP_CREDENTIAL_MISSING",
+        severity: "error",
+        message: locked
+          ? "The OS credential store is locked."
+          : `No credential is available for ${activeConnection.connection_id}.`,
+        fix: locked
+          ? "Unlock macOS Keychain, then reload the MCP client"
+          : "Create or rotate the connection, then reinstall the integration context",
+      });
+    }
+  }
+
   const primaryServer = servers[0];
   const snippet = buildMcpConfigSnippet({
-    token: options.authToken ?? primaryServer?.env.MURRMURE_HUB_TOKEN,
+    command: primaryServer?.command,
+    hubId: activeConnection?.hub_id,
+    connectionId: activeConnection?.connection_id,
   });
 
   return {

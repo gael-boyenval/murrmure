@@ -21,6 +21,7 @@ import {
   writePendingWakeFile,
   type PendingWakeRecord,
 } from "./wake-relay.js";
+import { readMacOsConnectionToken } from "./credential-store.js";
 
 const PENDING_WAKE_TOOL = "murrmure_get_pending_wake";
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
@@ -29,11 +30,14 @@ export interface BridgeConfig {
   hubUrl: string;
   token: string;
   discoveryPath: string;
+  connectionId?: string;
+  authMode: "local" | "headless-ci";
 }
 
 export interface StartMcpBridgeOptions {
   fetchImpl?: typeof fetch;
   pollIntervalMs?: number;
+  bridgeArgv?: string[];
 }
 
 function isMainModule(): boolean {
@@ -41,8 +45,10 @@ function isMainModule(): boolean {
   return resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
 }
 
-function readHubToken(): string {
-  return process.env.MURRMURE_HUB_TOKEN?.trim() ?? "";
+function argumentValue(argv: string[], name: string): string | undefined {
+  const index = argv.indexOf(name);
+  const value = index >= 0 ? argv[index + 1]?.trim() : undefined;
+  return value || undefined;
 }
 
 function maxSeq(messages: ControlMessage[]): number {
@@ -76,16 +82,45 @@ function mapCatalogTools(tools: CatalogTool[]): Array<{
   }));
 }
 
-export function resolveBridgeConfig(options?: { homePath?: string }): BridgeConfig {
-  const token = readHubToken();
-  if (!token) {
-    throw new Error("Missing MURRMURE_HUB_TOKEN. Export a grant token before launching murrmure-mcp.");
-  }
+export function resolveBridgeConfig(options?: {
+  homePath?: string;
+  argv?: string[];
+  readCredential?: (hubId: string, connectionId: string) => string;
+}): BridgeConfig {
+  const argv = options?.argv ?? process.argv.slice(2);
   const discovery = discoverHubEndpoint({ homePath: options?.homePath });
+  if (argv.includes("--headless-ci")) {
+    const token = process.env.MURRMURE_HUB_TOKEN?.trim() ?? "";
+    if (!token) {
+      throw new Error(
+        "Headless CI mode requires MURRMURE_HUB_TOKEN runtime secret injection.",
+      );
+    }
+    return {
+      hubUrl: argumentValue(argv, "--hub") ?? discovery.endpoint,
+      token,
+      discoveryPath: discovery.sharedPath,
+      authMode: "headless-ci",
+    };
+  }
+
+  const hubId = argumentValue(argv, "--hub");
+  const connectionId = argumentValue(argv, "--connection");
+  if (!hubId || !connectionId) {
+    throw new Error(
+      "Local mode requires --hub <hub-id> and --connection <connection-id>; run mrmr connection create.",
+    );
+  }
+  const token = (options?.readCredential ?? readMacOsConnectionToken)(
+    hubId,
+    connectionId,
+  );
   return {
     hubUrl: discovery.endpoint,
     token,
     discoveryPath: discovery.sharedPath,
+    connectionId,
+    authMode: "local",
   };
 }
 
@@ -129,7 +164,7 @@ async function sendToolListChanged(server: Server): Promise<void> {
 }
 
 export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promise<void> {
-  const config = resolveBridgeConfig();
+  const config = resolveBridgeConfig({ argv: options.bridgeArgv });
   const fetchImpl = options.fetchImpl ?? fetch;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const clientId = `murrmure-mcp-${randomUUID()}`;

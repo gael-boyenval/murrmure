@@ -134,11 +134,6 @@ describe("preview-review-v2 reference example", () => {
       },
       flows: [{ flow_id: PREVIEW_REVIEW_FLOW_ID, manifest }],
     });
-    expect(
-      writeSpecOnlyWarnings.some(
-        (warning) => warning.code === "STEP_UNCOVERED" && warning.contract_key === "preview-review.write_spec",
-      ),
-    ).toBe(false);
     expect(writeSpecOnlyWarnings.some((warning) => warning.code === "HANDLER_ORPHAN_KEY")).toBe(false);
 
     const scopedWarnings = lintHandlerCatalogCoverage({

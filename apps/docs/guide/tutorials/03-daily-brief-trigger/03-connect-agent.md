@@ -1,13 +1,11 @@
 # Part 3 — Connect the agent wake handler
 
-Mint a grant and configure MCP so an agent responds to **`handle_brief_requested`**.
+Create a connection so a local participant responds to **`handle_brief_requested`**.
 
-## 1) Mint grant
+## 1) Create connection
 
 ```bash
-mrmr grant mint --space spc_daily_brief \
-  --capabilities flow:run,flow:read,step:resolve,space:read \
-  --label daily-brief-agent
+mrmr connection create --space spc_daily_brief
 ```
 
 | Capability | Why |
@@ -17,26 +15,10 @@ mrmr grant mint --space spc_daily_brief \
 | `flow:read` | Read step outputs for review context |
 | `space:read` | Inspect handler catalog and journal |
 
-## 2) MCP config
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure-mcp",
-      "env": {
-        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Export your minted token in the agent shell:
+## 2) Reload and verify
 
 ```bash
-export MURRMURE_HUB_TOKEN=tok_...
-mrmr grant use --space spc_daily_brief
+mrmr connection activate con_… --space spc_daily_brief
 ```
 
 See [Connect your agent (MCP)](../../agents-mcp).

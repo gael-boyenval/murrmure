@@ -28,6 +28,7 @@ export interface TokenRow {
 
 export interface GrantRow {
   grant_id: string;
+  token_id?: string;
   space_id: string;
   actor_id: string;
   label?: string;
@@ -177,6 +178,7 @@ export interface StudioPersistencePort {
 
   getToken(token_id: string): Promise<TokenRow | null>;
   insertToken(row: TokenRow, created_at: string): Promise<void>;
+  revokeToken?(token_id: string): Promise<void>;
 
   insertGrant(row: GrantRow, created_at: string): Promise<void>;
   getGrant(grant_id: string): Promise<GrantRow | null>;

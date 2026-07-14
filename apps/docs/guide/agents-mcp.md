@@ -1,82 +1,95 @@
-# Connect your agent (MCP)
+# Connect local tools (MCP)
 
-Murrmure agents connect through the `murrmure-mcp` bridge. Humans work in Desktop; operators use `mrmr` for setup and grants.
+A Murrmure **connection** authorizes one machine or trust boundary. The same
+connection can be installed in several local tools; it is not an agent identity.
+Desktop bundles the MCP bridge, so local setup does not require a separate
+bridge package.
 
-## What MCP gives your agent
+## Recommended setup
 
-- Grant-filtered platform tools (`murrmure_space_status`, `murrmure_resolve_step`, `murrmure_wait_for_run`, …)
-- Handler discovery: **`murrmure_list_handlers`**, **`murrmure_list_emittable_events`**
-- Event emission: **`murrmure_emit_event`** (`event:emit` capability)
-- Indexed flow + handler availability after `mrmr space apply`
+Keep Desktop running, then finish `mrmr setup`. Accept **Connect tools on this
+computer?**, select one or more detected integration contexts, reload them, and
+call `murrmure_space_status`.
 
-`murrmure_invoke_action` remains for headless/debug invoke of legacy indexed actions — **flow step completion uses handlers + `murrmure_resolve_step`**.
-
-## Before you start
-
-1. **Murrmure Desktop** is running (hub discovery is written to `~/.murrmure/hubs/shared.json`, including the bundled bridge path)
-2. A target space exists (`spc_...`)
-3. **`@murrmure/cli`** installed (`npm install -g @murrmure/cli`) — for setup, grants, and apply
-4. Optional but recommended: `mrmr skill install --variant agent`
-
-You do **not** install `@murrmure/mcp-bridge` separately when Desktop is running — the app ships `murrmure-mcp` and publishes its path in discovery. Use `npm install -g @murrmure/mcp-bridge` only for **headless/CI** setups without Desktop.
-
-## 1) CLI only (bridge comes from Desktop)
+To add a connection later:
 
 ```bash
-npm install -g @murrmure/cli
+mrmr connection create --space spc_…
 ```
 
-When Desktop starts the hub, `shared.json` includes `mcp_bridge.command` (absolute path to the bundled bridge). `mrmr grant mint`, **Copy MCP config** in Desktop, and `mrmr doctor` all use that path in the MCP snippet — so your agent IDE does not need the bridge on global PATH.
+Creation automatically stores the credential in macOS Keychain, activates the
+connection, installs the bundled bridge and agent skill through each selected
+adapter, and saves one reload/resume step. The default
+`tutorial-builder/v1` profile contains exactly:
 
-## 2) Mint and activate a grant
+- `space:read`
+- `flow:read`
+- `flow:run`
+- `step:resolve`
 
-```bash
-mrmr grant mint --space spc_... --label "cursor-agent" \
-  --capabilities space:read,flow:run,flow:read,step:resolve,journal:read
-mrmr grant use --space spc_...
-```
+It is space-wide, so flows applied later work without replacing the connection.
+Raw journal access is an advanced permission and is not in this profile.
 
-Add `event:emit` when the agent must fire platform events. Add `action:invoke` only for legacy action invoke paths.
+## Generated MCP shape
 
-`grant mint` prints a one-time:
-
-```bash
-export MURRMURE_HUB_TOKEN=tok_...
-```
-
-Run that export in the shell that launches your IDE/agent.
-
-## 3) MCP config (thin shape)
-
-Use `mrmr grant mint` (or Desktop **Copy MCP config**) to write this automatically, or paste manually. With Desktop running, `command` is typically an **absolute path** to the bundled bridge, not the string `"murrmure-mcp"`:
+Local configuration contains the stable launcher and IDs only:
 
 ```json
 {
   "mcpServers": {
     "murrmure": {
-      "command": "/path/to/Murrmure.app/.../Resources/mcp-bridge/main.js",
-      "env": {
-        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
-      }
+      "command": "~/.murrmure/bin/murrmure-mcp",
+      "args": [
+        "--hub",
+        "http://127.0.0.1:8787",
+        "--connection",
+        "con_…"
+      ]
     }
   }
 }
 ```
 
-Headless hubs (no Desktop) use `"command": "murrmure-mcp"` with `@murrmure/mcp-bridge` on PATH instead.
+No token belongs in MCP JSON, project files, shell exports, logs, or command
+arguments. The launcher resolves the current Desktop bundle at invocation; the
+bridge then reads the credential from Keychain. Relaunch Desktop after moving
+or upgrading it so discovery and the launcher refresh.
 
-- Default location: `~/.cursor/mcp.json`
-- Project-only option: `mrmr grant mint --local` (writes `./.cursor/mcp.json`)
+Unknown tools use the generic adapter. It writes no tool configuration and
+prints portable MCP/skill instructions using the same descriptor.
 
-Reload the IDE, then verify with `murrmure_space_status` and `murrmure_list_handlers`.
+## Manage trust boundaries
 
-## Common issues
+Use a second connection for another computer, team member, CI runner, or
+intentionally separate trust boundary:
 
-| Symptom | Fix |
-|---------|-----|
-| `TOOL_NOT_AUTHORIZED` | Mint with required capabilities; reload MCP |
-| 401/403 | Mint a new grant, then `mrmr grant use --space ...` |
-| Tools missing | Run `mrmr space apply --strict`, then reconnect MCP |
-| Step won't advance | Agent needs `step:resolve`; handler `complete` mode must match resolve path |
+```bash
+mrmr connection list --space spc_…
+mrmr connection activate con_… --space spc_…
+mrmr connection rotate con_… --space spc_…
+mrmr connection revoke con_… --space spc_…
+```
 
-See [MCP tools reference](../reference/mcp-tools) and the installed skill's `reference/mcp.md`.
+Revoked entries remain Hub audit history; they cannot be reactivated. Rotation
+creates a replacement identity and removes the old local credential.
+
+Advanced restricted creation may use `--flow-acl` with canonical flow IDs that
+are already applied to the space. Unknown, future, or stale aliases fail.
+
+## Headless CI
+
+Headless CI is explicit and separate from local Desktop mode. Install
+`@murrmure/mcp-bridge` on PATH, launch it with `--headless-ci`, and inject
+`MURRMURE_HUB_TOKEN` from the CI provider secret manager at process runtime.
+Never generate that token into files, arguments, or logs. Local mode does not
+fall back to this environment variable.
+
+## Verify and diagnose
+
+After reload, call `murrmure_space_status`; `murrmure_resolve_step` must also be
+present. Run `mrmr space doctor` to distinguish a missing launcher, stale
+discovery, locked/missing credential, revoked or mismatched connection, and an
+unreachable Hub.
+
+See [MCP tools reference](../reference/mcp-tools) and the installed skill's
+`reference/mcp.md`.

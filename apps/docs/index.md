@@ -29,7 +29,7 @@ features:
   - title: Desktop app + CLI
     details: Install Murrmure Desktop for the observer shell and local hub. Use the `mrmr` CLI for setup, grants, flows, and automation.
   - title: Agents connect in one paste
-    details: Mint a scoped grant with `mrmr grant mint` and drop the MCP config into your coding agent. Revoke anytime.
+    details: Create one least-privilege connection, install it into selected local contexts, and revoke or rotate by trust boundary.
   - title: Build your own workflows
     details: Review rounds and feature specs come built in. Need something specific to your team? Author custom flows and roll them out without downtime.
 ---

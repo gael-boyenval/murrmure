@@ -119,19 +119,39 @@ describe("Tutorial v3 canonical contracts", () => {
     expect(
       manifestRejects({
         ...PART_2_MANIFEST,
-        steps: [{ id: "intake", role: "agent", branches: {} }],
+        steps: [{ id: "intake", role: "agent" }],
       }),
     ).toBe(true);
     expect(
       manifestRejects({
         ...PART_2_MANIFEST,
-        steps: [{ id: "intake", presentation: { view: "intake-view" }, branches: {} }],
+        steps: [{ id: "intake", presentation: { view: "intake-view" } }],
       }),
     ).toBe(true);
     expect(
       manifestRejects({
         ...PART_2_MANIFEST,
-        steps: [{ id: "intake", deriveRole: "from-input", branches: {} }],
+        steps: [{ id: "intake", deriveRole: "from-input" }],
+      }),
+    ).toBe(true);
+
+    // Explicit `branches: {}` is invalid — omit branches for defaults or
+    // declare at least one branch (done gate: empty maps are rejected).
+    expect(
+      manifestRejects({
+        ...PART_2_MANIFEST,
+        steps: [{ id: "intake", branches: {} }],
+      }),
+    ).toBe(true);
+    expect(
+      manifestRejects({
+        ...PART_2_MANIFEST,
+        steps: [
+          {
+            id: "build",
+            steps: [{ id: "build-loop", branches: {} }],
+          },
+        ],
       }),
     ).toBe(true);
 

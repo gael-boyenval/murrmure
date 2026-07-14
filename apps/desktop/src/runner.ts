@@ -12,6 +12,7 @@ import {
   type DesktopPaths,
 } from "./paths.js";
 import { DEFAULT_BOOTSTRAP_TOKEN_BARE, ensureBootstrapSession, toBearerToken, type BootstrapSession } from "./session.js";
+import { installMcpLauncher } from "./mcp-launcher.js";
 
 export type HubProcess = Subprocess;
 
@@ -48,6 +49,18 @@ export async function startHubSidecar(options?: {
 }): Promise<HubSidecarHandle> {
   const mode = options?.mode ?? (isDesktopDevMode() ? "dev" : "prod");
   const paths = resolveDesktopPaths({ mode });
+  const launcher = installMcpLauncher({
+    dataDir: paths.dataDir,
+    bridgeEntry: paths.mcpBridgeEntry,
+    nodeBinary: paths.nodeBinary,
+  });
+  if (!launcher.supported && mode === "prod") {
+    throw new Error(
+      process.platform === "darwin"
+        ? "Packaged Desktop is missing the bundled MCP bridge."
+        : "Packaged Desktop local-tool connections are supported on macOS only in this release.",
+    );
+  }
 
   const existingHub = await detectExistingHub(paths.lockOwnerPath);
   if (existingHub.running) {

@@ -3,6 +3,7 @@ import { CapabilitySchema } from "../grants/capability.js";
 import { GateFormSchema } from "../entities/gate.js";
 import {
   StepBranchDefinitionSchema,
+  StepBranchMapSchema,
   StepContractManifestStepSchema,
 } from "../entities/step-contract.js";
 
@@ -88,7 +89,7 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
   z.object({
     id: z.string(),
     description: z.string().optional(),
-    branches: z.record(StepBranchDefinitionSchema).optional(),
+    branches: StepBranchMapSchema.optional(),
     steps: z.array(StepContractManifestStepSchema).optional(),
     parallel: FlowParallelStepSchema.optional(),
     start_flow: FlowStartFlowStepSchema.optional(),

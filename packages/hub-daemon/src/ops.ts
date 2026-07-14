@@ -24,6 +24,8 @@ export interface SharedConfig {
   flowProjects?: FlowProject[];
   mcp_bridge?: {
     command?: string;
+    entry?: string;
+    runtime?: string;
   };
 }
 
@@ -91,7 +93,13 @@ export function writeDiscovery(config: DaemonConfig, port: number): void {
   };
   const mcpBridgeEntry = process.env.MURRMURE_MCP_BRIDGE_ENTRY?.trim();
   if (mcpBridgeEntry) {
-    discovery.mcp_bridge = { command: mcpBridgeEntry };
+    discovery.mcp_bridge = {
+      command:
+        process.env.MURRMURE_MCP_BRIDGE_COMMAND?.trim() || "murrmure-mcp",
+      entry: mcpBridgeEntry,
+      runtime:
+        process.env.MURRMURE_MCP_BRIDGE_RUNTIME?.trim() || process.execPath,
+    };
   }
   writeFileSync(join(hubsDir, "shared.json"), JSON.stringify(discovery, null, 2));
 }

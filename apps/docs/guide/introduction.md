@@ -24,8 +24,8 @@ Everything is recorded. Every comment, handoff, and approval lands in an append-
 | You are… | What you install | How you work |
 |----------|------------------|--------------|
 | **Desktop user** (reviewer, lead, admin UI) | [Murrmure Desktop](./desktop) | Observer shell inside Desktop — review, comment, approve gates |
-| **CLI operator** | `@murrmure/cli` (`mrmr`) | Terminal — `mrmr space`, `mrmr grant mint`, flow apply, CI scripts |
-| **Agent (MCP)** | `@murrmure/mcp-bridge` (`murrmure-mcp`) | Scoped grant from `mrmr grant mint` — agent calls Murrmure tools from the IDE |
+| **CLI operator** | `@murrmure/cli` (`mrmr`) | Terminal — `mrmr space`, `mrmr connection`, flow apply, CI scripts |
+| **Participant (MCP)** | bundled `murrmure-mcp` | Scoped connection from `mrmr connection create` — any authorized tool calls Murrmure from its context |
 
 You **don't clone a git repository** to use Murrmure — install Desktop and the CLI. You **don't use curl** for everyday work — people use Desktop, operators use `mrmr`, agents use MCP.
 
@@ -33,7 +33,7 @@ You **don't clone a git repository** to use Murrmure — install Desktop and the
 
 1. Install **Murrmure Desktop** — bootstrap auth is automatic; you land on `/spaces/new`.
 2. Use **`mrmr space link`** / **`mrmr space apply`** to set up spaces and flows (or follow the quick start).
-3. Mint agent grants with **`mrmr grant mint`** and paste MCP config into your coding agent.
+3. Create one local connection with **`mrmr connection create`**, select contexts, reload, and verify.
 4. People work in **Desktop** — preview, comment, Finish a review, approve a gate.
 5. Agents connect via **MCP** — open sessions, draft specs, wait for human handoff.
 

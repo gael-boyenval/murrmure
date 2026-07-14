@@ -26,7 +26,7 @@ cd .mrmr/views/my-view && npm install && npm run build
 cd ../../..
 mrmr space link --path . --create
 mrmr space apply --strict
-mrmr grant mint --space spc_… --capabilities flow:run,flow:read,step:resolve,space:read
+mrmr connection create --space spc_…
 ```
 
 See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path, or [Tutorial 1b — Create the repo](./tutorials/01-local-preview-review/01-create-the-repo) and [Flow manifest](./tutorials/01-local-preview-review/05-flow-manifest) for the full walkthrough.

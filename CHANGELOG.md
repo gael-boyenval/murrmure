@@ -1,5 +1,28 @@
 # Changelog
 
+## Tutorial v3 Task 02 — local connections and bundled bridge (2026-07-14)
+
+### Breaking
+
+- Public local authorization uses `mrmr connection create|activate|list|rotate|revoke`.
+  Removed `grant mint`, `grant use`, `agent connect`, `agent activate`, and
+  `space onboard` command paths without aliases.
+- Local MCP configuration no longer contains token environment entries.
+  Credentials live only in macOS Keychain; explicit headless CI runtime
+  injection is the sole `MURRMURE_HUB_TOKEN` exception.
+- Legacy action/grant MCP tools are absent; run cancellation uses `flow:run`.
+
+### Added
+
+- Named least-privilege `tutorial-builder/v1` profile with exactly
+  `space:read`, `flow:read`, `flow:run`, and `step:resolve`.
+- Neutral multi-context adapter descriptor, idempotent Cursor MCP/skill install,
+  generic no-write instructions, and reload/resume state.
+- Stable user-only `~/.murrmure/bin/murrmure-mcp` launcher with validated bundle
+  discovery across Desktop relaunch, move, and update.
+- Doctor classifications for descriptor/token leakage and locked/missing local
+  credentials; advanced flow ACLs reject non-applied aliases.
+
 ## Tutorial v3 Task 03 — resolver-agnostic step contracts and trigger-only start (2026-07-14)
 
 ### Breaking
@@ -25,14 +48,17 @@
 
 - Compiler injects `completed` / `failed` **default branches** for steps that
   omit `branches`; explicit and injected defaults are semantically identical.
-  Explicit `branches: {}` is rejected and custom top-level branches require an
-  explicit `route`.
+  Explicit `branches: {}` is **hard-rejected at parse** (HTTP 400, no
+  `--strict` needed — the bundle never reaches the index) and custom top-level
+  branches require an explicit `route`.
 - Single canonical owner for `BranchResolveContract` and
   `OpenStepResolverProjection` in `@murrmure/contracts`.
-- New strict-apply linter codes: `LEGACY_START_KEY`, `LEGACY_REQUIRES_VIEW`,
-  `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`,
-  `EMPTY_BRANCHES`, `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`,
-  `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`.
+- Parse hard-reject codes (no `--strict` needed): `LEGACY_START_KEY`,
+  `LEGACY_REQUIRES_VIEW`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`,
+  `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warning codes:
+  `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`,
+  `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`,
+  `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`.
 - ADR-007 records the resolver-agnostic step contract and trigger-only clean
   cutover.
 

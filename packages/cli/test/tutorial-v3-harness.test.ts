@@ -26,6 +26,14 @@ import {
   loadTutorialSnapshot,
   type TutorialSnapshot,
 } from "../../../test-utils/tutorial-v3/snapshots.js";
+import {
+  buildRunGraph,
+  buildStepContractSlice,
+  compileFlowIr,
+  compileStepContractCatalog,
+  parseFlowManifest,
+} from "@murrmure/hub-core";
+import type { FlowManifest } from "@murrmure/contracts";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const FIXTURE_ROOT = join(REPO_ROOT, "test-utils/spaces/tutorial-v3");
@@ -122,6 +130,105 @@ describe("Tutorial v3 harness", () => {
         /\b(?:role|presentation|requires_view|kill_on|fail_run|next):|awaiting_human|active_human_step/,
       );
     }
+  });
+
+  test("Task 03 — progressive contract keys flow through every downstream representation", () => {
+    // Exact progressive fixture assertion: as tutorial stages activate, the
+    // compiled catalog accumulates contract keys (write_spec/build at Part 5,
+    // cleanup at Part 6), and every step appears in IR, catalog, graph, and the
+    // runtime step-contract slice with a stable `graph_digest`.
+    const expectedKeys: Record<number, string[]> = {
+      2: ["my-dev-flow.intake"],
+      3: ["my-dev-flow.intake"],
+      5: ["my-dev-flow.intake", "my-dev-flow.write_spec", "my-dev-flow.build"],
+      6: [
+        "my-dev-flow.intake",
+        "my-dev-flow.write_spec",
+        "my-dev-flow.build",
+        "my-dev-flow.cleanup",
+      ],
+    };
+
+    const digests = new Map<number, string>();
+    let previousKeys: string[] = [];
+
+    for (const part of [2, 3, 5, 6] as const) {
+      const snapshot = loadTutorialSnapshot(part);
+      const raw = parseYaml(
+        snapshot.files[".mrmr/flows/my-dev-flow/flow.manifest.yaml"],
+      ) as Record<string, unknown>;
+
+      // Schema: the clean manifest strict-parses.
+      const parsed = parseFlowManifest(raw);
+      expect(parsed.ok, `Part ${part} parses`).toBe(true);
+      if (!parsed.ok) continue;
+      const manifest = parsed.value as FlowManifest;
+      const flowId = "flw_my_dev_flow";
+
+      // Catalog + IR + graph + slice — the downstream representations.
+      const { catalog } = compileStepContractCatalog(manifest, flowId);
+      expect(catalog, `Part ${part} compiles a catalog`).not.toBeNull();
+      if (!catalog) continue;
+      const ir = compileFlowIr(manifest, flowId);
+      const graph = buildRunGraph({
+        run_id: "run_progressive",
+        flow_id: flowId,
+        step_contract_catalog: catalog,
+        step_memos: [],
+      });
+
+      // Contract keys = `<flow_name>.<step_id>` — the stable protocol address.
+      const keys = catalog.entries.map(
+        (entry) => `${manifest.name}.${entry.step_id}`,
+      );
+      expect(keys, `Part ${part} contract keys`).toEqual(expectedKeys[part]);
+
+      // Progressive accumulation: each stage is a superset of the previous;
+      // write_spec/build activate at Part 5, cleanup at Part 6.
+      expect(keys).toEqual(expect.arrayContaining(previousKeys));
+      if (part === 5) {
+        expect(keys).toContain("my-dev-flow.write_spec");
+        expect(keys).toContain("my-dev-flow.build");
+      }
+      if (part === 6) {
+        expect(keys).toContain("my-dev-flow.cleanup");
+      }
+      previousKeys = keys;
+
+      // graph_digest is a stable sha256 per stage; it changes as steps activate.
+      expect(catalog.graph_digest).toMatch(/^sha256:/);
+      digests.set(part, catalog.graph_digest);
+
+      // Every step appears in every downstream representation.
+      for (const stepId of catalog.step_ids) {
+        const contractKey = `${manifest.name}.${stepId}`;
+        expect(keys, `Part ${part} key for ${stepId}`).toContain(contractKey);
+        expect(
+          ir.steps.some((s) => s.id === stepId),
+          `Part ${part} IR has ${stepId}`,
+        ).toBe(true);
+        expect(
+          graph.nodes.some((n) => n.step_id === stepId),
+          `Part ${part} graph has ${stepId}`,
+        ).toBe(true);
+
+        const entry = catalog.entries.find((e) => e.step_id === stepId);
+        expect(entry, `Part ${part} catalog entry for ${stepId}`).toBeDefined();
+        const slice = buildStepContractSlice({
+          entry: entry!,
+          exec_context: {},
+          run_id: "run_progressive",
+          space_root: "/tmp/space",
+        });
+        expect(slice.step_id, `Part ${part} slice has ${stepId}`).toBe(stepId);
+      }
+    }
+
+    // Graph evolves as stages activate: Part 5 and 6 introduce new steps, so
+    // their digests differ from Part 2. Part 2 and 3 share the same manifest.
+    expect(digests.get(2)).toBe(digests.get(3));
+    expect(digests.get(5)).not.toBe(digests.get(2));
+    expect(digests.get(6)).not.toBe(digests.get(5));
   });
 
   test("Task 00 — temporary resources isolate user, credentials, spaces, runs, and repositories", () => {

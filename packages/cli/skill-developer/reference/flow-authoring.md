@@ -119,6 +119,8 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 
 ## Apply-time lint (selected)
 
+**Hard-rejected at parse** (HTTP 400, no `--strict` needed):
+
 | Code | Meaning |
 |------|---------|
 | `LEGACY_START_KEY` | Top-level `start:` removed — use `triggers:` (including dual `start` + `triggers`) |
@@ -126,6 +128,12 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | `LEGACY_STEP_KIND` | Legacy `invoke:` / `checkpoint:` / `gate:` step kind |
 | `REMOVED_FIELD` | Removed step/branch key (`role`, `presentation`, `next`, `fail_run`, `goto`, `fail`, `payload`, `outcome`, …) |
 | `EMPTY_BRANCHES` | `branches: {}` — omit for defaults or declare at least one |
+| `INLINE_SCRIPT_STEP` | Inline `script` / `run` / `shell` / `command` step |
+
+**`--strict` warnings** (print by default; exit 1 under `--strict`):
+
+| Code | Meaning |
+|------|---------|
 | `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
 | `DEAD_STEP` | Step unreachable from flow entry |
 | `HANDLER_ORPHAN_KEY` | Handler `contract_key` not in flow catalog |

@@ -1000,7 +1000,7 @@ export async function runSpaceDoctor(options: {
         code,
         severity: applyLintSeverity(code),
         message: warning.message,
-        path: warning.code.startsWith("HANDLER_") || warning.code === "STEP_UNCOVERED"
+        path: warning.code.startsWith("HANDLER_")
           ? ".mrmr/space/handlers.yaml"
           : undefined,
       });

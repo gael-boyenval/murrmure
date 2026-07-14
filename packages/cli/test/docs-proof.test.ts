@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { lintSpaceApplyBundle, strictLintFailures } from "@murrmure/hub-core";
+import { type FlowManifest } from "@murrmure/contracts";
 import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
 import { verifyTutorialV3Docs } from "./helpers/tutorial-v3-docs.js";
@@ -87,6 +88,44 @@ function collectFiles(root: string, predicate: (name: string) => boolean): strin
   }
   return files;
 }
+
+/** Recursively collect flow manifest objects (`apiVersion: murrmure.flow/v1`) from parsed JSON. */
+function findFlowManifestsInJson(node: unknown): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  const visit = (n: unknown) => {
+    if (!n || typeof n !== "object") return;
+    if (Array.isArray(n)) {
+      for (const v of n) visit(v);
+      return;
+    }
+    const record = n as Record<string, unknown>;
+    if (record.apiVersion === "murrmure.flow/v1") out.push(record);
+    for (const value of Object.values(record)) visit(value);
+  };
+  visit(node);
+  return out;
+}
+
+/** Extract fenced ```yaml/```yml/```json blocks with their starting line number. */
+function extractFencedYamlJson(
+  text: string,
+): Array<{ lang: string; body: string; line: number }> {
+  const re = /```(ya?ml|json)\n([\s\S]*?)```/g;
+  const out: Array<{ lang: string; body: string; line: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) {
+    out.push({
+      lang: match[1],
+      body: match[2],
+      line: text.slice(0, match.index).split("\n").length,
+    });
+  }
+  return out;
+}
+
+/** Removed authoring fields that must not appear in a clean manifest example. */
+const REMOVED_FENCED_AUTHORING =
+  /(^|\n)\s*start:\s|requires_view|deriveRole|role:\s*(agent|human)\b|presentation:\s*(\r?\n|$)|awaiting_human|active_human_step|(^|\n)\s*next:\s|fail_run:\s|goto:\s|payload:\s|outcome:\s/m;
 
 function ensureViewsBuilt(murrmureRoot: string, viewIds: string[]) {
   for (const viewId of viewIds) {
@@ -178,7 +217,7 @@ describe("phase 10 docs proof (10-T*)", () => {
   });
 
   test("VS-1 — v2 step contract manifest passes strict apply lint (handlers model)", () => {
-    const manifest = {
+    const manifest: FlowManifest = {
       apiVersion: "murrmure.flow/v1",
       name: "strict-v2",
       triggers: { manual: true },
@@ -289,6 +328,85 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
+  test("VS-9 — JSON fixture flow manifests ban removed authoring fields and empty branches", () => {
+    // JSON-aware scan: parse each fixture, locate flow manifest objects, and
+    // reject the soft removed fields (`start`, `requires_view`, `role`,
+    // `presentation`, `deriveRole`, `awaiting_human`, `active_human_step`) and
+    // explicit `branches: {}`. Engine-dispatch kinds (`invoke`/`checkpoint`/
+    // `gate`) are not banned here — fixtures may compile them directly.
+    const softManifest = ["start", "requires_view"];
+    const softStep = [
+      "role",
+      "presentation",
+      "deriveRole",
+      "awaiting_human",
+      "active_human_step",
+    ];
+    const roots = [
+      join(REPO_ROOT, "test-utils/spaces"),
+      join(REPO_ROOT, "studio-specs/current/fixtures"),
+    ];
+    let scanned = 0;
+    for (const root of roots) {
+      if (!existsSync(root)) continue;
+      const jsonFiles = collectFiles(root, (entry) => entry.endsWith(".json"));
+      for (const file of jsonFiles) {
+        const rel = file.replace(`${REPO_ROOT}/`, "");
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(readFileSync(file, "utf-8"));
+        } catch {
+          continue;
+        }
+        for (const manifest of findFlowManifestsInJson(parsed)) {
+          scanned += 1;
+          for (const key of softManifest) {
+            expect(key in manifest, `${rel}: manifest has removed "${key}"`).toBe(false);
+          }
+          const steps = (manifest.steps as Array<Record<string, unknown>> | undefined) ?? [];
+          for (const step of steps) {
+            for (const key of softStep) {
+              expect(step && key in step, `${rel}: step has removed "${key}"`).toBe(false);
+            }
+            const branches = step?.branches;
+            if (
+              branches &&
+              typeof branches === "object" &&
+              !Array.isArray(branches)
+            ) {
+              expect(
+                Object.keys(branches).length,
+                `${rel}: step "${step?.id}" declares branches: {}`,
+              ).toBeGreaterThan(0);
+            }
+          }
+        }
+      }
+    }
+    expect(scanned, "JSON fixture flow manifests scanned").toBeGreaterThan(0);
+  });
+
+  test("VS-9 — Task 03 flow docs ban removed authoring fields in fenced blocks", () => {
+    const docs = [
+      "studio-specs/current/bridges/step-contract.md",
+      "studio-specs/current/bridges/flow-engine.md",
+      "apps/docs/guide/creating-flows.md",
+      "packages/cli/skill-developer/reference/flow-authoring.md",
+    ];
+    let scanned = 0;
+    for (const rel of docs) {
+      const text = readFileSync(join(REPO_ROOT, rel), "utf-8");
+      for (const block of extractFencedYamlJson(text)) {
+        scanned += 1;
+        expect(
+          block.body,
+          `${rel} fenced ${block.lang} block at line ${block.line}`,
+        ).not.toMatch(REMOVED_FENCED_AUTHORING);
+      }
+    }
+    expect(scanned, "fenced blocks scanned").toBeGreaterThan(0);
+  });
+
   test("DOC-LAYOUT-01 — guide docs use .mrmr/ not murrmure/ as canonical layout", () => {
     const guideRoot = join(REPO_ROOT, "apps/docs/guide");
     const files = collectMarkdownFiles(guideRoot);
@@ -376,5 +494,37 @@ describe("phase 3 MCP docs guard", () => {
     const files = collectMarkdownFiles(docsRoot);
     const aggregate = files.map((file) => readFileSync(file, "utf-8")).join("\n");
     expect(aggregate).toContain("murrmure-mcp");
+  });
+});
+
+describe("Tutorial v3 Task 02 connection cutover", () => {
+  test("active docs and agent skills do not teach removed local commands or token config", () => {
+    const roots = [
+      join(REPO_ROOT, "apps/docs"),
+      join(REPO_ROOT, "studio-specs/current"),
+      join(REPO_ROOT, "packages/cli/skill-agent"),
+    ];
+    const forbidden =
+      /mrmr (?:space )?grant (?:mint|use)|mrmr agent (?:connect|activate)|mrmr space onboard|"MURRMURE_HUB_TOKEN"\s*:/;
+    for (const root of roots) {
+      for (const file of collectMarkdownFiles(root)) {
+        const rel = file.replace(`${REPO_ROOT}/`, "");
+        expect(readFileSync(file, "utf8"), rel).not.toMatch(forbidden);
+      }
+    }
+  });
+
+  test("removed local command families are absent from CLI registration", () => {
+    const root = readFileSync(
+      join(REPO_ROOT, "packages/cli/src/commands/root.ts"),
+      "utf8",
+    );
+    const space = readFileSync(
+      join(REPO_ROOT, "packages/cli/src/commands/space/index.ts"),
+      "utf8",
+    );
+    expect(root).toContain("connection: connectionCommand");
+    expect(root).not.toMatch(/\bgrant:\s*grantCommand|\baction:\s*actionCommand/);
+    expect(space).not.toMatch(/\bonboard:|\bgrant:/);
   });
 });

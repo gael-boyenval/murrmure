@@ -45,7 +45,7 @@ mrmr space init
 mrmr space link --path . --create    # or --space spc_existing
 mrmr space apply --strict
 mrmr space status
-mrmr grant mint --label "dev agent" --capabilities flow:run,step:resolve,space:read,journal:read
+mrmr connection create --space spc_…
 ```
 
 After apply, the space appears in Desktop when the actor has `space:read`. Bindings store the filesystem path on the space record — **path is never the space id**.

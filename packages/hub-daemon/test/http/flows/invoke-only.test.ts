@@ -5,17 +5,17 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-// flow_call-only entry policy: a flow_call-only flow rejects independent manual
-// start with MANUAL_START_DISABLED. This is the invoke-only *eligibility* gate
-// (Task 03 scope); the orchestration happy-path is covered separately.
-describe("http/flows/flow-call-entry", () => {
+// `triggers: {}` = invoke-only: no independent CLI/Desktop/schedule/external-event
+// start. A flow with empty triggers cannot be started manually; the space-home
+// eligibility surface reports `manual: false` so clients hide/disable Run.
+describe("http/flows/invoke-only", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let spaceId: string;
 
   beforeAll(async () => {
-    const dir = mkdtempSync(join(tmpdir(), "hub-flow-call-entry-"));
-    const bootstrapToken = "01JBOOTSTRAPTOKEN00000062";
+    const dir = mkdtempSync(join(tmpdir(), "hub-invoke-only-"));
+    const bootstrapToken = "01JBOOTSTRAPTOKEN00000072";
     const daemon = await startHubDaemon({
       databasePath: join(dir, "murrmure.db"),
       port: 0,
@@ -40,7 +40,7 @@ describe("http/flows/flow-call-entry", () => {
         await fetch(`${baseUrl}/v1/spaces`, {
           method: "POST",
           headers: auth,
-          body: JSON.stringify({ slug: "entry", name: "Entry" }),
+          body: JSON.stringify({ slug: "invoke-only", name: "Invoke Only" }),
         })
       ).json()
     ).space_id;
@@ -51,34 +51,27 @@ describe("http/flows/flow-call-entry", () => {
       body: JSON.stringify({
         bundle: {
           actions: {
-            digest: "sha256:entry-actions",
+            digest: "sha256:invoke-only-actions",
             file: { version: 1, actions: { noop: { executor: "shell" } } },
           },
           executors: {
-            digest: "sha256:entry-exec",
+            digest: "sha256:invoke-only-exec",
             file: {
               version: 1,
               executors: { shell: { binding: { type: "shell_spawn", executor_id: "shell" } } },
             },
           },
-          hooks: { digest: "sha256:entry-hooks", file: { version: 1, hooks: {} } },
+          hooks: { digest: "sha256:invoke-only-hooks", file: { version: 1, hooks: {} } },
           flows: [
             {
-              flow_id: "flw_callable",
-              rel_path: "flows/callable/flow.manifest.yaml",
-              digest: "sha256:entry-callable",
+              flow_id: "flw_invoke_only",
+              rel_path: "flows/invoke-only/flow.manifest.yaml",
+              digest: "sha256:invoke-only-flow",
               manifest: {
                 apiVersion: "murrmure.flow/v1",
-                name: "callable",
-                triggers: { flow_call: true },
-                steps: [
-                  {
-                    id: "work",
-                    branches: {
-                      completed: { schema: { type: "object" }, route: { run: "completed" } },
-                    },
-                  },
-                ],
+                name: "invoke-only",
+                triggers: {},
+                steps: [{ id: "work", description: "work" }],
               },
             },
           ],
@@ -91,12 +84,12 @@ describe("http/flows/flow-call-entry", () => {
   afterAll(() => cleanup?.());
 
   const auth = () => ({
-    Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000062")}`,
+    Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000072")}`,
     "Content-Type": "application/json",
   });
 
-  test("manual start rejected when flow_call-only", async () => {
-    const res = await fetch(`${baseUrl}/v1/flows/flw_callable/run`, {
+  test("manual start rejected for triggers: {} with MANUAL_START_DISABLED", async () => {
+    const res = await fetch(`${baseUrl}/v1/flows/flw_invoke_only/run`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({ space_id: spaceId, input: {} }),
@@ -104,5 +97,16 @@ describe("http/flows/flow-call-entry", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.code).toBe("MANUAL_START_DISABLED");
+  });
+
+  test("space-home reports triggers: {} flow with manual: false", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/home`, { headers: auth() });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const row = body.your_flows.find((f: { flow_id: string }) => f.flow_id === "flw_invoke_only");
+    expect(row).toBeDefined();
+    expect(row.manual).toBe(false);
+    // The flow is indexed and previewable even though it cannot be started manually.
+    expect(row.can_preview).toBe(true);
   });
 });

@@ -40,8 +40,8 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `login`, `logout`, `whoami` | Save and inspect hub credentials |
 | `doctor` | Hub, auth, and scope diagnostics |
 | `health` | Unauthenticated hub health check |
-| `space` | Spaces, grants, members, triggers, index apply |
-| `action` | Invoke indexed actions |
+| `space` | Spaces, members, triggers, index apply |
+| `connection` | Create, activate, list, rotate, and revoke trust-boundary access |
 | `me` | User preferences (landing space) |
 | `worker` | External queue_poll worker helpers |
 | `federation` | Federation peer management |
@@ -49,11 +49,12 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `runtime` | Events, gates, waits, audit |
 | `flow` | Indexed `flow run` + local validate helpers |
 | `view` | Scaffold custom view packages |
-| `setup` | First-run wizard (`mrmr setup`, `mrmr space onboard`) |
+| `setup` | First-run wizard (`mrmr setup`) |
 | `step` | Step-level runtime (`mrmr step resolve`) |
 | `skill` | Install/update split **murrmure-agent** / **murrmure-developer** skills |
 
-**MCP:** use `murrmure-mcp` from `@murrmure/mcp-bridge` with thin config (`command: "murrmure-mcp"` + `MURRMURE_HUB_TOKEN` env ref). See [Connect your agent](./agents-mcp).
+**MCP:** Desktop installs stable `~/.murrmure/bin/murrmure-mcp`; local config
+contains Hub/connection IDs only. See [Connect local tools](./agents-mcp).
 
 ## Doctor
 
@@ -64,7 +65,8 @@ mrmr doctor
 mrmr doctor --json
 ```
 
-Human output includes auth source, hub status, per-space scopes, and capability summary (push flows / mint grants / register triggers). JSON shape: `{ ok, issues, profile }`.
+Human output includes auth source, hub status, per-space scopes, and capability
+summary. JSON shape: `{ ok, issues, profile }`.
 
 > `mrmr flow doctor` is deprecated — it prints a stderr hint and delegates to `mrmr doctor`.
 
@@ -91,19 +93,17 @@ mrmr logout
 mrmr logout --yes
 ```
 
-Activate a stored per-space grant token for local CLI auth resolution:
+Activate an existing local connection:
 
 ```bash
-mrmr grant use --space spc_ui_sandbox
+mrmr connection activate con_… --space spc_ui_sandbox
 ```
 
 ## Environment (CI / scripts)
 
 ```bash
-export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_HUB_TOKEN=tok_your_grant_token
-export MURRMURE_SPACE_ID=spc_your_space_id
-mrmr grant use --space spc_your_space_id   # optional local active-pointer switch
+# Explicit headless CI only: inject MURRMURE_HUB_TOKEN from provider secrets.
+murrmure-mcp --headless-ci --hub http://127.0.0.1:8787
 ```
 
 ## Indexed flows (v2)

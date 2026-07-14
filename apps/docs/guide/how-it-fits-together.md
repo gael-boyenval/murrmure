@@ -11,7 +11,7 @@ If you remember one thing: **humans use Murrmure Desktop, operators use the CLI,
 | **Murrmure Desktop** | Humans (reviewers, leads) | Desktop app | Observer shell — sessions, gates, audit |
 | **Hub** (local sidecar in Desktop) | Shared backend | Bundled with Desktop | Stores spaces, journal events, flows, grants, and policy |
 | **`@murrmure/mcp-bridge`** | Agent operators (Cursor/Claude) | Yes | `murrmure-mcp` stdio bridge for MCP clients |
-| **`@murrmure/cli`** (platform) | CLI operators / CI | Yes for setup | `mrmr space`, `mrmr grant mint`, `mrmr space apply`, audit, automation |
+| **`@murrmure/cli`** (platform) | CLI operators / CI | Yes for setup | `mrmr space`, `mrmr connection`, `mrmr space apply`, audit, automation |
 | **`@murrmure/view-sdk`** | View authors | Optional | `createViewMount`, view dev loop — scaffold with `mrmr space view init` |
 
 ## Runtime data flow
@@ -57,8 +57,8 @@ Shell chrome (space home, flowchart, gate inbox) is **operator/admin mode** — 
 
 1. Open **Murrmure Desktop** — bootstrap auth lands you on `/spaces/new`
 2. Run **`mrmr space link --create`** and **`mrmr space apply`** to index flows + handlers
-3. Run **`mrmr grant mint`** for each agent (`step:resolve` for agent steps)
-4. Agent operator exports `MURRMURE_HUB_TOKEN` from `mrmr grant mint` and uses thin MCP config (`command: "murrmure-mcp"`)
+3. Run **`mrmr connection create`** once per machine/trust boundary
+4. Select one or more integration contexts; each receives the stable launcher and the same connection ID, never a token
 5. Agent and humans collaborate on the same session through hub-mediated handoffs
 
 ## Grants, tokens, and MCP targeting
@@ -68,7 +68,9 @@ Shell chrome (space home, flowchart, gate inbox) is **operator/admin mode** — 
 - Token claims define space identity and ACL for MCP tools.
 - Tool visibility is filtered by grant scopes, live flows in that space, and flow ACL restrictions.
 
-Recommended practice: one token per agent process, use `mrmr grant use --space ...` to switch active local grant pointers, and keep separate tokens for local/CI/prod workers.
+Recommended practice: one persistent connection per machine/trust boundary,
+`mrmr connection activate` for local selection, and separate connections for
+CI/team/production boundaries.
 
 ## When to use each npm package
 

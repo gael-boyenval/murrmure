@@ -36,7 +36,7 @@ Shell must **not** import flow install or configure APIs from `@murrmure/hub-cli
 v2 retires Configure mode and the setup wizard. Default shell routes are **admin/operator** surfaces:
 
 - Space mutations via CLI (`mrmr space init`, `link`, `apply`)
-- Agent grants via `mrmr grant mint` (no Configure grants UI)
+- Local connections via `mrmr connection create` (no token-bearing Configure UI)
 - Legacy `/configure` and `/setup` redirect to `/spaces/new`
 
 ---

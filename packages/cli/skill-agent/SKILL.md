@@ -10,7 +10,7 @@ version: 1.1.0
 
 **Runtime skill** — operate runs, resolve steps, wait for humans. For authoring `.mrmr/` spaces, flows, views, and handlers, use **`murrmure-developer`** instead.
 
-Murrmure is an **event-based coordination kernel**: sessions, journal events, authorization, gates, artifacts, and audit. It is **not** a programming language or agent framework. Spaces own execution; flows own orchestration shape; views own human presentation; agents participate via grant-filtered MCP tools.
+Murrmure is an **event-based coordination kernel**: sessions, journal events, authorization, gates, artifacts, and audit. It is **not** a programming language or agent framework. Spaces own execution; flows own orchestration shape; views own human presentation; agents participate through connection-filtered MCP tools.
 
 ## Platform model (30 seconds)
 
@@ -22,15 +22,14 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | **Session / Run** | Correlation + immutable execution; runs pin `flow_digest` |
 | **Step contract** | Active step slice — `id`, `description`, `branches` (`schema`, `route`/`resume`); resolver-agnostic; resolve via `murrmure_resolve_step` |
 | **ViewCanvasHost** | Full primary canvas for custom views bound to steps by the space (handlers + Views) |
-| **MCP** | Grant-filtered tools for agents |
+| **MCP** | Connection-filtered tools for participants |
 
-## Environment variables
+## Connection context
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `MURRMURE_HUB_TOKEN` | MCP client config | Grant token for hub API / MCP bridge |
-| `MURRMURE_HUB_URL` | CLI + optional MCP | Hub base URL (CLI default) |
-| `MURRMURE_SPACE_ID` | CLI default space | Optional; MCP uses grant-bound space |
+| `--hub` + `--connection` | Local MCP descriptor | Hub/connection IDs; bridge resolves the credential from the OS store |
+| `MURRMURE_HUB_TOKEN` | Explicit headless CI only | Runtime secret injection; never local config, files, args, or logs |
 | `MURRMURE_RUN_ID` | Handler child env | Current run (shell_spawn dispatch) |
 | `MURRMURE_STEP_ID` | Handler child env | Active step id |
 | `MURRMURE_SESSION_ID` | Handler child env | Session correlation |
@@ -38,14 +37,15 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | `MURRMURE_STEP_CONTRACT` | Handler child env | Active step contract JSON |
 | `MURRMURE_ACTIVE_STEP_CONTRACT_PATH` | Long shell sessions | Path to `active-step-contract.json` — re-read after transitions |
 
-Handler dispatch injects run-scoped tokens and context. Do not reuse long-lived grant tokens inside shell commands.
+Handler dispatch injects run-scoped credentials and context. Do not reuse a
+persistent local connection inside shell commands.
 
 ## Bootstrap (before operating a run)
 
 1. **`murrmure_space_health`** — index counts, handler coverage, apply warnings.
 2. **`murrmure_list_handlers`** — confirm handlers exist for expected `contract_keys`.
 3. **`murrmure_list_emittable_events`** — when you may emit cross-space events (`event:emit` grant).
-4. Reload MCP after grant mint or `mrmr space apply`.
+4. Reload MCP after connection installation or `mrmr space apply`.
 
 Example — list handlers:
 
@@ -117,17 +117,19 @@ When branch schema defines `artifact_slots`, pass `artifacts_out` on resolve wit
 
 `query_ask` with `space:read` — typed cross-space query (e.g. `spec_summary@1`). Target space must allow inbound queries.
 
-## Grant checklist
+## Connection profile
 
 | Capability | Need for |
 |------------|----------|
 | `space:read` | get run, list contracts, wait, list handlers |
 | `step:resolve` | `murrmure_resolve_step` |
 | `flow:run` | create session/run, attach orchestration |
-| `journal:read` | `murrmure_journal_query` |
-| `event:emit` | `murrmure_emit_event` |
+| `flow:read` | inspect the current run graph |
 
-Mint: `mrmr grant mint --capabilities space:read,flow:run,step:resolve`. Reload MCP after mint.
+The default `tutorial-builder/v1` profile is exactly `space:read`, `flow:read`,
+`flow:run`, and `step:resolve`. Create it with
+`mrmr connection create --space spc_…`, then reload MCP. Raw journal and event
+emission permissions are advanced and are not default.
 
 ## Error recovery
 

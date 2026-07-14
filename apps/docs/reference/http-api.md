@@ -16,7 +16,9 @@ Murrmure exposes a REST API at your **hub URL** (default `http://127.0.0.1:8787`
 Authorization: Bearer tok_<your_grant_token>
 ```
 
-Tokens come from **`mrmr grant mint`** (preferred) or the hub bootstrap token on first-run Desktop. There is no Configure UI for grant management.
+Local tools obtain tokens indirectly through `mrmr connection create`; the
+credential is stored in the OS store and is not printed. Direct bearer handling
+is reserved for protocol integrators, bootstrap, and explicit headless CI.
 
 | Token source | When |
 |--------------|------|

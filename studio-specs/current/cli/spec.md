@@ -74,8 +74,8 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `space create` | impl | requireScope · space:admin |
 | `space update` | impl | requireScope · space:admin |
 | `space archive` | impl | requireScope · space:admin |
-| `space grant *` | impl | requireScope · space:admin |
-| `grant *` | impl | alias of `space grant` |
+| `connection create/list/rotate/revoke` | impl | requireScope · space:admin |
+| `connection activate` | impl | local credential-store lookup only |
 | `space member *` | impl | requireScope · space:admin |
 | `space trigger *` | impl | requireScope · varies |
 | `hub federation` | impl | requireScope · space:admin |
@@ -111,20 +111,28 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `skill version` | impl | none |
 | `step resolve` | impl | env bindings (see below) |
 
-**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using the thin config shape (`command` + `MURRMURE_HUB_TOKEN` only).
+**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using a connection-ID-only local descriptor.
 
 **Install / command resolution:**
 
 | Context | `command` value |
 |---------|-----------------|
-| Murrmure Desktop running | Absolute path from `~/.murrmure/hubs/shared.json` → `mcp_bridge.command` (bundled `Resources/mcp-bridge/main.js`) |
-| Headless hub / CI / agents without Desktop | `"murrmure-mcp"` on PATH via `npm i -g @murrmure/mcp-bridge` |
+| Murrmure Desktop running | Stable user launcher `~/.murrmure/bin/murrmure-mcp`; discovery resolves the current bundle at invocation |
+| Explicit headless CI | `"murrmure-mcp"` on PATH plus `--headless-ci`; runtime secret injection from the CI provider |
 
-`buildMcpConfigSnippet()` and `grant mint` MCP output call `resolveMcpBridgeCommand()` — read `mcp_bridge.command` from shared discovery, else `"murrmure-mcp"`. Legacy `mrmr mcp` / fat 3-env MCP config is removed.
+`connection create` emits a neutral descriptor with Hub ID, connection ID,
+stable command, `tutorial-builder/v1`, skill bundle/version, and verification
+requirements. Local MCP config has `command` plus `args: [--hub, …,
+--connection, …]` and no token/env block. The bridge resolves Keychain at
+startup and fails closed. Legacy `mrmr mcp` and env-token local config are
+removed.
 
 ## Auth resolution order
 
-CLI flags (`--hub-url`, `--token`) → env (`MURRMURE_HUB_URL`, `MURRMURE_HUB_TOKEN`, `MURRMURE_TOKEN`, `MURRMURE_DEPLOY_TOKEN`) → `~/.murrmure/credentials` → `~/.murrmure/hubs/shared.json`
+CLI flags (`--hub-url`, `--token`) → explicit headless runtime env →
+ID-only active connection + OS credential store → `~/.murrmure/credentials` →
+`~/.murrmure/hubs/shared.json`. Local MCP mode never consumes env token
+fallback.
 
 ## Auth commands (§5.2)
 
@@ -238,9 +246,9 @@ Hub or creates a token, grant, connection, or credential.
 
 **`space apply`:** Strict-parses each flow manifest (`triggers`-only; the removed `start`, `requires_view`, `role`, `presentation`, `deriveRole`, wait shapes, wrapper branches, and `invoke:`/`checkpoint:`/`gate:` kinds are rejected with specific codes — no dual parser), compiles a `StepContractCatalog` per flow, lints handler coverage, and POSTs the bundle to the hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [step-contract bridge](../bridges/step-contract.md) for the full lint code table and [flow-engine bridge](../bridges/flow-engine.md).
 
-**Apply lint (clean cutover):** `LEGACY_START_KEY`, `LEGACY_REQUIRES_VIEW`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`, `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`, `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`, `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`. Unbound steps (`resolver: null`) are valid and produce no warning.
+**Apply lint (clean cutover):** Hard-rejected at parse (HTTP 400, no `--strict` needed): `LEGACY_START_KEY`, `LEGACY_REQUIRES_VIEW`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warnings (print by default, exit 1 under `--strict`): `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`, `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`, `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`. Unbound steps (`resolver: null`) are valid and produce no warning.
 
-**`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `.mrmr/` — manifest (`triggers` + checkpoint steps per decision 05), handlers, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `.mrmr/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `.mrmr/` repo redirects with exit 1.
+**`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `.mrmr/` — manifest (`triggers` + resolver-agnostic step contracts with flat `branches`/`route`), handlers, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `.mrmr/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `.mrmr/` repo redirects with exit 1.
 
 **`space setup`:** Same Task 01 sequence as top-level setup: confirm one
 folder-derived display name and editable slug, create one opaque Hub space,
@@ -253,30 +261,40 @@ then execute init/link/apply. It creates no local-tool credential.
 | Command | Human (Clack) | Agent (`--json`) |
 |---------|---------------|------------------|
 | `mrmr setup` | confirm name/slug → create one space → init → link → apply → optional skill | `--json` = step plan; `--json --yes` = non-interactive run (folder defaults, no examples) |
-| `mrmr space onboard` | link → apply → status | same flags |
 | `mrmr space setup` | same named-space setup sequence | same flags |
 
-Task 01 setup uses existing Hub authorization and deliberately writes no login
-or local-tool connection credential.
+Setup uses existing Hub authorization. After apply it asks **Connect tools on
+this computer?**; decline creates nothing, while acceptance creates and
+auto-activates one connection, presents a vendor-neutral multi-select, installs
+the same connection into every selected context, and persists an explicit
+reload/verify resume step. Generic fallback writes no target configuration.
 
 **Handoff:** wizard outro points to Desktop → Run → **ViewCanvasHost** at checkpoint steps.
 
-**Doctor hints:** link missing → `mrmr space onboard`; `flows: 0` → `mrmr space flow init hello --template hello-gate`.
+**Doctor hints:** link missing → `mrmr space link`; `flows: 0` → `mrmr space flow init hello --template hello-gate`.
 
-## Space grant commands (§5.5)
+## Connection commands (§5.5)
 
 **Preflight:** `requireScope` · `space:admin` on target space. Mint uses a clearer denial when token has narrower scopes (e.g. `flow:install` only).
 
 | Command | HTTP | Notes |
 |---------|------|-------|
-| `space grant list` | GET `/v1/spaces/:id/grants` | JSON or pretty-printed hub body |
-| `space grant mint` | POST `/v1/spaces/:id/grants` | Body uses **`flow_acl`**; `--label` required; `--capabilities` alias for `--scopes` |
-| `grant mint` | same | Top-level alias of `space grant mint` |
-| `grant use --space <space_id>` | local filesystem | Activates `~/.murrmure/grants/<space>.token` via `~/.murrmure/grants/active` pointer |
-| `space grant revoke <grant_id>` | POST `…/grants/:id/revoke` | |
-| `space grant rotate <grant_id>` | POST `…/grants/:id/rotate` | Returns new one-time token |
+| `connection create` | POST `/v1/spaces/:id/grants` | Public result is `con_…`; auto-stores in Keychain, activates, and installs adapters |
+| `connection list` | GET `/v1/spaces/:id/grants` | Active/revoked connection history; no token |
+| `connection activate <con_id>` | local only | Validates Keychain entry and writes an ID-only active pointer |
+| `connection revoke <con_id>` | POST `…/grants/:id/revoke` | Removes local credential; audit history remains |
+| `connection rotate <con_id>` | POST `…/grants/:id/rotate` | Stores replacement credential and removes old one |
 
-**Mint human output:** prints `grant_id`, label, one-time `export MURRMURE_HUB_TOKEN=...`, offers writing thin `.cursor/mcp.json` (global by default, `--local` for project), and stores token under `~/.murrmure/grants/<space>.token`.
+The default named/versioned profile is `tutorial-builder/v1` and contains
+exactly `space:read`, `flow:read`, `flow:run`, and `step:resolve`. Setup
+connections are space-wide. Advanced `--flow-acl` accepts only already-applied
+canonical flow IDs; unknown/future/stale aliases fail.
+
+Local credentials exist only in the OS credential store keyed by Hub +
+connection ID. Activation state, descriptors, generated instructions, logs,
+arguments, project files, and normal environment guidance contain IDs only.
+`grant mint`, `grant use`, `agent connect`, `agent activate`, and
+`space onboard` are absent without aliases.
 
 **Scope denial (human, mint):**
 

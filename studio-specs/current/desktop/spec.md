@@ -39,7 +39,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 - In bundled mode, hub URL resolution is same-origin (`window.location.origin`).
 - `/connect` auto-redirects to `/spaces/new` when bundled mode already has `murrmure_token` in localStorage.
 - Configure/setup wizards retired; legacy `/configure` and `/setup` redirect to `/spaces/new`.
-- Grants MCP snippets use `mrmr grant mint` + `/connect` page (no Configure grants UI).
+- Local-tool setup uses `mrmr connection create`; Desktop never exposes connection token material.
 - Flow canvas iframe uses relative URL in bundled mode: `/flows/{packageId}/{version}/ui/shell.html?...`.
 - `hub-fetch` forwarding from canvas is restricted to `/api/{packageId}/...` for the mounted flow.
 - `hub-fetch` forwards only an allowlisted header set (`Content-Type`, `Accept`, `Idempotency-Key`); trust headers (`Authorization`, `X-Murrmure-*`) from iframe payloads are dropped.
@@ -87,7 +87,9 @@ Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` 
 
 ### Menu actions
 
-- **Copy MCP config** copies thin MCP JSON (`command` + `MURRMURE_HUB_TOKEN` only). When Desktop bundles the bridge, `command` is the absolute path to `Resources/mcp-bridge/main.js` (same value written to `shared.json` as `mcp_bridge.command`). Falls back to `"murrmure-mcp"` on PATH when no bundled entry is resolved.
+- **Copy MCP config** copies an ID-only neutral descriptor: stable
+  `~/.murrmure/bin/murrmure-mcp` command plus Hub and connection arguments. It
+  never copies a token or environment entry.
 - **Open data folder** opens desktop data directory (`~/.murrmure` in v1).
 
 ## Environment
@@ -97,7 +99,9 @@ Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` 
 | `MURRMURE_SHELL_STATIC_DIR` | Optional | Built shell static directory (`dist`) mounted by hub at `/`. |
 | `MURRMURE_LISTEN_HOST` | Optional | Hub bind interface (desktop default `127.0.0.1`). |
 | `MURRMURE_DATA_DIR` | Optional | Hub data directory (desktop default `~/.murrmure`). |
-| `MURRMURE_MCP_BRIDGE_ENTRY` | Optional | Absolute path to bundled `murrmure-mcp` entry; Desktop sets this when spawning the hub. |
+| `MURRMURE_MCP_BRIDGE_ENTRY` | Optional | Current absolute bundled bridge entry; launcher-only discovery. |
+| `MURRMURE_MCP_BRIDGE_COMMAND` | Desktop-set | Stable per-user launcher command. |
+| `MURRMURE_MCP_BRIDGE_RUNTIME` | Desktop-set | Runtime used for the current bundled entry. |
 | `PORT` | Optional | Hub listen port (desktop default `8787`). |
 
 ## Discovery
@@ -117,7 +121,16 @@ When `MURRMURE_MCP_BRIDGE_ENTRY` is set at hub start, discovery also records:
 }
 ```
 
-CLI grant snippets, Desktop **Copy MCP config**, and `mrmr doctor` resolve the MCP `command` from `mcp_bridge.command` when present; otherwise they fall back to `"murrmure-mcp"` on PATH (headless/CI installs `npm i -g @murrmure/mcp-bridge`).
+Desktop atomically installs or updates `~/.murrmure/bin/murrmure-mcp` with mode
+`0700` at launch. Discovery records the stable command plus current bundled
+entry/runtime. The launcher reads discovery at invocation, rejects values that
+do not match its installed allowlist, and then starts the bundle. Moving or
+upgrading Desktop is repaired by relaunching Desktop; client descriptors remain
+unchanged.
+
+Packaged launcher and OS credential-store support are certified on macOS only
+for this release. Unsupported packaged Windows/Linux connection setup fails
+explicitly and writes no integration config. Headless PATH setup is separate.
 
 ## Hub lifecycle + lock semantics (Task 3)
 

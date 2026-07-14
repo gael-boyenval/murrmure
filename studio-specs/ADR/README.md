@@ -12,4 +12,5 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-005](./ADR-005-tutorial-v3-contract-ownership.md) | accepted | Tutorial v3 shared-contract ownership and Tasks 01–12 decision packet |
 | [ADR-006](./ADR-006-clean-first-boot.md) | accepted | Clean first boot, explicit test fixtures, and opaque space IDs |
 | [ADR-007](./ADR-007-resolver-agnostic-step-contracts.md) | accepted | Resolver-agnostic step contracts and trigger-only clean cutover |
+| [ADR-008](./ADR-008-local-connection-credentials-and-launcher.md) | accepted | Local connection credentials, neutral adapters, and stable bundled launcher |
 

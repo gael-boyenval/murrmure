@@ -1,6 +1,12 @@
-# Grants migration — v1 scopes → rev-1 capabilities
+# Connection authorization bridge — internal grants → public connections
 
-Murrmure v2 replaces the v1 **PLATFORM_SCOPES** ladder with a single **capability** model (rev-1 §9.1). During the shim period (phases 05–15), hub accepts both v1 scope tokens and v2 capability grants.
+Hub persistence and wire compatibility may retain grant rows, but the public
+local lifecycle is **connection**. A connection is authorization for one
+machine/trust boundary, not an agent entity.
+
+The default profile `tutorial-builder/v1` is fixed to `space:read`,
+`flow:read`, `flow:run`, and `step:resolve`. `action:invoke`, `gate:resolve`,
+and `journal:read` are not defaults. Legacy action/gate MCP paths are absent.
 
 ## Mapping table
 
@@ -25,7 +31,6 @@ Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`,
 |----------|-------------------------------|
 | `murrmure_resolve_step` | `step:resolve` |
 | `murrmure_emit_event` | v1 `event:emit` scope (maps to `action:invoke`) |
-| `murrmure_invoke_action` | `action:invoke` |
 | `murrmure_create_run` | `flow:run` |
 
 ## API
@@ -46,10 +51,21 @@ Space-scoped routes remain: `POST /v1/spaces/{id}/grants` (phase 02).
 - v1 `event:emit` scope satisfies `murrmure_emit_event` catalog visibility (effective `action:invoke`).
 - `flow_acl` (package ids) still restricts MCP tool catalog for installed flows.
 
-## CLI
+## Public CLI and local storage
 
 ```bash
-mrmr grant mint --space spc_… --label agent --capabilities flow:run,action:invoke,step:resolve,journal:read
+mrmr connection create --space spc_…
+mrmr connection activate con_… --space spc_…
 ```
+
+Creation auto-activates. `grant mint`, `grant use`, `agent connect`,
+`agent activate`, and `space onboard` have no aliases. Local credentials exist
+only in the OS store keyed by Hub + connection ID. Generated descriptors,
+activation state, files, logs, arguments, and normal environment guidance carry
+IDs only.
+
+Setup connections are space-wide. Advanced `--flow-acl` accepts only canonical
+flow identities already applied to the target space; unknown/future aliases are
+rejected.
 
 Implementation: `packages/hub-core/src/grants/migrate.ts`.

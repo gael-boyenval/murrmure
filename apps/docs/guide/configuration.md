@@ -13,7 +13,7 @@ Requires a token with **`space:admin`** scope. Desktop bootstrap token works for
 | Create hub space + link path | `mrmr space link --create` |
 | Apply space index | `mrmr space apply` |
 | Index a flow from `.mrmr/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
-| Mint agent grant | `mrmr grant mint --space spc_… --label "…" --capabilities flow:run,step:resolve,space:read` |
+| Create local connection | `mrmr connection create --space spc_…` |
 
 See [Quick start](./quick-start) for the full first-review path.
 
@@ -49,27 +49,24 @@ mrmr flow run flw_flows_{name} --input '{}' --space spc_…
 
 See [Space handlers](./space-handlers) and [Creating flows](./creating-flows).
 
-## Agent grants
+## Connections
 
 ```bash
-mrmr grant list --space spc_ui_sandbox
-mrmr grant mint --space spc_ui_sandbox \
-  --label "Dev Cursor — ui-sandbox worker" \
-  --harness cursor-local \
-  --capabilities flow:run,step:resolve,space:read,journal:read \
-  --expires-days 90
-mrmr grant revoke --space spc_ui_sandbox grt_…
+mrmr connection list --space spc_ui_sandbox
+mrmr connection create --space spc_ui_sandbox
+mrmr connection rotate con_… --space spc_ui_sandbox
+mrmr connection revoke con_… --space spc_ui_sandbox
 ```
 
 | Field | Notes |
 |-------|-------|
-| Label | Who this token is for |
-| Harness | `cursor-local`, `ci`, … |
-| Capabilities | Include `step:resolve` for agent-owned steps; `event:emit` for emit tools |
+| Label | Machine/trust boundary this connection represents |
+| Profile | `tutorial-builder/v1` is the exact default |
+| Capabilities | `space:read`, `flow:read`, `flow:run`, `step:resolve` |
 
-Export the **one-time token** as `MURRMURE_HUB_TOKEN` and run `mrmr grant use --space ...` to set your local active pointer.
-Never commit live grant tokens (`tok_...`) to git; keep MCP config on env-variable references only.
-If a token leaks or is committed, revoke the grant (`mrmr grant revoke --space spc_... grt_...`) and mint a replacement token.
+Local credentials are written only to macOS Keychain. MCP config and activation
+state contain IDs only. Use a separate connection for another machine or CI
+boundary; rotate or revoke by `con_…` identity.
 
 ## Members
 

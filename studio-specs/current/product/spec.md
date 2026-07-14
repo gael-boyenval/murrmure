@@ -260,7 +260,7 @@ Hub owns the deadline; executors may ack faster.
 
 ## 4. Handlers, contract keys, and invoke (legacy)
 
-**Canonical (2026-07-09):** Spaces own execution via **handlers** in `.mrmr/space/handlers.yaml`, keyed by **`contract_keys`**. Flow manifests declare protocol shape only — steps, branches, presentation — not `invoke:` or `executor.action`. Full field reference: [bridges/handlers.md](../bridges/handlers.md).
+**Canonical (2026-07-09):** Spaces own execution via **handlers** in `.mrmr/space/handlers.yaml`, keyed by **`contract_keys`**. Flow manifests declare protocol shape only — `id`, optional `description`, optional `branches`, and optional nested `steps` — not `invoke:` or `executor.action`. Full field reference: [bridges/handlers.md](../bridges/handlers.md).
 
 ```yaml
 # .mrmr/space/handlers.yaml
@@ -651,7 +651,7 @@ When agent MCP-pushes proposed graph:
   "manifest": {
     "apiVersion": "murrmure.flow/v1",
     "name": "agent-proposed",
-    "start": { "manual": true },
+    "triggers": { "manual": true },
     "steps": [ … ]
   }
 }
@@ -951,20 +951,30 @@ First successful `space link` by a user → **suggest** “Use as landing?” (b
 
 ### 10.9 MCP platform tools (normative)
 
-Agents connect via `murrmure-mcp` from `@murrmure/mcp-bridge`. MCP config shape is thin:
+Participants connect via `murrmure-mcp`. One persistent local **connection**
+represents one machine/trust boundary and may be installed into several
+integration contexts. It is not an agent entity.
 
-- `command` — bundled absolute path when Murrmure Desktop runs (`shared.json` → `mcp_bridge.command`), else `"murrmure-mcp"` on PATH (`npm i -g @murrmure/mcp-bridge` for headless/CI)
-- `env.MURRMURE_HUB_TOKEN` only
-- no MCP `MURRMURE_HUB_URL` or `MURRMURE_SPACE_ID` in MCP config (bridge reads hub endpoint from discovery; space identity is token-derived)
+Local MCP config contains only the stable per-user launcher plus `--hub` and
+`--connection` IDs. Tokens live only in the OS credential store keyed by Hub +
+connection ID. Local startup fails closed and never consumes environment
+fallback. Explicit headless CI mode may consume `MURRMURE_HUB_TOKEN` only as
+provider-injected process-runtime secret.
 
-Catalog = grant-filtered platform tools. Runtime onboarding flow: `mrmr grant mint` + `mrmr grant use --space <spc_...>`.
+The default `tutorial-builder/v1` connection profile contains exactly
+`space:read`, `flow:read`, `flow:run`, and `step:resolve`. It is space-wide for
+current and future flows. Advanced restricted creation accepts only canonical
+flow IDs already applied to that space.
+
+Catalog = connection-filtered platform tools. Runtime onboarding flow:
+`mrmr connection create` (auto-activate) → adapter install → reload →
+`murrmure_space_status`.
 
 | Tool | Required capability | HTTP / behavior |
 |------|---------------------|-----------------|
 | `murrmure_apply_space` | `space:write` | `POST /v1/spaces/{id}/apply` |
 | `murrmure_space_status` | `space:read` | `GET /v1/spaces/{id}/index/status` |
-| `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
-| `murrmure_create_session` | `flow:run` or `action:invoke` | `POST /v1/sessions` |
+| `murrmure_create_session` | `flow:run` | `POST /v1/sessions` |
 | `murrmure_list_sessions` | `space:read` or `journal:read` | `GET /v1/sessions` |
 | `murrmure_get_session` | `space:read` | `GET /v1/sessions/{id}` |
 | `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
@@ -978,7 +988,10 @@ Catalog = grant-filtered platform tools. Runtime onboarding flow: `mrmr grant mi
 | `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
 | `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
 
-Removed VS-8 MCP tools (`murrmure_complete_action`, `murrmure_wait_for_gate`, `murrmure_resolve_gate`) stay deprecated/absent; use `murrmure_resolve_step` and `murrmure_wait_for_run`.
+Removed MCP tools (`murrmure_complete_action`, `murrmure_invoke_action`,
+`murrmure_wait_for_gate`, `murrmure_resolve_gate`,
+`murrmure_grant_mint`) stay absent; use handlers +
+`murrmure_resolve_step` and manage authorization through connection lifecycle.
 
 Catalog refresh remains required after grant changes or `mrmr space apply`.
 

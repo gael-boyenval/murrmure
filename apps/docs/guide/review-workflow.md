@@ -20,7 +20,7 @@ cd ../preview-review && npm install && npm run build
 cd ../..
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
-mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read,step:resolve,space:read,journal:read
+mrmr connection create --space spc_ui_sandbox
 ```
 
 Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`contract_keys`**.

@@ -27,7 +27,7 @@ Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id
 
 ## End-to-end — review loop (example)
 
-1. Operator: `mrmr space init` → `mrmr space link --create` → `mrmr space apply` → `mrmr grant mint`
+1. Operator: `mrmr setup` → connection consent/context selection → reload and verify
 2. Dev agent (MCP): platform tools (`murrmure_create_run`, `murrmure_list_step_contracts`, …); step completion via `murrmure_resolve_step` after handler dispatch
 3. Reviewer resolves human steps in Desktop; agent waits with `murrmure_wait_for_run` and completes agent steps with `murrmure_resolve_step`
 4. Audit via journal query or `mrmr runtime audit export`

@@ -178,7 +178,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     if (scopeCheck) return scopeCheck;
 
     const result = await config.mintGrant(space_id, body, provenanceFrom(auth, space_id, c.req.header("Idempotency-Key") ?? undefined));
-    return c.json(result.body, 200);
+    return c.json(result.body, result.http_semantic);
   });
 
   app.post("/v1/spaces/:space_id/grants/:grant_id/revoke", async (c) => {

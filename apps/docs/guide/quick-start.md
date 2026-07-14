@@ -1,7 +1,7 @@
 # Quick start: create an empty space
 
-Goal: open Desktop and create one named, empty space. Flow authoring and local
-tool connections are separate follow-up steps.
+Goal: open Desktop, create one named empty space, and connect local tools through
+the bundled bridge.
 
 If architecture is new, skim [How Murrmure fits together](./how-it-fits-together) first (2 minutes).
 
@@ -29,21 +29,18 @@ The wizard walks through:
 1. **Space** — confirm the folder-derived display name and editable slug; the Hub assigns a separate immutable ID
 2. **Scaffold** — `.mrmr/` init, link, apply (optional example flow — say **No** if you are authoring your own)
 3. **Skill** — install split Cursor skills (`murrmure-agent` + `murrmure-developer` when authoring)
+4. **Connection** — consent, select one or more contexts, then reload and verify
 
-Setup uses the already-running Desktop Hub authorization. It creates no login,
-local-tool connection, token, grant, or credential.
-
-**Already have `.mrmr/`?** Use the shorter path:
-
-```bash
-mrmr space onboard
-```
+Setup uses the already-running Desktop Hub authorization. If you accept the
+connection step, it creates one `tutorial-builder/v1` connection, stores its
+credential in macOS Keychain, and installs the same connection ID in every
+selected context. It never writes token material to project or MCP files.
 
 **CI / agents** — no Clack prompts:
 
 ```bash
 mrmr setup --yes --json          # full first-run
-mrmr space onboard --yes --json  # existing .mrmr/
+mrmr connection create --space spc_… --json # explicit local connection
 ```
 
 ## 3) Add and run a flow
@@ -68,6 +65,8 @@ mrmr doctor              # hub + auth smoke
 mrmr space doctor        # .mrmr/ drift + handler coverage + MCP hints
 ```
 
+Reload selected tools and call `murrmure_space_status`.
+
 ## Next steps
 
 - Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (6 parts)
@@ -77,4 +76,5 @@ mrmr space doctor        # .mrmr/ drift + handler coverage + MCP hints
 
 ## Done
 
-You opened Desktop and ran `mrmr setup` to create one empty, consistently named space.
+You opened Desktop, created one consistently named empty space, and connected
+local tools without installing a separate bridge.

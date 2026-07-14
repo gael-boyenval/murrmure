@@ -29,7 +29,7 @@ import { resolveGateV2 } from "../../../src/gates/service.js";
 import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 
 function manifest(steps: FlowManifest["steps"], name = "test"): FlowManifest {
-  return { apiVersion: "murrmure.flow/v1", name, start: { manual: true }, steps };
+  return { apiVersion: "murrmure.flow/v1", name, triggers: { manual: true }, steps };
 }
 
 function irFrom(steps: FlowManifest["steps"]): FlowIr {
@@ -48,7 +48,7 @@ async function seedFlowIndex(studio: MemoryStudioPersistence, ir: FlowIr, flowId
         origin_space_id: "spc_demo",
         digest: ir.digest,
         name: "test",
-        start: { manual: true },
+        triggers: { manual: true },
         step_spaces: ["spc_demo"],
         grants_required: [],
         ir,
@@ -156,7 +156,7 @@ describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cu
           origin_space_id: "spc_demo",
           digest: ir.digest,
           name: "test",
-          start: { manual: true },
+          triggers: { manual: true },
           step_spaces: ["spc_demo"],
           grants_required: [],
           ir,
@@ -251,7 +251,7 @@ describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cu
           origin_space_id: "spc_demo",
           digest: ir.digest,
           name: "test",
-          start: { manual: true },
+          triggers: { manual: true },
           step_spaces: ["spc_demo"],
           grants_required: [],
           ir,
@@ -480,7 +480,7 @@ describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cu
       {
         apiVersion: "murrmure.flow/v1",
         name: "parent",
-        start: { manual: true },
+        triggers: { manual: true },
         steps: [
           {
             id: "review",
@@ -515,7 +515,7 @@ describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cu
           origin_space_id: "spc_demo",
           digest: parentIr.digest,
           name: "parent",
-          start: { manual: true },
+          triggers: { manual: true },
           step_spaces: ["spc_demo"],
           grants_required: [],
           ir: parentIr,
@@ -526,7 +526,7 @@ describe.skip("flow-engine/checkpoint (legacy — removed VS-8 step contracts cu
           origin_space_id: "spc_demo",
           digest: childIr.digest,
           name: "child",
-          start: { manual: true, flow_call: true },
+          triggers: { manual: true, flow_call: true },
           step_spaces: ["spc_demo"],
           grants_required: [],
           ir: childIr,

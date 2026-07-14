@@ -7,7 +7,7 @@ import { clearAuthContextCache } from "../../src/lib/auth-context.js";
 import { setupCommand } from "../../src/commands/setup.js";
 import { AGENT_GRANT_CAPABILITIES, AGENT_GRANT_CAPABILITIES_CSV } from "../../src/wizard/capabilities.js";
 import { buildMcpConfigSnippet } from "../../src/lib/space-doctor-mcp.js";
-import { buildOnboardJsonPlan, buildSetupJsonPlan } from "../../src/wizard/json.js";
+import { buildSetupJsonPlan } from "../../src/wizard/json.js";
 import {
   wizardMintAgentGrant,
   type WizardGrantResult,
@@ -33,11 +33,15 @@ vi.mock("@clack/prompts", () => ({
 
 describe("wizard capabilities", () => {
   test("AGENT_GRANT_CAPABILITIES uses rev-1 scopes not v1 WORKER_SCOPES", () => {
-    expect(AGENT_GRANT_CAPABILITIES).toContain("flow:run");
-    expect(AGENT_GRANT_CAPABILITIES).toContain("gate:resolve");
-    expect(AGENT_GRANT_CAPABILITIES).not.toContain("state:transition");
-    expect(AGENT_GRANT_CAPABILITIES).not.toContain("event:emit");
-    expect(AGENT_GRANT_CAPABILITIES_CSV).toContain("action:invoke");
+    expect(AGENT_GRANT_CAPABILITIES).toEqual([
+      "space:read",
+      "flow:read",
+      "flow:run",
+      "step:resolve",
+    ]);
+    expect(AGENT_GRANT_CAPABILITIES_CSV).toBe(
+      "space:read,flow:read,flow:run,step:resolve",
+    );
   });
 });
 
@@ -51,15 +55,10 @@ describe("wizard json plans", () => {
       "link",
       "apply",
       "skill",
+      "connection",
     ]);
   });
 
-  test("buildOnboardJsonPlan lists link apply status", () => {
-    const plan = buildOnboardJsonPlan({ yes: true });
-    expect(plan.wizard).toBe("onboard");
-    expect(plan.interactive).toBe(false);
-    expect(plan.steps.map((step) => step.id)).toEqual(["link", "apply", "status"]);
-  });
 });
 
 describe("wizard space ops", () => {
@@ -200,7 +199,7 @@ describe("wizard space ops", () => {
     expect(status.counts.flows).toBe(1);
   });
 
-  test("wizardMintAgentGrant returns MCP snippet with v2 capabilities", async () => {
+  test("wizard connection stores its credential and returns an ID-only descriptor", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -224,13 +223,20 @@ describe("wizard space ops", () => {
     const grant: WizardGrantResult = await wizardMintAgentGrant(
       { hubUrl: "http://127.0.0.1:8787", token: "tok_admin" },
       "spc_wizard",
+      {
+        storeCredential: vi.fn(),
+        activate: vi.fn(),
+      },
     );
-    expect(grant.token).toBe("tok_agent");
-    expect(grant.mcp_snippet).toContain("MURRMURE_HUB_TOKEN");
-    expect(grant.mcp_snippet).toContain("tok_agent");
-    expect(buildMcpConfigSnippet({ token: "tok_agent" })).toContain(
-      "murrmure",
-    );
+    expect(grant.connection_id).toBe("con_test");
+    expect(JSON.stringify(grant.descriptor)).not.toContain("tok_agent");
+    expect(grant.descriptor.bridge.args).toEqual([
+      "--hub",
+      "http://127.0.0.1:8787",
+      "--connection",
+      "con_test",
+    ]);
+    expect(buildMcpConfigSnippet({ token: "tok_agent" })).not.toContain("tok_agent");
   });
 });
 

@@ -25,6 +25,7 @@ export interface DesktopPaths {
   shellStaticDir: string;
   shellWebUrl: string | null;
   mcpBridgeEntry: string | null;
+  mcpLauncherCommand: string;
   hubUrl: string;
   healthUrl: string;
   port: number;
@@ -90,6 +91,7 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
         env.MURRMURE_MCP_BRIDGE_ENTRY,
         join(repoRoot, "packages/mcp-bridge/dist/main.js"),
       ]),
+      mcpLauncherCommand: join(dataDir, "bin", "murrmure-mcp"),
       hubUrl,
       healthUrl,
       port,
@@ -124,6 +126,7 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
         env.MURRMURE_MCP_BRIDGE_ENTRY,
         join(repoRoot, "packages/mcp-bridge/dist/main.js"),
       ]),
+      mcpLauncherCommand: join(dataDir, "bin", "murrmure-mcp"),
       hubUrl,
       healthUrl,
       port,
@@ -149,6 +152,7 @@ export function resolveDesktopPaths(options: ResolveDesktopPathsOptions): Deskto
       env.MURRMURE_MCP_BRIDGE_ENTRY,
       join(resourcesDir, "mcp-bridge/main.js"),
     ]),
+    mcpLauncherCommand: join(dataDir, "bin", "murrmure-mcp"),
     hubUrl,
     healthUrl,
     port,
@@ -178,6 +182,8 @@ export function buildHubSpawnEnv(paths: DesktopPaths, env: NodeJS.ProcessEnv = p
 
   if (paths.mcpBridgeEntry) {
     spawnEnv.MURRMURE_MCP_BRIDGE_ENTRY = paths.mcpBridgeEntry;
+    spawnEnv.MURRMURE_MCP_BRIDGE_COMMAND = paths.mcpLauncherCommand;
+    spawnEnv.MURRMURE_MCP_BRIDGE_RUNTIME = paths.nodeBinary;
   }
 
   return spawnEnv;

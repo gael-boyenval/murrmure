@@ -8,8 +8,8 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
 | Code / symptom | Fix |
 |----------------|-----|
-| Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint` + `mrmr grant use --space ...` |
-| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / `step:resolve` / correct capabilities |
+| Revoked connection / 401 / 403 | `mrmr connection rotate con_… --space spc_…`, reinstall contexts, reload |
+| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; connection needs `tutorial-builder/v1` or explicit advanced capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
 | Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
 | `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |
@@ -21,11 +21,15 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
 ## MCP tools not showing in Cursor
 
-1. Reload Cursor after pasting MCP config
-2. Confirm `murrmure-mcp` is on PATH (`npm i -g @murrmure/mcp-bridge`)
-3. Env: **`MURRMURE_HUB_TOKEN`** exported in the same shell used to launch your IDE
-4. Check MCP logs in Cursor settings
-5. Run **`mrmr space doctor`** for handler coverage and drift hints
+1. Reload the selected integration context after `mrmr connection create`
+2. Confirm `~/.murrmure/bin/murrmure-mcp` exists and is executable
+3. Relaunch Desktop to refresh stale bundle discovery after a move or upgrade
+4. Unlock macOS Keychain if credential lookup is blocked
+5. Run **`mrmr space doctor`** to distinguish launcher, discovery, credential, revocation/association, and Hub failures
+
+Do not add `MURRMURE_HUB_TOKEN` to local MCP configuration. Local mode fails
+closed and reads the credential by Hub + connection ID from Keychain. Runtime
+environment injection is only for explicit headless CI mode.
 
 ## Desktop: can't see a space
 

@@ -12,13 +12,13 @@ Install npm packages when you run agents, scripts/CI, or author indexed flows.
 
 - **Node.js 20+**
 - Murrmure Desktop running (or hub reachable at `http://127.0.0.1:8787`)
-- A minted grant token (`tok_...`) from **`mrmr grant mint`**
+- A space and one local connection created through Desktop + `mrmr setup`
 
 ## Step 2: choose your package(s)
 
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
-| `@murrmure/cli` | Operators + authors | `npm install -g @murrmure/cli` | `mrmr` setup, space apply, grant workflows |
+| `@murrmure/cli` | Operators + authors | `npm install -g @murrmure/cli` | `mrmr` setup, space apply, connection workflows |
 | `@murrmure/mcp-bridge` | Agent MCP clients | Bundled with **Murrmure Desktop**; `npm install -g` only for headless/CI without Desktop | `murrmure-mcp` MCP stdio bridge |
 
 If you prefer no global installs:
@@ -41,11 +41,10 @@ npm install -g @murrmure/cli
 mrmr setup
 ```
 
-Or mint a grant manually:
+Or create a connection manually:
 
 ```bash
-mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,step:resolve,space:read
-mrmr grant use --space spc_…
+mrmr connection create --space spc_…
 ```
 
 3. Add MCP config in your agent client — see [Connect your agent](./agents-mcp).
@@ -67,9 +66,8 @@ See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creat
 ## CI / headless environment
 
 ```bash
-export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_HUB_TOKEN=tok_your_grant_token
-mrmr setup --yes --json
+# Inject the connection token from the CI provider only at process runtime.
+murrmure-mcp --headless-ci --hub http://127.0.0.1:8787
 ```
 
 ## You do not need for normal onboarding

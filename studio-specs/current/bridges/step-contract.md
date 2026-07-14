@@ -252,7 +252,8 @@ every start path — CLI and Desktop agree.
 
 ## Strict apply linter
 
-`mrmr space apply --strict` fails on:
+`mrmr space apply` **hard-rejects** the following at parse time (HTTP 400, no
+persist, no `--strict` needed) — the bundle never reaches the index:
 
 | Code | Meaning |
 |------|---------|
@@ -262,6 +263,12 @@ every start path — CLI and Desktop agree.
 | `REMOVED_FIELD` | Step or branch uses a removed key (`role`, `presentation`, `deriveRole`, `next`, `fail_run`, `goto`, `fail`, `complete`, `continue`, `payload`, `outcome`, …) |
 | `INLINE_SCRIPT_STEP` | Flow manifest rejects inline `script` / `run` / `shell` / `command` steps |
 | `EMPTY_BRANCHES` | Step declares `branches: {}` — omit branches for defaults or declare at least one |
+
+`mrmr space apply --strict` additionally fails (exit 1) on these lint warnings;
+without `--strict` they print to stdout and the apply still succeeds:
+
+| Code | Meaning |
+|------|---------|
 | `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
 | `ROUTE_TARGET_NOT_FOUND` | `route.step` references a missing step |
 | `RESUME_TARGET_NOT_ANCESTOR` | `resume` target is not an open ancestor |
