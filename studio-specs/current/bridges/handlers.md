@@ -186,7 +186,10 @@ runtime owns process lifecycle. See
   rejected before spawn.
 - A missing or null binding fails before process creation with
   `HANDLER_BINDING_VALUE_MISSING`; a schema-valid empty string remains one empty
-  argument.
+  argument. Placeholder and token character sets include hyphens so a key like
+  `{{my-step.artifact.path}}` is recognized (and rejected as unknown when
+  unbound) rather than silently passing through as a literal. Authored
+  single-quoted literals re-emit verbatim.
 - `{{prompt}}` is stripped (delivered via stdin) when the handler uses prompt
   delivery, otherwise substituted as one quoted argument. `{{space_root}}` is
   resolved in the `cwd` field as a path, not shell-quoted.
@@ -198,12 +201,20 @@ runtime owns process lifecycle. See
   execution to an **absolute, digest-verified, run-scoped consumer copy** at
   `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`.
 - The original artifact is never mutated; the source must be a regular file
-  inside the run scratch tree (traversal rejected) and is read once. The copy
-  is written to a temp sibling and atomically renamed, so a partial file is
-  never observable. A digest mismatch refuses the copy before any consumer
-  bytes are written.
+  inside the run scratch tree. A literal containment check rejects obvious
+  escapes, `lstat` rejects a symlinked source, and `realpath` canonicalizes both
+  sides before confirming the real path stays in-tree — so an in-tree symlinked
+  parent that resolves outside is rejected as `ARTIFACT_PATH_TRAVERSAL`. The
+  source is read once. The copy is written to a temp sibling and atomically
+  renamed into place (POSIX `rename` atomically replaces any existing
+  destination), so a partial file is never observable and a prior copy is never
+  left missing. A digest mismatch refuses the copy before any consumer bytes are
+  written.
 - Public APIs, Views, journals, and remote handlers receive **references,
-  never local paths**.
+  never local paths**. The dispatch audit resolves an artifact `.path`
+  placeholder to an opaque reference (transfer id when available, else
+  `artifact:{producer}:{slot}`) — never the producer's local path or the
+  consumer copy path.
 
 ### POSIX execution and defaults
 
@@ -215,11 +226,20 @@ runtime owns process lifecycle. See
 
 - Timeout, cancellation, external resolution, yield, run terminal, or Desktop
   shutdown sends process-group `SIGTERM`, waits five seconds, then `SIGKILL`,
-  and records exactly one terminal result. Authored `kill_on` is removed.
+  and records exactly one terminal result. The `SIGKILL` escalation stays armed
+  when the shell leader exits after `SIGTERM`, so a TERM-resistant descendant is
+  still reaped after the grace period. Hub/Desktop shutdown cancels every
+  registered shell executor. Authored `kill_on` is removed.
 - Each spawned handler receives an **ephemeral run/step-scoped credential**
   (`MURRMURE_HUB_TOKEN`) in its environment, never the persistent machine
-  connection. The dispatch audit records only command/prompt/cwd — never the
-  environment — so credentials never reach the journal or public surfaces.
+  connection. The token carries an `expires_at` backstop and a `scope_ref`
+  (`{run_id}:{step_id}`); `requireToken` denies an expired or revoked token and
+  the resolve route denies a `scope_ref` mismatch
+  (`TOKEN_STEP_SCOPE_MISMATCH`). The credential is revoked on every terminal
+  path — step resolve/auto-complete, run terminal, and Desktop shutdown — so no
+  persistent child credential survives a finished assignment. The dispatch audit
+  records only command/prompt/cwd — never the environment — so credentials never
+  reach the journal or public surfaces.
 
 ### `complete:auto` outcomes
 
@@ -230,6 +250,8 @@ runtime owns process lifecycle. See
 | Unparseable stdout (when `response_schema` set) | `failed` — `RESPONSE_NOT_JSON` |
 | Spawn failure | `failed` — `SHELL_SPAWN_FAILED` |
 | Timeout / termination | `failed` — `ACTION_TIMED_OUT` |
+| Missing/null/quoted/embedded/unknown binding | `failed` — `HANDLER_BINDING_VALUE_MISSING` / `HANDLER_PLACEHOLDER_QUOTED` / `HANDLER_PLACEHOLDER_EMBEDDED` / `HANDLER_UNKNOWN_PLACEHOLDER` (before spawn) |
+| Materialization failure | `failed` — `ARTIFACT_PATH_TRAVERSAL` / `ARTIFACT_SOURCE_NOT_FOUND` / `ARTIFACT_SOURCE_NOT_FILE` / `ARTIFACT_DIGEST_MISMATCH` / `ARTIFACT_COPY_FAILED` (before spawn) |
 
 ---
 
@@ -275,7 +297,7 @@ Warning by default (`WORKER_NO_BINDINGS`). Strict error in CI when `mrmr space d
 
 **Status:** DECIDED
 
-`MURRMURE_HUB_TOKEN` injected on `shell_spawn` dispatch is **short-lived and run-scoped** (resolve capability only). Minted per dispatch; never reuse long-lived grant tokens in shell env. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly. Views receive no hub credential.
+`MURRMURE_HUB_TOKEN` injected on `shell_spawn` dispatch is **short-lived and run/step-scoped** (resolve capability only). Minted per dispatch with an `expires_at` backstop and a `scope_ref` (`{run_id}:{step_id}`); revoked on step resolve/auto-complete, run terminal, and Desktop shutdown. Never reuse long-lived grant tokens in shell env. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly and is denied on `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH`) or expiry/revocation. Views receive no hub credential.
 
 ### Q7 — `complete: cli` branch validation
 

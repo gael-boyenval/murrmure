@@ -36,7 +36,12 @@ while flows stay portable and spaces own what each handler does.
    command and rejects author-quoted placeholders (`'{{x}}'`, `"{{x}}"`), embedded
    forms (`--flag={{x}}`, `pre{{x}}post`, `{{a}}{{b}}`), and unknown placeholders
    before spawn. A missing/null binding fails with `HANDLER_BINDING_VALUE_MISSING`;
-   a schema-valid empty string remains one empty argument.
+   a schema-valid empty string remains one empty argument. The placeholder and
+   token character sets include hyphens so a key like `{{my-step.artifact.path}}`
+   is recognized (and rejected as unknown when unbound) instead of silently
+   passing through as a literal fragment. The tokenizer preserves authored
+   single-quoted literals verbatim (the closing quote is a delimiter, not
+   content) so `printf '%s' {{x}}` re-emits `'%s'` exactly.
 2. **Quote-once substitution.** The runtime shell-quotes each resolved value
    exactly once (`shellQuote`), so spaces, apostrophes, `$()`, backticks,
    newlines, leading dashes, and Unicode remain literal data and can never
@@ -45,10 +50,17 @@ while flows stay portable and spaces own what each handler does.
 3. **Verified atomic consumer copy.** `materializeConsumerCopy` writes one
    digest-verified, run-scoped copy to
    `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`. The
-   source must be a regular file inside the run scratch tree (traversal rejected),
-   is read once and never mutated, and the copy is written to a temp sibling and
-   atomically renamed, so a partial file is never observable. A digest mismatch
-   refuses the copy before any consumer bytes are written.
+   source must be a regular file inside the run scratch tree: a literal
+   containment check rejects obvious escapes, `lstat` rejects a symlinked source
+   entry, and `realpath` canonicalizes both the source and the run root (so a
+   host-level symlink such as macOS `/var` → `/private/var` cannot produce a
+   false positive) before confirming the real path stays in-tree — this also
+   defeats an in-tree symlinked parent directory that resolves outside. The
+   source is read once and never mutated, and the copy is written to a temp
+   sibling and atomically renamed into place (POSIX `rename` atomically replaces
+   any existing destination), so a partial file is never observable and a prior
+   copy is never left missing. A digest mismatch refuses the copy before any
+   consumer bytes are written.
 4. **Canonical run-scratch paths.** `runScratchPaths` and its helpers
    (`runScratchDir`, `stepStableDirRel`, `stepWorkdirRel`, `stepInputsDirRel`,
    `consumerInputPath`, `activeContractPath`) centralize every run-scoped path;
@@ -63,18 +75,40 @@ while flows stay portable and spaces own what each handler does.
    yield, run terminal, or Desktop shutdown sends `SIGTERM` to the whole group
    (`process.kill(-pgid, ...)`), waits five seconds, then `SIGKILL`, and records
    exactly one terminal result. `terminateProcessGroup` falls back to a direct
-   signal when no pid is available.
+   signal when no pid is available. The `SIGKILL` escalation stays armed when the
+   shell leader exits after `SIGTERM` (the `close` handler only clears it on a
+   natural exit), so a TERM-resistant descendant in the group is still reaped
+   after the grace period. Hub/Desktop shutdown calls `cancelAllShellExecutors` so
+   no spawned handler process tree is orphaned when the daemon stops.
 7. **Ephemeral assignment credentials.** Each spawned handler receives a
    run/step-scoped credential (`MURRMURE_HUB_TOKEN`) in its environment, never
-   the persistent machine connection. The dispatch audit records only
-   `command`, `prompt`, and `cwd` — never the environment — so the credential
-   cannot leak into the journal or public surfaces. Authored `kill_on` is
-   removed; termination is owned by the runtime.
+   the persistent machine connection. The token carries an `expires_at` backstop
+   (action timeout plus grace, else a default TTL) and a `scope_ref`
+   (`{run_id}:{step_id}`); `requireToken` denies an expired or revoked token and
+   the resolve route denies a `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH`).
+   A `run-resolve-credential-registry` tracks every minted token and revokes it
+   on each terminal path — step resolve/auto-complete, run terminal
+   (`terminateRunExecutors`), and Hub/Desktop shutdown (`revokeAllResolveCredentials`)
+   — via a daemon-installed revoker, so no persistent child credential survives a
+   finished assignment. The dispatch audit records only `command`, `prompt`, and
+   `cwd` — never the environment — so the credential cannot leak into the journal
+   or public surfaces. Artifact `.path` placeholders in the audit resolve to an
+   opaque reference (transfer id when available, else `artifact:{producer}:{slot}`)
+   rather than the producer's local run-scratch path or the consumer copy path, so
+   journals and public APIs receive references, never local paths. Authored
+   `kill_on` is removed; termination is owned by the runtime.
 8. **`complete:auto` outcomes.** Exit 0 with parseable stdout completes;
    nonzero exit fails `SHELL_EXIT_NONZERO`; unparseable stdout (when a
    `response_schema` is set) fails `RESPONSE_NOT_JSON`; spawn failure is
    `SHELL_SPAWN_FAILED`; timeout is `ACTION_TIMED_OUT`. A detached handler
-   reports its one terminal outcome through `onShellComplete`.
+   reports its one terminal outcome through `onShellComplete`. Binding and
+   materialization failures map to their own typed codes —
+   `HANDLER_BINDING_VALUE_MISSING`, `HANDLER_UNKNOWN_PLACEHOLDER`,
+   `HANDLER_PLACEHOLDER_QUOTED`, `HANDLER_PLACEHOLDER_EMBEDDED`,
+   `ARTIFACT_PATH_TRAVERSAL`, `ARTIFACT_SOURCE_NOT_FOUND`,
+   `ARTIFACT_SOURCE_NOT_FILE`, `ARTIFACT_DIGEST_MISMATCH`, `ARTIFACT_COPY_FAILED`
+   — and prevent process creation; they are not collapsed into
+   `SHELL_SPAWN_FAILED`.
 
 ## Consequences
 
@@ -95,18 +129,27 @@ while flows stay portable and spaces own what each handler does.
 ## Enforcement
 
 - `resolveSafeShellCommand` (`packages/executors/src/shell-command.ts`) and its
-  conformance suite enforce the grammar, quote-once, and the
+  conformance suite enforce the grammar, quote-once, hyphenated-placeholder
+  recognition, single-quoted-literal preservation, and the
   missing/null/empty distinction across spaces, apostrophes, quotes, `$()`,
   backticks, newlines, leading dashes, Unicode, and empty strings.
 - `materializeConsumerCopy` (`packages/hub-core/src/flow-engine/consumer-copy.ts`)
-  and its unit suite enforce digest mismatch, traversal, interrupted copy,
-  atomic visibility, immutable source, and basename-neutralized filenames.
+  and its unit suite enforce digest mismatch, traversal, symlinked-source and
+  symlinked-parent rejection, interrupted copy, atomic visibility, immutable
+  source, and basename-neutralized filenames.
 - `runScratchPaths` (`packages/hub-core/src/flow-engine/run-scratch-paths.ts`)
   is the single source for run-scoped paths; `step-artifacts.ts` and
   `step-contract-slice.ts` delegate to it.
 - `createShellSpawnExecutor` spawns `/bin/sh -e -c` detached and terminates the
-  group on timeout; the safety suite proves SIGTERM then SIGKILL escalation and
-  that the audit never exposes the hub token.
+  group on timeout; the safety suite proves SIGTERM then SIGKILL escalation
+  (including SIGKILL-after-close), that the audit never exposes the hub token,
+  that artifact `.path` audit placeholders resolve to references not local
+  paths, and that binding/materialization failures return typed codes without
+  spawning.
+- `run-resolve-credential-registry` (`packages/hub-core/src/invoke/`) and its
+  unit suite enforce step/run/shutdown revocation and cross-step isolation;
+  `auth-credential-lifecycle` enforces expiry and revocation denial in
+  `requireToken`.
 - `dependency-cruiser` permits `executors → hub-core` and reports no violations.
 
 ## References

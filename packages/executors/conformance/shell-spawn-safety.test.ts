@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -212,5 +212,148 @@ describe("shell-spawn credential redaction", () => {
     const serialized = JSON.stringify(audit);
     expect(serialized).not.toContain("tok_run_scoped_secret");
     expect(audit?.command).toBe("cursor agent -p --force");
+  });
+});
+
+describe("shell-spawn dispatch audit reference resolution", () => {
+  function auditContext(runArtifacts: unknown, command: string): DispatchContext {
+    return {
+      action: { name: "write_spec_copy", command },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: "/tmp/repo",
+      step_contract: {
+        slice_json: "{}",
+        contract_path: "/tmp/repo/.mrmr/dev/runs/run_demo/active-step-contract.json",
+        workdir: "/tmp/repo/.mrmr/dev/runs/run_demo/steps/write_spec/work",
+        run_artifacts_json: JSON.stringify(runArtifacts),
+      },
+    };
+  }
+
+  test("artifact path placeholder resolves to a transfer reference, never a local path", () => {
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
+          name: "spec.md",
+          digest: "sha256:abc",
+          size_bytes: 1,
+          transfer_id: "xfr_01JXTREFERENCE",
+        },
+      },
+    };
+    const audit = resolveShellDispatchAudit(
+      baseInvoke(),
+      auditContext(runArtifacts, "cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md"),
+    );
+    expect(audit?.command).toContain("xfr_01JXTREFERENCE");
+    expect(audit?.command).toContain("specs/current/spec.md");
+    expect(audit?.command).not.toContain(".mrmr/dev/runs");
+  });
+
+  test("without a transfer id the placeholder resolves to a symbolic artifact reference", () => {
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
+          name: "spec.md",
+          digest: "sha256:abc",
+          size_bytes: 1,
+        },
+      },
+    };
+    const audit = resolveShellDispatchAudit(
+      baseInvoke(),
+      auditContext(runArtifacts, "cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md"),
+    );
+    expect(audit?.command).toContain("artifact:intake:spec");
+    expect(audit?.command).not.toContain(".mrmr/dev/runs");
+  });
+});
+
+describe("shell-spawn typed dispatch errors fail before spawn", () => {
+  let spaceRoot: string;
+
+  beforeEach(() => {
+    spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-t06-err-"));
+  });
+
+  afterEach(() => {
+    rmSync(spaceRoot, { recursive: true, force: true });
+  });
+
+  function stepContract(runArtifacts: unknown): DispatchContext["step_contract"] {
+    return {
+      slice_json: "{}",
+      contract_path: join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "active-step-contract.json"),
+      workdir: join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "steps", "write_spec", "work"),
+      run_artifacts_json: JSON.stringify(runArtifacts),
+    };
+  }
+
+  test("missing artifact binding fails with HANDLER_BINDING_VALUE_MISSING", async () => {
+    let spawnCalled = false;
+    const child = makeFakeChild({ closeCode: 0, stdoutData: "{}" });
+    const spawnStub = asSpawn(() => {
+      spawnCalled = true;
+      return child;
+    });
+    const executor = createShellSpawnExecutor({ spawn: spawnStub });
+    const context: DispatchContext = {
+      action: {
+        name: "write_spec_copy",
+        command: "cp {{murrmure.step.intake.artifact.spec.path}} out.md",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: spaceRoot,
+      step_contract: stepContract({}),
+    };
+    const outcome = await executor.dispatch(baseInvoke({ run_id: "demo" }), context);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.error_code).toBe("HANDLER_BINDING_VALUE_MISSING");
+    expect(spawnCalled).toBe(false);
+  });
+
+  test("symlinked artifact source fails with ARTIFACT_PATH_TRAVERSAL", async () => {
+    const outside = join(spaceRoot, "outside.md");
+    writeFileSync(outside, "secret");
+    const slotDir = join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "steps", "intake", "spec");
+    mkdirSync(slotDir, { recursive: true });
+    const linkRel = ".mrmr/dev/runs/run_demo/steps/intake/spec/link.md";
+    symlinkSync(outside, join(spaceRoot, linkRel));
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          path: linkRel,
+          name: "link.md",
+          digest: "sha256:abc",
+          size_bytes: 1,
+        },
+      },
+    };
+
+    let spawnCalled = false;
+    const child = makeFakeChild({ closeCode: 0, stdoutData: "{}" });
+    const spawnStub = asSpawn(() => {
+      spawnCalled = true;
+      return child;
+    });
+    const executor = createShellSpawnExecutor({ spawn: spawnStub });
+    const context: DispatchContext = {
+      action: {
+        name: "write_spec_copy",
+        command: "cp {{murrmure.step.intake.artifact.spec.path}} out.md",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: spaceRoot,
+      step_contract: stepContract(runArtifacts),
+    };
+    const outcome = await executor.dispatch(baseInvoke({ run_id: "demo" }), context);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.error_code).toBe("ARTIFACT_PATH_TRAVERSAL");
+    expect(spawnCalled).toBe(false);
   });
 });

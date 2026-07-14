@@ -25,6 +25,10 @@ export interface TokenRow {
   harness_id?: string;
   flow_acl?: string[];
   status: "active" | "revoked";
+  /** ISO timestamp after which an active token is treated as denied. */
+  expires_at?: string;
+  /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
+  scope_ref?: string;
 }
 
 export interface GrantRow {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { copyFile, mkdir, rm, stat, unlink } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
+import { lstat, mkdir, realpath, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { runScratchDir, consumerInputPath } from "./run-scratch-paths.js";
 
 export interface ConsumerCopyResult {
@@ -42,15 +42,19 @@ function safeFilename(name: string): string {
  * Materialize one verified local consumer copy of a run-scoped artifact.
  *
  * The source must be a regular file inside the run's scratch tree
- * (`.mrmr/dev/runs/{run_id}/…`); paths that escape that tree are rejected as
- * traversal. The source is read once and never mutated — only a copy is
- * written. When `expected_digest` is supplied, the source digest must match or
- * the copy is refused (`ARTIFACT_DIGEST_MISMATCH`) before any consumer bytes
- * are written.
+ * (`.mrmr/dev/runs/{run_id}/…`). Symlinked sources and symlinked parent
+ * directories that resolve outside the run scratch tree are rejected as
+ * traversal (`ARTIFACT_PATH_TRAVERSAL`): the source entry is `lstat`-checked
+ * for a real file, then `realpath`-resolved and containment-verified. The
+ * source is read once and never mutated — only a copy is written. When
+ * `expected_digest` is supplied, the source digest must match or the copy is
+ * refused (`ARTIFACT_DIGEST_MISMATCH`) before any consumer bytes are written.
  *
  * The copy is written to a temporary sibling under the consumer `inputs/{slot}`
- * directory and atomically renamed into place, so a partially-written file is
- * never observable. A failed copy removes its temporary bytes.
+ * directory and atomically renamed into place (POSIX rename atomically replaces
+ * any existing destination), so a partially-written file is never observable
+ * and a prior copy is never left missing. A failed copy removes its temporary
+ * bytes.
  */
 export async function materializeConsumerCopy(input: {
   space_root: string;
@@ -65,27 +69,67 @@ export async function materializeConsumerCopy(input: {
   expected_digest?: string;
 }): Promise<ConsumerCopyResult> {
   const runRoot = runScratchDir(input.space_root, input.run_id);
-  const rel = relative(runRoot, input.source_path);
-  if (rel.startsWith("..") || rel === "" ) {
+  // Cheap literal containment check first; the realpath check below is the
+  // authoritative guard against symlinked parent directories.
+  const literalRel = relative(runRoot, input.source_path);
+  if (literalRel.startsWith("..") || literalRel === "") {
     throw new ArtifactMaterializationError(
       "ARTIFACT_PATH_TRAVERSAL",
       `Artifact source '${input.source_path}' escapes the run scratch tree`,
     );
   }
 
+  // The source entry itself must be a real regular file — never a symlink that
+  // could point outside the run scratch tree.
   let srcStat;
   try {
-    srcStat = await stat(input.source_path);
+    srcStat = await lstat(input.source_path);
   } catch {
     throw new ArtifactMaterializationError(
       "ARTIFACT_SOURCE_NOT_FOUND",
       `Artifact source '${input.source_path}' not found`,
     );
   }
+  if (srcStat.isSymbolicLink()) {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_PATH_TRAVERSAL",
+      `Artifact source '${input.source_path}' is a symlink and cannot be copied`,
+    );
+  }
   if (!srcStat.isFile()) {
     throw new ArtifactMaterializationError(
       "ARTIFACT_SOURCE_NOT_FILE",
       `Artifact source '${input.source_path}' is not a regular file`,
+    );
+  }
+
+  // Resolve symlinked parent directories and confirm the real path stays inside
+  // the run scratch tree (prevents an in-tree symlink to an outside file). Both
+  // sides are realpath-canonicalized so a host-level symlink on the space root
+  // (e.g. macOS `/var` → `/private/var`) cannot produce a false-positive escape.
+  let realSource: string;
+  try {
+    realSource = await realpath(input.source_path);
+  } catch {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_SOURCE_NOT_FOUND",
+      `Artifact source '${input.source_path}' not found`,
+    );
+  }
+  let realRunRoot: string;
+  try {
+    realRunRoot = await realpath(runRoot);
+  } catch {
+    // runRoot is not present on disk — fall back to the literal root, which the
+    // literal containment check above already validated. (This cannot occur when
+    // the source file inside it was just lstat'd successfully.)
+    realRunRoot = runRoot;
+  }
+  const realRel = relative(realRunRoot, realSource);
+  if (realRel === "" || realRel.startsWith("..") || isAbsolute(realRel)) {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_PATH_TRAVERSAL",
+      `Artifact source '${input.source_path}' resolves outside the run scratch tree`,
     );
   }
 
@@ -100,10 +144,9 @@ export async function materializeConsumerCopy(input: {
   const destDir = dirname(dest);
   await mkdir(destDir, { recursive: true });
 
-  // Read source once to compute the digest; keep the buffer for the copy so the
-  // source is touched exactly once and remains immutable.
-  const { readFile } = await import("node:fs/promises");
-  const buffer = await readFile(input.source_path);
+  // Read the real source once to compute the digest; keep the buffer for the
+  // copy so the source is touched exactly once and remains immutable.
+  const buffer = await readFile(realSource);
   const digest = sha256OfFile(buffer);
   if (input.expected_digest && input.expected_digest !== digest) {
     throw new ArtifactMaterializationError(
@@ -112,10 +155,12 @@ export async function materializeConsumerCopy(input: {
     );
   }
 
+  // Write to a temp sibling and atomically rename into place. POSIX rename
+  // atomically replaces an existing destination, so a partial file is never
+  // observable and a prior copy is never left missing.
   const tmp = join(destDir, `.tmp-${randomBytes(8).toString("hex")}`);
   try {
-    await copyFileFromBuffer(buffer, tmp);
-    await unlinkIfExists(dest);
+    await writeFile(tmp, buffer);
     await rename(tmp, dest);
   } catch (error) {
     await rm(tmp, { force: true });
@@ -128,23 +173,4 @@ export async function materializeConsumerCopy(input: {
   }
 
   return { path: dest, digest, size_bytes: buffer.length };
-}
-
-async function copyFileFromBuffer(buffer: Buffer, dest: string): Promise<void> {
-  const { writeFile } = await import("node:fs/promises");
-  await writeFile(dest, buffer);
-}
-
-async function rename(from: string, to: string): Promise<void> {
-  const fs = await import("node:fs/promises");
-  await fs.rename(from, to);
-}
-
-async function unlinkIfExists(path: string): Promise<void> {
-  try {
-    await unlink(path);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") throw error;
-  }
 }

@@ -40,6 +40,36 @@
   gone — handlers with unresolved placeholders now fail before spawn with a
   typed error instead of running a malformed command.
 
+### Fixed (post-review, 2026-07-15)
+
+- Assignment credentials now carry an `expires_at` backstop and a `scope_ref`
+  (`{run_id}:{step_id}`); `requireToken` denies expired/revoked tokens and the
+  resolve route denies a scope mismatch (`TOKEN_STEP_SCOPE_MISMATCH`). Credentials
+  are revoked on step resolve/auto-complete, run terminal, and Desktop shutdown
+  via an assignment-credential registry, so no persistent child credential
+  survives a finished assignment.
+- Process-group `SIGKILL` escalation now stays armed when the shell leader exits
+  after `SIGTERM`, so a TERM-resistant descendant is reaped after the grace
+  period; Hub/Desktop shutdown cancels every registered shell executor.
+- Binding and materialization failures now map to their own typed codes
+  (`HANDLER_BINDING_VALUE_MISSING`, `HANDLER_PLACEHOLDER_QUOTED`/`EMBEDDED`,
+  `HANDLER_UNKNOWN_PLACEHOLDER`, `ARTIFACT_PATH_TRAVERSAL`,
+  `ARTIFACT_SOURCE_NOT_FOUND`/`NOT_FILE`, `ARTIFACT_DIGEST_MISMATCH`,
+  `ARTIFACT_COPY_FAILED`) before spawn, instead of collapsing to
+  `SHELL_SPAWN_FAILED`.
+- The dispatch audit resolves artifact `.path` placeholders to opaque references
+  (transfer id, else `artifact:{producer}:{slot}`) — never the producer's local
+  run-scratch path or the consumer copy path — so journals and public APIs
+  receive references, not local paths.
+- `materializeConsumerCopy` rejects symlinked sources and symlinked parent
+  directories that resolve outside the run scratch tree (`lstat` + `realpath`
+  canonicalization), and atomically renames into place (POSIX `rename` replaces
+  any existing destination) so a prior copy is never left missing.
+- The shell tokenizer preserves authored single-quoted literals verbatim and
+  recognizes hyphenated placeholders (e.g. `{{my-step.artifact.path}}`) so they
+  are substituted or rejected as unknown instead of silently passing through.
+- The exact Tutorial Part 5 (`write_spec_copy`) conformance test is now active.
+
 ## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
 
 ### Added

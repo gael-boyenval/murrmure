@@ -72,6 +72,26 @@ describe("shell-command grammar", () => {
     expect(resolve('cp "my file" {{dst}}', { dst: "/out" })).toBe(`cp "my file" '/out'`);
   });
 
+  test("preserves author-quoted single-quoted literals verbatim", () => {
+    expect(resolve("cp 'my file' {{dst}}", { dst: "/out" })).toBe(`cp 'my file' '/out'`);
+  });
+
+  test("preserves a single-quoted format string before a placeholder", () => {
+    expect(resolve("printf '%s' {{x}}", { x: "hello" })).toBe(`printf '%s' 'hello'`);
+  });
+
+  test("recognizes a hyphenated placeholder and substitutes it", () => {
+    expect(
+      resolve("cp {{murrmure.step.build.build-loop.artifact.spec.path}} out.md", {
+        "murrmure.step.build.build-loop.artifact.spec.path": "/run/inputs/spec/spec.md",
+      }),
+    ).toBe("cp '/run/inputs/spec/spec.md' out.md");
+  });
+
+  test("rejects an unknown hyphenated placeholder", () => {
+    expect(() => resolve("echo {{unknown-key}}", {})).toThrow(HandlerBindingError);
+  });
+
   test("rejects author-added single quotes around a placeholder", () => {
     expect(() => resolve("cp '{{src}}' out", { src: "/a" })).toThrow(HandlerBindingError);
   });

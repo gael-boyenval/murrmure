@@ -5,6 +5,8 @@ import {
   matchStepOpenedHandlers,
   parseHandlersFile,
   validateHandlerBindings,
+  materializeConsumerCopy,
+  consumerInputPath,
 } from "@murrmure/hub-core";
 import { parseHandlerStepBinding } from "@murrmure/contracts";
 import {
@@ -12,6 +14,10 @@ import {
   parseFlowManifest,
 } from "@murrmure/hub-core";
 import { loadTutorialSnapshot } from "../../../test-utils/tutorial-v3/snapshots.js";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 
 const ALIAS = "my-dev-flow.intake";
 
@@ -118,7 +124,89 @@ describe("Tutorial v3 handler conformance", () => {
     expect(fixtureBranchNames).toEqual(["cancel", "continue"]);
   });
 
-  test.skip("Task 06 — Part 5 copy materializes and quotes one safe argument", () => {});
+  test("Task 06 — Part 5 copy materializes and quotes one safe argument", async () => {
+    const snapshot = loadTutorialSnapshot(5);
+    const handlersYaml = snapshot.files[".mrmr/space/handlers.yaml"];
+
+    // The exact Tutorial Part 5 copy handler binds the canonical write_spec
+    // step as an auto-completing shell_spawn resolver, with no authored kill_on.
+    expect(handlersYaml).toContain(`on: step.opened::my-dev-flow.write_spec`);
+    expect(handlersYaml).toMatch(/type:\s*shell_spawn/);
+    expect(handlersYaml).toMatch(/complete:\s*auto/);
+    expect(handlersYaml).not.toMatch(/kill_on/);
+
+    // The authored command copies one artifact via the singleton `.path`
+    // placeholder, which must occupy one complete unquoted argument — never
+    // quoted and never embedded in another token.
+    expect(handlersYaml).toContain(
+      "cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md",
+    );
+    expect(handlersYaml).not.toMatch(
+      /['"]\{\{murrmure\.step\.intake\.artifact\.spec\.path\}\}['"]/,
+    );
+    expect(handlersYaml).not.toMatch(
+      /=\{\{murrmure\.step\.intake\.artifact\.spec\.path\}\}/,
+    );
+
+    // The authored handler strict-parses and indexes to exactly one step.opened
+    // resolver for the canonical write_spec step.
+    const parsed = parseHandlersFile(parseYaml(handlersYaml));
+    expect(parsed.ok, "handlers.yaml strict-parses").toBe(true);
+    if (!parsed.ok) return;
+    const index = buildHandlerIndex(parsed.value);
+    const opened = matchStepOpenedHandlers(index, "my-dev-flow.write_spec");
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatchObject({ type: "shell_spawn", complete: "auto" });
+
+    // Materialize one verified run-scoped consumer copy from the producer
+    // artifact and confirm the canonical consumer path, digest match, and
+    // source immutability — the runtime injects this single path as the one
+    // safe shell-quoted argument.
+    const spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-t06-conf-"));
+    try {
+      const runId = "demo";
+      const producerRel = join(
+        ".mrmr",
+        "dev",
+        "runs",
+        "run_demo",
+        "steps",
+        "intake",
+        "spec",
+        "spec.md",
+      );
+      const producerAbs = join(spaceRoot, producerRel);
+      const content = "# Part 5 spec\n";
+      mkdirSync(dirname(producerAbs), { recursive: true });
+      writeFileSync(producerAbs, content);
+      const digest = "sha256:" + createHash("sha256").update(content).digest("hex");
+
+      const copy = await materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: runId,
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: producerAbs,
+        filename: "spec.md",
+        expected_digest: digest,
+      });
+
+      const expectedConsumer = consumerInputPath(
+        spaceRoot,
+        runId,
+        "write_spec",
+        "spec",
+        "spec.md",
+      );
+      expect(copy.path).toBe(expectedConsumer);
+      expect(copy.digest).toBe(digest);
+      expect(existsSync(expectedConsumer)).toBe(true);
+      // The producer artifact is never mutated by the consumer copy.
+      expect(readFileSync(producerAbs, "utf8")).toBe(content);
+    } finally {
+      rmSync(spaceRoot, { recursive: true, force: true });
+    }
+  });
   test.skip("Task 07 — build prompt is versioned and branch-complete", () => {});
   test.skip("Task 11 — run scratch retention preserves references, not paths", () => {});
 });

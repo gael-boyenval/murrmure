@@ -9,6 +9,8 @@ export interface TokenContext {
   scopes: string[];
   harness_id?: string;
   flow_acl?: string[];
+  /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
+  scope_ref?: string;
 }
 
 export function parseBearer(req: Request): string | undefined {
@@ -53,6 +55,15 @@ export async function requireToken(
     return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
   }
 
+  // Ephemeral assignment credentials carry an expiry backstop; an expired
+  // active token is treated as denied (revocation handles the normal path).
+  if (token.expires_at) {
+    const expiry = Date.parse(token.expires_at);
+    if (Number.isFinite(expiry) && expiry <= Date.now()) {
+      return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
+    }
+  }
+
   if (pathSpaceId) {
     const barePath = pathSpaceId.startsWith("spc_") ? pathSpaceId.slice(4) : pathSpaceId;
     if (token.space_id !== "bootstrap" && token.space_id !== barePath) {
@@ -69,6 +80,7 @@ export async function requireToken(
     scopes: token.scopes,
     harness_id: token.harness_id,
     flow_acl: token.flow_acl,
+    scope_ref: token.scope_ref,
   };
 }
 

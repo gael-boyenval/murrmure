@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
@@ -170,5 +170,93 @@ describe("materializeConsumerCopy", () => {
     });
     expect(result.path.endsWith(join("inputs", "spec", "escape.md"))).toBe(true);
     expect(result.path).not.toContain("..");
+  });
+
+  test("rejects a symlink source as traversal", async () => {
+    const outside = join(spaceRoot, "outside.md");
+    writeFileSync(outside, "secret");
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "cover");
+    const linkPath = join(dirname(producer.abs), "link.md");
+    symlinkSync(outside, linkPath);
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: linkPath,
+        filename: "spec.md",
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects an in-tree symlink that resolves outside the run scratch tree", async () => {
+    const outside = join(spaceRoot, "outside.md");
+    writeFileSync(outside, "secret");
+    // Place a symlink inside the producer slot pointing to an outside file.
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "cover");
+    const linkPath = join(dirname(producer.abs), "leak.md");
+    symlinkSync(outside, linkPath, "file");
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: linkPath,
+        filename: "spec.md",
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("follows a symlinked parent directory and rejects when it resolves outside the run tree", async () => {
+    const outside = join(spaceRoot, "outside");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "spec.md"), "secret");
+    // Create the real producer location, then replace its slot directory with a
+    // symlink to an outside directory containing a spec.md.
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "cover");
+    const slotDir = dirname(producer.abs);
+    rmSync(slotDir, { recursive: true, force: true });
+    symlinkSync(outside, slotDir, "dir");
+    const linkedSource = join(slotDir, "spec.md");
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: linkedSource,
+        filename: "spec.md",
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("leaves a prior copy intact when a re-copy fails (no partial overwrite)", async () => {
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "first");
+    const first = await materializeConsumerCopy({
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "write_spec",
+      slot: "spec",
+      source_path: producer.abs,
+      filename: "spec.md",
+    });
+    // Make the source disappear so the re-copy fails at read time; the prior
+    // atomic copy must remain fully present, never partially overwritten.
+    rmSync(producer.abs, { force: true });
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: producer.abs,
+        filename: "spec.md",
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_SOURCE_NOT_FOUND" });
+    expect(existsSync(first.path)).toBe(true);
+    expect(statSync(first.path).size).toBe("first".length);
+    expect(existsSync(join(dirname(first.path), ".tmp-"))).toBe(false);
   });
 });

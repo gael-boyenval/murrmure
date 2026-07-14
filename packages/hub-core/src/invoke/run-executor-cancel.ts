@@ -1,6 +1,7 @@
 import type { ChildProcess } from "node:child_process";
 import type { ExecutorPollStore } from "../executors/queue-store.js";
 import { defaultExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
+import { revokeRunResolveCredentials } from "./run-resolve-credential-registry.js";
 
 export interface RunExecutorCancelHandle {
   cancel(): void;
@@ -49,14 +50,17 @@ function killChildProcess(child: ChildProcess): void {
     }
   }
   setTimeout(() => {
+    // Always reap the process group after the grace period so a
+    // TERM-resistant descendant cannot survive the shell exiting. The direct
+    // child kill is skipped once the leader is already dead.
     if (child.exitCode === null && child.signalCode === null) {
       child.kill("SIGKILL");
-      if (pid) {
-        try {
-          process.kill(-pid, "SIGKILL");
-        } catch {
-          // ignore
-        }
+    }
+    if (pid) {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        // Process group already gone.
       }
     }
   }, 5_000).unref();
@@ -101,6 +105,15 @@ export function cancelRunExecutors(run_id: string): number {
   return cancelHandlesForKeys(keys);
 }
 
+/**
+ * Cancel every registered shell executor (all runs/steps). Used on Hub/Desktop
+ * shutdown so no spawned handler process tree is orphaned when the daemon stops.
+ */
+export function cancelAllShellExecutors(): number {
+  const keys = [...handlesByKey.keys()];
+  return cancelHandlesForKeys(keys);
+}
+
 export function terminateRunExecutors(input: {
   run_id: string;
   executorPollStore?: ExecutorPollStore;
@@ -108,6 +121,9 @@ export function terminateRunExecutors(input: {
 }): number {
   const killed = cancelRunExecutors(input.run_id);
   defaultExecutorTimeoutScheduler.stopRun(input.run_id);
+  // A terminal run revokes every ephemeral resolve credential it minted so no
+  // persistent child credential survives a finished assignment.
+  revokeRunResolveCredentials(input.run_id);
   const pollReason = input.reason?.toLowerCase().includes("cancel")
     ? "RUN_CANCELLED"
     : "RUN_TERMINATED";

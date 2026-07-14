@@ -373,6 +373,12 @@ export function migrateStudio(db: Database.Database): void {
   if (!tokenColNames.has("capabilities_json")) {
     db.exec(`ALTER TABLE tokens ADD COLUMN capabilities_json TEXT`);
   }
+  if (!tokenColNames.has("expires_at")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN expires_at TEXT`);
+  }
+  if (!tokenColNames.has("scope_ref")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN scope_ref TEXT`);
+  }
 
   if (!colNames.has("query_policy_json")) {
     db.exec(`ALTER TABLE spaces ADD COLUMN query_policy_json TEXT`);

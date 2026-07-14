@@ -19,6 +19,8 @@ import {
   mergeDispatchAuditIntoRun,
   appendShellStreamToRun,
   mergeActionResultIntoRun,
+  registerResolveCredential,
+  revokeStepResolveCredentials,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -38,6 +40,16 @@ import type { ArtifactService } from "./artifact-service.js";
 import { relayRemoteInvoke } from "./federation-wire.js";
 import type { FederationPort } from "@murrmure/hub-core";
 import { projectStepMemoFromJournal } from "./routes/sessions/index.js";
+
+/** Backstop TTL for an ephemeral resolve token when the action sets no timeout. */
+const DEFAULT_RESOLVE_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+/** Grace added past the action timeout so a handler can still resolve near the deadline. */
+const RESOLVE_TOKEN_GRACE_MS = 5 * 60 * 1000;
+
+function resolveTokenTtlMs(actionTimeoutMs?: number): number {
+  if (!actionTimeoutMs || actionTimeoutMs <= 0) return DEFAULT_RESOLVE_TOKEN_TTL_MS;
+  return actionTimeoutMs + RESOLVE_TOKEN_GRACE_MS;
+}
 
 export class InvokeService {
   private readonly memoStore = new Map<string, import("@murrmure/runtime-contracts").DispatchOutcome>();
@@ -174,9 +186,13 @@ export class InvokeService {
     run_id: string;
     space_id: string;
     actor_id: string;
+    step_id: string;
+    /** Assignment TTL backstop (ms); expiry is set to now + ttl. */
+    ttl_ms: number;
   }): Promise<string> {
     const token_id = ulid();
-    const ts = new Date().toISOString();
+    const ts = new Date();
+    const expires_at = new Date(ts.getTime() + input.ttl_ms).toISOString();
     await this.studio.insertToken(
       {
         token_id,
@@ -185,9 +201,11 @@ export class InvokeService {
         scopes: ["step:resolve"],
         capabilities: ["step:resolve"],
         harness_id: `run:${input.run_id}`,
+        scope_ref: `${input.run_id}:${input.step_id}`,
         status: "active",
+        expires_at,
       },
-      ts,
+      ts.toISOString(),
     );
     return `tok_${token_id}`;
   }
@@ -291,6 +309,11 @@ export class InvokeService {
     const bare = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
     const run = await this.studio.getRun(bare);
     if (!run?.space_id) return;
+
+    // The handler process has terminated (completed or failed); its ephemeral
+    // resolve credential is revoked immediately so it cannot outlive the
+    // assignment. Run-terminal revocation is a separate safety net.
+    revokeStepResolveCredentials(input.run_id, input.step_id);
 
     const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
     const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
@@ -584,11 +607,16 @@ export class InvokeService {
 
     if (run_id && parsed.data.step_id && resolved.space_root) {
       const matchedHandler = await this.loadIndexedHandler(bare, input.action_name);
+      const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
       const resolveToken = await this.mintRunResolveToken({
         run_id,
         space_id: bare,
         actor_id: input.actor_id,
+        step_id: parsed.data.step_id,
+        ttl_ms,
       });
+      // Track the ephemeral credential so any terminal path can revoke it.
+      registerResolveCredential(run_id, parsed.data.step_id, resolveToken);
       const stepContract = await buildFlowInvokeStepContract(this.studio, {
         run_id,
         step_id: parsed.data.step_id,

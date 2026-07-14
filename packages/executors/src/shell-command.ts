@@ -32,8 +32,11 @@ export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\"'\"'`)}'`;
 }
 
-const PLACEHOLDER_EXACT_RE = /^\{\{([\w.]+)\}\}$/;
-const CONTAINS_PLACEHOLDER_RE = /\{\{[\w.]+\}\}/;
+// Hyphens are included so step ids like `build.build-loop` resolve; a
+// placeholder that contains a hyphen is recognized (and rejected as unknown
+// when unbound) instead of silently passing through as a literal fragment.
+const PLACEHOLDER_EXACT_RE = /^\{\{([\w.-]+)\}\}$/;
+const CONTAINS_PLACEHOLDER_RE = /\{\{[\w.-]+\}\}/;
 
 interface TokenSegment {
   /** true if this segment came from a quoted string (author quotes). */
@@ -96,6 +99,9 @@ export function tokenizeShellCommand(command: string): Token[] {
     const ch = command[i]!;
     if (inSingle) {
       if (ch === "'") {
+        // Preserve the closing quote in `raw` so authored single-quoted
+        // literals re-emit verbatim; it is a delimiter, not segment content.
+        raw += ch;
         inSingle = false;
         i += 1;
         continue;

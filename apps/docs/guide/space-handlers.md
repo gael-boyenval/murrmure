@@ -98,7 +98,9 @@ values can never become shell fragments and the runtime owns process lifecycle.
   resolve only for local execution to a **verified, digest-checked, run-scoped
   consumer copy** at
   `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`. The
-  original artifact is never mutated.
+  original artifact is never mutated; the copy is atomic (temp file + rename)
+  and symlink-hardened, and a traversal or digest mismatch refuses it before any
+  consumer bytes are written.
 - **Execution.** Multiline commands run as `/bin/sh -e -c "<script>"` with no
   login profile and no silent shell fallback. Omitted `cwd` defaults to the
   space root; omitted `delivery` defaults to fail fast.
@@ -108,8 +110,10 @@ values can never become shell fragments and the runtime owns process lifecycle.
   `SIGKILL`, and records one terminal result. Authored `kill_on` is removed.
 - **Credentials.** Each spawned handler receives a short-lived run/step-scoped
   `MURRMURE_HUB_TOKEN` (resolve capability only), never the persistent machine
-  connection. The journal and public APIs never receive a local path or
-  credential.
+  connection. The token expires, is scoped to the one step, and is revoked when
+  the step resolves, the run ends, or the hub shuts down. The journal and public
+  APIs never receive a local path or credential; artifact path tokens appear in
+  the audit as opaque references, not local paths.
 
 ## `mrmr step resolve` (operator / shell path)
 
@@ -120,7 +124,7 @@ For `complete: cli` handlers, or shell scripts that need hub resolve without MCP
 mrmr step resolve --branch completed --payload-json '{"preview_url":"http://localhost:3000"}'
 ```
 
-Hub injects short-lived run-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly.
+Hub injects short-lived run/step-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one step, and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a scope mismatch or expired/revoked token.
 
 Agents in IDE sessions should prefer **`murrmure_resolve_step`** MCP tool (`step:resolve` capability).
 

@@ -13,8 +13,12 @@ import {
   buildInvokeTemplateBindings,
   resolveInvokePrompt,
 } from "./invoke-shell-prompt.js";
-import { resolveSafeShellCommand } from "./shell-command.js";
-import { materializeConsumerCopy, type RunArtifactsBag } from "@murrmure/hub-core";
+import { resolveSafeShellCommand, HandlerBindingError } from "./shell-command.js";
+import {
+  ArtifactMaterializationError,
+  materializeConsumerCopy,
+  type RunArtifactsBag,
+} from "@murrmure/hub-core";
 
 export { shellQuote } from "./shell-command.js";
 
@@ -217,11 +221,56 @@ export function resolveShellDispatchAudit(
   context: DispatchContext,
 ): DispatchAudit | undefined {
   if (!context.space_root) return undefined;
+  const authoredCommand = context.action.command ?? "";
+  const runArtifacts: RunArtifactsBag = context.step_contract?.run_artifacts_json
+    ? (JSON.parse(context.step_contract.run_artifacts_json) as RunArtifactsBag)
+    : {};
+  // The audit is journaled and stored on the run; it must never carry a local
+  // run-scratch path. Artifact `.path` placeholders resolve to opaque references
+  // (transfer id when available, else a symbolic `artifact:{producer}:{slot}`)
+  // instead of the producer's local path or the consumer copy path.
+  const referenceBindings = buildArtifactReferenceBindings(authoredCommand, runArtifacts);
+  let resolvedCommand: string;
+  try {
+    resolvedCommand = resolveShellInvocation(invoke, context, referenceBindings).command;
+  } catch {
+    // A binding/grammar error prevents resolution; the dispatch will fail with
+    // a typed code before spawn. Record the authored command shape, which never
+    // contains a runtime-resolved local path.
+    resolvedCommand = authoredCommand;
+  }
   return {
-    command: resolveShellCommand(invoke, context),
+    command: resolvedCommand,
     prompt: resolveShellPrompt(invoke, context),
     cwd: resolveCwd(context),
   };
+}
+
+/**
+ * Build binding overrides that resolve every `{{murrmure.step.{p}.artifact.
+ * {slot}.path}}` placeholder in `command` to an opaque reference (transfer id
+ * when present in `runArtifacts`, else `artifact:{p}:{slot}`) — never a local
+ * path. Used for the journaled dispatch audit.
+ */
+export function buildArtifactReferenceBindings(
+  command: string,
+  runArtifacts: RunArtifactsBag,
+): Record<string, string> {
+  const bindings: Record<string, string> = {};
+  const seen = new Set<string>();
+  for (const match of command.matchAll(ARTIFACT_PATH_PLACEHOLDER_RE)) {
+    const producer = match[1]!;
+    const slot = match[2]!;
+    const key = `${producer}::${slot}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const record = runArtifacts[producer]?.[slot];
+    const reference = record?.transfer_id
+      ? record.transfer_id
+      : `artifact:${producer}:${slot}`;
+    bindings[`murrmure.step.${producer}.artifact.${slot}.path`] = reference;
+  }
+  return bindings;
 }
 
 function shouldDetachShell(context: DispatchContext): boolean {
@@ -321,24 +370,29 @@ function runCommand(
     attachStreamListeners(child, { run_id: processMeta?.run_id, step_id: processMeta?.step_id ?? "unknown", onOutputChunk }, buffers);
 
     let killTimer: ReturnType<typeof setTimeout> | undefined;
+    let terminating = false;
     const clearTimers = () => {
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
     };
 
     const timer = setTimeout(() => {
+      terminating = true;
       terminateProcessGroup(child, "SIGTERM");
       killTimer = setTimeout(() => terminateProcessGroup(child, "SIGKILL"), TERMINATION_GRACE_MS);
       reject(new Error("SHELL_TIMEOUT"));
     }, timeoutMs);
 
     child.on("error", (err) => {
-      clearTimers();
+      if (!terminating) clearTimers();
       reject(err);
     });
 
     child.on("close", (code) => {
-      clearTimers();
+      // When termination was initiated, keep the SIGKILL escalation armed so a
+      // TERM-resistant descendant in the process group is reaped after the
+      // grace period; only clear it on a natural exit.
+      if (!terminating) clearTimers();
       resolve({ stdout: buffers.stdout, stderr: buffers.stderr, code });
     });
   });
@@ -377,6 +431,7 @@ function runCommandDetached(
 
   let settled = false;
   let killTimer: ReturnType<typeof setTimeout> | undefined;
+  let terminating = false;
   const clearKillTimer = () => {
     if (killTimer) {
       clearTimeout(killTimer);
@@ -396,6 +451,7 @@ function runCommandDetached(
   };
 
   const timer = setTimeout(() => {
+    terminating = true;
     terminateProcessGroup(child, "SIGTERM");
     killTimer = setTimeout(() => terminateProcessGroup(child, "SIGKILL"), TERMINATION_GRACE_MS);
     finish({
@@ -408,7 +464,7 @@ function runCommandDetached(
   }, timeoutMs);
 
   child.on("error", (err) => {
-    clearKillTimer();
+    if (!terminating) clearKillTimer();
     finish({
       status: "failed",
       run_id: processMeta.run_id,
@@ -419,7 +475,10 @@ function runCommandDetached(
   });
 
   child.on("close", (code) => {
-    clearKillTimer();
+    // When termination was initiated (timeout/cancel), keep the SIGKILL
+    // escalation armed so a TERM-resistant descendant in the process group is
+    // reaped after the grace period. Only clear it on a natural exit.
+    if (!terminating) clearKillTimer();
     if (code !== 0) {
       finish({
         status: "failed",
@@ -650,6 +709,24 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           { stdout, stderr, code, requiresJson, timeoutMs, run_id: invoke.run_id, step_id },
         );
       } catch (error) {
+        if (error instanceof HandlerBindingError) {
+          return {
+            status: "failed",
+            run_id: invoke.run_id,
+            step_id,
+            error_code: error.code,
+            detail: error.message,
+          };
+        }
+        if (error instanceof ArtifactMaterializationError) {
+          return {
+            status: "failed",
+            run_id: invoke.run_id,
+            step_id,
+            error_code: error.code,
+            detail: error.message,
+          };
+        }
         const message = error instanceof Error ? error.message : String(error);
         if (message === "SHELL_TIMEOUT") {
           return {

@@ -12,6 +12,7 @@ import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { failRunWithNotification, type SessionRunDeps } from "../run/service.js";
 import { cancelStepExecutor, terminateRunExecutors } from "../invoke/run-executor-cancel.js";
+import { revokeStepResolveCredentials } from "../invoke/run-resolve-credential-registry.js";
 import { refreshSessionStatus } from "../session/index.js";
 import type { FlowAdvanceDeps } from "./advance-runner.js";
 import { planLinearSteps } from "./plan.js";
@@ -441,6 +442,9 @@ export async function resolveFlowStep(
   });
 
   cancelStepExecutor(input.run_id, input.step_id);
+  // Resolving the step ends its assignment — revoke its ephemeral resolve
+  // credential so no persistent child credential remains.
+  revokeStepResolveCredentials(input.run_id, input.step_id);
 
   await persistRunExecContext(deps.studio, input.run_id, execContext);
 

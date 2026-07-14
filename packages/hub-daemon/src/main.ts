@@ -7,7 +7,7 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
 import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -135,6 +135,11 @@ export async function startHubDaemon(config: DaemonConfig) {
   const clock = { nowIso: () => new Date().toISOString() };
 
   setMurrmureProtocolRenderer((ctx) => renderMurrmureProtocolEnvelope(ctx));
+  // Install the revoker used by the assignment-credential registry so terminal
+  // paths (resolve, run terminal, shutdown) revoke ephemeral resolve tokens.
+  setResolveCredentialRevoker((token_id) => {
+    void murrmurePersistence.revokeToken?.(token_id);
+  });
 
   const { kernel } = createHubKernel({ kernelPersistence, murrmurePersistence, ids, clock });
   const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);
@@ -266,6 +271,10 @@ export async function startHubDaemon(config: DaemonConfig) {
     shuttingDown = (async () => {
       process.off("SIGINT", handleSigint);
       process.off("SIGTERM", handleSigterm);
+      // Terminate every spawned shell handler process tree and revoke all
+      // ephemeral resolve credentials so nothing outlives the daemon stop.
+      cancelAllShellExecutors();
+      revokeAllResolveCredentials();
       stopArtifactGc();
       stopFlowScheduler();
       stopTimeoutSweep();

@@ -65,6 +65,18 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
         403,
       );
     }
+    // Ephemeral resolve tokens are scoped to the exact assignment (run:step);
+    // a token minted for another step may not resolve this one.
+    if (token?.scope_ref) {
+      const expected = `${run_id}:${step_id}`;
+      const expectedBare = `${bare}:${step_id}`;
+      if (token.scope_ref !== expected && token.scope_ref !== expectedBare) {
+        return c.json(
+          { code: "TOKEN_STEP_SCOPE_MISMATCH", message: "Token is not scoped to this step" },
+          403,
+        );
+      }
+    }
 
     const space_id = run.space_id
       ? prefixedSpaceId(run.space_id)
