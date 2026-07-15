@@ -105,7 +105,7 @@ describe.skip("http/orchestration/attach", () => {
           headers: bootstrap(),
           body: JSON.stringify({
             label: "orch-agent",
-            scopes: ["space:read", "flow:run", "action:invoke", "flow:read"],
+            scopes: ["space:read", "flow:run", "flow:read"],
           }),
         })
       ).json()
@@ -118,7 +118,7 @@ describe.skip("http/orchestration/attach", () => {
           headers: bootstrap(),
           body: JSON.stringify({
             label: "orch-human",
-            scopes: ["space:read", "flow:run", "gate:resolve", "journal:read", "flow:read"],
+            scopes: ["space:read", "flow:run", "journal:read", "flow:read"],
           }),
         })
       ).json()
@@ -239,8 +239,8 @@ describe.skip("http/orchestration/attach-reject", () => {
       }),
     });
 
-    agentToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run", "action:invoke"] }) })).json()).token;
-    resolveToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "human", scopes: ["space:read", "gate:resolve", "journal:read"] }) })).json()).token;
+    agentToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run"] }) })).json()).token;
+    resolveToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "human", scopes: ["space:read", "journal:read"] }) })).json()).token;
   });
 
   afterAll(() => cleanup?.());
@@ -331,8 +331,8 @@ describe.skip("http/orchestration/attach-approve", () => {
       }),
     });
 
-    agentToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run", "action:invoke"] }) })).json()).token;
-    resolveToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "human", scopes: ["space:read", "gate:resolve", "journal:read", "flow:run"] }) })).json()).token;
+    agentToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run"] }) })).json()).token;
+    resolveToken = (await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: bootstrap(), body: JSON.stringify({ label: "human", scopes: ["space:read", "journal:read", "flow:run"] }) })).json()).token;
   });
 
   afterAll(() => cleanup?.());

@@ -45,18 +45,6 @@ export const FlowGateStepSchema = z.object({
   assignees: z.array(z.string()).optional(),
 });
 
-export const FlowCheckpointOnResolveRouteSchema = z.object({
-  goto: z.string().optional(),
-  fail: z.boolean().optional(),
-});
-
-export const FlowCheckpointOnResolveSchema = z.object({
-  when: z.string().optional(),
-  values: z.record(FlowCheckpointOnResolveRouteSchema).optional(),
-  default: FlowCheckpointOnResolveRouteSchema.optional(),
-  cancel: FlowCheckpointOnResolveRouteSchema.optional(),
-});
-
 export const FlowLaneStepSchema: z.ZodType<FlowLaneStep> = z.lazy(() =>
   z.object({
     id: z.string(),

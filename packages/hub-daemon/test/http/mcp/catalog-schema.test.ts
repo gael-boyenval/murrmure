@@ -49,12 +49,13 @@ const ALL_PLATFORM_CAPABILITIES = [
   "hub:admin",
   "space:read",
   "space:write",
-  "action:invoke",
   "step:resolve",
   "flow:run",
   "flow:read",
-  "gate:resolve",
   "journal:read",
+  "event:emit",
+  "space:enter",
+  "executor:poll",
 ];
 
 interface CatalogTool {

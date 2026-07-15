@@ -127,7 +127,7 @@ describe("http/runs/nested-resolve", () => {
       headers: auth,
       body: JSON.stringify({
         label: "agent",
-        capabilities: ["space:read", "flow:run", "action:invoke", "step:resolve"],
+        capabilities: ["space:read", "flow:run", "step:resolve"],
       }),
     });
     resolveToken = (await grantRes.json()).token;

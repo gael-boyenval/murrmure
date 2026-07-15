@@ -3,7 +3,7 @@ import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-co
 import type { Capability, FlowInstall, Member, StudioProvenance } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { resolveEffectiveCapabilities } from "../grants/migrate.js";
-import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
 import { computeFederationStatus } from "../federation/outbound-queue.js";
 import type { FederationRegistryDeps } from "../federation/registry.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
@@ -377,6 +377,19 @@ export class ConfigHandler {
         { message: `Unknown connection profile: ${body.profile}` },
         HTTP_SEMANTIC.BAD_REQUEST,
       );
+    }
+    if (body.capabilities?.length) {
+      const { invalid } = partitionCapabilities(body.capabilities);
+      if (invalid.length > 0) {
+        return denialResult(
+          "unknown_capability",
+          {
+            message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
+            hint: { invalid_capabilities: invalid },
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
     }
     if (body.flow_acl?.length) {
       const installs = await this.studio.listFlowInstalls(stripSpaceId(space_id));

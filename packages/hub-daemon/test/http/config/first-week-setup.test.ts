@@ -82,7 +82,7 @@ describe("http/config/first-week-setup", () => {
         label: "Dev Cursor — ui-sandbox worker",
         harness: "cursor-local",
         profile: "tutorial-builder/v1",
-        scopes: ["space:read", "action:invoke"],
+        scopes: ["space:read"],
         expires_in_days: 90,
       }),
     });

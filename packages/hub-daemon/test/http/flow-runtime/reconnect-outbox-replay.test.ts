@@ -43,7 +43,7 @@ describe("flow-runtime/mcp-wake", () => {
     const grant = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/grants`, {
       method: "POST",
       headers: bootstrapAuth(fixture.bootstrapToken),
-      body: JSON.stringify({ label: "dev", scopes: ["space:enter", "space:read", "action:invoke"] }),
+      body: JSON.stringify({ label: "dev", scopes: ["space:enter", "space:read"] }),
     });
     token = (await grant.json()).token;
 

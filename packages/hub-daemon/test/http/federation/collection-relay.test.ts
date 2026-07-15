@@ -71,6 +71,11 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
 
   const bare = (id: string) => (id.startsWith("spc_") ? id.slice(4) : id);
 
+  /** Peer credential hubA presents when relaying invokes into hubB. The relay
+   *  endpoint accepts only a registered peer's auth_token — never a space
+   *  connection token. */
+  const peerAuthToken = "peer-relay-token-hubA";
+
   /**
    * Mint a federated resolve token on the producer hub (hubA) bound to the
    * consumer space, mirroring what `invokeAction` mints for a `remote_hub`
@@ -165,6 +170,15 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     const authB = () => ({
       Authorization: `Bearer ${addTokenId(tokenB)}`,
       "Content-Type": "application/json",
+    });
+
+    // Register hubA as a federation peer on hubB so the relay endpoint accepts
+    // hubA's peer credential (peer-only auth). Ordinary space-connection tokens
+    // — including flow:run grants — cannot invoke the relay.
+    await fetch(`${hubB.baseUrl}/v1/ops/federation/peers`, {
+      method: "POST",
+      headers: authB(),
+      body: JSON.stringify({ hub_id: "hub_a", url: hubA.baseUrl, auth_token: peerAuthToken }),
     });
 
     // hubB (consumer): a real space with a linked root and a collection-
@@ -341,7 +355,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${addTokenId(hubB.token)}`,
+              Authorization: `Bearer ${peerAuthToken}`,
             },
             body: JSON.stringify(input.body),
           },
@@ -452,7 +466,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+          Authorization: `Bearer ${peerAuthToken}`,
         },
         body: JSON.stringify({ step_id: "build", step_contract: relay }),
       },
@@ -513,7 +527,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+          Authorization: `Bearer ${peerAuthToken}`,
         },
         body: JSON.stringify({ step_id: "build", step_contract: relay }),
       },
@@ -549,7 +563,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+          Authorization: `Bearer ${peerAuthToken}`,
         },
         body: JSON.stringify({ step_id: escapeStep, step_contract: relay }),
       },
@@ -574,5 +588,53 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
         `no out-of-root write of ${file.name}`,
       ).toBeUndefined();
     }
+  }, 30_000);
+
+  test("ordinary space tokens cannot invoke the federation relay (peer-only auth)", async () => {
+    // Mint a normal space-connection grant carrying flow:run — the capability
+    // the relay used to accept. It must now be rejected: only a registered
+    // peer credential may invoke the relay.
+    const grantRes = await fetch(`${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/grants`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${addTokenId(hubB.token)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ label: "ordinary-flow-run", capabilities: ["space:read", "flow:run"] }),
+    });
+    expect(grantRes.status).toBe(200);
+    const ordinaryToken = ((await grantRes.json()) as { token: string }).token;
+
+    const relay = buildRemoteStepContractRelay(producerStepContract(collectionArtifacts));
+    expect(relay).toBeDefined();
+    const res = await fetch(
+      `${hubB.baseUrl}/v1/federation/relay/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ordinaryToken}`,
+        },
+        body: JSON.stringify({ step_id: "build", step_contract: relay }),
+      },
+    );
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("FEDERATION_PEER_DENIED");
+
+    // The bootstrap token is not a peer credential either — also rejected.
+    const bootstrapRes = await fetch(
+      `${hubB.baseUrl}/v1/federation/relay/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+        },
+        body: JSON.stringify({ step_id: "build", step_contract: relay }),
+      },
+    );
+    expect(bootstrapRes.status).toBe(403);
+    expect(((await bootstrapRes.json()) as { code: string }).code).toBe("FEDERATION_PEER_DENIED");
   }, 30_000);
 });

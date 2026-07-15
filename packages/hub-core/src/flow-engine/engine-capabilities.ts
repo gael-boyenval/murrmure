@@ -39,10 +39,10 @@ export interface FlowApplyLintContext {
   manifestRaw?: Record<string, unknown>;
 }
 
-/** Codes that stay warn-only even under `--strict`. */
-export const WARN_ONLY_LINT_CODES = new Set([
-  "CHECKPOINT_LOOPBACK_HINT",
-]);
+/** Codes that stay warn-only even under `--strict`. The checkpoint-era
+ *  loopback hint was removed in the step-contract cutover; the post-cutover
+ *  apply target has no warn-only codes. */
+export const WARN_ONLY_LINT_CODES = new Set<string>([]);
 
 function pushWarning(
   out: FlowApplyLintWarning[],

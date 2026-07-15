@@ -91,7 +91,7 @@ describe("triggers/dedup-spec-publish", () => {
     const grant = await fetch(`${baseUrl}/v1/spaces/${frontendId}/grants`, {
       method: "POST",
       headers: bootstrap(),
-      body: JSON.stringify({ label: "fe-agent", scopes: ["space:enter", "action:invoke"] }),
+      body: JSON.stringify({ label: "fe-agent", scopes: ["space:enter"] }),
     });
     const feToken = (await grant.json()).token;
 

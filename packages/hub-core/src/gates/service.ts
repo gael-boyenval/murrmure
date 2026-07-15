@@ -299,8 +299,6 @@ export async function resolveGate(
   return { gate: rowToGate(updated) };
 }
 
-export { resolveCheckpointViewRef } from "./checkpoint-view.js";
-
 export function presentGateForActor(
   gate: Gate,
   row: GateRow,

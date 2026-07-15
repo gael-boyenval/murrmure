@@ -19,7 +19,7 @@ function grantToken(overrides: Partial<TokenContext> = {}): TokenContext {
     token_id: "tok_01JXGRANT00000000000002",
     actor_id: "act_agent",
     space_id: "space_alpha",
-    scopes: ["space:read", "flow:run", "action:invoke", "step:resolve"],
+    scopes: ["space:read", "flow:run", "step:resolve"],
     ...overrides,
   };
 }

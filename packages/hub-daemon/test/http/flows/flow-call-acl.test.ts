@@ -110,7 +110,7 @@ describe.skip("http/flows/flow-call-acl", () => {
           headers: bootstrap(),
           body: JSON.stringify({
             label: "parent-only",
-            scopes: ["space:read", "flow:run", "action:invoke"],
+            scopes: ["space:read", "flow:run"],
             flow_acl: ["flw_parent"],
           }),
         })

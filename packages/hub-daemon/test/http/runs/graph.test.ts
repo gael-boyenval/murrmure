@@ -88,7 +88,7 @@ describe("runs/graph", () => {
           headers: bootstrap(),
           body: JSON.stringify({
             label: "graph-agent",
-            scopes: ["space:read", "flow:run", "action:invoke"],
+            scopes: ["space:read", "flow:run"],
           }),
         })
       ).json()

@@ -1,7 +1,8 @@
 import type { Hono } from "hono";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
-import { requireCapability, requireScope, resolveTokenCapabilities } from "../config/scopes.js";
+import { requireScope } from "../config/scopes.js";
+import { requirePeerAuth } from "../../federation-wire.js";
 
 export function mountFederationRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, federationPort } = ctx;
@@ -65,19 +66,17 @@ export function mountFederationRoutes(app: Hono, ctx: DaemonContext): void {
   });
 
   // Federation relay ingress: a peer hub relays an invoke to a space bound to
-  // this hub. This is internal dispatch (invokeService used privately), NOT the
-  // removed public action-invoke route. Authz requires flow:run on the relayed
-  // credential, consistent with the step-contract cutover.
+  // this hub. This is internal hub-to-hub dispatch (invokeService used
+  // privately), NOT the removed public action-invoke route. Authz requires a
+  // registered federation peer credential — ordinary space-connection
+  // `flow:run` tokens are rejected with 403 FEDERATION_PEER_DENIED.
   app.post(
     "/v1/federation/relay/spaces/:space_id/actions/:action_name/invoke",
     async (c) => {
       const space_id = c.req.param("space_id");
       const action_name = c.req.param("action_name");
-      const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
-      if (auth instanceof Response) return auth;
-      const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-      const capCheck = requireCapability(auth, "flow:run", effective);
-      if (capCheck) return capCheck;
+      const peer = await requirePeerAuth(federationPort, c.req.raw);
+      if (peer instanceof Response) return peer;
 
       const body = await c.req.json().catch(() => ({}));
       const result = await ctx.invokeService.invokeAction({
@@ -85,8 +84,8 @@ export function mountFederationRoutes(app: Hono, ctx: DaemonContext): void {
         action_name,
         body,
         idempotency_header: c.req.header("Idempotency-Key") ?? undefined,
-        actor_id: auth.actor_id,
-        token_id: auth.token_id,
+        actor_id: peer.actor_id,
+        token_id: peer.token_id,
       });
       return c.json(result.body, result.http);
     },

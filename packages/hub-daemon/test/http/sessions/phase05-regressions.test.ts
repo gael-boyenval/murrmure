@@ -107,7 +107,7 @@ describe("http/sessions/phase05-regressions", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "worker",
-        scopes: ["space:read", "flow:run", "action:invoke"],
+        scopes: ["space:read", "flow:run"],
       }),
     });
     workerToken = (await workerGrant.json()).token as string;

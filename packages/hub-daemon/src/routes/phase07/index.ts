@@ -5,7 +5,6 @@ import {
   getGateById,
   listGatesForRun,
   presentGateForActor,
-  resolveCheckpointViewRef,
   resolveGate,
   getUserMe,
   patchUserMe,
@@ -58,13 +57,6 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         ? true
         : hasCapability(effective, "space:read");
 
-    const runBare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-    const runRow = await murrmurePersistence.getRun(runBare);
-    const flowEntry =
-      runRow?.flow_id && runRow.space_id
-        ? await murrmurePersistence.getFlowIndexEntry(runRow.flow_id, runRow.space_id)
-        : null;
-
     const presented = [];
     for (const gate of gates) {
       const row = await getGateById(deps(), gate.gate_id);
@@ -75,8 +67,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         space_name: (await murrmurePersistence.getSpace(row.space_id))?.name ??
           (await murrmurePersistence.getSpace(row.space_id))?.slug,
       });
-      const view_ref = resolveCheckpointViewRef(flowEntry?.ir, gate.step_id);
-      presented.push(view_ref ? { ...base, view_ref } : base);
+      presented.push(base);
     }
     return c.json({ gates: presented });
   });

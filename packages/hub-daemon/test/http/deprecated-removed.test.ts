@@ -45,7 +45,7 @@ describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "agent",
-        scopes: ["space:read", "flow:run", "action:invoke", "step:resolve", "gate:resolve"],
+        scopes: ["space:read", "flow:run", "step:resolve", "event:emit"],
       }),
     });
     token = (await grantRes.json()).token;
@@ -202,5 +202,22 @@ describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
     const { tools } = (await res.json()) as { tools: Array<{ name: string }> };
     const names = tools.map((t) => t.name);
     expect(names).toContain("murrmure_resolve_step");
+  });
+
+  test("grant mint rejects removed capabilities (action:invoke / gate:resolve)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "removed-cap", capabilities: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string; message: string };
+      expect(body.code).toBe("unknown_capability");
+      expect(body.message).toContain(removed);
+    }
   });
 });

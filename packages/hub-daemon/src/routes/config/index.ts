@@ -2,8 +2,9 @@ import type { Hono } from "hono";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
-import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
 import { normalizeTriggerBody } from "../triggers/index.js";
+import { grantResultBody } from "../grants/index.js";
 
 export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   const { handler, murrmurePersistence } = ctx;
@@ -177,8 +178,22 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
 
+    const rawCaps = (body?.capabilities as unknown[] | undefined) ?? undefined;
+    if (rawCaps?.length) {
+      const { invalid } = partitionCapabilities(rawCaps);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_capability",
+            message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
+            hint: { invalid_capabilities: invalid },
+          },
+          400,
+        );
+      }
+    }
     const result = await config.mintGrant(space_id, body, provenanceFrom(auth, space_id, c.req.header("Idempotency-Key") ?? undefined));
-    return c.json(result.body, result.http_semantic);
+    return c.json(grantResultBody(result), result.http_semantic);
   });
 
   app.post("/v1/spaces/:space_id/grants/:grant_id/revoke", async (c) => {

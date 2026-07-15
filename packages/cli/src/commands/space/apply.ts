@@ -69,7 +69,7 @@ export const spaceApplyCommand = defineCommand({
     },
     strict: {
       type: "boolean",
-      description: "Fail (exit 1) on apply lint warnings except DEPRECATED_START_KEY and CHECKPOINT_LOOPBACK_HINT",
+      description: "Fail (exit 1) on any apply lint warning (no warn-only codes remain post-cutover)",
       default: false,
     },
   },

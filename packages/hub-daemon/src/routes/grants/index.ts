@@ -1,9 +1,18 @@
 import type { Hono } from "hono";
 import type { Capability } from "@murrmure/contracts";
+import { partitionCapabilities } from "@murrmure/contracts";
+import type { CommandResult } from "@murrmure/runtime-contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { requireScope, provenanceFrom } from "../config/scopes.js";
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
+
+/** Denials carry `code` as a CommandResult sibling of `body`; surface it on the
+ *  HTTP response so grant boundary rejections (unknown profile / flow_acl /
+ *  capability) return a clear code. Success bodies are returned unchanged. */
+export function grantResultBody(result: CommandResult): Record<string, unknown> {
+  return result.outcome === "denial" ? { code: result.code, ...result.body } : result.body;
+}
 
 export function mountGrantV2Routes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, handler } = ctx;
@@ -18,6 +27,19 @@ export function mountGrantV2Routes(app: Hono, ctx: DaemonContext): void {
     if (scopeCheck) return scopeCheck;
 
     const rawCaps = body.capabilities as Capability[] | undefined;
+    if (rawCaps?.length) {
+      const { invalid } = partitionCapabilities(rawCaps);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_capability",
+            message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
+            hint: { invalid_capabilities: invalid },
+          },
+          400,
+        );
+      }
+    }
     const result = await handler.config.mintGrant(
       space_id,
       {
@@ -33,7 +55,7 @@ export function mountGrantV2Routes(app: Hono, ctx: DaemonContext): void {
       provenanceFrom(auth, space_id, c.req.header("Idempotency-Key") ?? undefined),
     );
 
-    return c.json(result.body, result.http_semantic as 200);
+    return c.json(grantResultBody(result), result.http_semantic as 200);
   });
 
   app.get("/v1/grants", async (c) => {
