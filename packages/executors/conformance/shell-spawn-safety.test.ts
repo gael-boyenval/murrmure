@@ -1,11 +1,15 @@
 import { EventEmitter } from "node:events";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createShellSpawnExecutor } from "../src/shell-spawn.js";
-import { resolveShellDispatchAudit } from "../src/shell-spawn.js";
+import {
+  buildArtifactReferenceBindings,
+  materializeArtifactBindings,
+  resolveShellDispatchAudit,
+} from "../src/shell-spawn.js";
 import {
   cancelRunExecutors,
   clearRunExecutorCancelRegistry,
@@ -443,5 +447,136 @@ describe("shell-spawn typed dispatch errors fail before spawn", () => {
     expect(outcome.status).toBe("failed");
     expect(outcome.error_code).toBe("ARTIFACT_PATH_TRAVERSAL");
     expect(spawnCalled).toBe(false);
+  });
+});
+
+describe("shell-spawn collection directory materialization", () => {
+  let spaceRoot: string;
+
+  beforeEach(() => {
+    spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-t11-coll-"));
+  });
+  afterEach(() => {
+    rmSync(spaceRoot, { recursive: true, force: true });
+  });
+
+  function seedCollection(): {
+    runArtifacts: unknown;
+    files: { name: string; content: string; digest: string }[];
+  } {
+    const files = [
+      { name: "01-a.json", content: '{"a":1}\n' },
+      { name: "02-b.json", content: '{"b":2}\n' },
+    ];
+    const slotRel = (name: string) =>
+      join(".mrmr", "dev", "runs", "run_demo", "steps", "intake", "assets", name);
+    const fileRecords = files.map((f) => {
+      const abs = join(spaceRoot, slotRel(f.name));
+      mkdirSync(join(spaceRoot, dirname(slotRel(f.name))), { recursive: true });
+      writeFileSync(abs, f.content);
+      const digest = "sha256:" + createHash("sha256").update(f.content).digest("hex");
+      return { name: f.name, content: f.content, digest, path: slotRel(f.name) };
+    });
+    const runArtifacts = {
+      intake: {
+        assets: {
+          slot: "assets",
+          cardinality: "collection" as const,
+          files: fileRecords.map((f) => ({
+            name: f.name,
+            path: f.path,
+            digest: f.digest,
+            size_bytes: Buffer.byteLength(f.content),
+            transfer_id: `xfr_${f.name}`,
+          })),
+        },
+      },
+    };
+    return { runArtifacts, files: fileRecords };
+  }
+
+  test(".directory materializes one verified consumer dir whose contents equal the ordered manifest", async () => {
+    const { runArtifacts, files } = seedCollection();
+    const overrides = await materializeArtifactBindings({
+      command: "diff -r {{murrmure.step.intake.artifact.assets.directory}} expected/",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    const dir = overrides["murrmure.step.intake.artifact.assets.directory"];
+    expect(typeof dir).toBe("string");
+    expect(dir).toContain(join("steps", "build", "inputs", "assets"));
+    // The consumer dir — not the producer path — is bound.
+    expect(dir).not.toContain(join("steps", "intake", "assets"));
+    // Directory contents equal the ordered manifest (names + digests + order).
+    for (const f of files) {
+      const copy = join(dir!, f.name);
+      expect(existsSync(copy)).toBe(true);
+      expect(readFileSync(copy, "utf8")).toBe(f.content);
+    }
+  });
+
+  test(".path on a collection slot is rejected (null) so apply fails before spawn", async () => {
+    const { runArtifacts } = seedCollection();
+    const overrides = await materializeArtifactBindings({
+      command: "cp {{murrmure.step.intake.artifact.assets.path}} out.md",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    expect(overrides["murrmure.step.intake.artifact.assets.path"]).toBeNull();
+  });
+
+  test(".directory on a singleton slot is rejected (null)", async () => {
+    const slotRel = join(".mrmr", "dev", "runs", "run_demo", "steps", "intake", "spec", "spec.md");
+    const abs = join(spaceRoot, slotRel);
+    mkdirSync(join(spaceRoot, dirname(slotRel)), { recursive: true });
+    writeFileSync(abs, "# spec\n");
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          cardinality: "singleton" as const,
+          files: [{ name: "spec.md", path: slotRel, digest: "sha256:x", size_bytes: 1 }],
+        },
+      },
+    };
+    const overrides = await materializeArtifactBindings({
+      command: "ls {{murrmure.step.intake.artifact.spec.directory}}",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    expect(overrides["murrmure.step.intake.artifact.spec.directory"]).toBeNull();
+  });
+
+  test("audit reference for a .directory collection is opaque and carries no host path", () => {
+    const { runArtifacts } = seedCollection();
+    const ctx: DispatchContext = {
+      action: {
+        name: "build_assets",
+        command: "diff -r {{murrmure.step.intake.artifact.assets.directory}} expected/",
+      },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: spaceRoot,
+      step_contract: {
+        slice_json: "{}",
+        contract_path: join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "active-step-contract.json"),
+        workdir: join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "steps", "build", "work"),
+        run_artifacts_json: JSON.stringify(runArtifacts),
+      },
+    };
+    const audit = resolveShellDispatchAudit(baseInvoke({ run_id: "demo" }), ctx);
+    expect(audit?.command).toContain("artifact:intake:assets:directory");
+    expect(audit?.command).not.toContain(".mrmr/dev/runs");
+    // The reference helper alone produces the opaque directory reference.
+    const refs = buildArtifactReferenceBindings(
+      "diff -r {{murrmure.step.intake.artifact.assets.directory}} expected/",
+      runArtifacts as never,
+    );
+    expect(refs["murrmure.step.intake.artifact.assets.directory"]).toBe("artifact:intake:assets:directory");
   });
 });

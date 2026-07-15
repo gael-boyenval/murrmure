@@ -144,6 +144,25 @@ Remote agents cannot submit machine-local paths; use the authorized upload
 reference shown in the generated call. Read prior step artifact
 paths from contract context (`{{murrmure.step.*}}` in handler params).
 
+**Collections and the local/remote boundary.** A slot with `max_files > 1` is a
+bounded, ordered collection. A local handler consumes it as one verified
+directory via the `.directory` token
+(`{{murrmure.step.{producer}.artifact.{slot}.directory}}`), materialized under
+`.mrmr/dev/runs/{run_id}/steps/{consumer}/inputs/{slot}/` with digest-verified,
+normalized, ordered files. A singleton slot uses `.path`. The two tokens are not
+interchangeable — a `.path` on a collection or `.directory` on a singleton is
+rejected before spawn. As a remote/federated consumer you never receive a
+producer path; you receive ordered immutable references (`transfer_id`,
+`digest`, `size_bytes`) and materialize them in your own space. The journaled
+audit carries opaque references only — never echo a `.mrmr/dev/runs` path into a
+resolve payload or event.
+
+**Retention.** Local run bytes are retained for 7 days after a run terminates
+(`ended_at + 7 days`) and then garbage-collected; active run directories are
+never collected. Global artifact references survive local byte deletion, so a
+federated reference stays resolvable after the producer's run tree is reclaimed.
+Do not cache a local run-scratch path across runs — re-read it from contract
+context each assignment.
 
 ### Federation reads
 

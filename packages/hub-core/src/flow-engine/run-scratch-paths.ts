@@ -7,7 +7,7 @@ import { join } from "node:path";
  * artifact, transfer, and intermediate execution-output path includes `run_id`
  * so concurrent runs in one space use disjoint trees. See
  * [run-scratch-path-normalize](../../../plans/2026-07-10-run-scratch-path-normalize.md)
- * and ADR-012.
+ * and ADR-014.
  *
  * All paths returned here are **absolute** (joined to `space_root`) and are the
  * only constructors for run-scratch locations; `step-artifacts.ts`,

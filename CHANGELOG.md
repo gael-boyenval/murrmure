@@ -21,6 +21,53 @@
 - Flow preview payload v2 carries the authorized graph and server-computed
   `can_run`; clients no longer infer contracts or handler bindings.
 
+## Tutorial v3 Task 11 — multi-file artifact collections and run retention (2026-07-15)
+
+### Added
+
+- Artifact slots are now **bounded, ordered file collections**. `max_files`
+  defaults to `1` (singleton); `max_files > 1` declares a collection, with
+  optional `min_files` and `max_total_bytes`. Each file independently satisfies
+  MIME, extension, and byte constraints; normalized duplicate filenames fail;
+  submission and manifest preserve deterministic order. Archives remain opaque
+  single files.
+- Collection slots bind the **`.directory`** token; singleton slots bind
+  **`.path`**. The two token shapes are not interchangeable: a `.path` binding
+  on a collection (or `.directory` on a singleton) is rejected at apply time
+  with `HANDLER_BINDING_VALUE_MISSING` and lints as
+  `ARTIFACT_TOKEN_CARDINALITY_MISMATCH`. Cardinality is captured at promotion
+  time so projection never needs the catalog.
+- Local consumers receive one **verified directory** (collection) or file
+  (singleton) materialized atomically under
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/` with digest
+  verification, normalized unique names, source immutability, and all-or-nothing
+  visibility (`materializeConsumerCopyDirectory`).
+- Remote/federated consumers receive **ordered immutable artifact references**
+  (`transfer_id`, `digest`, `size_bytes`) and materialize them in their own
+  space. The journaled dispatch audit carries opaque references
+  (`artifact:{producer}:{slot}(:directory)`, or the transfer id) — never a
+  `.mrmr/dev/runs` host path.
+- **Run retention GC**: terminal local bytes expire at `ended_at + 7 days`;
+  active run directories are never collected. GC runs at Hub startup and every
+  24 hours, removes only the per-run tree, preserves journal metadata and
+  global artifact manifests/refs, tolerates partial failure, and logs a
+  sanitized summary (counts and freed bytes only). No manual GC command or
+  release-time override ships.
+- Managed temporary, promoted, and consumer copies all count toward fixed local
+  quotas at the run and per-space level.
+- A concrete local + remote collection example fixture
+  (`test-utils/spaces/collection-example`) and ADR-014 document the canonical
+  run root, seven-day retention, and local-vs-federated materialization
+  boundary.
+
+### Removed
+
+- The stale `.mrmr.temp/runs` run root is banned from active code, tests,
+  fixtures, specs, tutorials, skills, and scaffolds. A repository guard
+  (`pnpm check:run-scratch-paths`) enforces no `.mrmr.temp/runs` and a single
+  canonical run-root constructor (`runScratchDir` / `spaceRunsDir`). Old
+  development scratch is not migrated and may be deleted manually.
+
 ## Tutorial v3 Task 08 — nested build/review call-return (2026-07-15)
 
 ### Added

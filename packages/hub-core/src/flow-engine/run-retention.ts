@@ -20,7 +20,7 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Terminal local run data is retained for this many days after `ended_at`
- * before its run-scratch tree is eligible for garbage collection. See ADR-013
+ * before its run-scratch tree is eligible for garbage collection. See ADR-014
  * and the [run-scratch-path-normalize](../../../plans/2026-07-10-run-scratch-path-normalize.md)
  * plan. Active run directories are never eligible.
  */

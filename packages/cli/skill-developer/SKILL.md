@@ -3,7 +3,7 @@ name: murrmure-developer
 description: >-
   Authoring skill for `.mrmr/` spaces: handlers, contract keys, flow/view
   authoring, and apply-time validation workflows.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Murrmure Developer Skill
@@ -149,6 +149,51 @@ the portable flow:
 - **Failures are ordinary handler failures.** Missing identity, a non-Git
   directory, an archive collision, a no-op, or a commit failure exits nonzero
   through the normal handler/run path — no rollback, retry, or recovery engine.
+
+### Artifact collections and retention
+
+A slot is a **bounded, ordered file collection**. `max_files` defaults to `1`
+(singleton); `max_files > 1` declares a collection, with optional `min_files`
+and `max_total_bytes`. Each file independently satisfies MIME, extension, and
+byte constraints; normalized duplicate filenames fail; submission and manifest
+preserve deterministic order. Archives remain opaque single files.
+
+```yaml
+artifact_slots:
+  assets:
+    media_types: [application/json, text/yaml]
+    extensions: [.json, .yaml, .yml]
+    min_files: 1
+    max_files: 4
+    max_bytes: 262144
+    max_total_bytes: 1048576
+```
+
+**Token shapes are not interchangeable:**
+
+- Singleton slots bind `{{murrmure.step.{producer}.artifact.{slot}.path}}` → one
+  verified consumer file.
+- Collection slots bind `{{murrmure.step.{producer}.artifact.{slot}.directory}}`
+  → one verified consumer directory containing every file in the ordered
+  collection (normalized unique names, digest-verified, all-or-nothing).
+
+A `.path` binding on a collection (or `.directory` on a singleton) is rejected
+at apply time (`HANDLER_BINDING_VALUE_MISSING`) and lints as
+`ARTIFACT_TOKEN_CARDINALITY_MISMATCH`.
+
+**Local-vs-federated boundary:** a local handler receives the verified
+directory/file under
+`.mrmr/dev/runs/{run_id}/steps/{consumer}/inputs/{slot}/`. A remote/federated
+consumer never receives a producer path — it receives ordered immutable
+references (`transfer_id`, `digest`, `size_bytes`) and materializes them in its
+own space. The journaled audit carries opaque references only.
+
+**Run retention:** active run directories are never collected. Terminal local
+bytes expire at `ended_at + 7 days`; GC runs at Hub startup and every 24 hours
+and removes only the per-run tree, preserving journal metadata and global
+artifact references. No manual GC command or release-time override ships. See
+ADR-014. A standalone collection example lives in
+`test-utils/spaces/collection-example`.
 
 ### Event handlers (not hooks chains)
 

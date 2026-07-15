@@ -119,6 +119,23 @@ values can never become shell fragments and the runtime owns process lifecycle.
   symlinked destination parent, or a pre-existing symlink at the destination
   filename is rejected, and a traversal or digest mismatch refuses the copy
   before any consumer bytes are written.
+- **Multi-file collections.** A slot with `max_files > 1` is a bounded, ordered
+  collection (`min_files`, `max_total_bytes` optional). Bind it with the
+  <code v-pre>{{murrmure.step.{producer}.artifact.{slot}.directory}}</code>
+  token, which resolves to one verified consumer directory containing every file
+  in the ordered collection (normalized unique names, digest-verified,
+  all-or-nothing). A `.path` on a collection or `.directory` on a singleton is
+  rejected before spawn (`HANDLER_BINDING_VALUE_MISSING`) and lints as
+  `ARTIFACT_TOKEN_CARDINALITY_MISMATCH`. Remote/federated consumers receive
+  ordered immutable references (`transfer_id`, `digest`, `size_bytes`) instead
+  of a producer path — never echo a `.mrmr/dev/runs` path into a resolve
+  payload or event.
+- **Run retention.** `.mrmr/dev/runs/{run_id}/` is the only local run root.
+  Active run directories are never garbage-collected. Terminal local bytes
+  (`completed`/`failed`/`cancelled` with `ended_at`) expire at
+  `ended_at + 7 days`; the Hub sweeps at startup and every 24 hours, removing
+  only the per-run tree while preserving journal metadata and global artifact
+  references. No manual GC command or release-time override ships.
 - **Execution.** Multiline commands run as `/bin/sh -e -c "<script>"` with no
   login profile and no silent shell fallback. Omitted `cwd` defaults to the
   space root; omitted `delivery` defaults to fail fast.

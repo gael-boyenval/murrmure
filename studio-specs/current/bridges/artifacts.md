@@ -83,9 +83,15 @@ Before dispatch the hub materializes each artifact into the target space inbox a
 
 ## Step-scoped layout (v3 step contracts)
 
+`.mrmr/dev/runs/{run_id}/` is the **only** local run-scratch root** (constructed
+by `runScratchDir` / `spaceRunsDir`; see ADR-014). Every scratch, transfer,
+artifact, and consumer-copy path includes `run_id`, so concurrent runs in one
+space use disjoint trees.
+
 ```text
-.mrmr/dev/runs/{run_id}/steps/{qualified}/work/     # active-step scratch
-.mrmr/dev/runs/{run_id}/steps/{qualified}/{slot}/   # stable after resolve
+.mrmr/dev/runs/{run_id}/steps/{qualified}/work/            # active-step scratch
+.mrmr/dev/runs/{run_id}/steps/{qualified}/{slot}/          # stable after resolve (singleton file or collection dir)
+.mrmr/dev/runs/{run_id}/steps/{consumer}/inputs/{slot}/    # verified local consumer copy/collection
 ```
 
 | Operation | API |
@@ -98,6 +104,43 @@ Before dispatch the hub materializes each artifact into the target space inbox a
 The removed JSON/base64 `POST …/work/upload` API returns
 `DIRECT_WORK_UPLOAD_REMOVED`; Views have no direct replacement. A trusted local
 agent bridge may submit a relative active-workdir path through `artifacts_out`.
+
+## Collections and run retention (v3 Task 11)
+
+A slot is a **bounded, ordered file collection**. `max_files` defaults to `1`
+(singleton); `max_files > 1` declares a collection, with optional `min_files`
+and `max_total_bytes`. Each file independently satisfies MIME, extension, and
+byte constraints; normalized duplicate filenames fail; submission and manifest
+preserve deterministic order. Archives remain opaque single files.
+
+**Token shapes are not interchangeable:**
+
+- Singleton slots bind `{{murrmure.step.{producer}.artifact.{slot}.path}}`.
+- Collection slots bind `{{murrmure.step.{producer}.artifact.{slot}.directory}}`.
+
+A `.path` binding on a collection (or `.directory` on a singleton) is rejected
+at apply time (`HANDLER_BINDING_VALUE_MISSING`) and lints as
+`ARTIFACT_TOKEN_CARDINALITY_MISMATCH`.
+
+**Local-vs-federated materialization boundary:**
+
+- A **local** consumer receives one verified directory (collection) or file
+  (singleton) materialized atomically under
+  `.mrmr/dev/runs/{run_id}/steps/{consumer}/inputs/{slot}/` with digest
+  verification, normalized unique names, source immutability, and all-or-nothing
+  visibility.
+- A **remote/federated** consumer receives ordered immutable artifact references
+  (`transfer_id`, `digest`, `size_bytes`) and materializes them in its own
+  space — never the producer's local path. The journaled dispatch audit carries
+  opaque references (`artifact:{producer}:{slot}(:directory)`, or the transfer
+  id) and never a `.mrmr/dev/runs` host path.
+
+**Run retention:** active run directories are never collected. Terminal local
+bytes (`completed`/`failed`/`cancelled` with `ended_at`) expire at
+`ended_at + 7 days`. GC runs at Hub startup and every 24 hours, removes only the
+per-run tree, and preserves journal metadata and global artifact manifests/refs.
+Managed temporary, promoted, and consumer copies all count toward fixed local
+quotas. No manual GC command or release-time override ships. See ADR-014.
 
 ## Upload intent lifecycle
 

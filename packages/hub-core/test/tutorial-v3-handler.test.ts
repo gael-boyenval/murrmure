@@ -6,7 +6,17 @@ import {
   parseHandlersFile,
   validateHandlerBindings,
   materializeConsumerCopy,
+  materializeConsumerCopyDirectory,
   consumerInputPath,
+  consumerInputsDirPath,
+  buildArtifactMurrmureBindings,
+  mergeArtifactsIntoExecContext,
+  sweepRunRetention,
+  removeTree,
+  directoryBytes,
+  runScratchDir,
+  spaceRunsDir,
+  type RunArtifactsBag,
 } from "@murrmure/hub-core";
 import { parseHandlerStepBinding } from "@murrmure/contracts";
 import {
@@ -260,5 +270,107 @@ describe("Tutorial v3 handler conformance", () => {
     expect(protocol).toContain('branch: "completed"');
     expect(protocol).toContain('branch: "failed"');
   });
-  test.skip("Task 11 — run scratch retention preserves references, not paths", () => {});
+  test("Task 11 — run scratch retention preserves references, not paths", async () => {
+    const spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-t11-conf-"));
+    try {
+      const runId = "demo";
+      // A bounded collection slot `assets` with two ordered files promoted
+      // under the canonical run-scratch tree (the only local run root).
+      const assetsRel = (name: string) =>
+        join(".mrmr", "dev", "runs", "run_demo", "steps", "intake", "assets", name);
+      const ordered = [
+        { name: "01-openapi.json", content: '{"openapi":"3.0"}\n' },
+        { name: "02-snapshot.md", content: "# snapshot\n" },
+      ];
+      const files = ordered.map((f) => {
+        const abs = join(spaceRoot, assetsRel(f.name));
+        mkdirSync(dirname(abs), { recursive: true });
+        writeFileSync(abs, f.content);
+        return {
+          source_path: abs,
+          filename: f.name,
+          expected_digest: "sha256:" + createHash("sha256").update(f.content).digest("hex"),
+        };
+      });
+
+      // Local consumer materialization: one verified directory whose contents
+      // equal the ordered manifest — same filenames, same digests, same order.
+      const dir = await materializeConsumerCopyDirectory({
+        space_root: spaceRoot,
+        run_id: runId,
+        consumer_step: "build",
+        slot: "assets",
+        files,
+      });
+      expect(dir.directory).toBe(consumerInputsDirPath(spaceRoot, runId, "build", "assets"));
+      const copies = ordered.map((f) => join(dir.directory, f.name));
+      for (let i = 0; i < copies.length; i++) {
+        expect(existsSync(copies[i])).toBe(true);
+        expect(readFileSync(copies[i], "utf8")).toBe(ordered[i].content);
+      }
+      // The directory equals the ordered manifest (names + order preserved).
+      const dirNames = files.map((f) => f.filename);
+      expect(dir.files.map((f) => f.path)).toEqual(copies);
+      expect(dir.files.map((f) => f.digest)).toEqual(files.map((f) => f.expected_digest));
+      expect(dirNames).toEqual(["01-openapi.json", "02-snapshot.md"]);
+
+      // Token shapes are not confused: a collection binds `.directory`, a
+      // singleton binds `.path`; the other token is absent for each.
+      const execContext = mergeArtifactsIntoExecContext({}, "intake", [
+        {
+          slot: "assets",
+          cardinality: "collection",
+          files: files.map((f, i) => ({
+            name: f.filename,
+            path: assetsRel(f.filename),
+            transfer_id: `xfr_${i}`,
+            digest: f.expected_digest,
+          })),
+        },
+      ]);
+      const bindings = buildArtifactMurrmureBindings(
+        (execContext.artifacts ?? {}) as RunArtifactsBag,
+      );
+      expect(bindings["step.intake.artifact.assets.directory"]).toBeDefined();
+      expect(bindings["step.intake.artifact.assets.path"]).toBeUndefined();
+      // Remote consumers get transfer references, never producer host paths.
+      expect(bindings["step.intake.artifact.assets.transfer_id"]).toBeUndefined();
+
+      // Retention: a terminal run past 7 days is swept; a global artifact
+      // reference (the shared exchange inbox, outside the per-run tree) and an
+      // active run's tree both survive. The sanitized summary leaks no path.
+      const inboxFile = join(spaceRoot, ".mrmr", "dev", "inbox", "xfr_01", "openapi.diff");
+      mkdirSync(dirname(inboxFile), { recursive: true });
+      writeFileSync(inboxFile, "diff --git\n");
+      const activeTree = runScratchDir(spaceRoot, "run_LIVE");
+      mkdirSync(join(activeTree, "steps", "build", "work"), { recursive: true });
+
+      const ended = Date.now() - 8 * 24 * 60 * 60 * 1000;
+      const summary = await sweepRunRetention(
+        {
+          async listRuns() {
+            return [
+              { run_id: "run_demo", space_id: "spc_t", lifecycle: "completed", ended_at: new Date(ended).toISOString() },
+              { run_id: "run_LIVE", space_id: "spc_t", lifecycle: "working" },
+            ];
+          },
+          async resolveSpaceRoot() {
+            return spaceRoot;
+          },
+          removeTree,
+          directoryBytes,
+        },
+        new Date(),
+      );
+      expect(summary.swept).toBe(1);
+      expect(existsSync(runScratchDir(spaceRoot, "run_demo"))).toBe(false);
+      expect(existsSync(inboxFile)).toBe(true);
+      expect(existsSync(activeTree)).toBe(true);
+      expect(existsSync(spaceRunsDir(spaceRoot))).toBe(true);
+      expect(JSON.stringify(summary)).not.toContain(spaceRoot);
+      expect(JSON.stringify(summary)).not.toContain("run_demo");
+    } finally {
+      rmSync(spaceRoot, { recursive: true, force: true });
+    }
+  });
 });

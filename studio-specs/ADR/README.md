@@ -18,5 +18,6 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-011](./ADR-011-space-owned-flow-admission-and-apply-quiescence.md) | accepted | Space-owned flow admission and apply-quiescence concurrency boundary |
 | [ADR-012](./ADR-012-safe-shell-handler-interpolation-and-credentials.md) | accepted | Safe shell handler interpolation, execution, and assignment credentials |
 | [ADR-013](./ADR-013-agent-assignment-prompt-protocol.md) | accepted | Versioned agent assignment prompt and ephemeral bridge authority |
+| [ADR-014](./ADR-014-local-run-storage-retention-and-materialization-boundary.md) | accepted | Local run storage retention and local-vs-federated artifact materialization |
 | [ADR-015](./ADR-015-nested-step-call-return.md) | accepted | Nested step call/return and assignment yield |
 
