@@ -279,6 +279,7 @@ export function formatStepExecutorOutput(
     .map((section) => {
       if (section.kind === "heading") return `--- ${section.text.toLowerCase()} ---`;
       if (section.kind === "text") return section.text;
+      if (section.kind === "agent_stdout") return "[agent stdout]";
       return `${section.label}: [structured data]`;
     })
     .join("\n\n");

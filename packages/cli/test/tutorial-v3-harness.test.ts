@@ -342,7 +342,7 @@ describe("Tutorial v3 harness", () => {
     }
   });
 
-  test("Task 00 — every skeleton is skipped with an owning task ID", () => {
+  test("Task 00 — skeleton suites mark only pending work with an owning task ID", () => {
     const skeletons = [
       "packages/contracts/test/tutorial-v3-contract.test.ts",
       "packages/hub-daemon/test/http/tutorial-v3-http.test.ts",
@@ -356,8 +356,12 @@ describe("Tutorial v3 harness", () => {
       const path = join(REPO_ROOT, relative);
       expect(existsSync(path), relative).toBe(true);
       const source = readFileSync(path, "utf8");
-      expect(source, relative).toMatch(/test\.skip\("Task (?:0[1-9]|1[0-4]) —/);
+      // No hidden expected failures or anonymous skips.
       expect(source, relative).not.toMatch(/test\.(?:fails|todo)|describe\.skip/);
+      // Every skip must be owned by a task ID.
+      expect(source, relative).not.toMatch(/test\.skip\((?!"Task \d+ —)/);
+      // Completed-task (01–12) behaviors are not marked pending after the cutover.
+      expect(source, relative).not.toMatch(/test\.skip\("Task (?:0[1-9]|1[0-2]) —/);
     }
   });
 

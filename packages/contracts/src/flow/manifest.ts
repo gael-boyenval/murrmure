@@ -57,15 +57,6 @@ export const FlowCheckpointOnResolveSchema = z.object({
   cancel: FlowCheckpointOnResolveRouteSchema.optional(),
 });
 
-export const FlowCheckpointStepSchema = z.object({
-  view: z.string(),
-  assignees: z.array(z.string()).optional(),
-  merge_input: z.boolean().optional(),
-  payload_ref: z.string().optional(),
-  on_resolve: FlowCheckpointOnResolveSchema.optional(),
-  responseSchema: z.string().optional(),
-});
-
 export const FlowLaneStepSchema: z.ZodType<FlowLaneStep> = z.lazy(() =>
   z.object({
     id: z.string(),

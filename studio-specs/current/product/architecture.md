@@ -49,7 +49,7 @@ OUTSIDE HUB (never stored):
 | **Session correlation** | Grouping, `subject` path, derived status from child runs | Step state machines (Runs own those) |
 | **Executor adapters** | Preflight, dispatch, completion reporting | LLM loops; silent queue-without-visibility |
 | **Shell** | Flowchart, gates, notifications, logs, CLI instruction pages | Author graphs; agent definitions |
-| **CLI** | `space link/apply`, grant mint, headless invoke | Replace hub enforcement |
+| **CLI** | `space link/apply`, connection create, headless invoke | Replace hub enforcement |
 
 **PR test:** *Is this protocol, flow, view rule, or space implementation?*
 

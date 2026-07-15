@@ -8,8 +8,6 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { describe, expect, test } from "vitest";
 
 describe("Tutorial v3 MCP conformance", () => {
-  test.skip("Task 02 — local connection resolves credentials without file tokens", () => {});
-  test.skip("Task 05 — agent artifact submission matches branch upload contracts", () => {});
   test("Task 07 — fake agent resolves build through the real MCP bridge", async () => {
     const assignmentToken = "tok_task_07_ephemeral";
     let receivedAuthorization = "";

@@ -246,6 +246,5 @@ describe("Tutorial v3 canonical contracts", () => {
     expect(branch.artifact_required).toEqual(["spec"]);
     expect(branch.artifact_slots.spec?.extensions).toEqual([".md"]);
   });
-  test.skip("Task 11 — artifact collections retain local/federated boundaries", () => {});
 });
 

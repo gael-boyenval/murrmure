@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PRODUCTION_SOURCE_ROOTS = [
+  "packages/contracts/src",
   "packages/hub-daemon/src",
   "packages/hub-core/src",
   "packages/cli/src",
@@ -24,6 +25,10 @@ const PRODUCTION_FORBIDDEN = [
   { label: "seed package catalog", pattern: /PACKAGE_CATALOG|cref_(?:linear_demo|review_loop|feature_spec)/ },
   { label: "retired FDK vocabulary", pattern: /\bFDK\b|flow-dev-kit/ },
   { label: "bundled seed contracts", pattern: /Resources\/hub\/contracts/ },
+  { label: "removed View SDK export useViewSubmit", pattern: /useViewSubmit/ },
+  { label: "removed space-home payload fields", pattern: /your_flows|available_to_run/ },
+  { label: "removed HANDLER_MISSING diagnostic", pattern: /HANDLER_MISSING/ },
+  { label: "removed FlowCheckpointStepSchema", pattern: /FlowCheckpointStepSchema/ },
 ];
 const ACTIVE_GUIDANCE_FORBIDDEN = [
   { label: "active retired FDK vocabulary", pattern: /\bFDK\b|flow-dev-kit/ },

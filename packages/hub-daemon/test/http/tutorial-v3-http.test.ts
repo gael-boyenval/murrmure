@@ -311,7 +311,5 @@ describe("Tutorial v3 HTTP conformance", () => {
       await hub.stop();
     }
   });
-  test.skip("Task 09 — run admission and apply quiescence are atomic", () => {});
-  test.skip("Task 11 — retained local artifacts never expose host paths", () => {});
 });
 

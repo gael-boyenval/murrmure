@@ -36,7 +36,7 @@ Agent in Cursor/Claude
   - murrmure_wait_for_run at human steps
 
 CLI operator (terminal)
-  - mrmr space / grant mint / space apply
+  - mrmr space / connection create / space apply
   - mrmr step resolve (shell handler complete: cli)
   - same hub APIs as Desktop webview
 ```

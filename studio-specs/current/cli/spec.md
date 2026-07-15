@@ -64,7 +64,6 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `health` | impl | none |
 | `space init` | impl | none (local scaffold) |
 | `space setup` | impl | requireScope · space:admin |
-| `space onboard` | impl | requireScope · space:write (--create: space:admin) |
 | `space link` | impl | requireScope · space:write |
 | `space apply` | impl | requireScope · space:write |
 | `action invoke` | impl | requireScope · action:invoke |
@@ -253,8 +252,6 @@ Hub or creates a token, grant, connection, or credential.
 **`space setup`:** Same Task 01 sequence as top-level setup: confirm one
 folder-derived display name and editable slug, create one opaque Hub space,
 then execute init/link/apply. It creates no local-tool credential.
-
-**`space onboard`:** Short path for existing `.mrmr/` — link → apply → status. Doctor suggests this when link is missing.
 
 ## Setup wizards (§5.3)
 

@@ -219,7 +219,7 @@ Subscribe on space channel — existing product SSE. Config UI listens for:
 No new MCP tools for Configuration v0 — admins use browser. CLI may add later:
 
 - `studio config space create`
-- `studio config grant mint`
+- `studio config connection create`
 
 Out of CS0 scope.
 

@@ -11,7 +11,7 @@ const run: RunDetailPayload = {
   lifecycle: "working",
   steps: [
     { step_id: "intake", status: "completed" },
-    { step_id: "write_spec", status: "working", error_code: undefined },
+    { step_id: "write_spec", status: "working" },
   ],
   exec_context: {
     steps: {

@@ -1,5 +1,48 @@
 # Changelog
 
+## Tutorial v3 Task 13 — clean-slate cutover (2026-07-15)
+
+### Removed
+
+- Orphaned `FlowCheckpointStepSchema` from `@murrmure/contracts` (checkpoint
+  steps are no longer authorable; the live `on_resolve` route schema used by
+  gates is retained).
+- Stale `test.skip("Task 01–12 — …")` placeholders from the Tutorial v3
+  skeleton suites now that Tasks 01–12 are approved.
+- Removed-command drift from active normative/guidance surfaces: `grant mint`
+  and `space onboard` are no longer described as current CLI commands in
+  `studio-specs/current/cli/spec.md`, `product/architecture.md`,
+  `bridges/config.md`, or `apps/docs/guide/how-it-fits-together.md`.
+
+### Added
+
+- `check:clean-state` now scans `packages/contracts/src` and rejects the
+  removed identifiers `useViewSubmit`, `your_flows`, `available_to_run`,
+  `HANDLER_MISSING`, and `FlowCheckpointStepSchema` from production source so
+  they cannot return.
+- `tutorial-v3-harness` Task 00 guard now asserts skeleton suites carry no
+  hidden failures and mark only pending (Task 13/14) work with an owning task
+  ID, instead of requiring a skip.
+
+### Fixed
+
+- `@murrmure/shell-web` typecheck debt: `formatStepExecutorOutput` now
+  formats `agent_stdout` sections instead of falling through to a missing
+  `.label`; the step-executor-output test fixture no longer carries an
+  untyped `error_code`; non-shipped Storybook stories/prototypes (which
+  reference an uninstalled `@storybook/*` toolchain) are excluded from the
+  production `tsc -p` pass.
+
+### Notes
+
+- The legacy v2 runtime — `action:invoke` / `gate:resolve` capabilities, the
+  `mrmr action invoke` CLI, gate/checkpoint/`on_resolve`/`goto` flow-engine
+  routing, and base64 cross-space artifact registration — remains active and
+  entangled with the gate kernel, run service, grants, and persistence. Its
+  full teardown is a major refactor owned by dedicated follow-on cutover
+  tasks (the removal/integration subset of T15), not an opaque patch in this
+  gate, per this task's "no deferred implementation bucket" guardrail.
+
 ## Tutorial v3 Task 12 — one truthful flow page (2026-07-15)
 
 ### Added

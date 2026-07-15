@@ -117,7 +117,6 @@ describe("Tutorial v3 CLI conformance", () => {
     expect(existsSync(join(projectPath, ".cursor", "mcp.json"))).toBe(false);
   });
 
-  test.skip("Task 02 — setup creates and activates one local connection", () => {});
   test("Task 03 — strict apply and run use triggers only", async () => {
     materializeTutorialSnapshot(2, projectPath);
 
@@ -154,5 +153,4 @@ describe("Tutorial v3 CLI conformance", () => {
     expect(runReq?.body?.start).toBeUndefined();
     expect(runReq?.body?.space_id).toBe("spc_01JTUTORIALV3SPACE0000000");
   });
-  test.skip("Task 09 — capacity and active-run apply errors show blocking IDs", () => {});
 });
