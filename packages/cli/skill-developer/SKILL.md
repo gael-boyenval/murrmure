@@ -124,6 +124,32 @@ never become shell fragments:
     timeout_ms: 10000
 ```
 
+### Safe repository automation
+
+A handler that commits to the space repository owns its Git policy — Murrmure
+has no platform Git-cleanliness contract, so keep it in the handler script, not
+the portable flow:
+
+- **Preflight before the first mutation.** The first repository-mutating
+  handler fails before mutating when the tree is dirty (staged, unstaged, or
+  non-ignored untracked): `git diff --quiet`, `git diff --cached --quiet`,
+  `test -z "$(git ls-files --others --exclude-standard)"`. Pair with a
+  `run_policies` `max_concurrent_runs: 1` so no second run races the mutation.
+- **Stage an explicit allowlist only.** Derive the workflow-owned paths and
+  `git add -- <path>…` only those. Never `git add -A` or `git add .` — reject
+  any changed path outside the allowlist and fail the run instead of committing
+  it. List individual files with `git status --porcelain -z
+  --untracked-files=all` (without `--untracked-files=all` Git collapses a new
+  untracked directory and the allowlist match misses the archived file).
+- **Keep scratch outside Git.** `.mrmr/dev` stays gitignored; run scratch and
+  the original uploaded artifact never enter the index and are not deleted.
+- **Validate commit data before mutating.** Check the run id, commit subject
+  (no newlines), and description before `git commit`, and pass them as separate
+  arguments so shell metacharacters and multiline bodies stay literal.
+- **Failures are ordinary handler failures.** Missing identity, a non-Git
+  directory, an archive collision, a no-op, or a commit failure exits nonzero
+  through the normal handler/run path — no rollback, retry, or recovery engine.
+
 ### Event handlers (not hooks chains)
 
 Declare event reactions in the same `handlers.yaml` namespace:

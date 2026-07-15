@@ -1,4 +1,4 @@
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -97,6 +97,109 @@ export function createTemporaryGitRepository(
   git("add", "--", "README.md");
   git("commit", "--quiet", "-m", "chore: initialize tutorial fixture");
   return { ...resource, repository, git };
+}
+
+export interface TemporaryTutorialGitRepository extends TemporaryResource {
+  spaceRoot: string;
+  git: (...args: string[]) => string;
+  /** Run the exact Part 6 cleanup script as the hub would (cwd = space root). */
+  runCleanup: (
+    runId: string,
+    subject: string,
+    description: string,
+    options?: { env?: NodeJS.ProcessEnv },
+  ) => { status: number | null; stdout: string; stderr: string };
+  /** Run the exact Part 6 write_spec handler with the artifact placeholder resolved. */
+  runWriteSpec: (
+    producerSpecPath: string,
+  options?: { env?: NodeJS.ProcessEnv },
+  ) => { status: number | null; stdout: string; stderr: string };
+}
+
+const TUTORIAL_GITIGNORE = `.mrmr/dev/\n`;
+
+/**
+ * A temporary Git repository with the Tutorial Part 6 snapshot materialized at
+ * the space root, `.mrmr/dev` ignored, and the space configuration committed —
+ * the exact state the tutorial reaches after `mrmr space apply --strict` plus
+ * the Part 6 re-apply commit. Run scratch and per-run artifacts live under the
+ * ignored `.mrmr/dev` tree and never enter the index.
+ */
+export function createTemporaryTutorialGitRepository(
+  part: TutorialPart,
+  prefix = `murrmure-tutorial-v3-part-${part}-git-`,
+): TemporaryTutorialGitRepository {
+  const resource = temporaryRoot(prefix);
+  const spaceRoot = join(resource.root, "space");
+  materializeTutorialSnapshot(part, spaceRoot);
+  const git = (...args: string[]) =>
+    execFileSync("git", args, {
+      cwd: spaceRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  git("init", "--quiet");
+  git("config", "user.name", "Tutorial Fixture");
+  git("config", "user.email", "tutorial-fixture@murrmure.invalid");
+  writeFileSync(join(spaceRoot, ".gitignore"), TUTORIAL_GITIGNORE, "utf8");
+  git("add", "--", ".gitignore", ".mrmr/flows", ".mrmr/space", ".mrmr/views");
+  git("commit", "--quiet", "-m", "chore: configure tutorial flow");
+
+  const cleanupScript = join(spaceRoot, ".mrmr", "space", "scripts", "cleanup.mjs");
+  const handlersYaml = readFileSync(
+    join(spaceRoot, ".mrmr", "space", "handlers.yaml"),
+    "utf8",
+  );
+  // The exact write_spec command block (6-space-indented body under `command: |`).
+  const writeSpecMatch = handlersYaml.match(
+    /id:\s*write_spec_copy[\s\S]*?command:\s*\|\n([\s\S]*?)\n(?= {4}\S)/,
+  );
+  const writeSpecCommand = writeSpecMatch
+    ? writeSpecMatch[1]
+        .split("\n")
+        .map((l) => l.replace(/^      /, ""))
+        .filter((l) => l.trim().length > 0)
+        .join("\n")
+    : "";
+
+  const runCleanup = (
+    runId: string,
+    subject: string,
+    description: string,
+    options?: { env?: NodeJS.ProcessEnv },
+  ) => {
+    const result = spawnSync("node", [cleanupScript, runId, subject, description], {
+      cwd: spaceRoot,
+      encoding: "utf8",
+      env: { ...process.env, ...options?.env },
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+    };
+  };
+  const runWriteSpec = (
+    producerSpecPath: string,
+    options?: { env?: NodeJS.ProcessEnv },
+  ) => {
+    const command = writeSpecCommand.replace(
+      "{{murrmure.step.intake.artifact.spec.path}}",
+      producerSpecPath,
+    );
+    const result = spawnSync("/bin/sh", ["-e", "-c", command], {
+      cwd: spaceRoot,
+      encoding: "utf8",
+      env: { ...process.env, ...options?.env },
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? "",
+    };
+  };
+
+  return { ...resource, spaceRoot, git, runCleanup, runWriteSpec };
 }
 
 export interface TemporaryHub extends TemporaryResource {

@@ -119,7 +119,7 @@ if (existsSync(archive)) throw new Error(`archive already exists: ${archive}`);
 mkdirSync(dirname(archive), { recursive: true });
 renameSync(join("specs", "current", "spec.md"), archive);
 
-const status = execFileSync("git", ["status", "--porcelain", "-z"], { encoding: "utf8" });
+const status = execFileSync("git", ["status", "--porcelain", "-z", "--untracked-files=all"], { encoding: "utf8" });
 const changed = status.split("\0").filter(Boolean).map((entry) => entry.slice(3));
 const allowed = changed.filter((path) =>
   path === archive ||

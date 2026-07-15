@@ -349,7 +349,6 @@ describe("Tutorial v3 harness", () => {
       "packages/mcp-bridge/test/tutorial-v3-mcp.test.ts",
       "packages/cli/test/tutorial-v3-cli.test.ts",
       "packages/hub-core/test/tutorial-v3-handler.test.ts",
-      "packages/executors/conformance/tutorial-v3-repository.test.ts",
       "packages/shell-web/src/tutorial-v3-shell-ui.test.tsx",
       "apps/desktop/test/tutorial-v3-packaged.test.ts",
     ];
