@@ -112,7 +112,7 @@ Command mapping:
 |----------|--------|
 | `instance.create` | `aggregate.create` |
 | `state.transition` | `state.transition` |
-| `gate.resolve` | `checkpoint.resolve` |
+| `gate.resolve` | *(no kernel command — resolved by `gates/service` on the gates table; a kernel-checkpoint `gate_id` yields `gate_not_found`)* |
 | `event.append` | `event.append` |
 | `wait.register` | `wait.register` |
 | `wait.cancel` | `wait.cancel` |

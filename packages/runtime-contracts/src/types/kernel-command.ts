@@ -19,14 +19,6 @@ export type KernelCommand =
       block_on?: WaitCondition;
     }
   | {
-      kind: "checkpoint.resolve";
-      provenance: Provenance;
-      checkpoint_id: string;
-      decision: "approved" | "rejected";
-      resume_data?: Record<string, unknown>;
-      block_on?: WaitCondition;
-    }
-  | {
       kind: "event.append";
       provenance: Provenance;
       aggregate_id: string;

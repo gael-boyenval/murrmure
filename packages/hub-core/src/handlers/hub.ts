@@ -31,7 +31,6 @@ import {
   addGateId,
   addInstanceId,
   addSpaceId,
-  stripGateId,
   stripInstanceId,
   stripSpaceId,
   stripTokenId,
@@ -40,6 +39,8 @@ import {
 import { buildSpaceJournalEnvelope, validateJournalInlinePayload } from "../journal/append.js";
 import { journalEntryToHubEvent } from "../bridge/journal.js";
 import { enforceSpacePath } from "../ports/policy.js";
+import { resolveGate } from "../gates/service.js";
+import { resolveEffectiveCapabilities, hasCapability } from "../grants/migrate.js";
 import { ConfigHandler } from "./config.js";
 
 export type StudioCommand =
@@ -329,24 +330,45 @@ export class HubHandler {
   }
 
   private async handleGateResolve(cmd: GateResolveCommand): Promise<CommandResult> {
-    const p = this.toProvenance(cmd.provenance, cmd.provenance.instance_id);
-    const result = await this.kernel.execute({
-      kind: "checkpoint.resolve",
-      provenance: p,
-      checkpoint_id: stripGateId(cmd.gate_id),
-      decision: cmd.decision,
-      resume_data: cmd.resume_data,
-    });
+    // Gate resolution is owned by the orchestration gate service (gates/service),
+    // the same path used by POST /v1/gates/:gate_id/resolve. The legacy kernel
+    // checkpoint.resolve bridge has been removed; gate state lives in the gates
+    // table, not the kernel checkpoint mini-FSM.
+    const token = await this.studio.getToken(stripTokenId(cmd.provenance.token_id));
+    const effective = token
+      ? resolveEffectiveCapabilities({ scopes: token.scopes, capabilities: token.capabilities })
+      : [];
 
-    if (result.outcome === "success" && cmd.provenance.instance_id && result.body.state) {
-      await this.studio.updateInstanceState(
-        stripInstanceId(cmd.provenance.instance_id),
-        result.body.state as string,
-        result.body.revision as number,
-      );
+    const result = await resolveGate(
+      {
+        studio: this.studio,
+        handler: this,
+        ids: this.ids,
+        clock: this.clock,
+      },
+      {
+        gate_id: cmd.gate_id,
+        actor_id: cmd.provenance.actor_id,
+        token_id: cmd.provenance.token_id,
+        decision: cmd.decision,
+        resume_data: cmd.resume_data,
+        can_resolve: hasCapability(effective, "flow:run"),
+        capabilities: effective,
+      },
+    );
+
+    if (result.error) {
+      const code = result.error.code;
+      const http =
+        code === "gate_not_found"
+          ? HTTP_SEMANTIC.NOT_FOUND
+          : code === "SCOPE_ENFORCEMENT_FAILURE"
+            ? HTTP_SEMANTIC.FORBIDDEN
+            : HTTP_SEMANTIC.CONFLICT;
+      return denialResult(code, { message: result.error.message }, http);
     }
 
-    return mapKernelResult(result);
+    return successResult("gate_resolved", { gate: result.gate });
   }
 
   private async handleEventAppend(cmd: EventAppendCommand): Promise<CommandResult> {

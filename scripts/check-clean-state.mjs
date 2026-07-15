@@ -11,6 +11,9 @@ const PRODUCTION_SOURCE_ROOTS = [
   "packages/cli/src",
   "packages/view-sdk/src",
   "apps/desktop/src",
+  "packages/runtime-contracts/src",
+  "packages/runtime-kernel/src",
+  "packages/runtime-adapter-http/src",
 ];
 const PRODUCTION_EXTRA_FILES = ["apps/desktop/electrobun.config.ts"];
 const ACTIVE_GUIDANCE_ROOTS = [
@@ -40,6 +43,7 @@ const PRODUCTION_FORBIDDEN = [
   { label: "removed checkpoint on_resolve IR field", pattern: /on_resolve/ },
   { label: "removed resolveCheckpointViewRef", pattern: /resolveCheckpointViewRef/ },
   { label: "removed CHECKPOINT_LOOPBACK_HINT lint code", pattern: /CHECKPOINT_LOOPBACK_HINT/ },
+  { label: "removed kernel checkpoint.resolve command", pattern: /["']checkpoint\.resolve["']/ },
   {
     label: "removed grant/agent/onboard command vocabulary",
     pattern: /\bgrant (?:mint|use)\b|\bagent (?:connect|activate)\b|\bspace onboard\b/,

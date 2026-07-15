@@ -3,7 +3,7 @@ import * as fc from "fast-check";
 import { InMemoryPersistence } from "@murrmure/runtime-persistence";
 import { foldJournalToSnapshot, ENTRY_TYPES } from "@murrmure/runtime-contracts";
 import type { JournalEntry } from "@murrmure/runtime-contracts";
-import { isQuorumSatisfied, addVote } from "../../src/checkpoint/lifecycle.js";
+import { checkpointFromTransition } from "../../src/checkpoint/lifecycle.js";
 import type { Checkpoint } from "@murrmure/runtime-contracts";
 import { matchesWaitCondition } from "../../src/waiters/match.js";
 import { dedupFingerprint } from "../../src/reactions/matcher.js";
@@ -98,18 +98,17 @@ test("dedup fingerprint is stable", () => {
   expect(dedupFingerprint(reaction, entry)).toBe(dedupFingerprint(reaction, entry));
 });
 
-test("checkpoint quorum any", () => {
-  const cp: Checkpoint = {
-    checkpoint_id: "c",
-    aggregate_id: "a",
-    scope_id: "s",
-    transition_id: "t",
-    from_state: "x",
-    to_state: "y",
-    status: "pending",
-    quorum: { mode: "any", count: 1, assignees: ["h"] },
-    votes: [{ actor_id: "h1", decision: "approved", ts: "t" }],
-    created_at: "t",
-  };
-  expect(isQuorumSatisfied(cp)).toBe(true);
+test("checkpoint from transition is pending with declared quorum", () => {
+  const cp: Checkpoint = checkpointFromTransition(
+    "c",
+    "s",
+    "a",
+    { id: "t", from: "x", to: "y", checkpoint: { quorum: "any", count: 1, assignees: ["h"] } },
+    "t",
+  );
+  expect(cp.status).toBe("pending");
+  expect(cp.quorum).toEqual({ mode: "any", count: 1, assignees: ["h"] });
+  expect(cp.votes).toEqual([]);
+  expect(cp.from_state).toBe("x");
+  expect(cp.to_state).toBe("y");
 });

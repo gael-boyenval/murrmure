@@ -38,6 +38,16 @@
 - Removed implicit package-catalog installs; install now requires an explicit
   bundle. New space IDs are opaque and independent from editable slugs.
 
+### Changed
+
+- `HubHandler.handleGateResolve` no longer bridges to the kernel
+  `checkpoint.resolve` command. It now delegates to the orchestration gate
+  service `resolveGate` (`src/gates/service.ts`) — the same path as
+  `POST /v1/gates/:gate_id/resolve` (phase07, `flow:run` authz). A `gate.resolve`
+  whose `gate_id` derives from a kernel checkpoint is denied `gate_not_found`
+  (404); the kernel checkpoint stays pending. Dead `checkpoint_vote_denied` /
+  `checkpoint_resolved` mappings removed from `src/bridge/errors.ts`.
+
 ## 0.1.1
 
 ### Patch Changes

@@ -85,9 +85,13 @@ Translation from journal fan-out:
 | Journal `type` | SSE `event` |
 |----------------|-------------|
 | `state.transition` | `journal.append` |
-| `checkpoint.pending` | `gate.pending` |
-| `checkpoint.resolved` | `gate.resolved` |
+| `checkpoint.created` | `gate.pending` |
 | `wait.matched` | `wait.resolved` |
+
+`gate.resolved` for orchestration gates is emitted directly by the gate service
+(`POST /v1/gates/:gate_id/resolve`), not from kernel checkpoint fan-out — the kernel no
+longer emits `checkpoint.resolved` (the `checkpoint.resolve` command was removed; see
+`studio-specs/current/kernel/spec.md` §5.5.1).
 
 Implement in `packages/studio-hub-daemon/src/sse.ts`. Reuse kernel fan-out notify hook.
 

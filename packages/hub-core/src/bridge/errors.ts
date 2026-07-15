@@ -5,12 +5,10 @@ const KERNEL_TO_STUDIO: Record<string, string> = {
   policy_denied: MURRMURE_DENIAL_CODES.TOKEN_DENIED,
   scope_denied: MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE,
   transition_denied: MURRMURE_DENIAL_CODES.TRANSITION_DENIED,
-  checkpoint_vote_denied: MURRMURE_DENIAL_CODES.GATE_RESOLUTION_DENIED,
   validation_denied: MURRMURE_DENIAL_CODES.CONTRACT_VALIDATION_DENIED,
   checkpoint_pending: "checkpoint_pending",
   aggregate_created: "aggregate_created",
   state_transitioned: "state_transitioned",
-  checkpoint_resolved: "checkpoint_resolved",
   wait_registered: "wait_registered",
 };
 

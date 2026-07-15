@@ -166,20 +166,28 @@ interface RulesPort {
 
 ### 5.5.1 Checkpoint lifecycle
 
-Checkpoint mini-FSM: `pending → (vote)* → resolved | rejected`.
+The kernel retains only checkpoint **creation** — the minimal checkpoint surface needed
+for waiters and the `gate_queue` projection. A transition whose rule declares a
+`checkpoint` quorum appends a `checkpoint.created` entry and pauses the aggregate in
+`checkpoint_pending` (202 Accepted) with **no state change**. The pending checkpoint
+records `(aggregate_id, transition_id, quorum, assignees)`.
 
-| Event | Effect |
-|-------|--------|
-| `checkpoint.resolve(approved)` | Append `checkpoint.vote` journal entry; evaluate quorum |
-| `checkpoint.resolve(rejected)` | Terminate as `rejected` immediately unless artifact sets `reject_requires_quorum` |
-| Quorum satisfied | Commit transition under aggregate revision CAS |
-| Concurrent terminal resolve | One-shot CAS on `checkpoint.status`; loser gets `checkpoint_already_resolved` |
+Checkpoint **resolution is no longer a kernel command.** The previous `checkpoint.resolve`
+mini-FSM (`pending → (vote)* → resolved | rejected`, quorum CAS commit,
+`checkpoint_already_resolved` race, and the K13 stale-resolution re-check) has been
+removed. Advancing a paused aggregate is owned by the **orchestration gate service**
+(`@murrmure/hub-core` `gates/service`) on the **gates table**, reached via the hub
+`gate.resolve` command and `POST /v1/gates/:gate_id/resolve` — not by a kernel
+`checkpoint.resolve`. A `gate.resolve` whose `gate_id` derives from a kernel checkpoint
+has no gates-table row and is denied `gate_not_found` (404); the kernel checkpoint stays
+pending.
 
-Partial approvals **do not** change aggregate state. Only the quorum-completing commit mutates state.
+The `checkpoint.resolved` / `checkpoint.rejected` / `checkpoint.vote` journal types
+remain declared (referenced by the `gate` wait-condition matcher and the `gate_queue`
+projection) but are no longer emitted by the kernel.
 
-**Stale checkpoint:** at resolution commit, re-validate `transition.from == aggregate.current_state` inside CAS (K13). Mismatch → `transition_stale` denial appended.
-
-**While checkpoint pending:** implementations MAY reject competing state mutations with `checkpoint_pending`; if not, stale resolution path (K13) is mandatory.
+**While checkpoint pending:** implementations MAY reject competing state mutations with
+`checkpoint_pending`.
 
 ### 5.6 `journal` (domain logic)
 
@@ -391,7 +399,6 @@ Property test **Snapshot = fold(journal)** uses this definition (K9).
 | `aggregate.create` | New aggregate + journal |
 | `aggregate.archive` | Terminal transition per artifact |
 | `state.transition` | Executor; may return `checkpoint_pending` (202) |
-| `checkpoint.resolve` | Vote + maybe commit; accepts `resume_data?` |
 | `event.append` | Append if declared in artifact and policy allows |
 | `wait.register` / `wait.cancel` | Sync waiter |
 | `reaction.register` / `reaction.disable` | Async reaction |
@@ -510,9 +517,9 @@ Handlers: pure over `(entry, prior state via ctx)`. Rebuild replays from `from_s
 | K8 | Async reactions never inside write transaction |
 | K9 | Projections rebuildable from journal (+ fold definition §9) |
 | K10 | Optimistic concurrency via commit-time revision CAS |
-| K11 | Checkpoint pending = no aggregate state change until resolved commit |
+| K11 | Checkpoint pending = no aggregate state change (kernel retains only checkpoint creation; advancement is owned by the orchestration gate service, not the kernel) |
 | K12 | Idempotent commands: same `command_id` → same result |
-| K13 | Checkpoint resolution re-validates `from == current_state` at CAS |
+| K13 | *(removed — checkpoint resolution is no longer a kernel command; see §5.5.1)* |
 | K14 | Bound wait resolves immediately on bound command denial |
 | K15 | Every committed `seq` eventually fan-outs after crash (outbox/recovery) |
 | K16 | Journal replay compatibility: kernel N reads N-1 entries semantically |
@@ -612,7 +619,7 @@ Tracing: command → policy → rules → persist → fanout → action.
 |-------|-------------|---------------|
 | **R0** | `@murrmure/runtime-contracts` + fold definition + property suite | K1–K6, K10–K12 property tests |
 | **R1** | In-memory `PersistencePort` + CAS + conformance suite stub | CAS + TX semantics locked |
-| **R2** | Executor + checkpoint + denial append path | 202/409/403 + K11, K13 |
+| **R2** | Executor + checkpoint creation + denial append path | 202/409/403 + K11 |
 | **R3** | Waiters + bound-command + in-process delivery | K7, K14 |
 | **R4** | SQLite `PersistencePort` + WAL + outbox recovery | K4, K15 integration |
 | **R5** | Reactions + dedup + delivery log + replay | K17, K18 |

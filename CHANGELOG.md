@@ -1,5 +1,53 @@
 # Changelog
 
+## Task 15 Lane A — fix: remove kernel checkpoint runtime bridge (2026-07-15)
+
+### Removed
+
+- Kernel `checkpoint.resolve` command: the `checkpoint.resolve` variant is gone
+  from `KernelCommand` (`packages/runtime-contracts/src/types/kernel-command.ts`),
+  and the kernel handler no longer has the `checkpoint.resolve` case,
+  `handleCheckpointResolve`, or the `commitCheckpointResolved` /
+  `commitCheckpointRejected` committers
+  (`packages/runtime-kernel/src/command/handler.ts`). The vote/quorum/reject
+  lifecycle helpers (`isQuorumSatisfied`, `shouldRejectImmediately`, `addVote`)
+  are deleted; only `checkpointFromTransition` (checkpoint creation) remains
+  (`packages/runtime-kernel/src/checkpoint/lifecycle.ts`).
+- `POST /v1/scopes/:scope_id/checkpoints/:id/resolve` HTTP route
+  (`packages/runtime-adapter-http/src/app.ts`). Kernel checkpoints are no longer
+  resolvable over HTTP.
+- Dead kernel→Studio error mappings `checkpoint_vote_denied` and
+  `checkpoint_resolved` from `KERNEL_TO_STUDIO`
+  (`packages/hub-core/src/bridge/errors.ts`).
+
+### Changed
+
+- `gate.resolve` no longer bridges to the kernel `checkpoint.resolve` command.
+  `HubHandler.handleGateResolve` now delegates to the orchestration gate service
+  `resolveGate` (`packages/hub-core/src/gates/service.ts`) — the same path as
+  `POST /v1/gates/:gate_id/resolve` (phase07, `flow:run` authz). A `gate.resolve`
+  whose `gate_id` derives from a kernel checkpoint has no gates-table row and is
+  denied `gate_not_found` (404); the kernel checkpoint stays pending.
+- The kernel retains only checkpoint **creation** (the minimal checkpoint surface
+  for waiters + the `gate_queue` projection): a transition whose rule declares a
+  `checkpoint` quorum still pauses the aggregate (`checkpoint_pending`, 202) with
+  no state change. Advancing a paused aggregate is owned by the orchestration
+  gate service on the gates table, not the kernel.
+- `scripts/check-clean-state.mjs` now scans
+  `packages/runtime-contracts/src`, `packages/runtime-kernel/src`, and
+  `packages/runtime-adapter-http/src` and forbids the `checkpoint.resolve`
+  command literal.
+
+### Retained (unchanged)
+
+- Orchestration gate approval via `gates/service.ts resolveGate` +
+  `POST /v1/gates/:gate_id/resolve` (`flow:run` authz).
+- `mrmr.gate.resolved` journal/SSE events for orchestration gates.
+- Task 08 nested `STEP_YIELDED` / `STEP_RESUMED`.
+- Kernel checkpoint creation (`checkpoint.created`), the `gate` wait-condition
+  matcher, and the `gate_queue` projection (dormant — no production flow uses
+  checkpoint-quorum transitions post-cutover).
+
 ## Task 15 Lane A — v2 runtime cutover: capabilities, gates, checkpoints, artifacts (2026-07-15)
 
 ### Removed
