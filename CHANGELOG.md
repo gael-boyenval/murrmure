@@ -1,5 +1,37 @@
 # Changelog
 
+## Task 15 Lane A — fix: gate resolve boundary hardening (2026-07-15)
+
+### Removed
+
+- `POST /v1/spaces/:space_id/gates/:gate_id/resolve` legacy HTTP route
+  (`packages/hub-daemon/src/routes.ts`). It broadcast `gate.resolved` SSE
+  unconditionally (even on 404/403) and trusted `body.actor_id`. Gate
+  resolution now uses only the normative `POST /v1/gates/:gate_id/resolve`
+  (phase07) route.
+
+### Changed
+
+- `POST /v1/gates/:gate_id/resolve` (phase07) and `resolveGate`
+  (`packages/hub-core/src/gates/service.ts`) now enforce a space boundary: a
+  `flow:run` token may only resolve a gate in its own space; bootstrap and
+  `hub:admin` tokens may resolve cross-space. Both the route and the service
+  check the boundary (defense in depth); a mismatch yields
+  `SCOPE_ENFORCEMENT_FAILURE` (403).
+- `studio-specs/current/fixtures/product/product/http-sse-gate.json` and
+  `http-hub-j01.json`, and `apps/docs/reference/http-api.md` no longer reference
+  the removed space-scoped resolve route; the normative route is documented as
+  space-bound.
+
+### Added
+
+- Rejection tests: the removed legacy
+  `POST /v1/spaces/:id/gates/:gate/resolve` returns 404; a space-A `flow:run`
+  token cannot resolve a space-B gate (403) while bootstrap and same-space
+  tokens succeed (`packages/hub-daemon/test/http/gates/`); the removed
+  runtime-adapter `POST /v1/scopes/:scope_id/checkpoints/:id/resolve` returns
+  404 (`packages/runtime-adapter-http/test/http-conformance.test.ts`).
+
 ## Task 15 Lane A — fix: remove kernel checkpoint runtime bridge (2026-07-15)
 
 ### Removed

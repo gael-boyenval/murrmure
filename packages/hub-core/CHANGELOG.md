@@ -47,6 +47,11 @@
   whose `gate_id` derives from a kernel checkpoint is denied `gate_not_found`
   (404); the kernel checkpoint stays pending. Dead `checkpoint_vote_denied` /
   `checkpoint_resolved` mappings removed from `src/bridge/errors.ts`.
+- `resolveGate` (`src/gates/service.ts`) enforces a space boundary when the
+  caller passes `space_id`: a `flow:run` token may only resolve a gate in its
+  own space; bootstrap and `hub:admin` tokens may resolve cross-space. A
+  mismatch yields `SCOPE_ENFORCEMENT_FAILURE` (403). `GateResolveInput` gains an
+  optional `space_id` field.
 
 ## 0.1.1
 

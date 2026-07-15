@@ -130,6 +130,15 @@ describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
     expect(res.status).toBe(404);
   });
 
+  test("POST /v1/spaces/{space_id}/gates/{gate_id}/resolve returns 404 (legacy route removed)", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/gates/gate_demo/resolve`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ decision: "approved" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   test("MCP catalog excludes v1 platform tools", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
       headers: { Authorization: `Bearer ${token}` },

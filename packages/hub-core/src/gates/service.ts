@@ -22,7 +22,7 @@ import {
 } from "../orchestration/bind.js";
 import { parseOrchestrationPayloadRef, type OrchestrationPreview } from "../orchestration/preview.js";
 import type { Capability } from "@murrmure/contracts";
-import { canResolveGate, resolveEffectiveCapabilities } from "../grants/migrate.js";
+import { canResolveGate, hasCapability, resolveEffectiveCapabilities } from "../grants/migrate.js";
 
 export interface GateServiceDeps extends Partial<OrchestrationBindDeps> {
   studio: StudioPersistencePort;
@@ -164,6 +164,9 @@ export interface GateResolveInput {
   gate_id: string;
   actor_id: string;
   token_id: string;
+  /** Token space — when provided, resolveGate rejects if it does not match the
+   *  gate's space (unless the token is bootstrap or holds hub:admin). */
+  space_id?: string;
   /** Normative v2 wire */
   disposition?: "continue" | "cancel";
   output?: Record<string, unknown>;
@@ -219,6 +222,24 @@ export async function resolveGate(
       gate: rowToGate(row),
       error: { code: "gate_terminal", message: "Gate already resolved" },
     };
+  }
+
+  // Space boundary: a token may only resolve a gate in its own space. Bootstrap
+  // and hub:admin tokens are privileged and may resolve gates cross-space. The
+  // HTTP route (POST /v1/gates/:gate_id/resolve) enforces the same check; this
+  // guard defends any other caller of resolveGate.
+  if (input.space_id) {
+    const isPrivileged =
+      input.space_id === "bootstrap" || hasCapability(input.capabilities ?? [], "hub:admin");
+    if (!isPrivileged) {
+      const tokenSpaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
+      if (tokenSpaceBare !== row.space_id) {
+        return {
+          gate: rowToGate(row),
+          error: { code: "SCOPE_ENFORCEMENT_FAILURE", message: "token space does not match gate space" },
+        };
+      }
+    }
   }
 
   const grants = await deps.studio.listGrants(row.space_id);

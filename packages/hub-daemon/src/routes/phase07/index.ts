@@ -81,6 +81,16 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
+    // Space boundary: a flow:run token may only resolve a gate in its own space.
+    // Bootstrap and hub:admin tokens are privileged and may resolve cross-space.
+    // resolveGate re-checks the same boundary (defense in depth).
+    const gateRow = await getGateById(deps(), gate_id);
+    if (!gateRow) return c.json({ code: "gate_not_found", message: "Gate not found" }, 404);
+    const isPrivileged = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    if (!isPrivileged && bareSpaceId(auth.space_id) !== gateRow.space_id) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "token space does not match gate space" }, 403);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const disposition =
       body.disposition === "cancel"
@@ -98,6 +108,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
       decision: body.decision === "rejected" ? "rejected" : body.decision === "approved" ? "approved" : undefined,
       actor_id: auth.actor_id,
       token_id: auth.token_id,
+      space_id: auth.space_id,
       resume_data: body.resume_data,
       form_values: body.form_values ?? body.form,
       can_resolve: hasCapability(effective, "flow:run"),

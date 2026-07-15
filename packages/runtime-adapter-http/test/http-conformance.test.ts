@@ -114,4 +114,14 @@ describe("HTTP adapter conformance", () => {
     expect(ERROR_HTTP_MAP[DENIAL_CODES.CHECKPOINT_PENDING]).toBe(HTTP_SEMANTIC.ACCEPTED);
     expect(ERROR_HTTP_MAP[DENIAL_CODES.IDEMPOTENCY_CONFLICT]).toBe(HTTP_SEMANTIC.CONFLICT);
   });
+
+  test("removed POST /v1/scopes/:scope_id/checkpoints/:id/resolve returns 404", async () => {
+    const { app } = makeHttpKernel();
+    const res = await app.request("/v1/scopes/scp_demo/checkpoints/ckpt_demo/resolve", {
+      method: "POST",
+      headers: { Authorization: "Bearer t", "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "approved" }),
+    });
+    expect(res.status).toBe(404);
+  });
 });

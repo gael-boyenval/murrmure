@@ -214,9 +214,7 @@ MCP equivalents: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_
 | `POST` | `/v1/gates/{id}/resolve` | `gate:resolve` | Approve/reject `{ decision, resume_data?, form_values? }` |
 | `GET` | `/v1/gates/wait` | `space:read` | Long-poll `?run_id=` or `?session_id=` (`timeout_ms` max 120s) |
 
-Legacy space-scoped resolve: `POST /v1/spaces/{id}/gates/{gate}/resolve` (prefer global v2 path).
-
-Orchestration gate resolve remains on HTTP for operator attach flows. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate MCP tools.
+Gate resolve is space-bound: a `flow:run` token may only resolve a gate in its own space; bootstrap and `hub:admin` tokens may resolve cross-space. Orchestration gate resolve remains on HTTP for operator attach flows. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate MCP tools.
 
 ## Platform v2 — Notifications & profile
 

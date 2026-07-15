@@ -128,33 +128,6 @@ export function createHubApp(ctx: DaemonContext) {
     return c.json({ gates });
   });
 
-  app.post("/v1/spaces/:space_id/gates/:gate_id/resolve", async (c) => {
-    const space_id = c.req.param("space_id");
-    const gate_id = c.req.param("gate_id");
-    const body = await c.req.json();
-    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
-    if (auth instanceof Response) return auth;
-
-    const result = await handler.execute({
-      kind: "gate.resolve",
-      provenance: {
-        space_id,
-        instance_id: body.instance_id,
-        actor_id: body.actor_id ?? auth.actor_id,
-        token_id: auth.token_id,
-      },
-      gate_id,
-      decision: body.decision,
-    });
-
-    broadcastSse(ctx, {
-      event: "gate.resolved",
-      data: { gate_id, decision: body.decision },
-    });
-
-    return c.json(result.body, result.http_semantic as 200);
-  });
-
   app.get("/v1/spaces/:space_id/events/emittable", async (c) => {
     const space_id = c.req.param("space_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
