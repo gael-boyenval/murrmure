@@ -1,6 +1,6 @@
 # 15 — Legacy v2 runtime teardown, CLI typecheck, and v2 docs cutover
 
-**Status:** Ready after Task 14  
+**Status:** In progress — Lane B approved; Lane A slice 1 complete, continuation in flight  
 **Build order:** 15  
 **Depends on:** 14  
 **Source work packages:** removal/integration remainder of coordinating plan T15 (deferred from Tasks 13–14)
@@ -160,9 +160,8 @@ Task 15 has three lanes. Lane C depends on Lane A. Lane B may proceed in paralle
 
 | Turn | Agent | Model | Status | Summary | Evidence | Next |
 |------|-------|-------|--------|---------|----------|------|
-| build | | | pending | | | Review |
-| review | | | pending | | | Fix or approve |
-| fix | | | pending | | | Re-review |
+| build | build | glm-5.2-max | complete | Cleared all 17 `@murrmure/cli` typecheck errors at `5e694c7`. Fixes: `electrobun.d.ts` ambient `self`; `run_policies: []` in `space-directory.ts` + docs-proof fixture; `space-doctor.ts` `GlobalFlags` default; `view-dev.ts` `ChildProcessByStdio` typing; `fdk-docs-scan.d.mts`; `flow-help.test.ts` `CommandDef` cast; `preview-review-v2-example.test.ts` mock typing; `space-apply.test.ts` imports `SpaceApplyBundle` from contracts; `space-doctor*.test.ts` uses `string \| URL \| Request`. | `pnpm --filter @murrmure/cli typecheck` exit 0; `pnpm -r typecheck` exit 0 (18/18); affected CLI tests 77 passed + 1 skipped. | Review |
+| review | review | gpt-5.6-sol-high | approved | Re-reviewed `5e694c7`. All 17 baseline errors addressed without repo-wide `skipLibCheck`. CLI + all workspace typechecks green. Patch hygiene clean. | Independent `tsc --noEmit` per workspace; `check:clean-state` OK. | Lane B done. Proceed Lane A continuation. |
 
 ### Lane ownership (for parallel execution)
 
