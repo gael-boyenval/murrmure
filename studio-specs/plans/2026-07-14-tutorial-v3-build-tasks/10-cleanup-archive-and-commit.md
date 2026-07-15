@@ -87,3 +87,10 @@ Complete Tutorial Part 6 safely: after a successful build, the cleanup handler v
 - Journaled cleanup output contains correct SHA, staged paths, and archive path.
 - No worktree manager, broad staging, automatic rollback, or special Git protocol enters Murrmure.
 
+## Handoff
+
+| Turn | Agent | Model | Status | Summary | Evidence | Next |
+|------|-------|-------|--------|---------|----------|------|
+| build | build | gpt-5.6-sol-high | complete | Built Task 10 at `4931de7`: activated the exact Tutorial Part 6 repository-conformance suite, added a temporary tutorial Git-repository harness, corrected per-file untracked-path enumeration in the frozen cleanup fixture and tutorial fence, and documented safe repository automation without adding platform Git orchestration. | Commit `4931de7`; repository conformance covers clean archival/allowlisted commit, dirty preflight, ignored immutable scratch, literal commit data, ordinary Git failures, run serialization, handler bindings, and the broad-staging ban. | Review Task 10. |
+| review | review | gpt-5.6-sol-high | approved | Reviewed commit `4931de7` in the clean isolated Task 10 worktree. All five done-gate bullets are satisfied: the exact Part 6 cleanup commits the run-ID archive and only allowlisted implementation paths; staged, unstaged, and non-ignored untracked dirt fails in the first mutating handler before repository mutation; the producer artifact remains unchanged under ignored `.mrmr/dev`; structured cleanup output reports the real commit SHA, exact staged paths, and archive path for normal auto-completion journaling; and the tutorial adds no worktree manager, broad staging, rollback, or special Git protocol. | `pnpm vitest run packages/executors/conformance/tutorial-v3-repository.test.ts`: 1 file passed, 8/8 tests passed. `git diff 4931de7^ 4931de7 --check` passed; isolated review worktree was clean. | Task 10 approved. |
+
