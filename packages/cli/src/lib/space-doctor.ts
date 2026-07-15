@@ -855,7 +855,7 @@ export async function runSpaceDoctor(options: {
   const authInfo = inspectAuth(options.flags);
   const auth = options.auth ?? authInfo.auth;
 
-  const spaceResolution = resolveSpaceId(options.flags ?? {}, options.spaceId ?? discovered.link?.space_id);
+  const spaceResolution = resolveSpaceId(options.flags ?? { json: false }, options.spaceId ?? discovered.link?.space_id);
   const spaceId =
     "error" in spaceResolution
       ? (options.spaceId ?? discovered.link?.space_id ?? authInfo.defaultSpaceId)

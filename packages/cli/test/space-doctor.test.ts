@@ -173,7 +173,7 @@ describe("runSpaceDoctor", () => {
       ),
     );
 
-    const fetchSpy = vi.fn(async (input: URL | RequestInfo) => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === "string" ? input : String(input);
       if (url.includes("/v1/spaces/spc_demo/index/status")) {
         return new Response(

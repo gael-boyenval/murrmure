@@ -22,7 +22,7 @@ import {
 const EMPTY_ACTIONS_FILE = { version: 1 as const, actions: {} };
 const EMPTY_EXECUTORS_FILE = { executors: {} };
 const EMPTY_HOOKS_FILE = { version: 1 as const, hooks: {} };
-const EMPTY_HANDLERS_FILE = { version: 1 as const, handlers: [] };
+const EMPTY_HANDLERS_FILE = { version: 1 as const, run_policies: [], handlers: [] };
 const EMPTY_EVENTS_FILE = { version: 1 as const, events: {} };
 const EMPTY_BINDINGS_FILE = { version: 1 as const, flows: [], views: [] };
 const HOOKS_FILENAMES = ["hooks.yaml", "triggers.yaml"] as const;

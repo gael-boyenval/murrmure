@@ -9,8 +9,8 @@ import { clearAuthContextCache } from "../src/lib/auth-context.js";
 import {
   lintSpaceApplyBundle,
   strictLintFailures,
-  type SpaceApplyBundle,
 } from "@murrmure/hub-core";
+import type { SpaceApplyBundle } from "@murrmure/contracts";
 
 const FIXTURES = join(
   dirname(fileURLToPath(import.meta.url)),

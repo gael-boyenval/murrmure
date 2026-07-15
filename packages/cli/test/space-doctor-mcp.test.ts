@@ -223,7 +223,7 @@ describe("rewriteFatMcpConfigFiles", () => {
 
 describe("probeMcpCatalog", () => {
   test("does not send space_id query parameter", async () => {
-    const fetchSpy = vi.fn(async (input: URL | RequestInfo) => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === "string" ? new URL(input) : new URL(String(input));
       expect(url.searchParams.has("space_id")).toBe(false);
       return new Response(JSON.stringify({ tools: [{ name: "murrmure_space_status" }] }), {

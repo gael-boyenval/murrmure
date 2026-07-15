@@ -267,7 +267,7 @@ describe("preview-review-v2 reference example", () => {
       listGrants: vi.fn(async () => []),
       insertNotification: vi.fn(async () => undefined),
     };
-    const dispatchSteps = vi.fn(async () => undefined);
+    const dispatchSteps = vi.fn(async (_input: { dispatch: { action_name: string }[] }) => undefined);
     const clock = { nowIso: () => "2026-07-09T10:00:00.000Z" };
 
     const writeSpecEntry = catalogEntryForStep(catalog, "write_spec");

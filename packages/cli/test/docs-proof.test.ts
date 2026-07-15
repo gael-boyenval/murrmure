@@ -241,14 +241,15 @@ describe("phase 10 docs proof (10-T*)", () => {
       handlers: {
         digest: "sha256:handlers",
         file: {
-          version: 1,
+          version: 1 as const,
+          run_policies: [],
           handlers: [
             {
               id: "strict-v2-work",
               contract_keys: ["strict-v2.work"],
               on: "step.opened",
-              type: "shell_spawn",
-              complete: "explicit",
+              type: "shell_spawn" as const,
+              complete: "explicit" as const,
               command: "echo done",
               cwd: "{{space_root}}",
             },

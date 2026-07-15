@@ -92,7 +92,7 @@ function mockLiveFetch(options?: {
 
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: URL | RequestInfo) => {
+    vi.fn(async (input: string | URL | Request) => {
       const url = typeof input === "string" ? input : String(input);
 
       if (url.includes("/v1/health")) {
