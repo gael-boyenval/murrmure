@@ -53,6 +53,15 @@
   mismatch yields `SCOPE_ENFORCEMENT_FAILURE` (403). `GateResolveInput` gains an
   optional `space_id` field.
 
+### Fixed
+
+- `HubHandler.handleGateResolve` now forwards `cmd.provenance.space_id` into
+  `resolveGate`'s `GateResolveInput.space_id`. Previously it omitted the field,
+  so a `flow:run` token scoped to space A could resolve a gate belonging to
+  space B by supplying its `gate_id` (the path-token check passed because the
+  provenance path was space A). The space boundary is now enforced on the
+  command path, matching `POST /v1/gates/:gate_id/resolve`.
+
 ## 0.1.1
 
 ### Patch Changes

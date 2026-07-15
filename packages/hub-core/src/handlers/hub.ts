@@ -350,6 +350,7 @@ export class HubHandler {
         gate_id: cmd.gate_id,
         actor_id: cmd.provenance.actor_id,
         token_id: cmd.provenance.token_id,
+        space_id: cmd.provenance.space_id,
         decision: cmd.decision,
         resume_data: cmd.resume_data,
         can_resolve: hasCapability(effective, "flow:run"),
