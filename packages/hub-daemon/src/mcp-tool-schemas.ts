@@ -82,32 +82,6 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     capabilities: stringArraySchema("Capability strings to attach to the grant"),
     flow_acl: stringArraySchema("Allowed flow ids for this grant"),
   }),
-  murrmure_invoke_action: objectSchema(
-    {
-      action_name: stringSchema("Indexed action name"),
-      space_id: stringSchema("Optional target space id override"),
-      session_id: stringSchema("Optional existing session id"),
-      run_id: stringSchema("Optional existing run id"),
-      step_id: stringSchema("Optional step id for journaling"),
-      params: {
-        type: "object",
-        additionalProperties: true,
-        description: "Action parameter payload",
-      },
-      expect: {
-        type: "object",
-        additionalProperties: true,
-        description: "Optional expected outcome contract",
-      },
-      artifacts_in: stringArraySchema("Optional artifact transfer ids"),
-      delivery: {
-        type: "string",
-        enum: ["fail_fast", "queue_until_executor"],
-        description: "Dispatch mode when executor is unavailable",
-      },
-    },
-    { required: ["action_name"] },
-  ),
   murrmure_resolve_step: objectSchema(
     {
       run_id: stringSchema("Run identifier"),

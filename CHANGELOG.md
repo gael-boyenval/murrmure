@@ -1,5 +1,30 @@
 # Changelog
 
+## Task 15 Lane A — legacy v2 runtime teardown (2026-07-15)
+
+### Removed
+
+- Dead `mrmr action invoke` CLI command group
+  (`packages/cli/src/commands/action/**`). The command was never registered
+  on the `mrmr` root (`packages/cli/src/commands/root.ts`), so it was
+  unreachable; removed as part of the v2 action-invoke surface teardown.
+  `docs-proof` already asserted its absence from the root command.
+- Unexposed `murrmure_invoke_action` MCP handler and input schema
+  (`packages/hub-daemon/src/mcp-handlers.ts`,
+  `packages/hub-daemon/src/mcp-tool-schemas.ts`). The tool was already absent
+  from `PLATFORM_TOOLS` (not listed in the MCP catalog) and rejected at the
+  `/v1/mcp/tools/call` authorization boundary with 403; only the dead handler
+  and schema remnants are removed. `check:clean-state` now forbids
+  `murrmure_invoke_action` in production source.
+
+### Notes
+
+- First slice of Task 15 Lane A. The remaining v2 runtime teardown
+  (`action:invoke` / `gate:resolve` grant capabilities and every tool/route
+  that requires them, checkpoint-era flow-engine machinery, and base64
+  cross-space artifact registration) is follow-on Lane A work; see the task
+  handoff for scope and design decisions.
+
 ## Tutorial v3 Task 14 — release through the complete tutorial (2026-07-15)
 
 ### Added

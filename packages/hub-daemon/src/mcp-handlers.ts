@@ -173,42 +173,6 @@ export function registerPlatformMcpHandlers(
     return { ...data, source, repo: payload.repo };
   });
 
-  registry.registerHandler("murrmure_invoke_action", async (args, authCtx) => {
-    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
-    const actionName = String(args.action_name ?? args.name ?? "");
-    if (!actionName) {
-      throw new Error("action_name is required");
-    }
-
-    const res = await fetch(
-      `${hubUrl()}/v1/spaces/${prefixedSpaceId(bareSpaceId(spaceId))}/actions/${encodeURIComponent(actionName)}/invoke`,
-      {
-        method: "POST",
-        headers: mcpHeaders(authCtx),
-        body: JSON.stringify({
-          session_id: args.session_id,
-          run_id: args.run_id,
-          step_id: args.step_id,
-          params: args.params ?? {},
-          expect: args.expect,
-          artifacts_in: args.artifacts_in,
-          delivery: args.delivery,
-        }),
-      },
-    );
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      throw new Error(
-        typeof data.message === "string"
-          ? data.message
-          : typeof (data.dispatch as { detail?: string } | undefined)?.detail === "string"
-            ? (data.dispatch as { detail: string }).detail
-            : `Invoke failed (${res.status})`,
-      );
-    }
-    return data;
-  });
-
   registry.registerHandler("murrmure_resolve_step", async (args, authCtx) => {
     const run_id = String(args.run_id ?? "");
     const step_id = String(args.step_id ?? "");

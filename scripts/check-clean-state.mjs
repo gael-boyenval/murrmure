@@ -29,6 +29,7 @@ const PRODUCTION_FORBIDDEN = [
   { label: "removed space-home payload fields", pattern: /your_flows|available_to_run/ },
   { label: "removed HANDLER_MISSING diagnostic", pattern: /HANDLER_MISSING/ },
   { label: "removed FlowCheckpointStepSchema", pattern: /FlowCheckpointStepSchema/ },
+  { label: "removed murrmure_invoke_action MCP tool", pattern: /murrmure_invoke_action/ },
   {
     label: "removed grant/agent/onboard command vocabulary",
     pattern: /\bgrant (?:mint|use)\b|\bagent (?:connect|activate)\b|\bspace onboard\b/,
