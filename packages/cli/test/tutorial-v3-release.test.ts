@@ -167,22 +167,30 @@ describe("Tutorial v3 release acceptance (Task 14)", () => {
   test("Task 14 — docs navigation treats Tutorial v3 as the canonical introductory path", () => {
     const configPath = join(REPO_ROOT, "apps/docs/.vitepress/config.ts");
     const config = readFileSync(configPath, "utf8");
-    // The v3 tutorial is listed before the v2 full tutorial in the sidebar.
+    // The v3 tutorial is the only active tutorial in the sidebar; the v2
+    // tutorials (1b/2/3) were archived in the Task 15 Lane C cutover.
     const v3Index = config.indexOf("01-local-preview-review-v3/");
-    const v2FullIndex = config.indexOf("01-local-preview-review/");
     expect(v3Index, "v3 tutorial is in the sidebar").toBeGreaterThan(-1);
-    expect(v2FullIndex, "v2 full tutorial is in the sidebar").toBeGreaterThan(-1);
-    expect(v3Index, "v3 tutorial precedes the v2 full tutorial").toBeLessThan(
-      v2FullIndex,
-    );
     expect(config).toContain("1a — First flow (v3)");
+    expect(config, "v2 full tutorial removed from sidebar").not.toContain(
+      "01-local-preview-review/",
+    );
+    expect(config, "v2 tutorial 2 removed from sidebar").not.toContain(
+      "02-multi-agent-brief/",
+    );
+    expect(config, "v2 tutorial 3 removed from sidebar").not.toContain(
+      "03-daily-brief-trigger/",
+    );
 
     const tutorialsIndex = readFileSync(
       join(REPO_ROOT, "apps/docs/guide/tutorials/index.md"),
       "utf8",
     );
     expect(tutorialsIndex).toContain("First flow (v3) — start here");
-    expect(tutorialsIndex).toContain("Recommended order: **1a → 1b → 2 → 3**");
+    expect(tutorialsIndex).toContain("./01-local-preview-review-v3/");
+    // v2 tutorials are archived, not active entries.
+    expect(tutorialsIndex).not.toContain("1b → 2 → 3");
+    expect(tutorialsIndex).not.toMatch(/\]\(\.\/01-local-preview-review\/\)/);
   });
 
   test("Task 14 — release notes and the one-time clean-slate reset procedure are published", () => {

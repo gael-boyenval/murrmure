@@ -24,7 +24,7 @@ Example arguments:
 
 | Tool | Capability | HTTP |
 |------|------------|------|
-| `murrmure_create_session` | `flow:run` or `action:invoke` | `POST /v1/sessions` |
+| `murrmure_create_session` | `flow:run` | `POST /v1/sessions` |
 | `murrmure_list_sessions` | `space:read` or `journal:read` | `GET /v1/sessions` |
 | `murrmure_get_session` | `space:read` | `GET /v1/sessions/{id}` |
 | `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
@@ -33,7 +33,7 @@ Example arguments:
 | **`murrmure_list_step_contracts`** | **`space:read`** | **`GET /v1/runs/{id}/step-contracts`** — active slice + `graph_digest` |
 | `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
 | `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
-| `murrmure_cancel_run` | `gate:resolve` | `POST /v1/runs/{id}/cancel` |
+| `murrmure_cancel_run` | `flow:run` | `POST /v1/runs/{id}/cancel` |
 
 ## Space & invoke tools
 
@@ -46,7 +46,6 @@ Example arguments:
 | `murrmure_list_emittable_events` | `space:read` | Event types this space can emit (from hook index) |
 | `murrmure_emit_event` | `event:emit` | Emit platform event `{ type, source?, data? }` |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
-| `murrmure_invoke_action` | `action:invoke` | `POST /v1/spaces/{id}/actions/{name}/invoke` — headless/legacy; flow steps use handlers + resolve |
 | **`murrmure_resolve_step`** | **`step:resolve`** | **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — branch + payload; local clients may pass workdir-relative `artifacts_out`, remote clients pass an authorized `upload_intent_id` reference |
 | **`murrmure_open_child_step`** | **`step:resolve`** | Yield the assigned parent and open one direct declared child. Requires `run_id`, `parent_step_id`, `child_step_id`, and `idempotency_key`; accepts no input payload. |
 

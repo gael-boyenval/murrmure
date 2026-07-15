@@ -61,6 +61,11 @@ const ARTIFACT_PUT_FORBIDDEN = [
 ];
 const REMOVED_COMMAND_PATTERN =
   /mrmr (?:space )?grant (?:mint|use)|mrmr agent (?:connect|activate)|mrmr space onboard/;
+// A line that names a v2 token as removed/superseded is a legitimate removal
+// description, not an active prescription — allow those through context-aware
+// rules.
+const REMOVAL_CONTEXT =
+  /\b(?:no|not|never|removed|superseded|without|absent|gone|retired)\b/i;
 const ACTIVE_GUIDANCE_FORBIDDEN = [
   { label: "active retired FDK vocabulary", pattern: /\bFDK\b|flow-dev-kit/ },
   { label: "active seed package catalog", pattern: /PACKAGE_CATALOG/ },
@@ -68,6 +73,22 @@ const ACTIVE_GUIDANCE_FORBIDDEN = [
   {
     label: "active removed grant/agent/onboard command",
     pattern: REMOVED_COMMAND_PATTERN,
+  },
+  { label: "active removed useViewSubmit export", pattern: /useViewSubmit/ },
+  { label: "active removed base64 artifact upload", pattern: /content_base64/ },
+  {
+    label: "active removed contract_keys-keyed handler dispatch",
+    pattern: /keyed by .{0,3}contract_keys/,
+  },
+  {
+    label: "active removed mrmr action invoke command",
+    pattern: /mrmr action invoke/,
+    allowIf: REMOVAL_CONTEXT,
+  },
+  {
+    label: "active removed awaiting_human run status",
+    pattern: /awaiting_human/,
+    allowIf: REMOVAL_CONTEXT,
   },
 ];
 const SKILL_EVAL_ROOTS = ["packages/cli/test/skill-eval"];
@@ -98,10 +119,26 @@ function scan(files, rules) {
   for (const file of files) {
     const content = readFileSync(file, "utf-8");
     for (const rule of rules) {
-      const match = content.match(rule.pattern);
-      if (match?.index != null) {
-        const line = content.slice(0, match.index).split("\n").length;
-        hits.push(`${relative(REPO_ROOT, file)}:${line}: ${rule.label}: ${match[0]}`);
+      const flags = rule.pattern.flags.includes("g")
+        ? rule.pattern.flags
+        : rule.pattern.flags + "g";
+      const re = new RegExp(rule.pattern.source, flags);
+      for (const match of content.matchAll(re)) {
+        if (match.index == null) continue;
+        const before = content.slice(0, match.index);
+        const lineNum = before.split("\n").length;
+        const lineStart = before.lastIndexOf("\n") + 1;
+        const lineEnd = content.indexOf("\n", match.index);
+        const line = content.slice(
+          lineStart,
+          lineEnd === -1 ? undefined : lineEnd,
+        );
+        // Context-aware rules: a line that names the token as removed/superseded
+        // is a legitimate removal description, not an active prescription.
+        if (rule.allowIf && rule.allowIf.test(line)) continue;
+        hits.push(
+          `${relative(REPO_ROOT, file)}:${lineNum}: ${rule.label}: ${match[0]}`,
+        );
       }
     }
   }

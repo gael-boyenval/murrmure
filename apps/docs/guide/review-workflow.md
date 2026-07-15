@@ -1,6 +1,6 @@
 # Review workflow (v3 step contracts)
 
-Canonical human/agent preview review on **indexed flows**. Walkthrough: [Tutorial 1b — Local preview review](./tutorials/01-local-preview-review/).
+Canonical human/agent preview review on **indexed flows**. Walkthrough: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/).
 
 Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md).
 
@@ -56,7 +56,7 @@ Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `
 
 ## Tutorial
 
-Full walkthrough: [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/).
+Full walkthrough: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/).
 
 ## Related
 

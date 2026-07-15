@@ -163,7 +163,7 @@ When the desktop app is backgrounded (minimized or hidden), the host subscribes 
 
 | Concern | Behavior |
 |---------|----------|
-| Triggers | `mrmr.gate.pending` (assignees / `gate:resolve` fallback), `mrmr.run.failed` (session watchers + resolvers) |
+| Triggers | `mrmr.gate.pending` (orchestration gate assignees), `mrmr.run.failed` (session watchers + resolvers) |
 | Suppressed | Run started, action completed, hook delivered — shell SSE covers live use |
 | Focus debounce | No OS notification when the main window is visible and not minimized |
 | Deep link | `murrmure://runs/{run_id}?gate={gate_id}` → shell route `/runs/{id}?gate=…` via `open-url` handler |

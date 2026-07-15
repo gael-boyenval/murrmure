@@ -2,7 +2,7 @@
 
 Three folders on your machine. Three agents in three IDEs. One feature spec that crosses all of them — with **your approval** before dev writes anything.
 
-**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/).
+**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [First flow (v3)](./tutorials/01-local-preview-review-v3/) — the multi-agent event-handler pattern uses `on: event:` bindings in `handlers.yaml` (see [Space handlers](./space-handlers)).
 
 **Desktop for humans (ViewCanvasHost at checkpoints). MCP for agents. CLI for admin.**
 

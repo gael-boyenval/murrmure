@@ -39,7 +39,7 @@ handlers:
     command: mrmr flow run preview-review --input '{"pr": "{{event.number}}"}'
 ```
 
-Emission: agents with `event:emit` (v1 scope) or `action:invoke` capability call `murrmure_emit_event`. Declarations in `.mrmr/space/events.yaml` gate emittable types at apply time.
+Emission: agents with the `event:emit` capability call `murrmure_emit_event`. Declarations in `.mrmr/space/events.yaml` gate emittable types at apply time.
 
 ## HTTP additions
 

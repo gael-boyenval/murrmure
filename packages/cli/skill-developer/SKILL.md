@@ -345,7 +345,7 @@ second fixture or merge an expected-failing test.
 
 ## Preview-review handlers walkthrough
 
-Reference: [Tutorial 1b handlers](../../apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md) — full `handlers.yaml` snippet.
+Reference: [Tutorial 1a — Part 5: extend flow and handlers](../../apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md) — full `handlers.yaml` snippet.
 
 | Handler | on::key | Role |
 |---------|---------|------|

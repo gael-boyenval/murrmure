@@ -172,7 +172,7 @@ Rebuilt on `capability.live_applied`.
 
 ## mcp_wake dispatch
 
-> **v2 migration (phase 03):** Hub routes `POST /v1/mcp/wake` through action invoke (`wake_label` → action name). Silent `mcp.wake_pending` is no longer the default — unreachable executors return `EXECUTOR_UNAVAILABLE` unless the indexed action sets `delivery: queue_until_executor`. See [bridges/action-invoke.md](../bridges/action-invoke.md).
+> **Legacy dispatch (pre-handler):** `mcp_wake` is the pre-handler trigger action. `POST /v1/mcp/wake` is retired (404, phase 16); new spaces declare event reactions with `on: event:` in `handlers.yaml` instead (see [bridges/triggers.md](../bridges/triggers.md) and [bridges/handlers.md](../bridges/handlers.md)). Silent `mcp.wake_pending` is no longer the default — unreachable executors return `EXECUTOR_UNAVAILABLE` unless the indexed action sets `delivery: queue_until_executor`.
 
 ```typescript
 const payload = applyJsonPathMap(sourceEvent.payload, action.payload_map);

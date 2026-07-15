@@ -217,14 +217,6 @@ mrmr space archive spc_ui_sandbox
 
 Add `--json` for scripting. See [Admin commands (CLI)](./configuration.md) and [Space index](./space-index.md).
 
-### `mrmr action invoke` (legacy / headless)
-
-```bash
-mrmr action invoke my_action --params '{"key":"value"}' --space spc_ui_sandbox
-```
-
-Invoke a legacy indexed action. Requires **`action:invoke`**. Flow steps use **handlers + `murrmure_resolve_step`** instead. HTTP: `POST /v1/spaces/{id}/actions/{name}/invoke`.
-
 ### `mrmr step resolve`
 
 Resolve the current run step from shell env bindings. Used by handlers with `complete: cli` and shell scripts.

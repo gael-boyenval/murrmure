@@ -15,17 +15,20 @@ Oversize inline payloads are rejected with `INLINE_PAYLOAD_EXCEEDED` and a hint 
 
 ### `PUT /v1/artifacts`
 
-Registers an artifact manifest and stores bytes in the hub exchange store.
+Registers an artifact manifest and stores bytes in the hub exchange store. The
+body is raw bytes (`application/octet-stream`); the JSON/base64 body path was
+removed in the Task 15 v2 cutover.
 
-```json
-{
-  "space_id": "spc_backend",
-  "name": "openapi.diff",
-  "content_base64": "…",
-  "authorized_readers": ["spc_frontend", "actor:alice"],
-  "hold": false,
-  "ttl_days": 7
-}
+```
+PUT /v1/artifacts
+Content-Type: application/octet-stream
+x-murrmure-space-id: spc_backend
+x-murrmure-name: openapi.diff
+x-murrmure-authorized-readers: spc_frontend,actor:alice
+x-murrmure-hold: false
+x-murrmure-ttl-days: 7
+
+<raw bytes>
 ```
 
 Response: `{ "artifact": { "kind": "mrmr.artifact/v1", "transfer_id": "xfr_…", … } }`
@@ -61,9 +64,11 @@ headers. A destination hub uses this to retrieve relayed references by
 
 Scopes: `blob:read` or a federated `step:resolve` credential.
 
-## Invoke integration
+## Dispatch integration
 
-`POST /v1/spaces/{space_id}/actions/{action_name}/invoke` accepts:
+Internal dispatch (handler `shell_spawn`/`mcp_session`, scheduler, and the
+peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke`)
+accepts inbound artifact references:
 
 ```json
 { "artifacts_in": ["xfr_01J…"], "params": { … } }
@@ -224,4 +229,4 @@ Daemon daily tick runs `ArtifactGcCommand` (hub-core pure logic):
 ## Related
 
 - [cross-space/spec.md](../cross-space/spec.md) — typed reads vs artifact passthrough
-- [action-invoke.md](./action-invoke.md) — invoke HTTP surface
+- [handlers.md](./handlers.md) — primary execution path for flow steps

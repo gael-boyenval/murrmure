@@ -23,8 +23,8 @@ The handlers cutover plan ([2026-07-09-space-handlers-contract-keys-plan.md](../
 ## Consequences
 
 - Tutorials and examples migrate to `.mrmr/` + `handlers.yaml` (preview-review-v2, team-brief-v2, daily-brief-v2).
-- Agent primary path: `murrmure_resolve_step` + `murrmure_list_handlers`; `murrmure_invoke_action` is operator/debug only.
-- Normative bridge: [bridges/handlers.md](../current/bridges/handlers.md) overrides [action-invoke.md](../current/bridges/action-invoke.md) for step execution.
+- Agent primary path: `murrmure_resolve_step` + `murrmure_list_handlers`; `murrmure_invoke_action` was operator/debug only and is now fully removed (Task 15 Lane A).
+- Normative bridge: [bridges/handlers.md](../current/bridges/handlers.md) is the sole step-execution bridge — the former `action-invoke.md` (headless invoke) was removed in the Task 15 v2 cutover (Lane C).
 - FDK install/evolution HTTP remains historical (ADR-001); local-first `mrmr space apply` is the only authoring path.
 
 ## References

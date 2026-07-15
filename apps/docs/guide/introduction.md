@@ -62,9 +62,7 @@ See [Multi-agent feature spec](./multi-agent-feature-spec) for the full orchestr
 - [How it fits together](./how-it-fits-together) — components and how they connect
 - [Quick start](./quick-start) — your first review in five minutes
 - **Tutorials** — build custom flows from scratch:
-  - [Local preview review](./tutorials/01-local-preview-review/) — one agent, localhost feedback loop
-  - [Multi-agent brief](./tutorials/02-multi-agent-brief/) — three agents + trigger
-  - [Daily brief trigger](./tutorials/03-daily-brief-trigger/) — button wakes an agent
+  - [First flow (v3) — start here](./tutorials/01-local-preview-review-v3/) — Desktop + space, flow, view, runs, build, cleanup (6 parts)
 - [Shell UI routes](./shell-routes) — observer screens inside Desktop
 - [Connect your agent](./agents-mcp)
 - [CLI](./cli)

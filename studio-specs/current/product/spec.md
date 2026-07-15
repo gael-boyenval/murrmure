@@ -356,7 +356,7 @@ Action declares `executor` ref; hub validates reachability per type via prefligh
 executors:
   cursor-mcp:
     type: mcp_session
-    required_scopes: [space:enter, action:invoke]
+    required_scopes: [space:enter]
 
   shell:
     type: shell_spawn
@@ -623,7 +623,7 @@ interface Gate {
   session_id: string;
   step_id: string;
   status: "pending" | "approved" | "rejected" | "expired";
-  assignees?: string[];       // actor ids; empty = any user with gate:resolve on run
+  assignees?: string[];       // actor ids; empty = any user with flow:run on run
   resolve_mode: "any_one";    // v2 only; defer quorum
   expires_at?: string;
   form?: GateFormSchema;      // default UX
@@ -681,7 +681,7 @@ Validated with the same Zod as `flow.manifest.yaml`. MCP attach and CLI `mrmr sp
 | Gate from hidden space; user not assignee | **Suppress** notification |
 | Gate from hidden space; user **is** assignee | Show gate with **sanitized context**: action name visible, space shown as "Private space", no navigation link to space |
 | Session list | Show session title; redact steps in spaces user cannot `space:read` |
-| Approve/reject | Allowed if assignee or `gate:resolve` grant on run |
+| Approve/reject | Allowed if assignee or `flow:run` grant on run |
 
 Pattern: GitHub private repo issue assignment.
 
@@ -817,9 +817,9 @@ Capabilities are strings granted to `(actor_id, resource)`:
 | `space:write` | space | Push hooks, actions, flows via CLI apply |
 | `space:enter` | space | MCP control plane attach (executor) |
 | `flow:read` | flow | Read authorized applied/live/historical graph contracts and safe resolver identity |
-| `flow:run` | flow | Start manual / receive hook start_flow |
-| `action:invoke` | action | Direct invoke (rare — usually via flow/hook) |
-| `gate:resolve` | run or session | Approve/reject gates |
+| `flow:run` | flow | Start manual / receive hook start_flow; resolve orchestration gates and cancel runs |
+| `step:resolve` | run | Resolve flow steps (`murrmure_resolve_step`) |
+| `event:emit` | space | Emit platform events (`murrmure_emit_event`) |
 | `journal:read` | space or session | Logs access |
 | `executor:poll` | executor | External worker poll API §4.6, §10.5 |
 | `hub:admin` | hub | Breakglass: federation keys, global config |
@@ -995,8 +995,7 @@ Catalog = connection-filtered platform tools. Runtime onboarding flow:
 | `murrmure_create_run` | `flow:run` | `POST /v1/sessions/{id}/runs` |
 | `murrmure_get_run` | `space:read` | `GET /v1/runs/{id}` |
 | `murrmure_list_step_contracts` | `space:read` | `GET /v1/runs/{id}/step-contracts` |
-| `murrmure_cancel_run` | `gate:resolve` | `POST /v1/runs/{id}/cancel` |
-| `murrmure_invoke_action` | `action:invoke` | action invoke route |
+| `murrmure_cancel_run` | `flow:run` | `POST /v1/runs/{id}/cancel` |
 | `murrmure_resolve_step` | `step:resolve` | `POST /v1/runs/{id}/steps/{step_id}/resolve` |
 | `murrmure_wait_for_run` | `space:read` | long-poll run status |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
@@ -1147,9 +1146,9 @@ Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 | Requirement | Detail |
 |-------------|--------|
 | Persistence | Survive refresh; stored in hub until dismissed/resolved |
-| Routing | Gate assignees; fallback to `gate:resolve` holders |
+| Routing | Gate assignees; fallback to `flow:run` holders |
 | Expiry | Show countdown when `expires_at` set |
-| Out-of-shell | Defer email/desktop push — when built: **`mrmr.gate.pending`** (assignees) and **`mrmr.run.failed`** (watchers / `gate:resolve` holders) only |
+| Out-of-shell | Defer email/desktop push — when built: **`mrmr.gate.pending`** (assignees) and **`mrmr.run.failed`** (watchers / `flow:run` holders) only |
 | Failure | Typed error + **Retry** (new Run, same Session — §3.6) when run failed |
 
 ### 12.7 Routes
@@ -1388,7 +1387,7 @@ Sourced from [plan/index.md](../../plans/product/plan/index.md) rev-5 (2026-07-0
 | 05 | ViewCanvasHost (full primary-region checkpoint UI) | ✅ | [05-view-canvas-checkpoints](../../plans/product/plan/05-view-canvas-checkpoints.md) |
 | 06 | Reference workflow (`preview-review-v2`, R1–R6) | ✅ | [06-reference-workflow-preview-review](../../plans/product/plan/06-reference-workflow-preview-review.md) |
 | 07 | Unified **`murrmure`** agent skill | ✅ | [07-unified-murrmure-skill](../../plans/product/plan/07-unified-murrmure-skill.md) |
-| 08 | CLI setup wizards (`mrmr setup`, `space onboard`) | ✅ | [08-cli-setup-wizards](../../plans/product/plan/08-cli-setup-wizards.md) |
+| 08 | CLI setup wizards (`mrmr setup`; `space onboard` retired — see Task 15 Lane A) | ✅ | [08-cli-setup-wizards](../../plans/product/plan/08-cli-setup-wizards.md) |
 | 09 | Retired worker stack deletion | ✅ | historical release record |
 | 10 | Human docs rewrite + acceptance proof | ✅ | [10-docs-and-proof](../../plans/product/plan/10-docs-and-proof.md) |
 

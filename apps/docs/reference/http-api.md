@@ -46,10 +46,9 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/runs/{id}/graph` | Run flowchart graph (manifest overlay + step memo) |
 | `POST` | `/v1/runs/{id}/cancel` | Cancel run |
 | `POST` | `/v1/runs/{id}/retry` | Retry failed run from step |
-| `GET` | `/v1/runs/{id}/gates` | Gates for a run |
+| `GET` | `/v1/runs/{id}/gates` | Orchestration gates for a run |
 | `GET` | `/v1/runs/wait?run_id=` | Long-poll until run terminal |
-| `GET` | `/v1/spaces/{id}/gates` | Pending gates (space-scoped, legacy) |
-| `POST` | `/v1/gates/{id}/resolve` | Resolve gate (v2 global) |
+| `POST` | `/v1/gates/{id}/resolve` | Resolve orchestration gate (`flow:run`, space-bound) |
 | `GET` | `/v1/gates/wait?run_id=` | Long-poll pending gates |
 | `GET` | `/v1/spaces/{id}/events` | Event tail |
 | `GET` | `/v1/spaces/{id}/events/subscribe` | SSE (legacy space events) |
@@ -195,26 +194,28 @@ Shell UI: open checkpoint **views** in **ViewCanvasHost** at `/sessions/:session
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `POST` | `/v1/sessions` | `flow:run` or `action:invoke` | Create session `{ title, subject?, space_id? }` |
+| `POST` | `/v1/sessions` | `flow:run` | Create session `{ title, subject?, space_id? }` |
 | `GET` | `/v1/sessions` | `space:read` or `journal:read` | List sessions (`?status=`, `?space_id=`) |
 | `GET` | `/v1/sessions/{id}` | `space:read` | Session detail + derived status |
 | `GET` | `/v1/sessions/{id}/runs` | `space:read` | Runs in session |
 | `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` must exist in the target space index, dispatches that flow, and pins its indexed `flow_digest` (caller-supplied digests are ignored) |
-| `POST` | `/v1/sessions/{id}/cancel` | `gate:resolve` | Cancel all active runs in session |
+| `POST` | `/v1/sessions/{id}/cancel` | `flow:run` | Cancel all active runs in session |
 | `POST` | `/v1/sessions/{id}/orchestration/attach` | `flow:run` | Agent-push `murrmure.flow.attach/v1`; creates orchestration gate |
 
 MCP equivalents: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_get_session`, `murrmure_create_run`, `murrmure_get_run`, `murrmure_get_run_graph`, `murrmure_attach_orchestration`, `murrmure_cancel_run`.
 
 ## Platform v2 — Gates
 
+Orchestration approval gates only — flow steps advance through `step:resolve`, not gates.
+
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `GET` | `/v1/runs/{id}/gates` | `space:read` | List gates for run (actor-presented) |
-| `POST` | `/v1/runs/{id}/gates` | `flow:run` or `action:invoke` | Create pending gate on run |
-| `POST` | `/v1/gates/{id}/resolve` | `gate:resolve` | Approve/reject `{ decision, resume_data?, form_values? }` |
+| `GET` | `/v1/runs/{id}/gates` | `space:read` | List orchestration gates for run (actor-presented) |
+| `POST` | `/v1/runs/{id}/gates` | `flow:run` | Create pending orchestration gate on run |
+| `POST` | `/v1/gates/{id}/resolve` | `flow:run` | Approve/reject `{ decision, resume_data?, form_values? }` |
 | `GET` | `/v1/gates/wait` | `space:read` | Long-poll `?run_id=` or `?session_id=` (`timeout_ms` max 120s) |
 
-Gate resolve is space-bound: a `flow:run` token may only resolve a gate in its own space; bootstrap and `hub:admin` tokens may resolve cross-space. Orchestration gate resolve remains on HTTP for operator attach flows. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate MCP tools.
+Gate resolve is space-bound: a `flow:run` token may only resolve a gate in its own space; bootstrap and `hub:admin` tokens may resolve cross-space. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate routes.
 
 ## Platform v2 — Notifications & profile
 
@@ -255,9 +256,12 @@ Indexed from local `.mrmr/` via apply. See [Space index guide](../guide/space-in
 | `GET` | `/v1/spaces/{id}/actions` | `space:read` | Indexed actions |
 | `GET` | `/v1/spaces/{id}/executors` | `space:read` | Indexed executors |
 | `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed hooks |
-| `POST` | `/v1/spaces/{id}/actions/{name}/invoke` | `action:invoke` | Invoke action (supports `Idempotency-Key`) |
 
-MCP: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_invoke_action`.
+::: warning Retired
+`POST /v1/spaces/{id}/actions/{name}/invoke` and the `murrmure_invoke_action` MCP tool return **404 / not-registered** (Task 15 Lane A). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke` (`flow:run`-gated).
+:::
+
+MCP: `murrmure_apply_space`, `murrmure_space_status`.
 
 ## Flow starts & space home
 

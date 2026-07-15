@@ -328,7 +328,7 @@ presentation itself and the shell synthesizes no form.
 
 **Status:** DECIDED
 
-Retired from primary agent path (HANDLER-CUTOVER 2026-07-09). Step lifecycle uses `murrmure_resolve_step` + handler dispatch. `murrmure_invoke_action` remains for headless/operator invoke only — see [action-invoke.md](./action-invoke.md).
+Fully removed (Task 15 Lane A). Step lifecycle uses `murrmure_resolve_step` + handler dispatch; the public `POST /v1/spaces/:id/actions/:name/invoke` HTTP route, the `mrmr action invoke` CLI, and the `murrmure_invoke_action` MCP surface are all gone (strict 404 / not-registered rejection at the boundary). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke` (`flow:run`-gated).
 
 ### Q5 — Worker missing bindings
 
@@ -363,7 +363,6 @@ See [ADR-009](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md).
 ## References
 
 - [step-contract.md](./step-contract.md) — catalog + resolve
-- [action-invoke.md](./action-invoke.md) — headless invoke (operator path)
 - [triggers.md](./triggers.md) — event handlers in the same file
 - [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
 - [ADR-011 — Space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md)

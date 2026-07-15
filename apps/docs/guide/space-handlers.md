@@ -45,7 +45,7 @@ handlers:
 
 **`view_resolver` is executor-free** — it carries `view` and binds `step.opened::…` only, and forbids `command`, `prompt`, `params`, and `cwd`.
 
-**Full walkthrough:** [Tutorial 1b — handlers](./tutorials/01-local-preview-review/04-prompt-triggers.md) includes a complete `handlers.yaml` for the preview-review flow.
+**Full walkthrough:** [Tutorial 1a — Part 5: copy & build](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md) includes a complete `handlers.yaml` for the preview-review flow.
 
 ## `on::key` binding and contract keys
 

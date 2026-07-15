@@ -66,7 +66,6 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `space setup` | impl | requireScope · space:admin |
 | `space link` | impl | requireScope · space:write |
 | `space apply` | impl | requireScope · space:write |
-| `action invoke` | impl | requireScope · action:invoke |
 | `space status` | impl | requireScope · space:read |
 | `space list` | impl | requireScope · space:enter |
 | `space show` | impl | requireTokenForSpace |
@@ -348,14 +347,6 @@ Roles: `admin`, `editor`, `viewer`.
 | `hub grants-export` | GET `/v1/ops/grants/export` | Raw JSON to stdout; `--out <path>` writes file instead |
 
 **Grants export:** pipe-friendly stdout (ignores `--json` when streaming to stdout); `--out` with `--json` returns `{ ok: true, path }`.
-
-## Action commands
-
-| Command | HTTP | Preflight |
-|---------|------|-----------|
-| `action invoke <name>` | POST `/v1/spaces/:id/actions/:name/invoke` | requireScope · action:invoke |
-
-Flags: `--params` JSON, optional `--run-id`, `--session-id`, `--step-id`, `--delivery`.
 
 ## Me commands
 

@@ -1,5 +1,78 @@
 # Changelog
 
+## Task 15 Lane C — build: v2 tutorial and bridge documentation cutover (2026-07-15)
+
+### Removed
+
+- `studio-specs/current/bridges/action-invoke.md` — its sole purpose was the v2
+  `action:invoke` route (`POST /v1/spaces/:id/actions/:name/invoke`), which Lane A
+  removed. Cross-links in `handlers.md`, `step-contract.md`, `artifacts.md`, and
+  `ADR-004-handlers-mrmr-cutover.md` were repointed; the ADR records the removal.
+- v2 tutorials `apps/docs/guide/tutorials/01-local-preview-review/` (1b, 9 parts),
+  `02-multi-agent-brief/` (5 parts), and `03-daily-brief-trigger/` (4 parts) —
+  archived to `studio-specs/archives/superseded/tutorials/` with a non-normative
+  README. They describe the removed v2 runtime (`action:invoke`, `gate:resolve`,
+  checkpoint gates, `awaiting_human`, base64 `PUT /v1/artifacts`,
+  `mrmr action invoke`) and never override `current/`.
+- `mrmr action invoke` section from `apps/docs/guide/cli.md` and the `action
+  invoke` command + "Action commands" section from
+  `studio-specs/current/cli/spec.md`.
+- `murrmure_invoke_action` from the MCP tool tables in
+  `apps/docs/reference/mcp-tools.md` and `studio-specs/current/product/spec.md`.
+- `GET /v1/spaces/:id/gates` and `POST /v1/spaces/:id/actions/:name/invoke` from
+  `apps/docs/reference/http-api.md` (with a `Retired` note for the latter).
+
+### Changed
+
+- `apps/docs/.vitepress/config.ts` and `apps/docs/guide/tutorials/index.md` now
+  treat **Tutorial v3 `1a`** as the only active introductory path; sidebar
+  entries for `1b`, `2`, and `3` are gone. Cross-links in `introduction.md`,
+  `quick-start.md`, `installation.md`, `review-workflow.md`,
+  `multi-agent-feature-spec.md`, `space-handlers.md`, `creating-flows.md`, the
+  `skill-developer` SKILL, and the `test-utils/spaces/*-v2/README.md` fixtures
+  were repointed to the v3 tutorial / Space handlers.
+- `studio-specs/current/bridges/flow-engine.md` — checkpoint modules removed
+  from the module table, `enrichCheckpointViewRefs` dropped from the index
+  pipeline, and the "Legacy invoke/checkpoint" + "Checkpoint runtime" sections
+  collapsed into a concise "Removed legacy engine surface (historical)" note.
+  `POST /v1/gates/:gate_id/resolve` is documented as the orchestration-gate route
+  (`flow:run`, space-bound); the legacy space-scoped `GET /v1/spaces/:id/gates`
+  is gone.
+- `studio-specs/current/bridges/artifacts.md` — `PUT /v1/artifacts` now uses an
+  `application/octet-stream` body with `x-murrmure-*` headers (no
+  `content_base64`); the `mrrm.artifact/v1` typo is corrected to
+  `mrmr.artifact/v1`; the "Invoke integration" section is now "Dispatch
+  integration" (internal dispatch only — handler, scheduler, federation relay).
+- `studio-specs/current/triggers/spec.md` — `mcp_wake` documented as legacy
+  dispatch with `POST /v1/mcp/wake` retired (404); `action-invoke.md` link
+  removed.
+- `studio-specs/current/desktop/spec.md` — push-notification assignees now refer
+  to orchestration gates (`flow:run`), not the `gate:resolve` fallback.
+- `apps/docs/reference/http-api.md` and `mcp-tools.md` — capability columns
+  updated to `flow:run` / `step:resolve` / `event:emit`; `action:invoke` and
+  `gate:resolve` removed from active capability rows.
+- `studio-specs/current/product/spec.md` — executor example `required_scopes`
+  trimmed to `[space:enter]`; capability table rewritten around `step:resolve`
+  and `event:emit`; MCP table updated; the phase-08 row is clarified as a
+  historical record (`space onboard` retired), not a current command.
+- `studio-specs/current/bridges/grants-migration.md` — `action:invoke` /
+  `gate:resolve` marked as removed capabilities; `state:transition` → `flow:run`,
+  `event:emit` → `event:emit`; native v2 capabilities list updated to
+  `step:resolve` / `event:emit`; conformance rules reference `flow:run`.
+
+### Added
+
+- `scripts/check-clean-state.mjs` and `packages/cli/test/docs-proof.test.ts`
+  now reject v2 runtime vocabulary in active guidance: `useViewSubmit`,
+  `content_base64`, `contract_keys`-keyed dispatch (outright); `mrmr action
+  invoke` and `awaiting_human` (context-aware — a line that names the token as
+  removed/superseded is allowed). `check-clean-state.mjs` `scan` now collects
+  line content and supports an `allowIf` removal-context matcher.
+- `studio-specs/archives/superseded/tutorials/README.md` — non-normative archive
+  marker for the retired v2 tutorials, with the v3 → v3 successor mapping.
+- `test-utils/spaces/tutorial-v3/manual-acceptance.schema.json` task pattern now
+  permits task `15` (`^(00|0[1-9]|1[0-5])$`).
+
 ## Task 15 Lane A — fix: gate resolve boundary hardening (2026-07-15)
 
 ### Removed

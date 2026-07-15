@@ -16,16 +16,6 @@ const FDK_PATTERN =
 
 const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/index.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/index.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/01-create-the-repo.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/02-setup-wizard.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/03-agent-md-and-skills.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/04-prompt-triggers.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/05-flow-manifest.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/06-build-views.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/07-index-and-apply.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/08-run-the-loop.md",
-  "apps/docs/guide/tutorials/01-local-preview-review/09-troubleshooting.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/index.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow.md",
@@ -33,17 +23,6 @@ const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/01-local-preview-review-v3/04-run-and-understand.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/index.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-flow.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/02-admin-setup.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/03-connect-agents.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/04-run-workflow.md",
-  "apps/docs/guide/tutorials/02-multi-agent-brief/05-troubleshooting.md",
-  "apps/docs/guide/tutorials/03-daily-brief-trigger/index.md",
-  "apps/docs/guide/tutorials/03-daily-brief-trigger/01-scaffold-daily-brief.md",
-  "apps/docs/guide/tutorials/03-daily-brief-trigger/02-push-and-trigger.md",
-  "apps/docs/guide/tutorials/03-daily-brief-trigger/03-connect-agent.md",
-  "apps/docs/guide/tutorials/03-daily-brief-trigger/04-run-and-review.md",
 ];
 
 const LEGACY_RUNTIME_PATTERN =
@@ -388,15 +367,11 @@ describe("phase 10 docs proof (10-T*)", () => {
   });
 
   /**
-   * V2 tutorial directories are deferred to T13 (full v2 sweep). Normative specs,
-   * bridges, active guide docs, and the v3 tutorial must be clean now.
+   * V2 tutorials were archived to studio-specs/archives/superseded/tutorials/
+   * (Task 15 Lane C), so they no longer live under apps/docs/guide/tutorials/.
+   * Normative specs, bridges, active guide docs, and the v3 tutorial must be
+   * clean now — the v2-vocabulary guard below prevents re-introduction.
    */
-  const V2_TUTORIAL_DIRS = [
-    "apps/docs/guide/tutorials/01-local-preview-review/",
-    "apps/docs/guide/tutorials/02-multi-agent-brief/",
-    "apps/docs/guide/tutorials/03-daily-brief-trigger/",
-  ];
-
   function collectV3CleanDocs(): string[] {
     const roots = [
       join(REPO_ROOT, "studio-specs/current"),
@@ -406,15 +381,13 @@ describe("phase 10 docs proof (10-T*)", () => {
     const out: string[] = [];
     for (const root of roots) {
       for (const file of collectMarkdownFiles(root)) {
-        const rel = file.replace(`${REPO_ROOT}/`, "");
-        if (V2_TUTORIAL_DIRS.some((dir) => rel.startsWith(dir))) continue;
         out.push(file);
       }
     }
     return out;
   }
 
-  test("VS-9 — repo docs ban removed authoring fields in fenced blocks (normative + active guide; v2 tutorials deferred to T13)", () => {
+  test("VS-9 — repo docs ban removed authoring fields in fenced blocks (normative + active guide)", () => {
     let scanned = 0;
     for (const file of collectV3CleanDocs()) {
       const rel = file.replace(`${REPO_ROOT}/`, "");
@@ -441,6 +414,45 @@ describe("phase 10 docs proof (10-T*)", () => {
       expect(text, `${rel}: prescribes removed construct`).not.toMatch(
         REMOVED_PROSE_CONSTRUCTS,
       );
+    }
+  });
+
+  test("T15-LANE-C — active docs ban v2 runtime vocabulary (awaiting_human, useViewSubmit, contract_keys dispatch, base64 upload, mrmr action invoke)", () => {
+    // Outright bans: tokens with no legitimate active-guidance use after the
+    // Task 15 cutover. A line that names the token as removed/superseded is a
+    // removal description, not a prescription — allowed for the context-aware
+    // tokens (awaiting_human, mrmr action invoke).
+    const REMOVAL_CONTEXT =
+      /\b(?:no|not|never|removed|superseded|without|absent|gone|retired)\b/i;
+    const OUTRIGHT = [
+      { label: "useViewSubmit", pattern: /useViewSubmit/ },
+      { label: "content_base64", pattern: /content_base64/ },
+      {
+        label: "contract_keys-keyed dispatch",
+        pattern: /keyed by .{0,3}contract_keys/,
+      },
+    ];
+    const CONTEXT_AWARE = [
+      { label: "mrmr action invoke", pattern: /mrmr action invoke/ },
+      { label: "awaiting_human", pattern: /awaiting_human/ },
+    ];
+    for (const file of collectV3CleanDocs()) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const lines = readFileSync(file, "utf-8").split("\n");
+      for (const line of lines) {
+        for (const { label, pattern } of OUTRIGHT) {
+          expect(line, `${rel}: prescribes removed ${label}`).not.toMatch(
+            pattern,
+          );
+        }
+        for (const { label, pattern } of CONTEXT_AWARE) {
+          if (!pattern.test(line)) continue;
+          expect(
+            line,
+            `${rel}: prescribes removed ${label} without removal context`,
+          ).toMatch(REMOVAL_CONTEXT);
+        }
+      }
     }
   });
 

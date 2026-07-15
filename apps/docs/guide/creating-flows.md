@@ -5,12 +5,10 @@
 
 → **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, intake flow, view, runs, command + agent handlers (6 parts).
 
-→ **[Tutorial 1b — Full preview review](./tutorials/01-local-preview-review/)** — nested build/review loop, archive, commit (9 parts).
-
 → **[Known gaps](./known-gaps)** — deferred product surface.
 :::
 
-This page is a short index. Start with [Tutorial 1a](./tutorials/01-local-preview-review-v3/); the full walkthrough is [Tutorial 1b](./tutorials/01-local-preview-review/).
+This page is a short index. Start with [Tutorial 1a](./tutorials/01-local-preview-review-v3/) — the canonical introductory walkthrough.
 
 ---
 
@@ -29,7 +27,7 @@ mrmr space apply --strict
 mrmr connection create --space spc_…
 ```
 
-See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path, or [Tutorial 1b — Create the repo](./tutorials/01-local-preview-review/01-create-the-repo) and [Flow manifest](./tutorials/01-local-preview-review/05-flow-manifest) for the full walkthrough.
+See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path, or [Tutorial 1a — Part 2: build the flow manifest](./tutorials/01-local-preview-review-v3/02-build-minimal-flow) and [Part 5: extend flow and handlers](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers) for the worked walkthrough.
 
 ## Step contracts (v3, resolver-agnostic)
 
@@ -119,7 +117,6 @@ authorized protocol client; Desktop does not invent a fallback form.
 ## Related
 
 - [Tutorial 1a: first flow](./tutorials/01-local-preview-review-v3/) — **start here (6 parts)**
-- [Tutorial 1b: local preview-review](./tutorials/01-local-preview-review/) — **full guide**
 - [Space handlers & contract keys](./space-handlers) — execution authoring
 - [Space index](./space-index) — layout reference
 - [Agent skill](./agent-skill) — split Cursor skills

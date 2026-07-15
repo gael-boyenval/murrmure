@@ -374,8 +374,8 @@ An unbound step (`resolver: null`) is resolvable by any token with `step:resolve
 a token without `step:resolve` is denied (403). Journal events:
 `mrmr.step.opened`, `mrmr.step.yielded`, `mrmr.step.resolved`, and
 `mrmr.step.resumed`. Step memos use `working` while assigned, `yielded` while a
-child owns control, and `completed` / `failed` once resolved — there is no
-`awaiting_human` status.
+child owns control, and `completed` / `failed` once resolved — there is
+no `awaiting_human` run status and no `active_human_step` projection.
 
 ---
 
@@ -472,5 +472,4 @@ and no migration**:
 - [ADR-007 — resolver-agnostic step contracts](../../ADR/ADR-007-resolver-agnostic-step-contracts.md)
 - [ADR-010 — branch contracts and host-mediated artifact submission](../../ADR/ADR-010-branch-contract-artifact-upload-boundary.md)
 - [Tutorial v3 Task 03](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md)
-- [action-invoke.md](./action-invoke.md) — headless invoke only (not flow steps)
 - [flow-engine.md](./flow-engine.md)

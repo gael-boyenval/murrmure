@@ -5,8 +5,10 @@ local lifecycle is **connection**. A connection is authorization for one
 machine/trust boundary, not an agent entity.
 
 The default profile `tutorial-builder/v1` is fixed to `space:read`,
-`flow:read`, `flow:run`, and `step:resolve`. `action:invoke`, `gate:resolve`,
-and `journal:read` are not defaults. Legacy action/gate MCP paths are absent.
+`flow:read`, `flow:run`, and `step:resolve`. `event:emit` and `journal:read`
+are not defaults. The removed `action:invoke` / `gate:resolve` capabilities and
+their MCP paths (`murrmure_invoke_action`, gate tools) are absent — action
+execution is internal dispatch only and gate approval uses `flow:run`.
 
 ## Mapping table
 
@@ -15,22 +17,22 @@ and `journal:read` are not defaults. Legacy action/gate MCP paths are absent.
 | `space:read` | `space:read` |
 | `space:enter` | `space:enter` |
 | `space:admin` | `hub:admin`, `space:read`, `space:write`, `space:enter` |
-| `state:transition` | `flow:run`, `action:invoke` |
+| `state:transition` | `flow:run` |
 | `event:read` | `journal:read` |
-| `event:emit` | `action:invoke` |
+| `event:emit` | `event:emit` |
 | `flow:install` | `space:write`, `flow:read` |
 | `trigger:register` | `space:write` |
 | `blob:read` | `space:read` |
 | `blob:write` | `space:write` |
 
-Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `action:invoke`, `step:resolve`, `gate:resolve`, `journal:read`, `executor:poll`, `hub:admin`.
+Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `executor:poll`, `hub:admin`.
 
 ## MCP tool ↔ capability
 
 | MCP tool | Required capability / v1 scope |
 |----------|-------------------------------|
 | `murrmure_resolve_step` | `step:resolve` |
-| `murrmure_emit_event` | v1 `event:emit` scope (maps to `action:invoke`) |
+| `murrmure_emit_event` | `event:emit` (v1 `event:emit` scope) |
 | `murrmure_create_run` | `flow:run` |
 
 ## API
@@ -45,10 +47,9 @@ Space-scoped routes remain: `POST /v1/spaces/{id}/grants` (phase 02).
 
 ## Conformance rules
 
-- Grant without `flow:run` **cannot** start a flow run.
+- Grant without `flow:run` **cannot** start a flow run, resolve orchestration gates, or cancel runs.
 - Grant without `step:resolve` **cannot** resolve flow steps (`murrmure_resolve_step`, `mrmr step resolve`).
-- Grant without `gate:resolve` **cannot** resolve gates or cancel runs.
-- v1 `event:emit` scope satisfies `murrmure_emit_event` catalog visibility (effective `action:invoke`).
+- v1 `event:emit` scope satisfies `murrmure_emit_event` catalog visibility (effective `event:emit`).
 - `flow_acl` (package ids) still restricts MCP tool catalog for installed flows.
 
 ## Public CLI and local storage

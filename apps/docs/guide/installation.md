@@ -61,7 +61,7 @@ mrmr space apply --strict
 mrmr skill install --variant all
 ```
 
-See [Tutorial 1](./tutorials/01-local-preview-review/), [Creating flows](./creating-flows), and [Space handlers](./space-handlers).
+See [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/), [Creating flows](./creating-flows), and [Space handlers](./space-handlers).
 
 ## CI / headless environment
 
