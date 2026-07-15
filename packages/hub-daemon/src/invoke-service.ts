@@ -23,6 +23,7 @@ import {
   revokeStepResolveCredentials,
   resolveSpaceRoot,
   reconstructStepContractFromRelay,
+  rebindRemoteMaterializedCopies,
   materializeRemoteArtifactReferences,
   type InvokeJournalWriter,
   type InvokeMemoStore,
@@ -588,7 +589,15 @@ export class InvokeService {
     }
 
     let artifactParams: Record<string, unknown> | undefined;
-    if (parsed.data.artifacts_in?.length) {
+    // A relayed invoke (body carries a reference-only `step_contract` from a
+    // peer hub) carries producer transfer ids in `artifacts_in`; those are not
+    // registered in this hub's local artifact store. Resolving them here would
+    // reject the invoke with `ARTIFACT_NOT_FOUND` before the relay handling
+    // below can reconstruct + materialize the ordered references. So for a
+    // relayed invoke, skip the destination-store resolution entirely — the
+    // relay block materializes references from local bytes (best-effort) and
+    // leaves the rest for the handler to fetch via `hub_token` / `hub_url`.
+    if (parsed.data.artifacts_in?.length && !parsed.data.step_contract) {
       if (!resolved.space_root) {
         return {
           http: 422 as const,
@@ -687,8 +696,11 @@ export class InvokeService {
     // local `InvokeStepContractContext` from the sanitized relay and carry the
     // relayed run input. Then best-effort materialize the ordered artifact
     // references into this space's consumer input tree from any bytes already
-    // local; references without local bytes are left for the handler to fetch
-    // via the relayed `hub_token` / `hub_url`. This never fails the invoke.
+    // local, and rebind the verified destination copies into the reconstructed
+    // contract/handler tokens so `shell_spawn` binds `.path` / `.directory` to
+    // this space's own consumer copies. References without local bytes are left
+    // reference-only for the handler to fetch via the relayed `hub_token` /
+    // `hub_url`. This never fails the invoke.
     if (
       parsed.data.step_contract &&
       resolved.space_root &&
@@ -698,7 +710,7 @@ export class InvokeService {
     ) {
       const relay = parsed.data.step_contract;
       try {
-        request.step_contract = await reconstructStepContractFromRelay(relay, {
+        let reconstructed = await reconstructStepContractFromRelay(relay, {
           space_root: resolved.space_root,
           run_id,
           step_id: parsed.data.step_id,
@@ -707,7 +719,7 @@ export class InvokeService {
           request.exec_input = parsed.data.exec_input;
         }
         if (relay.artifact_references?.length) {
-          await materializeRemoteArtifactReferences({
+          const materialized = await materializeRemoteArtifactReferences({
             space_root: resolved.space_root,
             run_id,
             consumer_step: parsed.data.step_id,
@@ -716,8 +728,17 @@ export class InvokeService {
               const row = await this.artifacts.loadArtifactForInvoke(transfer_id);
               return row ? { bytes: row.bytes, digest: row.manifest.digest } : null;
             },
-          }).catch(() => undefined);
+          }).catch(() => [] as Awaited<ReturnType<typeof materializeRemoteArtifactReferences>>);
+          if (materialized.length) {
+            reconstructed = rebindRemoteMaterializedCopies({
+              stepContract: reconstructed,
+              space_root: resolved.space_root,
+              run_id,
+              materialized,
+            });
+          }
         }
+        request.step_contract = reconstructed;
       } catch {
         // Reconstruction is best-effort; a failure must not break the relayed
         // invoke. The handler still receives params/artifacts_in.

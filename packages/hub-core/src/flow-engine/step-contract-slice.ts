@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type {
   ListStepContractsResponse,
   StepCatalogRoute,
@@ -22,8 +22,10 @@ import {
   buildRemoteArtifactReferences,
   runArtifactsFromExecContext,
   sanitizeRunArtifactsBagForRemote,
+  type ResolvedStepArtifact,
   type RunArtifactsBag,
 } from "./step-artifacts.js";
+import type { MaterializedRemoteReferenceSlot } from "./consumer-copy.js";
 import {
   activeContractPath,
   bareRunId,
@@ -737,5 +739,88 @@ export async function reconstructStepContractFromRelay(
     contract_key_count: relay.contract_key_count,
     hub_token: relay.hub_token,
     hub_url: relay.hub_url,
+  };
+}
+
+/**
+ * Fold verified destination consumer copies back into a reconstructed
+ * `InvokeStepContractContext` so a destination `shell_spawn` handler can bind
+ * `.path` / `.directory` artifact placeholders to local files.
+ *
+ * The relayed `run_artifacts_json` produced by `reconstructStepContractFromRelay`
+ * is reference-only — every file carries `transfer_id` / `digest` / `name` but
+ * no `path`, because no producer host path may cross the federation boundary.
+ * `materializeRemoteArtifactReferences` writes verified consumer copies into
+ * the destination space's run-scratch tree and returns their absolute paths;
+ * this rebind rewrites each materialized file's `path` to the space-root
+ * relative consumer-copy path and rebuilds the prompt bindings from the
+ * rebound bag, so `materializeArtifactBindings` resolves the destination's own
+ * verified copies (never a producer path). Files whose bytes were not local are
+ * left without a `path`, so `materializeArtifactBindings` returns a typed
+ * missing-binding for that slot rather than spawning against a producer path;
+ * the handler fetches those via the relayed `hub_token` / `hub_url`.
+ * `hub_token` / `hub_url` / `contract_key_count` / `contract_path` / `workdir`
+ * are carried through unchanged.
+ */
+export function rebindRemoteMaterializedCopies(input: {
+  stepContract: InvokeStepContractContext;
+  space_root: string;
+  run_id: string;
+  materialized: MaterializedRemoteReferenceSlot[];
+}): InvokeStepContractContext {
+  const localCopyByFile = new Map<string, string>();
+  for (const slot of input.materialized) {
+    for (const file of slot.files) {
+      localCopyByFile.set(
+        `${slot.producer_step}::${slot.slot}::${file.name}`,
+        relative(input.space_root, file.path),
+      );
+    }
+  }
+
+  let bag: RunArtifactsBag = {};
+  if (input.stepContract.run_artifacts_json) {
+    try {
+      bag = JSON.parse(input.stepContract.run_artifacts_json) as RunArtifactsBag;
+    } catch {
+      bag = {};
+    }
+  }
+
+  const reboundBag: RunArtifactsBag = {};
+  for (const [stepId, slots] of Object.entries(bag)) {
+    const slotMap: Record<string, ResolvedStepArtifact> = {};
+    for (const [slot, record] of Object.entries(slots)) {
+      slotMap[slot] = {
+        slot: record.slot,
+        cardinality: record.cardinality,
+        files: record.files.map((file) => {
+          const localPath = localCopyByFile.get(`${stepId}::${slot}::${file.name}`);
+          return localPath ? { ...file, path: localPath } : file;
+        }),
+      };
+    }
+    reboundBag[stepId] = slotMap;
+  }
+
+  let slice: StepContractSlice;
+  try {
+    slice = JSON.parse(input.stepContract.slice_json) as StepContractSlice;
+  } catch {
+    slice = { step_id: "", branches: {} } as StepContractSlice;
+  }
+  const promptBindings = buildMurrmurePromptBindings({
+    slice,
+    space_root: input.space_root,
+    run_id: input.run_id,
+    exec_context: { artifacts: reboundBag },
+    artifact_transport: "remote_reference",
+  });
+
+  return {
+    ...input.stepContract,
+    prompt_bindings: promptBindings,
+    run_artifacts_json:
+      Object.keys(reboundBag).length > 0 ? JSON.stringify(reboundBag) : undefined,
   };
 }

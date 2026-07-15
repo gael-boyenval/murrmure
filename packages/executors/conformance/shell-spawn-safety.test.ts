@@ -14,6 +14,8 @@ import {
   cancelRunExecutors,
   clearRunExecutorCancelRegistry,
   registerShellProcessCancel,
+  consumerInputPath,
+  consumerInputsDirPath,
 } from "@murrmure/hub-core";
 import type { DispatchContext, InvokeRequest } from "@murrmure/runtime-contracts";
 
@@ -578,5 +580,134 @@ describe("shell-spawn collection directory materialization", () => {
       runArtifacts as never,
     );
     expect(refs["murrmure.step.intake.artifact.assets.directory"]).toBe("artifact:intake:assets:directory");
+  });
+
+  test("relay-rebound consumer copies bind .directory directly without re-copying", async () => {
+    // After invoke-service materializes + rebinds, each file's `path` already
+    // points at the verified consumer copy inside the consumer inputs dir.
+    // materializeArtifactBindings must bind that directory directly instead of
+    // re-copying each file onto itself (which would risk the all-or-nothing wipe).
+    const files = [
+      { name: "01-a.json", content: '{"a":1}\n' },
+      { name: "02-b.json", content: '{"b":2}\n' },
+    ];
+    const relPath = (name: string) =>
+      join(".mrmr", "dev", "runs", "run_demo", "steps", "build", "inputs", "assets", name);
+    const fileRecords = files.map((f) => {
+      const abs = join(spaceRoot, relPath(f.name));
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, f.content);
+      return { name: f.name, content: f.content, path: relPath(f.name) };
+    });
+    const runArtifacts = {
+      intake: {
+        assets: {
+          slot: "assets",
+          cardinality: "collection" as const,
+          files: fileRecords.map((f) => ({
+            name: f.name,
+            path: f.path,
+            digest: "sha256:" + createHash("sha256").update(f.content).digest("hex"),
+            size_bytes: Buffer.byteLength(f.content),
+            transfer_id: `xfr_${f.name}`,
+          })),
+        },
+      },
+    };
+    const overrides = await materializeArtifactBindings({
+      command: "diff -r {{murrmure.step.intake.artifact.assets.directory}} expected/",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    const dir = overrides["murrmure.step.intake.artifact.assets.directory"];
+    expect(dir).toBe(consumerInputsDirPath(spaceRoot, "demo", "build", "assets"));
+    // The pre-existing consumer copies are bound in place (unchanged contents).
+    for (const f of fileRecords) {
+      const copy = consumerInputPath(spaceRoot, "demo", "build", "assets", f.name);
+      expect(copy).toBe(join(spaceRoot, f.path));
+      expect(readFileSync(copy, "utf8")).toBe(f.content);
+    }
+  });
+
+  test("relay-rebound singleton copy binds .path directly without re-copying", async () => {
+    const content = "# spec\n";
+    const relPath = join(".mrmr", "dev", "runs", "run_demo", "steps", "build", "inputs", "spec", "spec.md");
+    mkdirSync(dirname(join(spaceRoot, relPath)), { recursive: true });
+    writeFileSync(join(spaceRoot, relPath), content);
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          cardinality: "singleton" as const,
+          files: [
+            {
+              name: "spec.md",
+              path: relPath,
+              digest: "sha256:" + createHash("sha256").update(content).digest("hex"),
+              size_bytes: content.length,
+              transfer_id: "xfr_spec",
+            },
+          ],
+        },
+      },
+    };
+    const overrides = await materializeArtifactBindings({
+      command: "cp {{murrmure.step.intake.artifact.spec.path}} out.md",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    expect(overrides["murrmure.step.intake.artifact.spec.path"]).toBe(
+      consumerInputPath(spaceRoot, "demo", "build", "spec", "spec.md"),
+    );
+  });
+
+  test("an unmaterialized relayed singleton (no file.path) yields a typed missing-binding, not a crash", async () => {
+    // A relayed reference whose bytes were not local carries transfer_id/digest
+    // but no `path`. Binding it must not feed `undefined` into path.join; it
+    // returns null so the resolver fails fast with HANDLER_BINDING_VALUE_MISSING.
+    const runArtifacts = {
+      intake: {
+        spec: {
+          slot: "spec",
+          cardinality: "singleton" as const,
+          files: [{ name: "spec.md", transfer_id: "xfr_spec", digest: "sha256:spec", size_bytes: 12 }],
+        },
+      },
+    };
+    const overrides = await materializeArtifactBindings({
+      command: "cp {{murrmure.step.intake.artifact.spec.path}} out.md",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    expect(overrides["murrmure.step.intake.artifact.spec.path"]).toBeNull();
+  });
+
+  test("a collection with any unmaterialized file yields a null .directory binding", async () => {
+    const runArtifacts = {
+      intake: {
+        assets: {
+          slot: "assets",
+          cardinality: "collection" as const,
+          files: [
+            { name: "01-a.json", path: join(".mrmr", "dev", "runs", "run_demo", "steps", "build", "inputs", "assets", "01-a.json"), transfer_id: "xfr_a", digest: "sha256:a", size_bytes: 8 },
+            { name: "02-b.json", transfer_id: "xfr_b", digest: "sha256:b", size_bytes: 8 },
+          ],
+        },
+      },
+    };
+    const overrides = await materializeArtifactBindings({
+      command: "diff -r {{murrmure.step.intake.artifact.assets.directory}} expected/",
+      runArtifacts: runArtifacts as never,
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+    });
+    expect(overrides["murrmure.step.intake.artifact.assets.directory"]).toBeNull();
   });
 });

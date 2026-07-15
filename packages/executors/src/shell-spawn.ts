@@ -16,6 +16,8 @@ import {
 import { resolveSafeShellCommand, HandlerBindingError } from "./shell-command.js";
 import {
   ArtifactMaterializationError,
+  consumerInputPath,
+  consumerInputsDirPath,
   materializeConsumerCopy,
   materializeConsumerCopyDirectory,
   runScratchDir,
@@ -154,7 +156,24 @@ export async function materializeArtifactBindings(input: {
       overrides[key] = null;
       continue;
     }
+    // A relayed reference that was not materialized to a local consumer copy
+    // carries no `path` (only `transfer_id` / `digest`). Binding it would feed
+    // `undefined` into `path.join` and crash; instead emit a typed missing
+    // binding so the resolver fails fast with `HANDLER_BINDING_VALUE_MISSING`
+    // and the handler fetches the bytes via the relayed `hub_token` / `hub_url`.
+    if (!file.path) {
+      overrides[key] = null;
+      continue;
+    }
+    const dest = consumerInputPath(input.space_root, input.run_id, input.consumer_step, slot, file.name);
     const source_path = join(input.space_root, file.path);
+    // A relay-rebound `file.path` already points at the verified consumer copy
+    // the destination invoke-service materialized; re-copying it onto itself is
+    // redundant (and risks the all-or-nothing collection wipe). Bind it directly.
+    if (source_path === dest) {
+      overrides[key] = dest;
+      continue;
+    }
     const copy = await materializeConsumerCopy({
       space_root: input.space_root,
       run_id: input.run_id,
@@ -175,9 +194,37 @@ export async function materializeArtifactBindings(input: {
       overrides[key] = null;
       continue;
     }
+    // A collection slot is only bindable when every ordered file has a local
+    // consumer copy; any unmaterialized (path-less) reference makes the
+    // directory incomplete, so emit a typed missing binding rather than
+    // producing a half-populated directory or crashing on `path.join`.
+    if (record.files.some((file) => !file.path)) {
+      overrides[key] = null;
+      continue;
+    }
+    const runId = input.run_id;
+    const dirDest = consumerInputsDirPath(
+      input.space_root,
+      runId,
+      input.consumer_step,
+      slot,
+    );
+    // Relay-rebound `file.path` values already point at verified consumer copies
+    // inside this directory; if every file is already in place, bind the
+    // directory directly instead of re-copying each file onto itself.
+    if (
+      record.files.every(
+        (file) =>
+          join(input.space_root, file.path) ===
+          consumerInputPath(input.space_root, runId, input.consumer_step, slot, file.name),
+      )
+    ) {
+      overrides[key] = dirDest;
+      continue;
+    }
     const dir = await materializeConsumerCopyDirectory({
       space_root: input.space_root,
-      run_id: input.run_id,
+      run_id: runId,
       consumer_step: input.consumer_step,
       slot,
       files: record.files.map((file) => ({
