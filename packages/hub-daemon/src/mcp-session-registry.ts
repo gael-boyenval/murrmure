@@ -1,7 +1,16 @@
 import type { ControlBus, ControlPrincipal } from "./control-bus.js";
 import { bareSpaceId } from "./space-id.js";
 
-export class McpWakeDispatcher {
+/**
+ * Tracks connected MCP sessions per space (handshake registration + reachability
+ * + server→client publish). Despite the historical "wake" lineage, this is the
+ * MCP session registry — it is NOT the retired `mcp_wake` trigger dispatch path.
+ * The `POST /v1/mcp/wake` wire is 404 (Task 15 Lane C) and `mcpWake(...)` is not
+ * a runtime primitive; trigger templates with type `mcp_wake` must not dispatch
+ * (see `TriggerDispatcher`). This class only powers the live `mcp_session`
+ * executor and `/v1/mcp/session/handshake`.
+ */
+export class McpSessionRegistry {
   private readonly connected = new Map<string, Set<ControlPrincipal>>();
   private readonly connectCallbacks: Array<(principal: ControlPrincipal) => void> = [];
 

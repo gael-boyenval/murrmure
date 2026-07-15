@@ -87,11 +87,13 @@ interface ControlBus {
   drain(principal: ControlPrincipal, afterSeq?: number): ControlMessage[];
 }
 
-interface McpWakeDispatcher {
-  // Wake wire (`POST /v1/mcp/wake`) is retired — 404 (phase 16). The clean
+interface McpSessionRegistry {
+  // The wake wire (`POST /v1/mcp/wake`) is retired — 404 (phase 16). The clean
   // protocol uses event handlers + `murrmure_emit_event` + flow triggers
-  // (see triggers/spec.md). This class now tracks connected MCP principals
-  // per space for executor preflight only — it no longer dispatches wakes.
+  // (see triggers/spec.md). This registry tracks connected MCP principals
+  // per space for the live `mcp_session` executor + handshake — it does not
+  // dispatch wakes (the retired `McpWakeDispatcher` was renamed to clarify
+  // this; `mcpWake(...)` is not a runtime primitive).
   connect(principal: ControlPrincipal): void;
   disconnect(principal: ControlPrincipal): void;
   hasConnectedSession(spaceId: string): boolean;
@@ -121,4 +123,4 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 | `packages/hub-daemon/src/mount-registry.ts` | MountRegistry |
 | `packages/hub-daemon/src/mcp-tool-registry.ts` | Catalog rebuild |
 | `packages/hub-daemon/src/control-bus.ts` | Outbox + replay |
-| `packages/hub-daemon/src/mcp-wake-dispatcher.ts` | Connected-session tracking (wake wire retired — 404) |
+| `packages/hub-daemon/src/mcp-session-registry.ts` | Connected-session tracking (wake wire retired — 404; renamed from `mcp-wake-dispatcher.ts`) |

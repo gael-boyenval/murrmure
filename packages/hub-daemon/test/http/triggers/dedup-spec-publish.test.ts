@@ -5,14 +5,21 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-describe("triggers/dedup-spec-publish", () => {
+// The mcp_wake trigger-action wire is retired (Task 15 Lane C): the
+// POST /v1/mcp/wake wire is 404 and mcpWake(...) is not a runtime primitive.
+// Registration of mcp_wake trigger templates and custom mcp_wake actions is
+// rejected at the register/apply boundary (strict, not silent). New spaces
+// declare event reactions with on: event: handlers in .mrmr/space/handlers.yaml
+// + murrmure_emit_event. The dedup/delivery path for mcp_wake is gone with the
+// wire; handler delivery dedup is covered by the hook-dispatch tests.
+describe("triggers/mcp-wake-rejected", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let backendId: string;
   let frontendId: string;
 
   beforeAll(async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tr-dedup-"));
+    const dir = mkdtempSync(join(tmpdir(), "tr-mcp-wake-rej-"));
     const daemon = await startHubDaemon({
       databasePath: join(dir, "murrmure.db"),
       port: 0,
@@ -47,8 +54,19 @@ describe("triggers/dedup-spec-publish", () => {
         body: JSON.stringify({ slug: "ui-sandbox", name: "UI Sandbox" }),
       })
     ).json()).space_id;
+  });
 
-    await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers/from-template`, {
+  afterAll(() => cleanup?.());
+
+  function bootstrap() {
+    return {
+      Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000001")}`,
+      "Content-Type": "application/json",
+    };
+  }
+
+  test("retired work-ready-wake-frontend template registration is rejected", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers/from-template`, {
       method: "POST",
       headers: bootstrap(),
       body: JSON.stringify({
@@ -57,79 +75,78 @@ describe("triggers/dedup-spec-publish", () => {
         target_space_id: frontendId,
       }),
     });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
+    expect(body.message).toContain("mcp_wake");
+  });
 
-    await fetch(`${baseUrl}/v1/spaces/${frontendId}/apply`, {
+  test("retired spec-published-wake-dev template registration is rejected", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers/from-template`, {
       method: "POST",
       headers: bootstrap(),
       body: JSON.stringify({
-        bundle: {
-          actions: {
-            digest: "sha256:dedup-action",
-            file: {
-              version: 1,
-              actions: {
-                handle_work_ready: { executor: "cursor-mcp" },
-              },
-            },
-          },
-          executors: {
-            digest: "sha256:dedup-exec",
-            file: {
-              executors: {
-                "cursor-mcp": {
-                  binding: { type: "mcp_session", executor_id: "cursor-mcp" },
-                },
-              },
-            },
-          },
-          flows: [],
-          views: [],
+        template_id: "spec-published-wake-dev",
+        source_space_id: backendId,
+        target_space_id: frontendId,
+      }),
+    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
+  });
+
+  test("custom mcp_wake action registration is rejected", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers`, {
+      method: "POST",
+      headers: bootstrap(),
+      body: JSON.stringify({
+        name: "backend-ready-wake-frontend",
+        filter: {
+          event_types: ["work.ready"],
+          source_space_id: backendId,
+          payload_match: { type: "api_change" },
+        },
+        action: {
+          type: "mcp_wake",
+          target_space_id: frontendId,
+          wake_label: "handle_work_ready",
+          payload_map: { type: "$.payload.type" },
         },
       }),
     });
-
-    const grant = await fetch(`${baseUrl}/v1/spaces/${frontendId}/grants`, {
-      method: "POST",
-      headers: bootstrap(),
-      body: JSON.stringify({ label: "fe-agent", scopes: ["space:enter"] }),
-    });
-    const feToken = (await grant.json()).token;
-
-    await fetch(`${baseUrl}/v1/mcp/session/handshake`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${feToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ space_id: frontendId, client_id: "fe-cursor", last_ack_seq: 0 }),
-    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
   });
 
-  afterAll(() => cleanup?.());
-
-  test("duplicate work.ready deduped by openapi_diff_ref", async () => {
-    const bootstrap = () => ({
-      Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000001")}`,
-      "Content-Type": "application/json",
-    });
-
-    const payload = {
-      type: "api_change",
-      summary: "New endpoint",
-      openapi_diff_ref: "blob:openapi/rec-v1.diff",
-    };
-
-    for (let i = 0; i < 2; i++) {
-      await fetch(`${baseUrl}/v1/spaces/${backendId}/events`, {
-        method: "POST",
-        headers: bootstrap(),
-        body: JSON.stringify({ type: "work.ready", payload }),
-      });
-    }
-
-    const deliveries = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers/deliveries?limit=10`, {
+  test("legacy wake_mcp_agent alias registration is rejected", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers`, {
+      method: "POST",
       headers: bootstrap(),
+      body: JSON.stringify({
+        name: "legacy-alias",
+        filter: { event_types: ["work.ready"], source_space_id: backendId },
+        action: { type: "wake_mcp_agent", target_space_id: frontendId, wake_label: "handle_work_ready" },
+      }),
     });
-    const dBody = await deliveries.json();
-    expect(dBody.deliveries.filter((d: { outcome: string }) => d.outcome === "success").length).toBe(1);
-    const deduped = dBody.deliveries.find((d: { outcome: string }) => d.outcome === "deduped");
-    expect(deduped?.dedup_reason).toBe("duplicate_business_key");
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
+  });
+
+  test("legacy tool shorthand registration is rejected", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${frontendId}/triggers`, {
+      method: "POST",
+      headers: bootstrap(),
+      body: JSON.stringify({
+        name: "legacy-tool",
+        filter: { event_types: ["work.ready"], source_space_id: backendId },
+        action: { tool: "handle_work_ready", target_space_id: frontendId },
+      }),
+    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
   });
 });

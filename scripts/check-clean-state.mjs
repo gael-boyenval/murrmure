@@ -132,6 +132,22 @@ const SKILL_EVAL_FORBIDDEN = [
     pattern: REMOVED_COMMAND_PATTERN,
   },
 ];
+// mcp_wake trigger-action wire is retired (Task 15 Lane C). The two production
+// triggers-templates sources may retain mcp_wake only as explicit historical
+// records (retired templates) or in removal descriptions — never as a silent
+// default action type. Flag the nullish-default-to-mcp_wake pattern unless the
+// line is a removal description.
+const TRIGGERS_TEMPLATES_FILES = [
+  "packages/hub-daemon/src/lib/triggers-templates.ts",
+  "packages/cli/src/lib/triggers-templates.ts",
+];
+const TRIGGERS_TEMPLATES_FORBIDDEN = [
+  {
+    label: "mcp_wake as default trigger action type (retired)",
+    pattern: /\?\?\s*["']mcp_wake["']/,
+    allowIf: REMOVAL_CONTEXT,
+  },
+];
 
 function collectFiles(root, filePattern) {
   const files = [];
@@ -205,6 +221,10 @@ scan(
     collectFiles(join(REPO_ROOT, path), /\.json$/),
   ),
   SKILL_EVAL_FORBIDDEN,
+);
+scan(
+  TRIGGERS_TEMPLATES_FILES.map((path) => join(REPO_ROOT, path)),
+  TRIGGERS_TEMPLATES_FORBIDDEN,
 );
 scan(
   ACTIVE_GUIDANCE_MD_ROOTS.flatMap((path) =>

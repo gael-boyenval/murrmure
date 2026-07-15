@@ -23,7 +23,7 @@ Flow:
 3. Orchestrator asks **Knowledge** and **Dev** (in parallel, via prompts + events).
 4. Orchestrator assembles the spec and pauses for **your approval**.
 5. You **Publish** in the spec canvas (or approve a gate).
-6. **`spec.published`** wakes the **Dev** agent (when a trigger is registered).
+6. **`spec.published`** triggers the **Dev** agent's `on: event:` handler (declared in `.mrmr/space/handlers.yaml`).
 7. **Dev** uses **`query_ask`** / **`get_spec`**, then writes `~/work/dev-project/specs/guest-checkout-v1.md`.
 
 For a same-run build/review loop, model the coordinator as an open parent step
@@ -105,21 +105,34 @@ Optional: mint read grants on Knowledge/Dev spaces for the orchestrator machine 
 Do **not** give the orchestrator write access to foreign spaces. Cross-space coordination uses **events**, **`query_ask`**, and optional read grants — not shared write tokens.
 :::
 
-### 1.4 Register trigger (Dev space)
+### 1.4 React to spec.published with an event handler (Dev space)
 
-```bash
-mrmr space trigger register --space spc_dev \
-  --template spec-published-wake-dev \
-  --source-space spc_orchestrator
+The dev space reacts to `spec.published` with an **`on: event:` handler** in `.mrmr/space/handlers.yaml` — the clean protocol. The retired `mcp_wake` trigger template is gone (Task 15 Lane C): the `POST /v1/mcp/wake` wire is 404 and `mcpWake(...)` is not a runtime primitive, so there is no `spec-published-wake-dev` template to register.
+
+```yaml
+# ~/work/dev-project/.mrmr/space/handlers.yaml
+version: 1
+handlers:
+  - id: on_spec_published
+    contract_keys: []
+    on:
+      event:
+        type: spec.published
+        source: "/spaces/spc_orchestrator"
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      A spec was published in the orchestrator space. Use query_ask (spec_summary@1)
+      then get_spec if a read grant exists, and write specs/<slug>-v1.md locally.
+    command: cursor agent -p --force {{prompt}}
 ```
 
-After you **Publish**, the trigger routes to a dev-space **event handler** (or legacy trigger template): the hub dispatches `spec.published` and the dev agent session receives work via handler `shell_spawn` / MCP wake. The dev space must index a handler for `spec.published` (or register `spec-published-wake-dev` trigger). Check delivery outcomes:
-
 ```bash
-mrmr space trigger deliveries --space spc_dev --limit 20
+cd ~/work/dev-project
+mrmr space apply --strict
 ```
 
-Each row has terminal `outcome`: `success`, `failed`, or `deduped` (not `pending` / `resolved` / `delivered`).
+After you **Publish**, the hub delivers `spec.published` to the dev-space handler (Session + Run + journal `mrmr.handler.delivered`); the dev Cursor window is woken via `shell_spawn` (replay on MCP reconnect if the session was offline). Observe handler delivery in Desktop **`/logs`** or the run view — there is no `mcp_wake` trigger-action delivery log.
 
 ---
 
@@ -192,7 +205,7 @@ Journal emits **`spec.published`** with `body_ref` and `published_by`.
 
 ### 4.5 Dev: wake, fetch, write the file
 
-When the trigger or event handler is registered, the dev Cursor window is woken after you publish (replay on MCP reconnect if the session was offline). Prompt:
+When the dev space's `on: event:` handler is registered, the dev Cursor window is woken after you publish (replay on MCP reconnect if the session was offline). Prompt:
 
 > You were woken for a published spec. Use **`query_ask`** with `target_space_id` set to the orchestrator space and `query_type: "spec_summary@1"`. If you need the full body, use **`get_spec`** with the `spec_key` from the wake payload. Write `specs/guest-checkout-v1.md` locally and commit.
 
@@ -228,7 +241,7 @@ sequenceDiagram
   Orch->>Orch: patch_spec_section merge
   User->>Shell: Publish
   Shell->>Shell: spec.published event
-  Shell->>Dev: event handler / trigger wake
+  Shell->>Dev: on: event: handler
   Dev->>Dev: query_ask spec_summary@1
   Dev->>Dev: get_spec, write specs/*.md
 ```
@@ -241,7 +254,7 @@ sequenceDiagram
 |------|--------|
 | Spec draft / publish | Desktop → space home → spec session |
 | Pending gate | Desktop → **Gates** or `/runs/:runId` |
-| Trigger deliveries | `mrmr space trigger deliveries --space spc_dev` |
+| Handler delivery | Desktop **`/logs`** or run view (journal `mrmr.handler.delivered`) |
 | Event journal | Desktop **`/logs`** (or `mrmr runtime audit export`) |
 | Agent-side tail | MCP handshake wake messages — optional CLI |
 
@@ -256,7 +269,7 @@ sequenceDiagram
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
 | Wrong space context | Activate the matching `con_…` for that space and reload |
-| Dev not woken after publish | Register **Spec published → wake dev** trigger; check `mrmr space trigger deliveries` |
+| Dev not woken after publish | Register an `on: event:` handler for `spec.published` in `.mrmr/space/handlers.yaml` (`mrmr space apply --strict`); check the run view / Desktop **`/logs`** |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |
 
@@ -266,9 +279,9 @@ sequenceDiagram
 
 - **`query_policy` editor** — set `inbound_allowlist` via `mrmr space update --query-policy` until a UI ships
 - **Section editing in spec canvas** — agents edit via MCP; humans publish, approve, and revise
-- **Custom trigger builder** — use templates, `mrmr space trigger register`, or raw API; no visual filter editor yet
+- **Custom trigger builder** — declare `on: event:` handlers in `.mrmr/space/handlers.yaml` (`mrmr space apply`); no visual filter editor yet
 
-These do not require curl for normal agent work — MCP and CLI trigger templates cover the multi-agent spec path.
+These do not require curl for normal agent work — `on: event:` handlers + `murrmure_emit_event` cover the multi-agent spec path.
 
 ---
 

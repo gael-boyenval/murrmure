@@ -14,7 +14,7 @@ import { createHubApp } from "./routes.js";
 import { acquireLock, cleanupStaleStaging, releaseLock, resolveDataDir, updateLockOwnerEndpoint, writeDiscovery } from "./ops.js";
 import { McpToolRegistry } from "./mcp-tool-registry.js";
 import { ControlBus } from "./control-bus.js";
-import { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
+import { McpSessionRegistry } from "./mcp-session-registry.js";
 import { registerPlatformMcpHandlers } from "./mcp-handlers.js";
 import { dispatchHooksFromJournal, journalEventToHookSource } from "./hook-dispatch.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
@@ -147,7 +147,7 @@ export async function startHubDaemon(config: DaemonConfig) {
 
   const mcpToolRegistry = new McpToolRegistry(murrmurePersistence);
   const controlBus = new ControlBus();
-  const mcpWakeDispatcher = new McpWakeDispatcher(controlBus);
+  const mcpSessionRegistry = new McpSessionRegistry(controlBus);
   const triggerDispatcher = new TriggerDispatcher(murrmurePersistence, handler);
   const executorPollStore = createInProcessExecutorPollStore();
   const federationPort = createDaemonFederationPort(murrmurePersistence);
@@ -164,7 +164,7 @@ export async function startHubDaemon(config: DaemonConfig) {
     sseSubscribers: new Set(),
     mcpToolRegistry,
     controlBus,
-    mcpWakeDispatcher,
+    mcpSessionRegistry,
     triggerDispatcher,
     executorPollStore,
     federationPort,
@@ -179,14 +179,13 @@ export async function startHubDaemon(config: DaemonConfig) {
     murrmurePersistence,
     handler,
     controlBus,
-    mcpWakeDispatcher,
+    mcpSessionRegistry,
     ctx,
     ctx.artifactService,
     federationPort,
   );
   ctx.outOfShellService = createOutOfShellService(ctx);
   wrapHandlerForOutOfShell(handler, ctx.outOfShellService);
-  triggerDispatcher.invokeService = ctx.invokeService;
 
   const stopTimeoutSweep = startExecutorTimeoutSweep({
     studio: murrmurePersistence,

@@ -1,16 +1,14 @@
 import { ulid } from "ulid";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { addSpaceId } from "@murrmure/hub-core";
-import type { InvokeService } from "./invoke-service.js";
 import type { HubHandler } from "@murrmure/hub-core";
 import {
   normalizeTriggerAction,
   normalizeTriggerDedup,
-  type McpWakeAction,
+  type NormalizedTriggerAction,
   type TriggerDedup,
 } from "./lib/triggers-templates.js";
 import {
-  applyJsonPathMap,
   computeBusinessKey,
   payloadMatches,
   type SourceEvent,
@@ -29,8 +27,6 @@ export interface TriggerSpec {
 }
 
 export class TriggerDispatcher {
-  invokeService!: InvokeService;
-
   constructor(
     private readonly studio: StudioPersistencePort,
     private readonly handler: HubHandler,
@@ -109,43 +105,17 @@ export class TriggerDispatcher {
       }
     }
 
-    try {
-      const payload = applyJsonPathMap(source, action.payload_map);
-      if ("body_ref" in payload) {
-        delete payload.body_ref;
-      }
-
-      const wakeResult = await this.invokeService.invokeFromMcpWake({
-        target_space_id: action.target_space_id,
-        wake_label: action.wake_label,
-        payload,
-        actor_id: "system_trigger",
-        token_id: "system",
-      });
-
-      if (wakeResult.http >= 400) {
-        throw new Error(
-          typeof (wakeResult.body as { message?: string }).message === "string"
-            ? (wakeResult.body as { message: string }).message
-            : "invoke_failed",
-        );
-      }
-
-      await this.recordDelivery(
-        triggerSpaceId,
-        triggerId,
-        source.event_id,
-        "success",
-        undefined,
-        computeBusinessKey(source, dedup.key_jsonpaths),
-      );
-      return { outcome: "success" };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "wake_failed";
-      await this.recordDelivery(triggerSpaceId, triggerId, source.event_id, "failed", message);
-      await this.emitIntegrationFailure(action, source, message);
-      return { outcome: "failed", dedup_reason: message };
-    }
+    // The mcp_wake trigger-action wire is retired (Task 15 Lane C): the
+    // POST /v1/mcp/wake wire is 404 and mcpWake(...) is not a runtime primitive.
+    // mcp_wake trigger templates must not dispatch — registration rejects them,
+    // so only legacy rows reach here. Such rows fail-fast with a recorded failed
+    // delivery (and an integration_failure event) instead of dispatching. New
+    // spaces declare event reactions with on: event: handlers in
+    // .mrmr/space/handlers.yaml + murrmure_emit_event.
+    const reason = "mcp_wake_retired";
+    await this.recordDelivery(triggerSpaceId, triggerId, source.event_id, "failed", reason);
+    await this.emitIntegrationFailure(action, source, reason);
+    return { outcome: "failed", dedup_reason: reason };
   }
 
   private async checkDedup(
@@ -187,7 +157,7 @@ export class TriggerDispatcher {
   }
 
   private async emitIntegrationFailure(
-    action: McpWakeAction,
+    action: NormalizedTriggerAction,
     source: SourceEvent,
     message: string,
   ): Promise<void> {

@@ -56,8 +56,9 @@ describe("http/config/trigger-register", () => {
     "Content-Type": "application/json",
   });
 
-  test("register trigger and record delivery", async () => {
-    const reg = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/triggers`, {
+  test("register rejects retired mcp_wake / legacy alias actions (strict)", async () => {
+    // Legacy wake_mcp_agent + tool shorthand alias — gone with the retired wire.
+    const regAlias = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/triggers`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({
@@ -67,22 +68,22 @@ describe("http/config/trigger-register", () => {
         dedup: { key_jsonpath: "$.event_id", ttl_seconds: 86400 },
       }),
     });
-    expect(reg.status).toBe(201);
-    const tBody = await reg.json();
-    expect(tBody.trigger_id).toMatch(/^trg_/);
-    expect(tBody.enabled).toBe(true);
+    expect(regAlias.status).toBe(422);
+    const aliasBody = await regAlias.json();
+    expect(aliasBody.code).toBe("TRIGGER_ACTION_RETIRED");
 
-    await fetch(`${baseUrl}/v1/spaces/${sandboxId}/triggers/${tBody.trigger_id}/replay`, {
+    // Explicit mcp_wake action — rejected at the register/apply boundary.
+    const regWake = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/triggers`, {
       method: "POST",
       headers: auth(),
-      body: JSON.stringify({ source_event_id: "evt_001", reason: "test" }),
+      body: JSON.stringify({
+        name: "explicit-wake",
+        filter: { event_types: ["work.ready"], source_space_id: "spc_backend_api" },
+        action: { type: "mcp_wake", target_space_id: sandboxId, wake_label: "handle_work_ready" },
+      }),
     });
-
-    const deliveries = await fetch(`${baseUrl}/v1/spaces/${sandboxId}/triggers/deliveries?limit=10`, {
-      headers: auth(),
-    });
-    const dBody = await deliveries.json();
-    expect(dBody.deliveries.length).toBeGreaterThanOrEqual(1);
-    expect(dBody.deliveries[0].outcome).toBe("success");
+    expect(regWake.status).toBe(422);
+    const wakeBody = await regWake.json();
+    expect(wakeBody.code).toBe("TRIGGER_ACTION_RETIRED");
   });
 });

@@ -4,7 +4,7 @@ import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
 import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
 import { partitionScopes } from "@murrmure/hub-core";
-import { normalizeTriggerBody } from "../triggers/index.js";
+import { normalizeTriggerBody, TriggerActionRejectedError } from "../triggers/index.js";
 import { grantResultBody } from "../grants/index.js";
 
 export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
@@ -255,8 +255,21 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
 
-    const trigger = await config.registerTrigger(space_id, normalizeTriggerBody(body));
-    return c.json(trigger, 201);
+    try {
+      const trigger = await config.registerTrigger(space_id, normalizeTriggerBody(body));
+      return c.json(trigger, 201);
+    } catch (e) {
+      if (
+        e instanceof TriggerActionRejectedError ||
+        (e instanceof Error && (e as { code?: string }).code === "TRIGGER_ACTION_RETIRED")
+      ) {
+        return c.json(
+          { code: "TRIGGER_ACTION_RETIRED", message: e instanceof Error ? e.message : "trigger action retired" },
+          422,
+        );
+      }
+      throw e;
+    }
   });
 
   app.post("/v1/spaces/:space_id/triggers/:trigger_id/disable", async (c) => {

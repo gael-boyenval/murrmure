@@ -51,13 +51,21 @@ describe("triggers/event-catalog", () => {
     expect(types).toContain("spec.published");
   });
 
-  test("lists trigger templates", async () => {
+  test("lists trigger templates (retired — historical records)", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/triggers/templates`, {
       headers: { Authorization: `Bearer ${addTokenId(bootstrapToken)}` },
     });
     const body = await res.json();
-    const ids = body.templates.map((t: { template_id: string }) => t.template_id);
+    const templates = body.templates as Array<{ template_id: string; retired?: boolean }>;
+    const ids = templates.map((t) => t.template_id);
+    // Retained as historical/removal records only (Task 15 Lane C): the mcp_wake
+    // wire is 404 and registration is rejected. They are listed for traceability.
     expect(ids).toContain("spec-published-wake-dev");
     expect(ids).toContain("work-ready-wake-frontend");
+    for (const t of templates) {
+      if (ids.includes(t.template_id)) {
+        expect(t.retired).toBe(true);
+      }
+    }
   });
 });

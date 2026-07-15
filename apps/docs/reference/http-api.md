@@ -97,10 +97,10 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `POST` | `/v1/spaces/{id}/grants/{id}/revoke` | `space:admin` | Revoke grant |
 | `POST` | `/v1/spaces/{id}/grants/{id}/rotate` | `space:admin` | Rotate grant |
 | `GET` | `/v1/spaces/{id}/triggers` | `space:read` | List triggers |
-| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (custom filter/action) |
+| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (custom filter/action; `mcp_wake` actions rejected — 422) |
 | `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live flow contracts |
-| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Bundled trigger templates |
-| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (`spec-published-wake-dev`, …) |
+| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Historical trigger templates (retired `mcp_wake` presets — listed only) |
+| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (retired `mcp_wake` templates rejected — 422) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger:register` | Synthetic event → delivery (debug) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/disable` | `trigger:register` | Disable trigger |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/replay` | `space:admin` | Replay a past delivery |

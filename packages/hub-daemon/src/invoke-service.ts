@@ -43,7 +43,7 @@ import { ulid } from "ulid";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { ControlBus, ControlPrincipal } from "./control-bus.js";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
-import type { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
+import type { McpSessionRegistry } from "./mcp-session-registry.js";
 import { broadcastSse } from "./context.js";
 import type { DaemonContext } from "./context.js";
 import type { ArtifactService } from "./artifact-service.js";
@@ -72,7 +72,7 @@ export class InvokeService {
     private readonly studio: StudioPersistencePort,
     private readonly handler: HubHandler,
     private readonly controlBus: ControlBus,
-    private readonly mcpWake: McpWakeDispatcher,
+    private readonly mcpSessionRegistry: McpSessionRegistry,
     private readonly ctx: DaemonContext,
     private readonly artifacts: ArtifactService,
     private readonly federationPort: FederationPort,
@@ -93,7 +93,7 @@ export class InvokeService {
         },
       },
       mcpSession: {
-        isReachable: (spaceId) => this.mcpWake.hasConnectedSession(spaceId),
+        isReachable: (spaceId) => this.mcpSessionRegistry.hasConnectedSession(spaceId),
         publish: (spaceId, message) => this.publishToSpace(spaceId, message),
       },
       queuePoll: {
@@ -153,7 +153,7 @@ export class InvokeService {
         },
       },
     });
-    this.mcpWake.onConnect((principal) => {
+    this.mcpSessionRegistry.onConnect((principal) => {
       void this.flushQueuedInvokes(principal.space_id);
     });
   }
@@ -163,7 +163,7 @@ export class InvokeService {
     message: { method: string; params: Record<string, unknown> },
   ): void {
     const bare = bareSpaceId(spaceId);
-    for (const principal of this.mcpWake.connectedPrincipals(bare)) {
+    for (const principal of this.mcpSessionRegistry.connectedPrincipals(bare)) {
       this.controlBus.publish(
         principal,
         message as Parameters<ControlBus["publish"]>[1],
@@ -899,60 +899,6 @@ export class InvokeService {
           : 200;
 
     return { http: status as 200 | 422 | 503, body: response };
-  }
-
-  async invokeFromMcpWake(input: {
-    target_space_id: string;
-    wake_label: string;
-    payload: unknown;
-    actor_id: string;
-    token_id: string;
-  }) {
-    const result = await this.invokeAction({
-      space_id: input.target_space_id,
-      action_name: input.wake_label,
-      body: {
-        params: typeof input.payload === "object" && input.payload != null ? input.payload : { value: input.payload },
-      },
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-    });
-
-    const body = result.body;
-    if (!body) {
-      return result.http >= 400
-        ? result
-        : { http: 500 as const, body: { code: "INTERNAL", message: "Empty invoke response" } };
-    }
-
-    if (result.http === 503 && "dispatch" in body && body.dispatch?.status === "executor_unavailable") {
-      return {
-        http: 503 as const,
-        body: {
-          code: "EXECUTOR_UNAVAILABLE",
-          message: body.dispatch.detail ?? "Executor is not reachable",
-          dispatch: body.dispatch,
-        },
-      };
-    }
-
-    if (result.http >= 400) {
-      return result;
-    }
-
-    if ("dispatch" in body && body.dispatch?.status === "executor_unavailable") {
-      return {
-        http: 503 as const,
-        body: {
-          code: "EXECUTOR_UNAVAILABLE",
-          message: body.dispatch.detail ?? "Executor is not reachable",
-          dispatch: body.dispatch,
-        },
-      };
-    }
-
-    const dispatch = "dispatch" in body ? body.dispatch : undefined;
-    return { http: 200 as const, body: { ok: true, dispatch } };
   }
 }
 

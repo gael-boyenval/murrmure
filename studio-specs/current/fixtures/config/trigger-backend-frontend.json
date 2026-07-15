@@ -1,5 +1,7 @@
 {
-  "description": "Config CS-full — backend work.ready wakes frontend agent (c01-J02)",
+  "description": "Config CS-full (HISTORICAL — retired mcp_wake wire) — backend work.ready wakes frontend agent (c01-J02)",
+  "status": "retired",
+  "note": "Removal record only (Task 15 Lane C). The POST /v1/mcp/wake wire is 404 and registration of this mcp_wake trigger is rejected (422 TRIGGER_ACTION_RETIRED). The active clean protocol reacts to work.ready with an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event. Do not register the trigger below as active behavior.",
   "journey": "company-01/journey-02",
   "spaces": {
     "backend": "spc_backend_api",
@@ -8,6 +10,8 @@
   "steps": [
     {
       "action": "register_trigger",
+      "historical": true,
+      "expect_now": "422 TRIGGER_ACTION_RETIRED (mcp_wake retired)",
       "space": "spc_ui_sandbox",
       "http": {
         "method": "POST",

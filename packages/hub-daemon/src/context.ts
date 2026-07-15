@@ -3,7 +3,7 @@ import type { HubHandler, SpaceConcurrencyGuard } from "@murrmure/hub-core";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { ControlBus } from "./control-bus.js";
-import type { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
+import type { McpSessionRegistry } from "./mcp-session-registry.js";
 import type { TriggerDispatcher } from "./trigger-dispatcher.js";
 import type { InvokeService } from "./invoke-service.js";
 import type { ArtifactService } from "./artifact-service.js";
@@ -34,7 +34,7 @@ export interface DaemonContext {
   sseSubscribers: Set<(event: SseOutboundEvent) => void>;
   mcpToolRegistry: McpToolRegistry;
   controlBus: ControlBus;
-  mcpWakeDispatcher: McpWakeDispatcher;
+  mcpSessionRegistry: McpSessionRegistry;
   triggerDispatcher: TriggerDispatcher;
   invokeService: InvokeService;
   artifactService: ArtifactService;

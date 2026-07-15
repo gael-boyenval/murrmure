@@ -1,13 +1,17 @@
 {
-  "description": "TR-min — duplicate publish same spec_key+version deduped",
+  "description": "TR-min (HISTORICAL — retired mcp_wake wire) — duplicate publish same spec_key+version deduped",
+  "status": "retired",
+  "note": "Removal record only (Task 15 Lane C). The mcp_wake wire is 404 and registration is rejected (422 TRIGGER_ACTION_RETIRED), so this legacy trigger-delivery dedup scenario is no longer active. The clean-protocol equivalent — on: event: handler delivery dedup by fingerprint — is covered by hooks/dedup.test.ts (see acceptance.md TR).",
   "extends": "spec-published-wake-dev.json",
   "steps": [
     {
       "action": "publish_spec_retry_same_key_and_version",
-      "note": "Re-emit same spec_key and version within dedup window"
+      "historical": true,
+      "note": "Re-emit same spec_key and version within dedup window (legacy trigger model)"
     },
     {
       "action": "delivery_log",
+      "historical": true,
       "expect": {
         "outcome_success_count": 1,
         "last_dedup_reason": "duplicate_business_key"

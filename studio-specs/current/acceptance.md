@@ -58,11 +58,19 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 
 | Fixture | Proves | Test |
 |---------|--------|------|
-| `fixtures/triggers/dedup-spec-publish.json` | `event:emit` (`spec.published`) → `on: event:` handler delivery + dedup by fingerprint | `…/triggers/dedup-spec-publish.test.ts` |
+| `on: event:` handler delivery + dedup by fingerprint | `event:emit` (`spec.published`) → handler delivery; duplicate fingerprint deduped | `…/hooks/dedup.test.ts` |
+| retired `mcp_wake` registration rejected | `from-template` + custom `mcp_wake`/legacy alias actions → 422 `TRIGGER_ACTION_RETIRED` | `…/triggers/dedup-spec-publish.test.ts` |
 | event catalog | Event-type catalog endpoint | `…/triggers/event-catalog.test.ts` |
-| trigger register | Async trigger registration | `…/config/trigger-register.test.ts` |
+| trigger register (retired `mcp_wake` rejected) | Custom `mcp_wake` / `wake_mcp_agent` / `tool` → 422 | `…/config/trigger-register.test.ts` |
 
-Historical fixture (retired `mcp_wake` wire): `fixtures/triggers/spec-published-wake-dev.json` — kept as a removal record only; the wire is retired (404). See [triggers/spec.md](./triggers/spec.md) TR-min/TR-full.
+Historical fixtures (retired `mcp_wake` wire — kept as removal records only; the `POST /v1/mcp/wake` wire is 404 and registration is rejected, Task 15 Lane C):
+
+- `fixtures/triggers/spec-published-wake-dev.json`
+- `fixtures/triggers/dedup-spec-publish.json`
+- `fixtures/config/trigger-backend-frontend.json`
+- `fixtures/e2e/phase2-full-chain.json`
+
+New spaces declare `on: event:` handlers in `.mrmr/space/handlers.yaml` + `murrmure_emit_event` — see [triggers/spec.md](./triggers/spec.md) TR-min/TR-full.
 
 ## Cross-space XS0 (same hub)
 
