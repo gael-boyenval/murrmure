@@ -20,5 +20,8 @@ removed APIs or encode expected failures.
 
 Fence ownership and comparison modes live in `fences.json`. Manual-only beats
 are named in `tutorial-beats.json`, and recorded evidence must validate against
-`manual-acceptance.schema.json`.
+`manual-acceptance.schema.json`. The release acceptance artifact template
+`manual-acceptance.template.json` pre-fills the signed-release-only evidence
+kinds and validates against the same schema; copy it to record completed
+manual evidence.
 

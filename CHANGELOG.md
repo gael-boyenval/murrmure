@@ -1,5 +1,40 @@
 # Changelog
 
+## Tutorial v3 Task 14 — release through the complete tutorial (2026-07-15)
+
+### Added
+
+- Tutorial v3 is now the canonical release acceptance path. Deterministic
+  release acceptance is automated: the Parts 1–6 progressive fixtures
+  (`test-utils/spaces/tutorial-v3/`), the packaged Desktop smoke
+  (`apps/desktop/test/tutorial-v3-packaged.test.ts`), the docs navigation
+  guard, and the release artifact template are all exercised in CI.
+- A release acceptance artifact template
+  (`test-utils/spaces/tutorial-v3/manual-acceptance.template.json`) conforms
+  to `manual-acceptance.schema.json` and pre-fills every signed-release-only
+  evidence kind (notarization/Gatekeeper, real Keychain, actual upgrade, real
+  integration-context reload). Operators copy it to record completed manual
+  evidence; a CI test validates the template against the schema (TV3-M).
+- `tutorial-v3-release` guards assert the docs navigation lists Tutorial v3
+  (`1a — First flow (v3)`) ahead of the v2 full tutorial and marks it
+  `start here`, and that release notes plus the one-time clean-slate local
+  reset procedure are published.
+
+### Notes
+
+- The `parts-1-6-release` beat splits cleanly: deterministic packaged
+  behavior (empty boot, hardened view host, exact intake View through the
+  packaged hub) is automated in macOS CI; the full Parts 1–6 run through a
+  signed packaged Desktop remains manual signed-release evidence
+  (`test.skip("Task 14 — Parts 1–6 execute through packaged Desktop")`).
+- Task 13 deferred three v2 runtime blockers that limit the full clean-slate
+  gate and remain owned by the T15 follow-on cutover / CLI typecheck-debt
+  owners: (1) legacy v2 runtime teardown (`action:invoke` / `gate:resolve`
+  capabilities, `mrmr action invoke` CLI, gate/checkpoint/`on_resolve`/`goto`
+  routing, base64 cross-space artifacts); (2) `packages/cli` pre-existing
+  typecheck debt; (3) v2 tutorial docs + legacy spec bridges. They are not
+  patched here, per the no-deferred-implementation-bucket guardrail.
+
 ## Tutorial v3 Task 13 — clean-slate cutover (2026-07-15)
 
 ### Removed

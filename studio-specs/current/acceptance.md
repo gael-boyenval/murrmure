@@ -115,7 +115,7 @@ acceptance path. Its executable source is
 | TV3-5 | `part-5/snapshot.json` | Safe copy plus versioned agent assignment | handler, MCP |
 | TV3-6 | `part-6/snapshot.json` | Run-ID archive and allowlisted commit | repository |
 | TV3-F | `fences.json` | Registered Markdown fences match canonical fixture content | docs-proof |
-| TV3-M | `manual-acceptance.schema.json` | Review evidence is complete and comparable | manual/release |
+| TV3-M | `manual-acceptance.schema.json` + `manual-acceptance.template.json` | Review evidence is complete and comparable | manual/release |
 
 Requirements:
 
@@ -131,6 +131,9 @@ Requirements:
   build-task ID. Expected failures are not acceptance evidence.
 - Each manual record includes task, tutorial chapters, environment, product
   build, commands, run IDs, evidence, result, and blockers.
+- The release acceptance artifact template (`manual-acceptance.template.json`)
+  validates against `manual-acceptance.schema.json` in CI and pre-fills the
+  signed-release-only evidence kinds.
 - Feature slices rerun the smallest affected contiguous tutorial path. Release
   acceptance runs Parts 1–6 verbatim from a clean checkout, including paths with
   spaces and apostrophes.
