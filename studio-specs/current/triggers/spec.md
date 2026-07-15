@@ -126,7 +126,7 @@ Agent uses `blob_read` or `query_ask` for diff ref — not inline megabyte paylo
 
 ## Delivery failure (hub ADR-14)
 
-When mcp_wake delivery fails (no session, harness mismatch, dispatch error): append `integration_failure` event + delivery log row `outcome: failed`. Not optional — platform default unless trigger opts out.
+**Historical (retired `mcp_wake` wire):** when `mcp_wake` delivery failed (no session, harness mismatch, dispatch error) the hub appended an `integration_failure` event + delivery log row `outcome: failed` — platform default unless the trigger opted out. The wire is retired (404, phase 16); the clean protocol applies the same failure semantics to **handler delivery** (`on: event:` handlers) — see Acceptance TR-full step 6.
 
 ## HTTP routes
 
@@ -165,7 +165,7 @@ Rebuilt on `capability.live_applied`.
 
 ## mcp_wake dispatch (legacy, retired wire)
 
-> **Retired wire:** `POST /v1/mcp/wake` returns **404** (phase 16). New spaces declare event reactions with `on: event:` in `.mrmr/space/handlers.yaml` and emit via `murrmure_emit_event` (`event:emit` capability); downstream work starts through flow triggers — **not** `murrmure_invoke_action` (removed, Task 15 Lane A). The legacy internal dispatch below applies only to unmigrated `mcp_wake` trigger templates.
+> **Retired wire:** `POST /v1/mcp/wake` returns **404** (phase 16). New spaces declare event reactions with `on: event:` in `.mrmr/space/handlers.yaml` and emit via `murrmure_emit_event` (`event:emit` capability); downstream work starts through flow triggers — **not** `murrmure_invoke_action` (removed, Task 15 Lane A). The legacy internal dispatch below is a historical removal record only — no `mcp_wake` trigger template dispatches (the wire is retired, 404).
 
 ```typescript
 // Historical only — retired wire; no mcpWake(...) runtime primitive. Clean
@@ -175,7 +175,7 @@ await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" }); /
 ```
 
 **session_hint wake (v1, retired):** the retired `control.wake_pending` queue no longer exists — fail fast instead.
-**v2 default (clean protocol):** invoke preflight — fail fast when no MCP session unless queue mode opted in.
+**Clean protocol:** handler dispatch (`on: event:`) fails fast on no MCP session / unreachable executor unless queue mode is opted in. The legacy `invoke preflight` (action-invoke spine) is removed/historical (Task 15).
 
 ## Trigger builder UI
 
@@ -183,7 +183,7 @@ await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" }); /
 |------|----|
 | 1 | Pick template or custom |
 | 2 | Select source space + event from catalog |
-| 3 | Target space + wake label |
+| 3 | Target space + handler (`on: event:`); legacy `wake_label` retired (Task 15) |
 | 4 | Dedup preset (editable) |
 | 5 | Test fire (replay last matching event) |
 

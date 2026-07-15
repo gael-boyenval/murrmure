@@ -1287,7 +1287,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | ID | Question | Resolution |
 |----|----------|------------|
 | P1 | Matrix expansion timing | **Eager at parallel step entry** — all sibling Runs in one TX when matrix resolved (§5.2.1) |
-| P2 | Headless `step_id` | **`hook:{hook_id}`** / **`action:{action_name}`** / **`orchestration:proposed`** (§3.6) |
+| P2 | Headless `step_id` | **`hook:{hook_id}`** / **`handler:{id}`** / **`orchestration:proposed`** (§3.6); `action:{action_name}` removed — superseded by `handler:{id}` (Task 15) |
 | P3 | Session cancel cascade | Graceful drain + **`ExecutorPort.cancel`** + hub **30s** cap (§3.6) |
 | P4 | `queue_poll` ownership | **External worker contract only** — poll API §4.6; no in-hub queue runtime |
 | P5 | Hook vs run idempotency | **Propagate** hook `dedup_key` → run `idempotency_key` (§4.5) |
@@ -1299,7 +1299,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | U5 | React Flow bundle | **Accept**, lazy-load on session/run routes (§12.4) |
 | U6 | Parallel lane layout | **Fork/join in one flowchart**; right-panel drill-down (§12.4) |
 | O1 | Artifact GC sweeper | **Daemon cron** → hub-core **`ArtifactGcCommand`** (§7.4) |
-| O2 | Executor registration | Per-type defaults in docs; action picks executor (§4.2) |
+| O2 | Executor registration | Per-type defaults in docs; handler `type` binds executor (§4.2) — action-invoke executor pick removed (Task 15) |
 | O3 | Out-of-shell notifications | **Shipped** — gate pending + run failed (§12.6) |
 | F1 | Session federation | **Hub-local** `session_id`; optional shared `subject` as soft link only (slice I) |
 | F2 | Cross-hub artifact GC | Each hub GCs local copy; legal hold via `hold: true` (§7.4) |
@@ -1313,7 +1313,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 |-------|-------|------------|
 | **A** — Docs & types | philosophy update, Zod: Session, Run, Gate, Action, Journal CE shape, artifact v1 | — |
 | **B** — Space directory index | `mrmr space init/link/apply`; index handlers, flows, views | A |
-| **D** — Action invoke + artifacts | invoke preflight, completion contract, `.mrmr.temp/`, exchange store | B |
+| **D** — Handlers + artifacts | handler dispatch + `step:resolve` completion, `.mrmr.temp/`, exchange store (action-invoke spine removed — Task 15) | B |
 | **C** — Session + Run protocol | CRUD, journal linkage, step memo, journal replay view | D |
 | **H** — Notifications + logs | Needs you, `/notifications`, `/logs` filters, SSE | C |
 | **E** — Flow index + start conditions | space apply, manual/event/schedule, space home sections | C |
@@ -1321,7 +1321,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 | **F** — Custom view packages | Optional; shell defaults sufficient first | H |
 | **I** — Federation + remote executors | XS1+, optional A2A executor | D, C |
 
-**Rationale:** Invoke is the execution spine. Sessions without invoke are metadata. Views are optimization. Federation last.
+**Rationale:** Handlers + `step:resolve` are the execution spine — the `invoke` action spine is removed/historical (Task 15). Sessions without resolvable steps are metadata. Views are optimization. Federation last.
 
 ### v1 compatibility shims (historical, non-normative — removed)
 

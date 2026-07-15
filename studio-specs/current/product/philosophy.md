@@ -594,7 +594,7 @@ The **philosophy matches** kernel direction (journal, gates, blobs, triggers, `q
 | Any client triggers flows | MCP-primary |
 | Flow orchestrates cross-space as main story | Cross-space via `query_ask` + triggers; flow mostly in-space |
 
-**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to action invoke + `.mrmr.temp/`.
+**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to `on: event:` handlers + `murrmure_emit_event` + flow triggers + `step:resolve`, with artifacts via `.mrmr.temp/`/exchange store (the `action invoke` spine is removed/historical — Task 15).
 
 v1 is **scaffolding toward** this philosophy, not a full realization.
 
