@@ -100,10 +100,12 @@ describe("http/spaces/home", () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/home`, { headers: auth() });
     expect(res.status).toBe(200);
     const body = await res.json();
+    expect(body.version).toBe(2);
     expect(body).toHaveProperty("needs_attention");
     expect(body).toHaveProperty("active_runs");
-    expect(body).toHaveProperty("your_flows");
-    expect(body).toHaveProperty("available_to_run");
+    expect(body).toHaveProperty("flows");
+    expect(body).not.toHaveProperty("your_flows");
+    expect(body).not.toHaveProperty("available_to_run");
     expect(body).toHaveProperty("receiving_from");
     expect(body).toHaveProperty("recent_completed");
     expect(body).toHaveProperty("index");
@@ -114,8 +116,19 @@ describe("http/spaces/home", () => {
     expect(body.index.events.some((e: { event_type: string }) => e.event_type === "mrmr.work.ready")).toBe(
       true,
     );
-    expect(body.your_flows.some((f: { flow_id: string }) => f.flow_id === "flw_home_demo")).toBe(true);
+    expect(body.flows.filter((f: { flow_id: string }) => f.flow_id === "flw_home_demo")).toHaveLength(1);
+    expect(body.flows[0]).toMatchObject({
+      origin_space_id: spaceId,
+      authored_here: true,
+      can_run: true,
+      can_preview: true,
+    });
     expect(body.active_runs.length).toBeGreaterThan(0);
+
+    const historyRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/runs`, { headers: auth() });
+    expect(historyRes.status).toBe(200);
+    const history = await historyRes.json();
+    expect(history.runs.some((run: { flow_id?: string }) => run.flow_id === "flw_home_demo")).toBe(true);
   });
 
   test("flow preview requires flow:read", async () => {
@@ -130,6 +143,18 @@ describe("http/spaces/home", () => {
       headers: { Authorization: `Bearer ${readToken}` },
     });
     expect(preview.status).toBe(200);
+    const previewBody = await preview.json();
+    expect(previewBody).toMatchObject({
+      version: 2,
+      can_run: false,
+      manual: true,
+      graph: {
+        flow_id: "flw_home_demo",
+        mode: "preview",
+      },
+    });
+    expect(previewBody).not.toHaveProperty("steps");
+    expect(previewBody.graph.nodes[0].metadata).toBeDefined();
 
     const runAttempt = await fetch(`${baseUrl}/v1/flows/flw_home_demo/run`, {
       method: "POST",

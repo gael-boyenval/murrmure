@@ -103,7 +103,7 @@ describe("http/flows/invoke-only", () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/home`, { headers: auth() });
     expect(res.status).toBe(200);
     const body = await res.json();
-    const row = body.your_flows.find((f: { flow_id: string }) => f.flow_id === "flw_invoke_only");
+    const row = body.flows.find((f: { flow_id: string }) => f.flow_id === "flw_invoke_only");
     expect(row).toBeDefined();
     expect(row.manual).toBe(false);
     // The flow is indexed and previewable even though it cannot be started manually.
