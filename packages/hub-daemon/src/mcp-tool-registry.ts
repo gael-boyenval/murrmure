@@ -31,6 +31,7 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_space_status", required_scope: "space:read", description: "Indexed digests and counts for a space" },
   { name: "murrmure_space_health", required_scope: "space:read", description: "Space health summary (index + handler coverage)" },
   { name: "murrmure_resolve_step", required_scope: "step:resolve", description: "Resolve an active flow step (branch + payload + optional artifacts_out)" },
+  { name: "murrmure_open_child_step", required_scope: "step:resolve", description: "Yield an active parent assignment and open one declared child" },
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
   { name: "murrmure_list_handlers", required_scope: "space:read", description: "List indexed step/event handlers for a space" },
   { name: "murrmure_emit_event", required_scope: "event:emit", description: "Emit a platform event from the caller space (source inferred)" },

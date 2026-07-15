@@ -12,7 +12,7 @@ import type {
 import { payloadSchemaForContract } from "@murrmure/contracts";
 import type { InvokeStepContractContext } from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import { catalogEntryForStep, flowStepContractCatalog } from "./step-catalog.js";
+import { catalogEntryForStep, flowStepContractCatalog, nestedCatalogChildren } from "./step-catalog.js";
 import {
   artifactPathsForInputs,
   buildArtifactMurrmureBindings,
@@ -88,6 +88,9 @@ export function buildInputsFromRun(exec_context: Record<string, unknown>): Recor
 }
 
 function stepIteration(exec_context: Record<string, unknown>, step_id: string): number | undefined {
+  const tracked = (exec_context._step_iterations ?? {}) as Record<string, unknown>;
+  const trackedCount = Number(tracked[step_id]);
+  if (Number.isInteger(trackedCount) && trackedCount > 0) return trackedCount;
   const steps = (exec_context.steps ?? {}) as Record<string, { output?: Record<string, unknown> }>;
   const prior = steps[step_id]?.output;
   if (!prior) return undefined;
@@ -97,17 +100,29 @@ function stepIteration(exec_context: Record<string, unknown>, step_id: string): 
 
 export function buildStepContractSlice(input: {
   entry: StepContractCatalogEntry;
+  catalog?: StepContractCatalog;
   exec_context: Record<string, unknown>;
   run_id: string;
   space_root: string;
 }): StepContractSlice {
   const workdir = stepWorkdirRelPath(input.run_id, input.entry.step_id);
   const iteration = stepIteration(input.exec_context, input.entry.step_id);
+  const assignmentReasons = (input.exec_context._step_assignment_reasons ?? {}) as Record<string, unknown>;
+  const reason = assignmentReasons[input.entry.step_id] === "resumed" ? "resumed" : "opened";
+  const returnedChildren = (input.exec_context._returned_children ?? {}) as Record<string, unknown>;
+  const returned = returnedChildren[input.entry.step_id];
   return {
     step_id: input.entry.step_id,
     parent_id: input.entry.parent_id,
     description: input.entry.description,
     branches: buildSliceBranches(input.entry),
+    reason,
+    declared_children: input.catalog
+      ? nestedCatalogChildren(input.catalog, input.entry.step_id).map((entry) => entry.step_id)
+      : [],
+    ...(returned && typeof returned === "object"
+      ? { returned_child: returned as StepContractSlice["returned_child"] }
+      : {}),
     workdir,
     iteration,
     inputs_from_run: buildInputsFromRun(input.exec_context),
@@ -304,6 +319,20 @@ export function renderAgentStepContractMarkdown(
   if (slice.parent_id) {
     lines.push(`Parent: ${slice.parent_id} (nested child — resolve this step_id, not the parent)`);
   }
+  if (slice.reason === "resumed") lines.push("Assignment reason: resumed");
+  if (slice.declared_children?.length) {
+    lines.push(`Declared children: ${slice.declared_children.join(", ")}`);
+    lines.push("Open one child with:");
+    lines.push("murrmure_open_child_step({");
+    lines.push(`  run_id: "${prefixedRunId(input.run_id)}",`);
+    lines.push(`  parent_step_id: "${slice.step_id}",`);
+    lines.push(`  child_step_id: "${slice.declared_children[0]}",`);
+    lines.push('  idempotency_key: "unique-child-open-key"');
+    lines.push("})");
+  }
+  if (slice.returned_child) {
+    lines.push(`Returned child: ${compactJson(slice.returned_child)}`);
+  }
   if (slice.description) lines.push(slice.description);
   if (slice.workdir) lines.push(`Workdir: ${slice.workdir}`);
   lines.push("");
@@ -341,12 +370,14 @@ function contractStepIdFromKey(flow_name: string, contract_key: string): string 
 
 function renderScopeEntryMarkdown(input: {
   entry: StepContractCatalogEntry;
+  catalog: StepContractCatalog;
   exec_context: Record<string, unknown>;
   run_id: string;
   space_root: string;
 }): string {
   const slice = buildStepContractSlice({
     entry: input.entry,
+    catalog: input.catalog,
     exec_context: input.exec_context,
     run_id: input.run_id,
     space_root: input.space_root,
@@ -386,6 +417,7 @@ export function renderHandlerScopeMarkdown(input: {
     blocks.push(
       renderScopeEntryMarkdown({
         entry,
+        catalog: input.catalog,
         exec_context: input.exec_context,
         run_id: input.run_id,
         space_root: input.space_root,
@@ -504,6 +536,7 @@ export async function buildFlowInvokeStepContract(
   if (!entry) return undefined;
   const slice = buildStepContractSlice({
     entry,
+    catalog,
     exec_context: run.exec_context,
     run_id: prefixedRunId(input.run_id),
     space_root: input.space_root,
@@ -563,16 +596,27 @@ export async function listStepContractsForRun(
   const active = activeEntry
     ? buildStepContractSlice({
         entry: activeEntry,
+        catalog,
         exec_context: run.exec_context,
         run_id: prefixedRunId(run_id),
         space_root: resolvedSpaceRoot ?? ".",
       })
     : null;
+  const callable = activeEntry
+    ? nestedCatalogChildren(catalog, activeEntry.step_id).map((entry) =>
+        buildStepContractSlice({
+          entry,
+          catalog,
+          exec_context: run.exec_context,
+          run_id: prefixedRunId(run_id),
+          space_root: resolvedSpaceRoot ?? ".",
+        }))
+    : [];
 
   return {
     run_id: prefixedRunId(run_id),
     active,
-    callable: [],
+    callable,
     graph_digest: catalog.graph_digest,
   };
 }

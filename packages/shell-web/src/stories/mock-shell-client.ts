@@ -135,6 +135,14 @@ export function createMockShellClient(
       branch: body.branch,
       status: "completed",
     }),
+    openChild: async (runId, parentStepId, body) => ({
+      ok: true,
+      run_id: runId,
+      parent_step_id: parentStepId,
+      child_step_id: body.child_step_id,
+      iteration: 1,
+      deduplicated: false,
+    }),
     createUploadIntent: async (_runId, _stepId, body) => ({
       ok: true,
       intent_id: "upi_demo",

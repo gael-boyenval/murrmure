@@ -16,6 +16,13 @@ export const StepBranchSchemaValueSchema = z.union([z.record(z.unknown()), z.str
 export const StepBranchRouteSchema = z.object({
   step: z.string().optional(),
   run: z.enum(["completed", "failed"]).optional(),
+}).strict().superRefine((route, ctx) => {
+  if ((route.step ? 1 : 0) + (route.run ? 1 : 0) !== 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "route must declare exactly one of step or run",
+    });
+  }
 });
 
 export type StepBranchRoute = z.infer<typeof StepBranchRouteSchema>;
@@ -62,6 +69,12 @@ export const StepBranchDefinitionSchema = z.object({
   route: StepBranchRouteSchema.optional(),
   resume: z.string().optional(),
 }).strict().superRefine((branch, ctx) => {
+  if (branch.route && branch.resume) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "branch must declare at most one of route or resume",
+    });
+  }
   if (!branch.artifact_slots || !branch.schema || typeof branch.schema !== "object") return;
   const properties =
     branch.schema.properties &&
@@ -182,6 +195,15 @@ export const StepContractSliceSchema = z.object({
   parent_id: z.string().nullable().optional(),
   description: z.string().optional(),
   branches: z.record(StepContractSliceBranchSchema),
+  reason: z.enum(["opened", "resumed"]).optional(),
+  declared_children: z.array(z.string()).optional(),
+  returned_child: z.object({
+    step_id: z.string(),
+    branch: z.string(),
+    iteration: z.number().int().positive(),
+    payload: z.record(z.unknown()),
+    artifacts_out: z.array(z.record(z.unknown())),
+  }).optional(),
   workdir: z.string().optional(),
   iteration: z.number().int().nonnegative().optional(),
   inputs_from_run: z.record(z.unknown()).optional(),
@@ -197,3 +219,10 @@ export const ListStepContractsResponseSchema = z.object({
 });
 
 export type ListStepContractsResponse = z.infer<typeof ListStepContractsResponseSchema>;
+
+export const OpenChildStepBodySchema = z.object({
+  child_step_id: z.string().min(1),
+  idempotency_key: z.string().min(1),
+}).strict();
+
+export type OpenChildStepBody = z.infer<typeof OpenChildStepBodySchema>;

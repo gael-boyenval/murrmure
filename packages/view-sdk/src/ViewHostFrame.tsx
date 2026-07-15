@@ -11,6 +11,10 @@ export interface ViewHostFrameProps {
     submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
   ) => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
   onCancelSubmission?: (submission_id: string) => Promise<void> | void;
+  onOpenChild?: (
+    child_step_id: string,
+    idempotency_key: string,
+  ) => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
   onCancel: () => Promise<{ ok: true } | { ok: false; error: import("./types.js").ViewContractError }>;
   onResolved?: () => void;
   className?: string;
@@ -47,6 +51,7 @@ export function ViewHostFrame({
   onSubmitBranch,
   onCancel,
   onCancelSubmission,
+  onOpenChild,
   onResolved,
   className,
   title,
@@ -63,10 +68,11 @@ export function ViewHostFrame({
       onReady,
       onSubmitBranch: onSubmitBranch,
       onCancelSubmission,
+      onOpenChild,
       onCancel: onCancel,
       onResolved,
     });
-  }, [src, context, onSubmitBranch, onCancelSubmission, onCancel, onResolved]);
+  }, [src, context, onSubmitBranch, onCancelSubmission, onOpenChild, onCancel, onResolved]);
 
   return (
     <iframe

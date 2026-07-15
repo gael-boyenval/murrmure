@@ -48,6 +48,7 @@ Example arguments:
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | `murrmure_invoke_action` | `action:invoke` | `POST /v1/spaces/{id}/actions/{name}/invoke` — headless/legacy; flow steps use handlers + resolve |
 | **`murrmure_resolve_step`** | **`step:resolve`** | **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — branch + payload; local clients may pass workdir-relative `artifacts_out`, remote clients pass an authorized `upload_intent_id` reference |
+| **`murrmure_open_child_step`** | **`step:resolve`** | Yield the assigned parent and open one direct declared child. Requires `run_id`, `parent_step_id`, `child_step_id`, and `idempotency_key`; accepts no input payload. |
 
 ## v2 wait & journal tools (batch 2)
 

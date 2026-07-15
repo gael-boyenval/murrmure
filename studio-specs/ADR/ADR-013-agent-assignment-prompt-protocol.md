@@ -42,6 +42,12 @@ the Hub had minted narrower assignment authority.
 6. Terminal step/run, timeout, cancellation, process exit, or shutdown revokes
    the credential and terminates the process group through the shared lifecycle.
    Prompt and dispatch audit surfaces never contain the credential.
+7. A nested parent contract lists only its direct declared children and renders
+   a complete `murrmure_open_child_step` call with live identifiers. A resumed
+   assignment renders `reason: resumed` and the canonical returned-child
+   identity, branch, iteration, payload, and artifact references. Activating a
+   child revokes the old assignment before dispatch; return creates a fresh
+   assignment under [ADR-015](./ADR-015-nested-step-call-return.md).
 
 ## Consequences
 
@@ -50,6 +56,8 @@ the Hub had minted narrower assignment authority.
 - Handler authors describe domain work instead of copying protocol mechanics.
 - A setup-created persistent connection discovers and starts work, while each
   spawned assignment mutates only its own run and step.
+- An agent cannot keep mutating a yielded parent, and child return carries the
+  same protocol facts across agent, shell/script, and View adapters.
 - Prompt protocol changes require a new version rather than silent shape drift.
 
 ## Enforcement

@@ -36,7 +36,9 @@ non-portable and forced the shell to synthesize controls for unbound steps.
    optional `route` / `resume` are sibling fields. Wrapper shapes (`payload`,
    `outcome`) and superseded routing keys are rejected by the strict schema.
    `route` is `{ step }` (open), `{ run: completed | failed }` (terminate), or
-   `resume: <ancestor>` (yield to an open ancestor).
+   `resume: <ancestor>` (return a resolved child to an already-yielded
+   ancestor). Child activation and assignment yield are defined by
+   [ADR-015](./ADR-015-nested-step-call-return.md).
 4. **Default branches.** Omitted `branches` inject exact `completed` and `failed`
    branches before every downstream consumer, so explicit and injected defaults
    are semantically identical. Explicit branch maps are exact: `branches: {}` is
@@ -44,10 +46,12 @@ non-portable and forced the shell to synthesize controls for unbound steps.
    top-level default `completed` compiles to canonical terminal success — there
    is no `next: null`.
 5. **Generic open-step lifecycle.** A step is `open` (`working`) until an
-   authorized protocol client or space-bound handler resolves a branch. Run
-   detail exposes a generic `open_steps[]` projection with `resolver: string |
-   null`. `awaiting_human` and `active_human_step` are removed; flow steps create
-   no gate rows.
+   authorized protocol client or space-bound handler resolves a branch or a
+   nested parent atomically yields to one child. A returned child restores the
+   ancestor to `working` with a fresh assignment; it does not reopen or resolve
+   it. Run detail exposes generic `open_steps[]` with sanitized resolver and
+   nested context. `awaiting_human` and `active_human_step` are removed; flow
+   steps create no gate rows.
 6. **One canonical contract owner.** `BranchResolveContract` and
    `OpenStepResolverProjection` are defined once in `@murrmure/contracts`
    (`entities/step-contract.ts`, `entities/run.ts`); compilers, runtime, and

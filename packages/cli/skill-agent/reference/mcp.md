@@ -35,6 +35,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
 | **`murrmure_emit_event`** | **`event:emit`** | `{ type, source, data }` — v2 event surface |
 | **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` |
+| **`murrmure_open_child_step`** | **`step:resolve`** | Yield parent and open one direct declared child with idempotency |
 
 ## Wait & journal
 
@@ -52,6 +53,10 @@ installation or `mrmr space apply`.
 5. **`murrmure_resolve_step`** — `{ run_id, step_id, branch, payload }`
 6. **`murrmure_wait_for_run`** — human or downstream handler
 7. `murrmure_get_run` — inspect outputs when needed
+
+For a nested parent, replace step 5 with `murrmure_open_child_step` and stop the
+yielded assignment. Child return produces a fresh parent assignment with
+`returned_child`.
 
 Re-read **`active-step-contract.json`** (path in `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`) after transitions in long shell sessions.
 

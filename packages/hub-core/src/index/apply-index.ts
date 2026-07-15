@@ -320,6 +320,18 @@ export function validateApplyBundle(bundle: SpaceApplyBundle): { ok: true } | { 
         };
       }
       seen.add(flowId);
+      const invalidControl = compileStepContractCatalog(flow.manifest, flowId).warnings.find((warning) =>
+        warning.code === "RESUME_TARGET_NOT_ANCESTOR" ||
+        warning.code === "ROUTE_TARGET_NOT_FOUND" ||
+        warning.code === "CUSTOM_BRANCH_REQUIRES_ROUTE"
+      );
+      if (invalidControl) {
+        return {
+          ok: false,
+          code: invalidControl.code,
+          message: invalidControl.message,
+        };
+      }
     }
 
     const cycleCheck = detectFlowCallCycles(bundle);

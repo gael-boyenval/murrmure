@@ -1185,6 +1185,58 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       );
   }
 
+  async transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean> {
+    const bareRun = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const readStatus = this.db.prepare(
+      "SELECT status FROM run_step_memo WHERE run_id = ? AND step_id = ?",
+    );
+    const upsert = this.db.prepare(
+      `INSERT INTO run_step_memo (run_id, step_id, status, idempotency_key, result_hash, started_at, completed_at, error_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(run_id, step_id) DO UPDATE SET
+         status = excluded.status,
+         idempotency_key = excluded.idempotency_key,
+         result_hash = excluded.result_hash,
+         started_at = excluded.started_at,
+         completed_at = excluded.completed_at,
+         error_code = excluded.error_code`,
+    );
+    const writeMemo = (memo: RunStepMemo) => upsert.run(
+      bareRun,
+      memo.step_id,
+      memo.status,
+      memo.idempotency_key ?? null,
+      memo.result_hash ?? null,
+      memo.started_at ?? null,
+      memo.completed_at ?? null,
+      memo.error_code ?? null,
+    );
+    const transition = this.db.transaction(() => {
+      const parent = readStatus.get(bareRun, input.parent_memo.step_id) as
+        | { status: string }
+        | undefined;
+      if (parent?.status !== "working") return false;
+      for (const childStepId of input.declared_child_step_ids) {
+        const child = readStatus.get(bareRun, childStepId) as { status: string } | undefined;
+        if (child?.status === "working") return false;
+      }
+      const updated = this.db
+        .prepare("UPDATE runs SET exec_context_json = ? WHERE run_id = ?")
+        .run(JSON.stringify(input.exec_context), bareRun);
+      if (updated.changes !== 1) return false;
+      writeMemo(input.parent_memo);
+      writeMemo(input.child_memo);
+      return true;
+    });
+    return transition();
+  }
+
   async listRunStepMemos(run_id: string): Promise<RunStepMemo[]> {
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
     const rows = this.db

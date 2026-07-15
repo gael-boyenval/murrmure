@@ -572,6 +572,28 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     this.stepMemos.set(`${bareRun}:${memo.step_id}`, memo);
   }
 
+  async transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean> {
+    const bareRun = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const parent = this.stepMemos.get(`${bareRun}:${input.parent_memo.step_id}`);
+    if (parent?.status !== "working") return false;
+    const childActive = input.declared_child_step_ids.some(
+      (stepId) => this.stepMemos.get(`${bareRun}:${stepId}`)?.status === "working",
+    );
+    if (childActive) return false;
+    const run = this.runs.get(bareRun);
+    if (!run) return false;
+    this.runs.set(bareRun, { ...run, exec_context: input.exec_context });
+    this.stepMemos.set(`${bareRun}:${input.parent_memo.step_id}`, input.parent_memo);
+    this.stepMemos.set(`${bareRun}:${input.child_memo.step_id}`, input.child_memo);
+    return true;
+  }
+
   async listRunStepMemos(run_id: string): Promise<RunStepMemo[]> {
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
     return [...this.stepMemos.values()].filter((m) => m.run_id === `run_${bare}` || m.run_id.endsWith(bare));

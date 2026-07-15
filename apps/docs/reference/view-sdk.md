@@ -11,7 +11,7 @@ inline `view` ref onto the open step. The shell loads the locally built View in 
 branch/cancel intent back to the hub at resolve time. Views receive **no hub
 credential** and must not call hub APIs directly.
 
-See [ADR-009](../../../studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+See [ADR-009](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
 for the ownership and host-boundary decision.
 
 ## Install
@@ -48,7 +48,7 @@ unknown or unbuilt View fails apply and preserves the prior index.
 | Export | Consumer | Role |
 |--------|----------|------|
 | `@murrmure/view-sdk` | Shell (`shell-web`) | `ViewHostFrame`, `attachViewHostBridge`, `resolveViewEntryUrl` |
-| `@murrmure/view-sdk/app` | View apps in `.mrmr/views/*/src/` | `createViewMount`, `ViewProvider`, `useViewContract`, `submitBranch`, `cancel` |
+| `@murrmure/view-sdk/app` | View apps in `.mrmr/views/*/src/` | `createViewMount`, `ViewProvider`, `useViewContract`, `submitBranch`, `openChildStep`, `cancel` |
 
 ## Author surface (`./app`)
 
@@ -56,11 +56,16 @@ unknown or unbuilt View fails apply and preserves the prior index.
 import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const { context, ready, submitBranch, cancel, submission } = useViewContract();
+  const { context, ready, submitBranch, openChild, cancel, submission } = useViewContract();
   if (!ready) return null;
 
   return (
     <>
+      {context.step.declared_children?.[0] ? (
+        <button onClick={() => openChild(context.step.declared_children![0]!, crypto.randomUUID())}>
+          Start child
+        </button>
+      ) : null}
       <button onClick={() => submitBranch("continue", { files: { spec } })}>
         Submit {context.step.step_id}
       </button>
@@ -83,8 +88,9 @@ createViewMount({ App });
 |--------|------|
 | `createViewMount({ App, boundary? })` | Mount to `#root`; subscribe for context; post `murrmure.view.ready` |
 | `ViewProvider` | Internal — wraps app with context |
-| `useViewContract()` | `{ context, ready, branches, validate, submitBranch, cancel, submission }` |
+| `useViewContract()` | `{ context, ready, branches, validate, submitBranch, openChild, cancel, submission }` |
 | `submitBranch(context, branch, { payload?, files? })` | Post browser files to the trusted host; await resolve result |
+| `openChildStep(context, childStepId, idempotencyKey)` | Ask the trusted host to yield the parent and activate one declared child |
 | `cancel(context)` | Resolve the workflow `cancel` branch; this is not upload cancellation |
 | `submission.cancel()` | Abort the active pre-commit upload; temporary bytes are removed and the step stays open |
 | `validateBranchResolve(context, branch, input)` | Fast iframe preflight; the trusted host and Hub perform full validation |
@@ -108,6 +114,15 @@ interface ViewAppContext {
   step: {
     step_id: string;
     branches: ViewBranchContract[];   // complete selected-branch contracts
+    reason?: "opened" | "resumed";
+    declared_children?: string[];
+    returned_child?: {
+      step_id: string;
+      branch: string;
+      iteration: number;
+      payload: Record<string, unknown>;
+      artifacts_out: Array<Record<string, unknown>>;
+    };
   };
   steps?: Record<string, { output?: Record<string, unknown>; status?: string }>;
   input?: Record<string, unknown>;
@@ -131,10 +146,11 @@ verifies source window, origin, transport version, and nonce on every message.
 | View → host | `murrmure.view.cancel_submission` `{ submission_id }` | Abort pre-commit submission |
 | View → host | `murrmure.view.cancel` | Human dismissed |
 | View → host | `murrmure.view.resolved` | View observed resolution |
+| View → host | `murrmure.view.open_child` | Activate one declared child from an assigned nested parent |
 | Host → view | `murrmure.view.ack` `{ ok }` | Acknowledge submit/cancel |
 | Host → view | `murrmure.view.submission` | Monotonic validating/uploading/resolving progress |
 
-`submitBranch`/`cancel` resolve when the host ACKs `{ ok: true }` and reject
+`submitBranch`/`openChild`/`cancel` resolve when the host ACKs `{ ok: true }` and reject
 with `ViewContractError` on `{ ok: false }`.
 
 `ViewContractError.errors` is the transport-neutral
@@ -208,5 +224,5 @@ synthesized. An authorized protocol client resolves the step externally.
 
 - [Space handlers guide](../guide/space-handlers.md) — `view_resolver` binding
 - [Space index](../guide/space-index) — `.mrmr/views/` layout
-- [ADR-009 — Space-owned view resolvers and hardened host](../../../studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+- [ADR-009 — Space-owned view resolvers and hardened host](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
 - [Known gaps](../guide/known-gaps) — engine/checkpoint gaps

@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   FlowManifestSchema,
+  OpenChildStepBodySchema,
   StepBranchDefinitionSchema,
   StepCatalogBranchSchema,
   type FlowManifest,
@@ -56,6 +57,27 @@ function typescriptFiles(root: string): string[] {
 }
 
 describe("Tutorial v3 canonical contracts", () => {
+  test("Task 08 — nested control and child-open bodies are exact", () => {
+    expect(StepBranchDefinitionSchema.safeParse({
+      schema: { type: "object" },
+      resume: "build",
+    }).success).toBe(true);
+    expect(StepBranchDefinitionSchema.safeParse({
+      schema: { type: "object" },
+      route: { run: "failed" },
+      resume: "build",
+    }).success).toBe(false);
+    expect(StepBranchDefinitionSchema.safeParse({
+      schema: { type: "object" },
+      route: { step: "build.review", run: "failed" },
+    }).success).toBe(false);
+    expect(OpenChildStepBodySchema.safeParse({
+      child_step_id: "build.review",
+      idempotency_key: "review-1",
+      input: { arbitrary: true },
+    }).success).toBe(false);
+  });
+
   test("Task 00 — shared branch and resolver projections have one definition owner", () => {
     const roots = [
       join(REPO_ROOT, "packages/contracts/src"),

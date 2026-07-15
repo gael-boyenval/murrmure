@@ -28,13 +28,13 @@ At the space root:
 
 One long Cursor session owns the review loop:
 
-1. Read `specs/current/{spec_filename}` or the injected intake artifact path.
-2. Implement the site; start or confirm the dev server.
-3. Discover whatever local URL works (localhost, custom hostname, any port).
-4. Read **`active-step-contract.json`** — resolve **`build.build-loop`** with `murrmure_resolve_step` and `{ preview_url }`.
-5. **Engine opens `build.review`** — wait with **`murrmure_wait_for_run`**.
-6. On `changes_required`: fix site in this session; engine reopens **`build.build-loop`** — resolve again.
-7. On `validated`: exit — flow continues to archive.
+1. On parent `build`, open one declared child with
+   **`murrmure_open_child_step`** and stop using that assignment.
+2. On child `build.build-loop`, implement or revise the site, discover its URL,
+   and resolve the child with **`murrmure_resolve_step`**.
+3. On resumed parent, inspect `returned_child` and open `build.review`.
+4. On `changes_required`, the next parent assignment opens a new build-loop
+   iteration. On `validated`, it resolves parent `build` as completed.
 
 ## Review
 
@@ -84,7 +84,7 @@ Handler `prompt:` templates in Part 4 should echo the same rules as `agent.md`.
 ## Checkpoint
 
 - [ ] `agent.md` describes write_spec, nested build loop, archive, commit
-- [ ] `skills/feature-build/SKILL.md` documents `resolve_step` + `wait_for_run`
+- [ ] `skills/feature-build/SKILL.md` documents child open, yield, return, and parent resolution
 - [ ] No `preview.local.yaml` required
 
 ## Next

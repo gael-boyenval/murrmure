@@ -26,6 +26,13 @@ Flow:
 6. **`spec.published`** wakes the **Dev** agent (when a trigger is registered).
 7. **Dev** uses **`query_ask`** / **`get_spec`**, then writes `~/work/dev-project/specs/guest-checkout-v1.md`.
 
+For a same-run build/review loop, model the coordinator as an open parent step
+with declared children. The parent calls `murrmure_open_child_step`, yields while
+one child owns control, and receives canonical `returned_child` context in a
+fresh `resumed` assignment. Do not encode parent completion in the child and do
+not reuse the yielded assignment credential. Cross-space events remain the
+right boundary when participants are separate spaces or runs.
+
 ---
 
 ## Prerequisites

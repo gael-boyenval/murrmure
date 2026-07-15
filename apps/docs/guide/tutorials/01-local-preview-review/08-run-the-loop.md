@@ -1,9 +1,5 @@
 # Part 8 — Run the loop
 
-::: warning Retired v2 handler model
-This page references the **retired v2 handler model** (`kill_on: step.resolved`). Subprocess termination is now runtime-owned; authored `kill_on` is rejected. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)**.
-:::
-
 Walk through one full run: intake → write_spec → build (nested loop) → (optional feedback) → archive → commit.
 
 Open the space in Cursor (`cursor .`). Keep `agent.md` and **`skills/feature-build/SKILL.md`** in mind — the build agent should follow them for the whole session.
@@ -42,17 +38,18 @@ Agent resolves with **`murrmure_resolve_step`** (`branch: "completed"`) or you c
 
 ## Step 4 — Build + nested review loop
 
-Handler **`feature_build`** dispatches once. The Cursor agent should:
+Handler **`feature_build`** receives the parent assignment:
 
-1. Read `specs/current/hero-section.md`
-2. Update `index.html`
-3. Start or confirm dev server; discover local preview URL (e.g. `http://localhost:3000`)
-4. Read **`active-step-contract.json`** — active step is **`build.build-loop`**
-5. Call **`murrmure_resolve_step`** on **`build.build-loop`** with `branch: "completed"` and `{ preview_url: "…" }`
-6. **Engine opens `build.review`** — agent does **not** resolve review
-7. Call **`murrmure_wait_for_run`** — blocks until **`build.review`** is terminal
+1. It opens `build.build-loop` with **`murrmure_open_child_step`** and stops.
+2. Handler **`feature_build_loop`** reads the spec, implements or revises the
+   site, starts the preview, and resolves only `build.build-loop` with
+   `{ preview_url: "…" }`.
+3. A fresh `feature_build` assignment receives that `returned_child`, opens
+   `build.review`, and stops.
+4. The bound review View lets the human resolve the review child.
 
-**Verify:** run detail shows `steps.build.build-loop.output.preview_url` and `build.review` status `awaiting_human` then terminal.
+**Verify:** run detail alternates one `working` child with a `yielded` parent.
+After each child resolves, only the parent is open with `reason: resumed`.
 
 ## Step 5 — Live review
 
@@ -65,16 +62,16 @@ Review view opens in ViewCanvasHost (step **`build.review`**).
 
 If you sent feedback:
 
-1. Agent receives `changes_required` + `comments` from **`build.review`** resolution
-2. Agent fixes site **in the same session** — engine reopens **`build.build-loop`**
-3. Agent resolves **`build.build-loop`** again with updated `preview_url`
-4. Engine reopens **`build.review`**; agent waits again
-
-The **build** handler subprocess stays alive until parent **build** resolves (`kill_on: step.resolved`).
+1. Parent receives `returned_child.branch: changes_required` and its comments.
+2. Parent opens **`build.build-loop`** for the next iteration.
+3. A fresh child assignment applies the feedback and resolves with a new URL.
+4. Parent resumes and opens **`build.review`** again.
 
 ## Step 6 — Archive
 
-After **Validate**, parent **build** completes (`complete: parent`) and engine opens **archive** → handler **`feature_archive`** dispatches.
+After **Validate**, the parent resumes, consumes the accepted preview, and
+resolves its own `completed` branch. The engine then opens **archive** and
+dispatches **`feature_archive`**.
 
 Agent should:
 
@@ -117,12 +114,13 @@ Run status: **completed**.
 ```text
 1. Human: pick spec from disk          (intake)
 2. Handler: feature_write_spec         (write_spec)
-3. Handler: feature_build — same session (build.build-loop resolve)
-4. Engine: open build.review           (human iframe review)
-5. [optional] feedback → agent fixes → resolve build-loop again
-6. Handler: feature_archive            (archive)
-7. Handler: feature_commit             (commit)
-8. Run complete
+3. Parent build: open build-loop → yield
+4. Build child: implement + resolve → parent resumes
+5. Parent build: open review → yield
+6. [optional] review feedback → parent resumes and opens build-loop again
+7. Handler: feature_archive            (archive)
+8. Handler: feature_commit             (commit)
+9. Run complete
 ```
 
 ## What you built

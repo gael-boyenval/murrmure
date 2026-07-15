@@ -97,7 +97,7 @@ function ensureAckListener(): void {
       return;
     }
     if (data.type !== "murrmure.view.ack") return;
-    if (data.kind === "submit_branch" && data.submission_id) {
+    if ((data.kind === "submit_branch" || data.kind === "open_child") && data.submission_id) {
       const pending = ackStore.pending.get(data.submission_id);
       if (!pending || data.v !== pending.transportVersion || data.nonce !== pending.nonce) return;
       ackStore.pending.delete(data.submission_id);
@@ -152,6 +152,43 @@ export function cancelSubmission(context: ViewAppContext, submissionId: string):
   );
 }
 
+/** Ask the host to yield this parent View assignment and open one declared child. */
+export function openChildStep(
+  context: ViewAppContext,
+  childStepId: string,
+  idempotencyKey: string,
+): Promise<void> {
+  if (!context.step?.declared_children?.includes(childStepId)) {
+    return Promise.reject({
+      code: "VIEW_OPEN_CHILD_REJECTED",
+      message: `'${childStepId}' is not a declared child of '${context.step?.step_id ?? "unknown"}'`,
+      errors: [],
+    } satisfies ViewContractError);
+  }
+  ensureAckListener();
+  const submissionId = globalThis.crypto?.randomUUID?.() ?? `open-child-${Date.now()}`;
+  return new Promise<void>((resolve, reject) => {
+    ackStore.pending.set(submissionId, {
+      nonce: context.nonce,
+      transportVersion: context.transport_version,
+      resolve: (ok, error) => {
+        if (ok) resolve();
+        else reject(error ?? {
+          code: "VIEW_OPEN_CHILD_REJECTED",
+          message: "Host rejected child activation",
+          errors: [],
+        });
+      },
+    });
+    postViewMessage({
+      type: "murrmure.view.open_child",
+      submission_id: submissionId,
+      child_step_id: childStepId,
+      idempotency_key: idempotencyKey,
+    }, context.hub_base_url, context.nonce);
+  });
+}
+
 /** Post a `cancel` intent and resolve when the host acks. */
 export function cancel(context: ViewAppContext): Promise<void> {
   ensureAckListener();
@@ -177,6 +214,7 @@ export interface ViewContract {
   branches: ViewBranchContract[];
   validate: (branch: string, input: ViewBranchSubmitInput) => ViewContractError | null;
   submitBranch: (branch: string, input: ViewBranchSubmitInput) => Promise<void>;
+  openChild: (childStepId: string, idempotencyKey: string) => Promise<void>;
   cancel: () => Promise<void>;
   submission: ViewSubmissionState & { cancel: () => void };
 }
@@ -308,6 +346,12 @@ export function useViewContract(): ViewContract {
     }
     return cancel(context);
   }, [context]);
+  const openChild = useCallback((childStepId: string, idempotencyKey: string) => {
+    if (!context) {
+      return Promise.reject({ code: "VIEW_CONTEXT_MISMATCH", message: "No view context", errors: [] } satisfies ViewContractError);
+    }
+    return openChildStep(context, childStepId, idempotencyKey);
+  }, [context]);
   const cancelActiveSubmission = useCallback(() => {
     if (!context || !activeSubmission.current) return;
     cancelSubmission(context, activeSubmission.current);
@@ -321,10 +365,11 @@ export function useViewContract(): ViewContract {
       branches: context?.step?.branches ?? [],
       validate,
       submitBranch: submit,
+      openChild,
       cancel: doCancel,
       submission: { ...submission, cancel: cancelActiveSubmission },
     }),
-    [context, ready, validate, submit, doCancel, submission, cancelActiveSubmission],
+    [context, ready, validate, submit, openChild, doCancel, submission, cancelActiveSubmission],
   );
 }
 

@@ -24,6 +24,7 @@ export * from "./fs-bytes.js";
 export * from "./run-retention.js";
 export * from "./step-catalog.js";
 export * from "./step-open.js";
+export * from "./open-child-step.js";
 export * from "./step-resolve.js";
 export * from "./step-view-ref.js";
 export * from "./exec-context.js";

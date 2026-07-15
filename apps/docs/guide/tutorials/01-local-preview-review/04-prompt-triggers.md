@@ -1,10 +1,9 @@
 # Part 4 — Space handlers
 
-::: warning Retired v2 handler model
-This page teaches the **retired v2 handler model** (`contract_keys` dispatch, bare `on: step.opened`, `kill_on: step.resolved`) — **rejected by current strict validation**. Use the v3 `on::key` binding instead. See **[Tutorial 1a (v3)](../01-local-preview-review-v3/)** and [Space handlers](../../space-handlers.md).
-:::
-
-**Handlers** wire execution to protocol steps. Each handler declares **`contract_keys`** that match steps in your flow manifest, **`on: step.opened`** to dispatch when a step opens, and **`complete: explicit`** so the agent (or `mrmr step resolve`) must resolve the step.
+**Handlers** wire execution to protocol steps. A qualified
+**`on: step.opened::{flow}.{step}`** selects the resolver; optional
+**`contract_keys`** scope the generated prompt. **`complete: explicit`** means
+the agent (or `mrmr step resolve`) resolves the step.
 
 The space owns *what runs* when Murrmure opens an agent step — not the flow manifest.
 
@@ -18,13 +17,14 @@ After your first `mrmr space apply`, the CLI writes `.mrmr/dev/contracts/contrac
     "key": "preview-review.write_spec",
     "flow_ref": "preview-review",
     "step_id": "write_spec",
-    "role": "agent",
     "branches": ["completed", "failed"]
   }
 ]
 ```
 
-Use this file while authoring. Each agent step needs at least one handler whose `contract_keys` includes its key (e.g. `preview-review.build` for the **build** parent, plus nested keys like `preview-review.build.build-loop` when one handler owns the subgraph).
+Use this file while authoring to choose prompt scope. Resolver dispatch is
+controlled only by the qualified `on` binding; an unbound step remains open for
+authorized protocol clients.
 
 Run `mrmr space doctor` to catch uncovered steps before you share the space.
 
@@ -40,7 +40,7 @@ x-agent-cmd: &agent_cmd cursor agent -p --force --approve-mcps --trust --output-
 handlers:
   - id: feature_write_spec
     contract_keys: [preview-review.write_spec]
-    on: step.opened
+    on: step.opened::preview-review.write_spec
     type: shell_spawn
     complete: explicit
     params:
@@ -60,30 +60,47 @@ handlers:
       - preview-review.build
       - preview-review.build.build-loop
       - preview-review.build.review
-    on: step.opened
-    kill_on: step.resolved
+    on: step.opened::preview-review.build
     type: shell_spawn
     complete: explicit
     params:
       spec_filename: "{{input.spec_filename}}"
       spec_path: "specs/current/{{input.spec_filename}}"
     prompt: |
-      Follow `skills/feature-build/SKILL.md` (build ⇄ review loop).
+      Follow `skills/feature-build/SKILL.md` (parent-owned build ⇄ review loop).
 
       Spec: `{{spec_path}}` (repo copy — not intake temp file)
       Dev server: `npm run dev` → http://localhost:3000
 
-      You own nested step `build.build-loop` (resolve with preview_url).
-      Human owns `build.review` — use `murrmure_wait_for_run`, never resolve review.
-      On changes_required: fix, resolve build.build-loop again.
+      Open one declared child with murrmure_open_child_step.
+      On resumed return, inspect returned_child and open the next child or
+      resolve parent build with murrmure_resolve_step.
     command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 3600000
 
+  - id: feature_build_loop
+    contract_keys: [preview-review.build.build-loop, preview-review.build.review]
+    on: step.opened::preview-review.build.build-loop
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      Implement or revise the site, then resolve only build.build-loop with
+      murrmure_resolve_step and a schema-valid preview_url.
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: review_view
+    on: step.opened::preview-review.build.review
+    type: view_resolver
+    view: preview-review
+
   - id: feature_archive
     contract_keys: [preview-review.archive]
-    on: step.opened
+    on: step.opened::preview-review.archive
     type: shell_spawn
     complete: explicit
     params:
@@ -98,7 +115,7 @@ handlers:
 
   - id: feature_commit
     contract_keys: [preview-review.commit]
-    on: step.opened
+    on: step.opened::preview-review.commit
     type: shell_spawn
     complete: explicit
     params:
@@ -117,13 +134,18 @@ handlers:
 | Handler | `contract_keys` | Agent job |
 |---------|-----------------|-----------|
 | `feature_write_spec` | `preview-review.write_spec` | Copy intake artifact to `specs/current/` |
-| `feature_build` | `preview-review.build`, `.build-loop`, `.review` | Code site; nested loop via `resolve_step` + `wait_for_run` |
+| `feature_build` | `preview-review.build`, `.build-loop`, `.review` | Choose one child from each opened/resumed parent assignment |
+| `feature_build_loop` | `.build-loop`, `.review` | Build or revise and resolve the assigned child |
+| `review_view` | — | Let the human resolve the review child |
 | `feature_archive` | `preview-review.archive` | Move spec current → archive |
 | `feature_commit` | `preview-review.commit` | Git commit + message + description JSON |
 
 ### Dispatch on `step.opened`
 
-When the engine opens an agent step, Murrmure finds handlers whose `contract_keys` match the step's contract key and `on` includes `step.opened`. It expands the `prompt:` template, injects protocol context (run/session ids, step contract slice, `active-step-contract.json` path), sets env bindings, and runs `command:` in `cwd:`.
+When a step opens or a parent resumes, Murrmure dispatches its exclusive
+`on: step.opened::{flow}.{step}` binding. `contract_keys` controls prompt scope;
+it does not dispatch. The assignment includes live protocol context and the
+active contract path.
 
 ### `complete: explicit`
 
@@ -137,11 +159,12 @@ Other completion modes exist (`auto`, `cli`) for headless scripts — this tutor
 
 ### Build is special
 
-**Build** is a long-lived shell session:
+**Build** is a sequence of exclusive assignments:
 
-- **`kill_on: step.resolved`** — subprocess ends when parent **build** resolves (after human validates)
-- Handler covers nested keys so one dispatch owns **`build.build-loop`** and waits through **`build.review`**
-- Agent re-reads `.mrmr/dev/runs/{run_id}/active-step-contract.json` after engine transitions
+- successful child activation yields the parent and ends its process assignment;
+- child return dispatches the same parent binding again with `reason: resumed`;
+- the new contract contains `returned_child`, so no process or credential must
+  survive across the yield.
 
 ### What Murrmure does not do
 
@@ -157,9 +180,9 @@ Change only `command:` to use another agent CLI — flow manifest and `contract_
 
 ## Checkpoint
 
-- [ ] Four handlers with matching `contract_keys` from `contract-keys.json`
-- [ ] All agent handlers use `on: step.opened` and `complete: explicit`
-- [ ] Build handler has `kill_on: step.resolved` and references `skills/feature-build/SKILL.md`
+- [ ] Each step has at most one qualified `step.opened::…` resolver binding
+- [ ] Agent handlers use `complete: explicit`
+- [ ] Parent and child build handlers are separate, exclusive assignments
 - [ ] No `executor.action` in the flow manifest (Part 5)
 
 ## Next

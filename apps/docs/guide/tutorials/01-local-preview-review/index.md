@@ -1,10 +1,9 @@
 # Tutorial 1b — Feature spec, build, live review, commit
 
-::: warning Retired handler model (v2)
-This tutorial describes the **retired v2 handler model** — `contract_keys` dispatch, bare `on: step.opened`, and authored `kill_on: step.resolved`. These are **rejected by current strict validation**. New spaces use the v3 `on::key` binding (`on: step.opened::{flow_name}.{qualified_step_id}`) with `contract_keys` as prompt-scope only and no `kill_on`. Follow **[Tutorial 1a — First flow (v3)](../01-local-preview-review-v3/)** instead; this tutorial is preserved for the build/review/archive/commit loop narrative and will be removed at the v2 cutover.
-:::
-
-Build a real workflow on a static site repo with **Cursor** as the agent. One human attaches a **spec from their computer**; the agent writes it into the repo, implements, loops on **live review in one long agent session**, then **archives** the spec and **commits**.
+Build a real workflow on a static site repo with **Cursor** as the agent. One
+human attaches a **spec from their computer**; fresh parent and child
+assignments coordinate implementation and live review, then archive the spec
+and commit.
 
 ::: tip New to Murrmure?
 Start with **[Tutorial 1a — First flow (v3)](../01-local-preview-review-v3/)** (6 parts: Desktop + space, flow, view, runs, build, cleanup). Return here for the full build/review/archive/commit loop.
@@ -17,7 +16,7 @@ Follow each part in order — every manifest, handler, and view is built step by
 - What a **space** is (repo + `agent.md` + skills + `.mrmr/`)
 - **Murrmure protocol** vs **agent layer** (thin graph vs prompts + skills)
 - **Mixed orchestration** — shell handlers + nested build/review loop under **`build`**
-- **`murrmure_resolve_step`** and **`mrmr step resolve`** — agent completes **`build.build-loop`**; engine opens **`build.review`**
+- **`murrmure_open_child_step`** + **`murrmure_resolve_step`** — parent yields to one child and resumes with its result
 - **Space handlers** in `.mrmr/space/handlers.yaml` keyed by **`contract_keys`**
 - Custom **step views** in ViewCanvasHost
 
@@ -29,27 +28,30 @@ Follow each part in order — every manifest, handler, and view is built step by
 | 2 | Agent writes `specs/current/` | **write_spec** | handler prompt + `agent.md` |
 | 3 | Agent codes + review loop | **build** (parent) | handler prompt + `skills/feature-build/SKILL.md` |
 | 3a | Agent reports preview URL | **build.build-loop** | `murrmure_resolve_step` |
-| 4 | Human live review | **build.review** | review view (engine opens) |
-| 4b | Feedback (same agent session) | *(goto build-loop)* | agent fixes → resolve build-loop again |
-| 5 | Human validates | → **archive** | `complete: parent` on build |
+| 4 | Human live review | **build.review** | review view (parent opens) |
+| 4b | Feedback | parent resumes | fresh assignment opens build-loop again |
+| 5 | Human validates | parent resumes → **archive** | parent resolves its own completed branch |
 | 6 | Move spec → archive | **archive** | handler prompt + `agent.md` |
 | 7 | Git commit + summary | **commit** | handler prompt + `agent.md` |
 
 ```text
 intake → write_spec → build
-                         ├─ build-loop ──goto──► build.review
-                         └◄──── goto build-loop (feedback) ────┘
-                      complete parent → archive → commit
+                         ├─ yield → build-loop ──resume─┐
+                         ├─ yield → review ──────resume─┤
+                         └─ parent decides next ◄───────┘
+                      parent resolve → archive → commit
 ```
 
 ## Who owns the feedback loop?
 
 | Pattern | Who loops | This tutorial |
 |---------|-----------|---------------|
-| **Flow-owned** | Engine re-invokes build each round | No |
-| **Agent-owned (nested)** | One **build** handler; agent resolves **build.build-loop**; engine opens **build.review** | **Yes** |
+| **Sibling-routed** | Child branches choose sibling steps | No |
+| **Parent-owned (nested)** | Fresh **build** assignment chooses one child after every return | **Yes** |
 
-The flow never re-dispatches the **build** handler on feedback. `changes_required` uses **`continue: parent` + `goto: build-loop`**; the agent already running fixes locally. The handler uses **`kill_on: step.resolved`** so the subprocess ends when parent **build** completes.
+Every child activation yields **build**, revokes that assignment, and dispatches
+the child. Child return creates a fresh parent assignment with canonical
+`returned_child`; the parent opens the next child or resolves itself.
 
 ## Data the human passes vs agent discovery
 

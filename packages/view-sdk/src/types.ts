@@ -49,6 +49,15 @@ export interface ViewBranchContract {
 export interface ViewStepContext {
   step_id: string;
   branches: ViewBranchContract[];
+  reason?: "opened" | "resumed";
+  declared_children?: string[];
+  returned_child?: {
+    step_id: string;
+    branch: string;
+    iteration: number;
+    payload: Record<string, unknown>;
+    artifacts_out: Array<Record<string, unknown>>;
+  };
   contract?: Record<string, unknown>;
 }
 
@@ -126,6 +135,12 @@ export type ViewHostInboundPayload =
       input: ViewBranchSubmitInput;
     }
   | { type: "murrmure.view.cancel_submission"; submission_id: string }
+  | {
+      type: "murrmure.view.open_child";
+      submission_id: string;
+      child_step_id: string;
+      idempotency_key: string;
+    }
   | { type: "murrmure.view.cancel" }
   | { type: "murrmure.view.resolved" };
 
@@ -138,13 +153,13 @@ export type ViewHostOutboundMessage =
   | (ViewMessageEnvelope & {
       type: "murrmure.view.ack";
       ok: true;
-      kind: "submit_branch" | "cancel" | "submission_cancel";
+      kind: "submit_branch" | "open_child" | "cancel" | "submission_cancel";
       submission_id?: string;
     })
   | (ViewMessageEnvelope & {
       type: "murrmure.view.ack";
       ok: false;
-      kind: "submit_branch" | "cancel" | "submission_cancel";
+      kind: "submit_branch" | "open_child" | "cancel" | "submission_cancel";
       submission_id?: string;
       error: ViewContractError;
     })

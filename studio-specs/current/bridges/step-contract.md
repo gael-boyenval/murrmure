@@ -1,7 +1,7 @@
 # Bridge — Step contracts (v3, resolver-agnostic)
 
-**Status:** Normative — **shipped** (Tutorial v3, Tasks 03 and 07)
-**Spec:** [step contracts v3](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md), [connected agent build](../../plans/2026-07-14-tutorial-v3-build-tasks/07-connected-agent-build.md), [ADR-007](../../ADR/ADR-007-resolver-agnostic-step-contracts.md), [ADR-013](../../ADR/ADR-013-agent-assignment-prompt-protocol.md)
+**Status:** Normative — **shipped** (Tutorial v3, Tasks 03, 07, and 08)
+**Spec:** [step contracts v3](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md), [nested build/review](../../plans/2026-07-14-tutorial-v3-build-tasks/08-nested-build-review-loop.md), [ADR-007](../../ADR/ADR-007-resolver-agnostic-step-contracts.md), [ADR-015](../../ADR/ADR-015-nested-step-call-return.md)
 
 Murrmure flow steps are **resolver-agnostic contracts**. A step is `id`, optional
 `description`, optional `branches`, and optional nested `steps` — nothing else.
@@ -122,6 +122,33 @@ branches:
 
 Names in `schema.required` that match `artifact_slots` are **file slots**, not
 payload fields. Custom top-level branch names require an explicit `route`.
+
+### Nested call/return
+
+A parent with nested `steps` opens first and owns its own final resolution. Its
+resolver activates one direct declared child with:
+
+```json
+{
+  "run_id": "run_…",
+  "parent_step_id": "build",
+  "child_step_id": "build.build-loop",
+  "idempotency_key": "build-iteration-1"
+}
+```
+
+`murrmure_open_child_step` accepts no arbitrary input. Success changes the
+parent memo from `working` to `yielded`, revokes the current assignment before
+child dispatch, and opens one child. A second active child, undeclared child, or
+idempotency-key mismatch is rejected.
+
+When a child resolves to `resume`, the yielded ancestor returns to `working`
+with assignment reason `resumed` and canonical `returned_child` context:
+`step_id`, selected branch, iteration, payload, and artifact references. Resume
+does not reopen, resolve, or branch-validate the ancestor, and emits no duplicate
+`step.opened`. The parent may activate another child or resolve its own branch.
+Shell/script adapters start a new process assignment; Views receive refreshed
+context in the host channel. See [ADR-015](../../ADR/ADR-015-nested-step-call-return.md).
 
 ### Default branches
 
@@ -268,15 +295,16 @@ persist, no `--strict` needed) — the bundle never reaches the index:
 | `REMOVED_FIELD` | Step or branch uses a removed key (`role`, `presentation`, `deriveRole`, `next`, `fail_run`, `goto`, `fail`, `complete`, `continue`, `payload`, `outcome`, …) |
 | `INLINE_SCRIPT_STEP` | Flow manifest rejects inline `script` / `run` / `shell` / `command` steps |
 | `EMPTY_BRANCHES` | Step declares `branches: {}` — omit branches for defaults or declare at least one |
+| `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
+| `ROUTE_TARGET_NOT_FOUND` | `route.step` references a missing step |
+| `NESTED_ROUTE_STEP_FORBIDDEN` | Nested child tries to open a sibling/other step instead of returning to its parent |
+| `RESUME_TARGET_NOT_ANCESTOR` | `resume` target is self, unknown, non-ancestor, or otherwise invalid |
 
 `mrmr space apply --strict` additionally fails (exit 1) on these lint warnings;
 without `--strict` they print to stdout and the apply still succeeds:
 
 | Code | Meaning |
 |------|---------|
-| `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
-| `ROUTE_TARGET_NOT_FOUND` | `route.step` references a missing step |
-| `RESUME_TARGET_NOT_ANCESTOR` | `resume` target is not an open ancestor |
 | `DEAD_STEP` | Step unreachable from flow entry |
 | `HANDLER_KEY_CONFLICT` | Multiple handlers match the same contract key |
 | `HANDLER_ORPHAN_KEY` | Handler `contract_key` does not match any catalog step |
@@ -343,9 +371,11 @@ POST /v1/runs/{run_id}/steps/{step_id}/resolve
 CLI equivalent: `mrmr step resolve --run … --step … --branch continue`.
 
 An unbound step (`resolver: null`) is resolvable by any token with `step:resolve`;
-a token without `step:resolve` is denied (403). Journal events: `mrrmure.step.opened`,
-`murrmure.step.resolved`. Step memos use `working` while open and `completed` /
-`failed` once resolved — there is no `awaiting_human` status.
+a token without `step:resolve` is denied (403). Journal events:
+`mrmr.step.opened`, `mrmr.step.yielded`, `mrmr.step.resolved`, and
+`mrmr.step.resumed`. Step memos use `working` while assigned, `yielded` while a
+child owns control, and `completed` / `failed` once resolved — there is no
+`awaiting_human` status.
 
 ---
 
@@ -357,6 +387,7 @@ a token without `step:resolve` is denied (403). Journal events: `mrrmure.step.op
 | Terminal run reject | `POST …/resolve` on `failed` / `completed` / `cancelled` runs → **409** `RUN_TERMINAL` |
 | Late resolve reject | Resolving an already-terminal step → **409** `STEP_TERMINAL`; the same `idempotency_key` reconciles to the original terminal result, including after the run terminates |
 | Handler cancel | Run failure cancels in-flight shell subprocesses and queued handler tasks |
+| Nested authority | Child activation revokes the yielded parent's assignment before child dispatch; resume creates one fresh assignment |
 
 ---
 
@@ -422,8 +453,9 @@ and no migration**:
 3. Remove `role`, `presentation`, `deriveRole` from every step.
 4. Replace `next: <id>` / `next: null` with `route: { step: <id> }` /
    `route: { run: completed }`; replace `fail_run: true` / `fail: true` with
-   `route: { run: failed }`; replace nested `goto: <id>` with `route: { step: <id> }`;
-   replace `complete: parent` / `continue: parent` with `resume: <parent>`.
+   `route: { run: failed }`; replace child-owned sibling/parent completion with
+   `resume: <parent>`, then let the resumed parent activate the next direct child
+   through `murrmure_open_child_step`.
 5. Flatten wrapper shapes — move `payload.schema` / `outcome.route` to sibling
    `schema` / `route`.
 6. Omit `branches` for linear steps to receive `completed` / `failed` defaults, or

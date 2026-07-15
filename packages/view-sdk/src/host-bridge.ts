@@ -89,6 +89,10 @@ export interface ViewHostBridgeHandlers {
     },
   ) => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
   onCancelSubmission?: (submission_id: string) => Promise<void> | void;
+  onOpenChild?: (
+    child_step_id: string,
+    idempotency_key: string,
+  ) => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
   onCancel?: () => Promise<{ ok: true } | { ok: false; error: ViewContractError }>;
   onResolved?: () => void;
 }
@@ -183,6 +187,35 @@ export function attachViewHostBridge(
             submission_id: message.submission_id,
             ok: true,
           }),
+          targetOrigin,
+        );
+        break;
+      }
+      case "murrmure.view.open_child": {
+        const result = handlers.onOpenChild
+          ? await handlers.onOpenChild(message.child_step_id, message.idempotency_key)
+          : ({ ok: false as const, error: {
+              code: "VIEW_OPEN_CHILD_REJECTED",
+              message: "Host does not support child activation",
+              errors: [] as import("./types.js").ViewContractValidationError[],
+            } });
+        iframe.contentWindow?.postMessage(
+          result.ok
+            ? createAckMessage({
+                nonce: context.nonce,
+                transport_version: context.transport_version,
+                kind: "open_child",
+                submission_id: message.submission_id,
+                ok: true,
+              })
+            : createAckMessage({
+                nonce: context.nonce,
+                transport_version: context.transport_version,
+                kind: "open_child",
+                submission_id: message.submission_id,
+                ok: false,
+                error: result.error,
+              }),
           targetOrigin,
         );
         break;

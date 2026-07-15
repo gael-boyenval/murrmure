@@ -18,6 +18,7 @@ import { createViewMount } from "../src/app/mount.js";
 import {
   __setViewContextForTests,
   __resetViewContractForTests,
+  openChildStep,
   submitBranch,
   useViewContract,
 } from "../src/app/contract.js";
@@ -257,6 +258,47 @@ describe("view-sdk app bridge", () => {
     );
 
     await expect(promise).resolves.toBeUndefined();
+  });
+
+  it("openChildStep posts a declared child intent and resolves on host ack", async () => {
+    const postMessage = vi.fn();
+    Object.defineProperty(window, "parent", {
+      configurable: true,
+      value: { postMessage },
+    });
+    const context = {
+      ...sampleContext,
+      step: {
+        ...sampleContext.step,
+        declared_children: ["review.build"],
+      },
+    };
+    const promise = openChildStep(context, "review.build", "iteration-1");
+    await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
+    const sent = postMessage.mock.calls.find(
+      ([message]) => message.type === "murrmure.view.open_child",
+    )?.[0];
+    expect(sent).toMatchObject({
+      type: "murrmure.view.open_child",
+      child_step_id: "review.build",
+      idempotency_key: "iteration-1",
+    });
+    window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "murrmure.view.ack",
+        ok: true,
+        kind: "open_child",
+        submission_id: sent.submission_id,
+        v: VIEW_TRANSPORT_VERSION,
+        nonce: NONCE,
+      },
+      origin: "http://127.0.0.1:8787",
+      source: window.parent,
+    }));
+    await expect(promise).resolves.toBeUndefined();
+    await expect(openChildStep(context, "review.ghost", "bad")).rejects.toMatchObject({
+      code: "VIEW_OPEN_CHILD_REJECTED",
+    });
   });
 
   it("submitBranch rejects on unknown branch before posting", async () => {

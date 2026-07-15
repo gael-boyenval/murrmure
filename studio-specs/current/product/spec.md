@@ -473,7 +473,16 @@ steps:
     description: Agent writes spec to repo.
 
   - id: build
-    description: Build site and human review loop until validated.
+    description: Coordinate build and review children until validated.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [preview_url]
+        route: { step: archive }
+      failed:
+        schema: { type: object }
+        route: { run: failed }
     steps:
       - id: build-loop
         description: Implement site; resolve when preview URL ready.
@@ -482,10 +491,10 @@ steps:
             schema:
               type: object
               required: [preview_url]
-            route: { step: build.review }
+            resume: build
           failed:
             schema: { type: object }
-            route: { run: failed }
+            resume: build
       - id: review
         description: Human validates preview — wait; do not resolve yourself.
         branches:
@@ -494,7 +503,7 @@ steps:
             resume: build
           changes_required:
             schema: { type: object }
-            route: { step: build.build-loop }
+            resume: build
           cancel:
             schema: { type: object }
             route: { run: failed }
@@ -507,6 +516,13 @@ steps:
 ```
 
 **Execution binding:** Space handlers bind via `on::key` such as `preview-review.write_spec`, `preview-review.build.build-loop` — see [bridges/handlers.md](../bridges/handlers.md). Flow manifest carries **no** `invoke:` blocks.
+
+**Nested call/return:** A parent opens first. Its assigned resolver activates one
+direct declared child with `murrmure_open_child_step`, which atomically changes
+the parent to `yielded`, revokes the old assignment, and opens the child. Child
+`resume` returns canonical result context to a fresh parent assignment; it does
+not resolve or reopen the parent. Only that resumed parent chooses the next
+child or resolves its own branch. Nested `route.step` is rejected.
 
 **No `scope: local|global`.** Visibility = grants. File living in catalog space + `flow:run` grant to team = "global" behavior.
 
@@ -800,7 +816,7 @@ Capabilities are strings granted to `(actor_id, resource)`:
 | `space:read` | space | See space in sidebar, space home, non-redacted session steps |
 | `space:write` | space | Push hooks, actions, flows via CLI apply |
 | `space:enter` | space | MCP control plane attach (executor) |
-| `flow:read` | flow | Expand preview — sanitized manifest |
+| `flow:read` | flow | Read authorized applied/live/historical graph contracts and safe resolver identity |
 | `flow:run` | flow | Start manual / receive hook start_flow |
 | `action:invoke` | action | Direct invoke (rare — usually via flow/hook) |
 | `gate:resolve` | run or session | Approve/reject gates |
@@ -1063,16 +1079,19 @@ Sessions reached via:
 Space: frontend
 ├── Needs your attention     ← gates/failures for this space
 ├── Active runs
-├── Your flows               ← flows authored in this space (origin)
-├── Available to run         ← flow:run grants
+├── Flows                    ← one row per {origin_space_id, flow_id}
 ├── Receiving from           ← flows whose steps bind handlers in this space
-└── Recent completed
+└── Recent completed         ← at most 20, fixed-height; links to full history
 ```
 
-### 12.4 Session / run view (Windmill split-pane)
+The Hub deduplicates and sorts the authorized Flows projection. Each row carries
+its current applied digest plus server-computed `can_preview`, `can_run`,
+`manual`, and `authored_here`; clients do not join or infer these fields.
+
+### 12.4 Shared flow page (applied / live / history)
 
 ```text
-Session: Feature Y delivery
+Flow: Feature Y delivery
 ┌─ Flowchart (declared graph + live step state) ─────────────┐
 │  [research ✓] → [spec ●] → [lane A ◐] [lane B ◑] → [finish] │
 ├──────────────────────────────────────────────────────────────┤
@@ -1082,6 +1101,22 @@ Session: Feature Y delivery
 └──────────────────────────────────────────────────────────────┘
 ```
 
+- Applied preview, live Session/Run, and terminal history use one page,
+  flowchart, selection model, and metadata panel. The header exposes **Run**
+  only when the Hub returns `manual && can_run`.
+- Logical flow identity is `{origin_space_id, flow_id}`. Applied preview uses
+  the latest digest; a run and its historical graph use the flow/catalog and
+  sanitized resolver identity pinned when that run was admitted.
+- The Hub projects normalized branch schemas, routes, artifact constraints and
+  safe resolver identity (`handler_id`, type, optional View id, config digest).
+  Commands, prompts, host paths, parameters, environment and secrets never
+  enter graph payloads. Clients do not compile defaults or match handlers.
+- Steps remain rectangular and resolver-modality neutral. A decision diamond is
+  added only for custom/multi-outcome branching. Plain `completed` / `failed`
+  uses direct edges, and all run-failure routes share one subdued failure
+  terminal.
+- Selecting a step keeps the graph visible and opens its metadata in the right
+  panel; narrow screens use an equivalent closeable drawer.
 - **Gate tab** auto-focus on arrival from notification
 - **Parallel lanes** = sibling runs as **fork/join nodes in one flowchart** (primary); lane click opens run detail in right panel — not separate top-level tabs per lane
 - **Flowchart library:** `@xyflow/react` (React Flow), **lazy-loaded** on session/run routes

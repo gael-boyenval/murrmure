@@ -206,6 +206,36 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     }
   }, [client]);
 
+  const onOpenChild = useCallback(async (
+    childStepId: string,
+    idempotencyKey: string,
+  ): Promise<Ack> => {
+    if (!client || !runId || !stepId) {
+      return { ok: false, error: { code: "VIEW_CONTEXT_MISMATCH", message: "No active parent step", errors: [] } };
+    }
+    try {
+      await client.runs.openChild(runId, stepId, {
+        child_step_id: childStepId,
+        idempotency_key: idempotencyKey,
+      });
+      await invalidate();
+      return { ok: true };
+    } catch (err) {
+      const body =
+        err && typeof err === "object" && "body" in err
+          ? (err as { body?: { code?: string; message?: string } }).body
+          : undefined;
+      return {
+        ok: false,
+        error: {
+          code: body?.code ?? "VIEW_OPEN_CHILD_REJECTED",
+          message: body?.message ?? (err instanceof Error ? err.message : "Host rejected child activation"),
+          errors: [],
+        },
+      };
+    }
+  }, [client, runId, stepId, invalidate]);
+
   const onCancel = useCallback(async (): Promise<Ack> => {
     if (!client || !runId || !stepId) {
       return { ok: false, error: { code: "VIEW_CANCEL_REJECTED", message: "No active step to cancel", errors: [] } };
@@ -233,6 +263,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
         context={context}
         onSubmitBranch={onSubmitBranch}
         onCancelSubmission={onCancelSubmission}
+        onOpenChild={onOpenChild}
         onCancel={onCancel}
         onResolved={onResolved}
         adminHref={adminHref}
@@ -241,5 +272,5 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
       />
     ) : null;
 
-  return { showCanvas, canvas, onSubmitBranch, onCancelSubmission, onCancel, onResolved, context };
+  return { showCanvas, canvas, onSubmitBranch, onCancelSubmission, onOpenChild, onCancel, onResolved, context };
 }

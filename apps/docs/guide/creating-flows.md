@@ -65,6 +65,21 @@ receive `completed` / `failed` defaults. Spaces bind Views and handlers through
 `.mrmr/space/handlers.yaml` via the **`on::key`** binding (`contract_keys` is
 prompt-scope only), not through the portable flow.
 
+### Nested build/review loops
+
+A parent with nested `steps` opens first and does not auto-start a child. Its
+resolver calls `murrmure_open_child_step` with live `run_id`,
+`parent_step_id`, one direct declared `child_step_id`, and a required unique
+`idempotency_key`. The call accepts no child input.
+
+The parent yields and its old assignment is revoked before child dispatch. A
+child branch with no `route` or `resume` returns to the immediate parent by
+default, including `failed`; immediate run failure requires
+`route: { run: failed }`. On return, the parent gets a fresh assignment with
+`reason: resumed` and canonical `returned_child` identity, branch, iteration,
+payload, and artifact references. It can open another child or resolve its own
+branch.
+
 ## What you build (v3)
 
 | Piece | Location |
@@ -75,8 +90,9 @@ prompt-scope only), not through the portable flow.
 | Local dev outputs | `.mrmr/dev/` (contract-keys codegen, gitignored) |
 
 Open steps surface in run detail as `open_steps[]` (`resolver: null` when no
-handler is bound). The shell renders them; it does not synthesize fallback
-controls for unbound steps.
+handler is bound), with declared children and returned-child context when
+applicable. The shell renders them; it does not synthesize fallback controls for
+unbound steps.
 
 ## Inspect and run the flow
 

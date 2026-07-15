@@ -275,7 +275,9 @@ cd ~/work/my-feature-site
 | `useViewSubmit()` | `submit(payload, artifacts?)` → resolve step; `cancel()` resolves `cancel` branch |
 | `useViewContext()` | `ctx.step.step_id`, run input, prior step outputs (`steps["build.build-loop"].output`, …) |
 
-Human steps use **step memos** (`awaiting_human`), not gate rows. ViewCanvasHost binds to `active_human_step` on the run.
+Human steps use the same generic memo lifecycle as every resolver: the review
+child is `working` while its View is active. ViewCanvasHost binds from the
+run's `open_steps[]` projection; there is no human-only status or projection.
 
 ## Checkpoint
 

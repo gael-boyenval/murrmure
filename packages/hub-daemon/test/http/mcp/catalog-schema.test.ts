@@ -12,6 +12,7 @@ const PLATFORM_TOOL_NAMES = [
   "murrmure_space_status",
   "murrmure_space_health",
   "murrmure_resolve_step",
+  "murrmure_open_child_step",
   "murrmure_list_emittable_events",
   "murrmure_list_handlers",
   "murrmure_emit_event",
@@ -31,6 +32,7 @@ const PLATFORM_TOOL_NAMES = [
 
 const P0_REQUIRED: Record<string, string[]> = {
   murrmure_resolve_step: ["run_id", "step_id", "branch"],
+  murrmure_open_child_step: ["run_id", "parent_step_id", "child_step_id", "idempotency_key"],
   murrmure_get_run: ["run_id"],
   murrmure_get_run_context: ["run_id"],
   murrmure_wait_for_run: ["run_id"],

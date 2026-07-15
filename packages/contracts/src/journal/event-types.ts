@@ -13,6 +13,8 @@ export const JOURNAL_EVENT_TYPES = {
   GATE_PENDING: "mrmr.gate.pending",
   GATE_RESOLVED: "mrmr.gate.resolved",
   STEP_OPENED: "mrmr.step.opened",
+  STEP_YIELDED: "mrmr.step.yielded",
+  STEP_RESUMED: "mrmr.step.resumed",
   STEP_RESOLVED: "mrmr.step.resolved",
   ARTIFACT_TRANSFERRED: "mrmr.artifact.transferred",
   ARTIFACT_EXPIRED: "mrmr.artifact.expired",

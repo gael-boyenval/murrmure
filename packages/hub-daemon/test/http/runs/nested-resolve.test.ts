@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
+import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 
 const NESTED_FLOW_BUNDLE = {
   actions: {
@@ -29,20 +30,7 @@ const NESTED_FLOW_BUNDLE = {
     digest: "sha256:rs-handlers",
     file: {
       version: 1,
-      handlers: [
-        {
-          id: "build-owner",
-          contract_keys: [
-            "nested-resolve.build",
-            "nested-resolve.build.build-loop",
-            "nested-resolve.build.review",
-          ],
-          on: "step.opened",
-          kill_on: "step.resolved",
-          type: "shell_spawn",
-          complete: "explicit",
-        },
-      ],
+      handlers: [],
     },
   },
   flows: [
@@ -63,9 +51,9 @@ const NESTED_FLOW_BUNDLE = {
                 branches: {
                   completed: {
                     schema: { type: "object", required: ["preview_url"] },
-                    route: { step: "build.review" },
+                    resume: "build",
                   },
-                  failed: { schema: { type: "object" }, route: { run: "failed" } },
+                  failed: { schema: { type: "object" }, resume: "build" },
                 },
               },
               {
@@ -74,7 +62,7 @@ const NESTED_FLOW_BUNDLE = {
                   validated: { schema: { type: "object" }, resume: "build" },
                   changes_required: {
                     schema: { type: "object" },
-                    route: { step: "build.build-loop" },
+                    resume: "build",
                   },
                   cancel: { schema: { type: "object" }, route: { run: "failed" } },
                 },
@@ -91,9 +79,7 @@ const NESTED_FLOW_BUNDLE = {
   ],
 };
 
-// Runtime nested-step resolution loops are owned by Task 07 (nested build loops).
-// Skipped here to keep the Task 03 minimal-flow cutover green.
-describe.skip("http/runs/nested-resolve", () => {
+describe("http/runs/nested-resolve", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let bootstrapToken: string;
@@ -171,32 +157,173 @@ describe.skip("http/runs/nested-resolve", () => {
     return run.run_id;
   }
 
-  test("resolves qualified nested step ids and exposes nested graph", async () => {
-    const runId = await startRun();
-
-    const resolveLoop = await fetch(
-      `${baseUrl}/v1/runs/${encodeURIComponent(runId)}/steps/build.build-loop/resolve`,
+  async function openChild(
+    runId: string,
+    parentStepId: string,
+    childStepId: string,
+    idempotencyKey: string,
+    extra: Record<string, unknown> = {},
+  ) {
+    return fetch(
+      `${baseUrl}/v1/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(parentStepId)}/children/open`,
       {
         method: "POST",
         headers: agentAuth(),
         body: JSON.stringify({
-          branch: "completed",
-          payload: { preview_url: "http://127.0.0.1:3000" },
+          child_step_id: childStepId,
+          idempotency_key: idempotencyKey,
+          ...extra,
         }),
       },
     );
-    expect(resolveLoop.status).toBe(200);
+  }
 
-    const getRun = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}`, { headers: agentAuth() });
-    const runBody = (await getRun.json()) as { steps: Array<{ step_id: string; status: string }> };
-    const reviewMemo = runBody.steps.find((s) => s.step_id === "build.review");
-    expect(reviewMemo?.status).toBe("working");
+  async function resolve(
+    runId: string,
+    stepId: string,
+    branch: string,
+    payload: Record<string, unknown> = {},
+  ) {
+    return fetch(
+      `${baseUrl}/v1/runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}/resolve`,
+      {
+        method: "POST",
+        headers: agentAuth(),
+        body: JSON.stringify({ branch, payload }),
+      },
+    );
+  }
 
-    const graphRes = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}/graph`, {
-      headers: agentAuth(),
+  test("runs an explicit parent yield, child loop, resume, and parent resolve", async () => {
+    const runId = await startRun();
+
+    const before = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}`, { headers: agentAuth() });
+    const beforeBody = await before.json() as { steps: Array<{ step_id: string; status: string }> };
+    expect(beforeBody.steps.find((step) => step.step_id === "build")?.status).toBe("working");
+    expect(beforeBody.steps.find((step) => step.step_id === "build.build-loop")).toBeUndefined();
+
+    expect((await openChild(runId, "build", "build.build-loop", "build-1")).status).toBe(201);
+    expect((await openChild(runId, "build", "build.build-loop", "build-1")).status).toBe(200);
+    expect((await openChild(runId, "build", "build.review", "other-child")).status).toBe(409);
+    expect((await resolve(runId, "build", "completed")).status).toBe(409);
+
+    expect((await resolve(runId, "build.build-loop", "completed", {
+      preview_url: "http://127.0.0.1:3000",
+    })).status).toBe(200);
+    expect((await openChild(runId, "build", "build.review", "review-1")).status).toBe(201);
+    expect((await resolve(runId, "build.review", "changes_required")).status).toBe(200);
+    expect((await openChild(runId, "build", "build.build-loop", "build-2")).status).toBe(201);
+    expect((await resolve(runId, "build.build-loop", "completed", {
+      preview_url: "http://127.0.0.1:3001",
+    })).status).toBe(200);
+    expect((await openChild(runId, "build", "build.review", "review-2")).status).toBe(201);
+    expect((await resolve(runId, "build.review", "validated", { approved: true })).status).toBe(200);
+
+    const resumed = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}`, { headers: agentAuth() });
+    const resumedBody = await resumed.json() as {
+      lifecycle: string;
+      open_steps: Array<{
+        step_id: string;
+        reason?: string;
+        declared_children?: string[];
+        returned_child?: { step_id: string; branch: string; iteration: number };
+      }>;
+    };
+    expect(resumedBody.lifecycle).toBe("working");
+    expect(resumedBody.open_steps).toEqual([
+      expect.objectContaining({
+        step_id: "build",
+        reason: "resumed",
+        declared_children: ["build.build-loop", "build.review"],
+        returned_child: expect.objectContaining({
+          step_id: "build.review",
+          branch: "validated",
+          iteration: 2,
+        }),
+      }),
+    ]);
+
+    expect((await resolve(runId, "build", "completed")).status).toBe(200);
+    const terminal = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}`, { headers: agentAuth() });
+    expect((await terminal.json() as { lifecycle: string }).lifecycle).toBe("completed");
+    expect((await openChild(runId, "build", "build.build-loop", "build-1")).status).toBe(200);
+
+    const journal = await fetch(`${baseUrl}/v1/journal?space_id=${encodeURIComponent(spaceId)}&limit=100`, {
+      headers: { Authorization: `Bearer ${addTokenId(bootstrapToken)}` },
     });
-    const graph = (await graphRes.json()) as { nodes: Array<{ step_id: string }> };
-    expect(graph.nodes.map((n) => n.step_id)).toContain("build.build-loop");
-    expect(graph.nodes.map((n) => n.step_id)).toContain("build.review");
+    const entries = (await journal.json() as {
+      entries: Array<{ run_id?: string; type: string; seq: number; data?: { step_id?: string } }>;
+    }).entries
+      .filter((entry) => entry.run_id === runId && [
+        JOURNAL_EVENT_TYPES.STEP_OPENED,
+        JOURNAL_EVENT_TYPES.STEP_YIELDED,
+        JOURNAL_EVENT_TYPES.STEP_RESOLVED,
+        JOURNAL_EVENT_TYPES.STEP_RESUMED,
+      ].includes(entry.type as typeof JOURNAL_EVENT_TYPES[keyof typeof JOURNAL_EVENT_TYPES]))
+      .sort((a, b) => a.seq - b.seq)
+      .map((entry) => `${entry.type}:${entry.data?.step_id}`);
+    expect(entries).toEqual([
+      `${JOURNAL_EVENT_TYPES.STEP_OPENED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_YIELDED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_OPENED}:build.build-loop`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESOLVED}:build.build-loop`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESUMED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_YIELDED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_OPENED}:build.review`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESOLVED}:build.review`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESUMED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_YIELDED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_OPENED}:build.build-loop`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESOLVED}:build.build-loop`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESUMED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_YIELDED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_OPENED}:build.review`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESOLVED}:build.review`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESUMED}:build`,
+      `${JOURNAL_EVENT_TYPES.STEP_RESOLVED}:build`,
+    ]);
   });
+
+  test("rejects undeclared input, undeclared children, and idempotency mismatch", async () => {
+    const runId = await startRun();
+    expect((await openChild(runId, "build", "build.ghost", "ghost")).status).toBe(400);
+    expect((await openChild(runId, "build", "build.build-loop", "extra", { input: { unsafe: true } })).status).toBe(400);
+    expect((await openChild(runId, "build", "build.build-loop", "same")).status).toBe(201);
+    const mismatch = await openChild(runId, "build", "build.review", "same");
+    expect(mismatch.status).toBe(409);
+    expect((await mismatch.json() as { code: string }).code).toBe("IDEMPOTENCY_MISMATCH");
+  });
+
+  test("serializes concurrent child activation", async () => {
+    const runId = await startRun();
+    const responses = await Promise.all([
+      openChild(runId, "build", "build.build-loop", "race-build"),
+      openChild(runId, "build", "build.review", "race-review"),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+  });
+
+  test("returns child failure to the parent unless the branch explicitly fails the run", async () => {
+    const resumedRunId = await startRun();
+    expect((await openChild(resumedRunId, "build", "build.build-loop", "failed-child")).status).toBe(201);
+    expect((await resolve(resumedRunId, "build.build-loop", "failed", { error: "compile" })).status).toBe(200);
+    const resumed = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(resumedRunId)}`, { headers: agentAuth() });
+    const resumedBody = await resumed.json() as {
+      lifecycle: string;
+      open_steps: Array<{ step_id: string; returned_child?: { branch: string } }>;
+    };
+    expect(resumedBody.lifecycle).toBe("working");
+    expect(resumedBody.open_steps[0]).toMatchObject({
+      step_id: "build",
+      returned_child: { branch: "failed" },
+    });
+    expect((await resolve(resumedRunId, "build", "failed")).status).toBe(200);
+
+    const failedRunId = await startRun();
+    expect((await openChild(failedRunId, "build", "build.review", "cancel-review")).status).toBe(201);
+    expect((await resolve(failedRunId, "build.review", "cancel")).status).toBe(200);
+    const failed = await fetch(`${baseUrl}/v1/runs/${encodeURIComponent(failedRunId)}`, { headers: agentAuth() });
+    expect((await failed.json() as { lifecycle: string }).lifecycle).toBe("failed");
+  });
+
 });

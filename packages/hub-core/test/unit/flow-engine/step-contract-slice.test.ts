@@ -92,6 +92,48 @@ describe("flow-engine/step-contract-slice", () => {
     expect(md).toContain("Then: engine opens archive");
   });
 
+  test("resumed parent prompt exposes declared children and canonical return context", () => {
+    const manifest: FlowManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "nested",
+      triggers: { manual: true },
+      steps: [{
+        id: "build",
+        steps: [{ id: "review" }, { id: "build-loop" }],
+      }],
+    };
+    const { catalog } = compileStepContractCatalog(manifest, "flw_nested");
+    const build = catalog!.entries.find((entry) => entry.step_id === "build")!;
+    const returnedChild = {
+      step_id: "build.review",
+      branch: "changes_required",
+      iteration: 2,
+      payload: { comments: ["Fix contrast"] },
+      artifacts_out: [{ slot: "report", files: [] }],
+    };
+    const slice = buildStepContractSlice({
+      entry: build,
+      catalog: catalog!,
+      exec_context: {
+        _step_assignment_reasons: { build: "resumed" },
+        _returned_children: { build: returnedChild },
+      },
+      run_id: "run_01NESTED",
+      space_root: "/tmp/space",
+    });
+    expect(slice).toMatchObject({
+      reason: "resumed",
+      declared_children: ["build.review", "build.build-loop"],
+      returned_child: returnedChild,
+    });
+    const markdown = renderAgentStepContractMarkdown(slice, { run_id: "run_01NESTED" });
+    expect(markdown).toContain("Assignment reason: resumed");
+    expect(markdown).toContain("murrmure_open_child_step");
+    expect(markdown).toContain('parent_step_id: "build"');
+    expect(markdown).toContain("Returned child:");
+    expect(markdown).toContain("changes_required");
+  });
+
   test("renders deterministic branch-neutral payload and artifact contracts", () => {
     const slice = {
       step_id: "build",

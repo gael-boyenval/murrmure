@@ -84,6 +84,15 @@ export interface OpenStepResolverProjection {
   step_id: string;
   parent_id?: string | null;
   description?: string;
+  reason?: "opened" | "resumed";
+  declared_children?: string[];
+  returned_child?: {
+    step_id: string;
+    branch: string;
+    iteration: number;
+    payload: Record<string, unknown>;
+    artifacts_out: Array<Record<string, unknown>>;
+  };
   resolver: OpenStepResolver | null;
   view?: OpenStepViewRef | null;
   branches: Array<{

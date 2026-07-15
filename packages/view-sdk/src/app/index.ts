@@ -22,6 +22,7 @@ export {
 export {
   useViewContract,
   submitBranch,
+  openChildStep,
   cancel,
   validateBranchResolve,
   isViewContractError,

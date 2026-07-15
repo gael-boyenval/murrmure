@@ -51,7 +51,7 @@ Murrmure ships two skills instead of one monolith:
 
 | Variant | Skill | Teaches |
 |---------|-------|---------|
-| **agent** | `murrmure-agent` | Runtime loop: `murrmure_resolve_step`, `murrmure_wait_for_run`, step contracts |
+| **agent** | `murrmure-agent` | Runtime loop: open child, yield, resolve child, consume returned context |
 | **developer** | `murrmure-developer` | Authoring: `.mrmr/` layout, `handlers.yaml`, `contract_keys`, apply + doctor |
 
 Install both for this tutorial:

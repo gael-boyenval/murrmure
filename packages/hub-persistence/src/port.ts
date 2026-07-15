@@ -287,6 +287,13 @@ export interface StudioPersistencePort {
   getRunByInstanceId(instance_id: string): Promise<RunRow | null>;
 
   upsertRunStepMemo(memo: RunStepMemo): Promise<void>;
+  transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean>;
   listRunStepMemos(run_id: string): Promise<RunStepMemo[]>;
   getRunStepMemoByIdempotencyKey(idempotency_key: string): Promise<RunStepMemo | null>;
   deleteRunStepMemos(run_id: string): Promise<void>;

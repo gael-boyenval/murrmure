@@ -301,6 +301,15 @@ function compileBranchRoutes(
 
   if (branch.route) {
     if (typeof branch.route.step === "string") {
+      if (row.isNested) {
+        warnings.push({
+          flow_id: flowId,
+          step_id: row.qualifiedId,
+          code: "NESTED_ROUTE_STEP_FORBIDDEN",
+          message: "nested children return with resume; only the resumed parent may activate a direct child",
+        });
+        return [{ engine: "resume", step_id: row.parentId! }];
+      }
       if (!knownStepIds.has(branch.route.step)) {
         warnings.push({
           flow_id: flowId,

@@ -86,6 +86,16 @@ describe("view-sdk host protocol", () => {
         nonce: NONCE,
       }),
     ).toBe(true);
+    expect(
+      isViewHostInboundMessage({
+        type: "murrmure.view.open_child",
+        submission_id: "sub-child",
+        child_step_id: "build.review",
+        idempotency_key: "review-1",
+        v: 1,
+        nonce: NONCE,
+      }),
+    ).toBe(true);
     // missing branch/params
     expect(isViewHostInboundMessage({ type: "murrmure.view.submit_branch", v: 1, nonce: NONCE })).toBe(
       false,
@@ -220,6 +230,47 @@ describe("view-sdk host protocol", () => {
     );
     await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
     expect(postMessage.mock.calls.at(-1)?.[1]).toBe("*");
+    cleanup();
+    iframe.remove();
+  });
+
+  it("attachViewHostBridge mediates child activation without exposing credentials", async () => {
+    const iframe = document.createElement("iframe");
+    iframe.src = "http://localhost:5173/";
+    document.body.appendChild(iframe);
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe, "contentWindow", {
+      configurable: true,
+      value: { postMessage },
+    });
+    const onOpenChild = vi.fn().mockResolvedValue({ ok: true } as const);
+    const cleanup = attachViewHostBridge(iframe, makeContext(), { onOpenChild });
+    window.dispatchEvent(new MessageEvent("message", {
+      data: {
+        type: "murrmure.view.open_child",
+        submission_id: "open-1",
+        child_step_id: "build.review",
+        idempotency_key: "review-1",
+        v: VIEW_TRANSPORT_VERSION,
+        nonce: NONCE,
+      },
+      origin: "http://localhost:5173",
+      source: iframe.contentWindow,
+    }));
+    await vi.waitFor(() =>
+      expect(onOpenChild).toHaveBeenCalledWith("build.review", "review-1"),
+    );
+    await vi.waitFor(() =>
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "murrmure.view.ack",
+          kind: "open_child",
+          submission_id: "open-1",
+          ok: true,
+        }),
+        "http://localhost:5173",
+      ),
+    );
     cleanup();
     iframe.remove();
   });

@@ -21,11 +21,14 @@ import {
   mergeActionResultIntoRun,
   registerResolveCredential,
   revokeStepResolveCredentials,
+  resolveSpaceRoot,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
 } from "@murrmure/hub-core";
 import type { InvokeRequest } from "@murrmure/runtime-contracts";
+import type { ExecutorBinding } from "@murrmure/runtime-contracts";
+import type { IndexedAction } from "@murrmure/contracts";
 import type { HubHandler } from "@murrmure/hub-core";
 import { createExecutorRegistry } from "@murrmure/executors";
 import type { ShellCompleteInput, ShellStreamChunk } from "@murrmure/executors";
@@ -521,14 +524,49 @@ export class InvokeService {
     const actions = await this.studio.listIndexedActions(bare);
     const executors = await this.studio.listIndexedExecutors(bare);
     const bindings = await this.studio.getSpaceBindings(bare);
+    const indexedHandler =
+      parsed.data.run_id && parsed.data.step_id
+        ? await this.loadIndexedHandler(bare, input.action_name)
+        : undefined;
 
-    const resolved = resolveInvokeTarget(
+    let resolved = resolveInvokeTarget(
       input.action_name,
       actions,
       executors,
       bindings,
       parsed.data.delivery,
     );
+    if ("code" in resolved && indexedHandler && indexedHandler.type !== "view_resolver") {
+      const action: IndexedAction = {
+        name: indexedHandler.id,
+        space_id: prefixedSpaceId(bare),
+        executor: `handler:${indexedHandler.id}`,
+        timeout_ms: indexedHandler.timeout_ms,
+        command: indexedHandler.command,
+        prompt: indexedHandler.prompt,
+        cwd: indexedHandler.cwd,
+        delivery: indexedHandler.delivery,
+      };
+      const params = indexedHandler.params ?? {};
+      let binding: ExecutorBinding;
+      if (indexedHandler.type === "remote_hub") {
+        binding = {
+          type: "remote_hub",
+          executor_id: action.executor,
+          remote_hub_id: String(params.remote_hub_id ?? ""),
+          remote_space_id:
+            typeof params.remote_space_id === "string" ? params.remote_space_id : undefined,
+        };
+      } else {
+        binding = { type: indexedHandler.type, executor_id: action.executor };
+      }
+      resolved = {
+        action,
+        binding,
+        space_root: resolveSpaceRoot(bindings),
+        delivery: indexedHandler.delivery ?? "fail_fast",
+      };
+    }
     if ("code" in resolved) {
       return { http: 404 as const, body: resolved };
     }
@@ -614,7 +652,7 @@ export class InvokeService {
     };
 
     if (run_id && parsed.data.step_id && resolved.space_root) {
-      const matchedHandler = await this.loadIndexedHandler(bare, input.action_name);
+      const matchedHandler = indexedHandler ?? await this.loadIndexedHandler(bare, input.action_name);
       const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
       const resolveToken = await this.mintRunResolveToken({
         run_id,

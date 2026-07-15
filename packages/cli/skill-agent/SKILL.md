@@ -3,7 +3,7 @@ name: murrmure-agent
 description: >-
   Runtime MCP operating skill for Murrmure agents. Use when handling
   run/session/step lifecycle, resolving steps, or inspecting run context.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Murrmure Agent Skill
@@ -106,13 +106,14 @@ Example — list handlers:
 
 ### Nested steps
 
-Parent steps with `orchestration: engine-routed` and nested `steps:` expose qualified ids (`build.build-loop`, `build.review`).
+Parent resolvers with declared `steps:` activate one direct child at a time, yield, and resume on return.
 
-- Resolve **your** nested step with the qualified `step_id`.
-- Nested steps with no bound handler (e.g. a human review step) — **`murrmure_wait_for_run`**; do not resolve them yourself.
-- A nested step's `resume: <parent>` branch yields control back to the open parent when validated.
+- **`murrmure_open_child_step`** (`{ run_id, parent_step_id, child_step_id, idempotency_key }`) atomically yields your assignment, revokes its mutation credential, and opens one declared child. Only declared children open, one active child per parent, arbitrary input is rejected, and idempotency is parent-scoped.
+- A child branch with neither `route` nor `resume` returns to its immediate parent by default (including `failed`). `resume: <ancestor_step>` returns to an already-open ancestor; self, unknown, non-ancestor, or closed targets are rejected. Immediate run failure needs explicit `route: { run: failed }`. Return never opens, resolves, or re-validates the parent.
+- Child return emits distinct yielded/resolved/resumed events and creates one fresh parent assignment (reason `resumed`) carrying canonical `returned_child` identity, branch, iteration, payload, and promoted artifact references.
+- On resume, re-read `active-step-contract.json` and decide: iterate (open the next declared child) or resolve your own contract. `complete_parent`, `continue_parent`, and `goto` no longer exist.
 
-Preview-review pattern: agent owns `build.build-loop` (resolve with `preview_url`); human owns `build.review`; on `changes_required`, fix and resolve `build.build-loop` again.
+Preview-review pattern: the build resolver opens `review` via `murrmure_open_child_step` and yields; on `changes_required` it iterates (open review again), and on `validated` it resolves `build` as `completed`.
 
 ### `murrmure_wait_for_run` vs `murrmure_get_run`
 
@@ -142,6 +143,7 @@ Hub applies the same slot, quota, promotion, and idempotency rules as a View.
 Remote agents cannot submit machine-local paths; use the authorized upload
 reference shown in the generated call. Read prior step artifact
 paths from contract context (`{{murrmure.step.*}}` in handler params).
+
 
 ### Federation reads
 

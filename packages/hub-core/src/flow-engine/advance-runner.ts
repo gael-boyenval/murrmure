@@ -465,6 +465,19 @@ export async function bootstrapInitialFlowStep(
       space_id: spaceId,
       actor_id: input.actor_id,
       token_id: input.token_id,
+      journal: {
+        append: async (event) => {
+          await deps.handler.appendSpaceJournal({
+            type: event.type,
+            space_id: event.space_id,
+            session_id: event.session_id,
+            run_id: event.run_id,
+            actor_id: event.actor_id,
+            token_id: event.token_id,
+            data: { ...event.data, step_id: event.step_id },
+          });
+        },
+      },
     });
     return;
   }

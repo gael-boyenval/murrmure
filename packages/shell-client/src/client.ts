@@ -284,6 +284,18 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           status: string;
         }>;
       },
+      async openChild(run_id, parent_step_id, body) {
+        const res = await fetch(
+          `${base}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(parent_step_id)}/children/open`,
+          {
+            method: "POST",
+            headers: authHeaders(token),
+            body: JSON.stringify(body),
+          },
+        );
+        if (!res.ok) await throwHttpError(res, `runs.openChild failed: ${res.status}`);
+        return res.json();
+      },
       async createUploadIntent(run_id, step_id, body) {
         const res = await fetch(
           `${base}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/upload-intents`,

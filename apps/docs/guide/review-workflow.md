@@ -1,4 +1,4 @@
-# Review workflow (v2.2 step contracts)
+# Review workflow (v3 step contracts)
 
 Canonical human/agent preview review on **indexed flows**. Walkthrough: [Tutorial 1b — Local preview review](./tutorials/01-local-preview-review/).
 
@@ -10,7 +10,7 @@ Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrm
 intake → write_spec → build (build-loop ⇄ build.review) → archive → commit
 ```
 
-Humans work in **ViewCanvasHost** at human steps (`presentation.view`). Shell chrome is **operator/admin mode**.
+Humans work in a space-bound `view_resolver` through **ViewCanvasHost**.
 
 ## Setup
 
@@ -25,14 +25,17 @@ mrmr connection create --space spc_ui_sandbox
 
 Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`on::key`** (`contract_keys` is prompt-scope only).
 
-## Engine-routed nested build
+## Parent-owned nested build
 
 1. Desktop **Run** on **preview-review**
 2. Intake view — attach spec file
-3. **`feature_build`** handler dispatches shell spawn (one session; the subprocess stays alive until the parent **build** step resolves — runtime-owned, no authored `kill_on`)
-4. Agent resolves **`build.build-loop`** with `preview_url` via **`murrmure_resolve_step`**
-5. Engine opens **`build.review`** — human validates or sends feedback
-6. Feedback → engine reopens **`build.build-loop`** in same agent session
+3. Parent `build` opens `build.build-loop` with
+   **`murrmure_open_child_step`** and yields.
+4. The child resolves with `preview_url`; a fresh parent assignment receives
+   `returned_child`.
+5. Parent opens `build.review` and yields to the human View.
+6. Feedback resumes the parent for another build iteration; validation resumes
+   it for parent resolution.
 
 ## Session and run ids
 
@@ -46,8 +49,8 @@ Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `
 
 | Step | Tool |
 |------|------|
+| Open one declared child | `murrmure_open_child_step` |
 | Complete agent step | `murrmure_resolve_step` |
-| Wait for human / run advance | `murrmure_wait_for_run` |
 | Read contract | `active-step-contract.json` or `murrmure_list_step_contracts` |
 | List handlers | `murrmure_list_handlers` |
 

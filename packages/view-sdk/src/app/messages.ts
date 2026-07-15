@@ -28,6 +28,8 @@ export function isViewHostInboundMessage(data: unknown): data is ViewHostInbound
     branch?: unknown;
     input?: unknown;
     submission_id?: unknown;
+    child_step_id?: unknown;
+    idempotency_key?: unknown;
   };
   switch (msg.type) {
     case "murrmure.view.ready":
@@ -42,6 +44,12 @@ export function isViewHostInboundMessage(data: unknown): data is ViewHostInbound
         typeof msg.submission_id === "string" &&
         typeof msg.input === "object" &&
         msg.input !== null
+      );
+    case "murrmure.view.open_child":
+      return (
+        typeof msg.submission_id === "string" &&
+        typeof msg.child_step_id === "string" &&
+        typeof msg.idempotency_key === "string"
       );
     default:
       return false;
@@ -63,14 +71,14 @@ export function createViewContextMessage(
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel" | "submission_cancel";
+  kind: "submit_branch" | "open_child" | "cancel" | "submission_cancel";
   submission_id?: string;
   ok: true;
 }): ViewHostOutboundMessage;
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel" | "submission_cancel";
+  kind: "submit_branch" | "open_child" | "cancel" | "submission_cancel";
   submission_id?: string;
   ok: false;
   error: import("../types.js").ViewContractError;
@@ -78,7 +86,7 @@ export function createAckMessage(input: {
 export function createAckMessage(input: {
   nonce: string;
   transport_version: number;
-  kind: "submit_branch" | "cancel" | "submission_cancel";
+  kind: "submit_branch" | "open_child" | "cancel" | "submission_cancel";
   submission_id?: string;
   ok: boolean;
   error?: import("../types.js").ViewContractError;

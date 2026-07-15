@@ -16,6 +16,15 @@ export interface BuildViewAppContextInput {
   run_id?: string;
   step_id: string;
   branches?: ViewBranchContract[];
+  reason?: "opened" | "resumed";
+  declared_children?: string[];
+  returned_child?: {
+    step_id: string;
+    branch: string;
+    iteration: number;
+    payload: Record<string, unknown>;
+    artifacts_out: Array<Record<string, unknown>>;
+  };
   exec_context?: Record<string, unknown>;
   mode?: "production" | "dev";
   nonce?: string;
@@ -47,6 +56,9 @@ export function buildViewAppContext(input: BuildViewAppContextInput): ViewAppCon
     step: {
       step_id: input.step_id,
       branches: input.branches ?? [],
+      reason: input.reason,
+      declared_children: input.declared_children ?? [],
+      returned_child: input.returned_child,
     },
     ...(steps ? { steps } : {}),
     ...(runInput ? { input: runInput } : {}),
@@ -80,6 +92,9 @@ export function buildViewAppContextFromRun(
       artifact_required: b.artifact_required,
       artifact_slots: b.artifact_slots,
     })),
+    reason: active.reason,
+    declared_children: active.declared_children,
+    returned_child: active.returned_child,
     exec_context: run.exec_context,
     mode: input.mode ?? "production",
     nonce: input.nonce,

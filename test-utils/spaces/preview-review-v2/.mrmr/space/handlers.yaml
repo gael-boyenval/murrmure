@@ -37,18 +37,41 @@ handlers:
       spec_filename: "{{input.spec_filename}}"
       spec_path: "specs/current/{{input.spec_filename}}"
     prompt: |
-      Follow `skills/feature-build/SKILL.md` (build ⇄ review loop).
+      Follow `skills/feature-build/SKILL.md` (parent-owned build ⇄ review loop).
 
       Spec: `{{spec_path}}` (repo copy — not intake temp file)
       Dev server: `npm run dev` → http://localhost:3000
 
-      You own nested step `build.build-loop` (resolve with preview_url).
-      Human owns `build.review` — use `murrmure_wait_for_run`, never resolve review.
-      On changes_required: fix, resolve build.build-loop again.
+      As parent `build`, open one declared child with murrmure_open_child_step.
+      On resumed return, inspect returned_child and either open the next child,
+      iterate build-loop after changes_required, fail, or resolve `build` with
+      murrmure_resolve_step.
     command: *agent_cmd
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 3600000
+
+  - id: feature_build_loop
+    contract_keys: [preview-review.build.build-loop, preview-review.build.review]
+    on: step.opened::preview-review.build.build-loop
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_filename: "{{input.spec_filename}}"
+      spec_path: "specs/current/{{input.spec_filename}}"
+    prompt: |
+      Implement or revise `{{spec_path}}`, start the preview, then resolve only
+      `build.build-loop` with `murrmure_resolve_step` and its current branch
+      contract. On a revision, inspect the prior review output in run context.
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: review_view
+    on: step.opened::preview-review.build.review
+    type: view_resolver
+    view: preview-review
 
   - id: feature_archive
     contract_keys: [preview-review.archive]

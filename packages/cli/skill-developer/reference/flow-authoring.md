@@ -96,9 +96,24 @@ Omit `branches` for a linear step — the compiler injects `completed` (open nex
 
 Qualified step ids: `build.build-loop`, `build.review`. Contract keys use `{flow_ref}.{qualified_step_id}`. Handlers may list multiple keys for subgraph ownership.
 
+The parent resolver explicitly calls `murrmure_open_child_step` with the live
+run id, parent id, one direct declared child id, and a required idempotency key.
+Do not pass child input. Success yields the parent and revokes its current
+assignment before child dispatch. A child with no authored control resumes its
+immediate parent by default (including `failed`); immediate run failure requires
+`route: { run: failed }`.
+
+On return, the parent gets a fresh assignment with `reason: resumed` and
+canonical `returned_child` identity, branch, iteration, payload, and artifact
+references. It may open another child or resolve its own branch. Resume never
+opens, resolves, or branch-validates the parent.
+
 ## Open-step lifecycle and resolve wire
 
-A step is **open** while its memo status is `working`. Run detail exposes a generic `open_steps[]` projection with `resolver: string | null`. There is no `awaiting_human` status and no `active_human_step` projection.
+A step is **open** while its memo status is `working`; a parent is `yielded`
+while one child owns control. Run detail exposes generic `open_steps[]` with
+sanitized resolver, declared children, and returned-child context. There is no
+`awaiting_human` status and no `active_human_step` projection.
 
 Agents, views, and authorized protocol clients call **`murrmure_resolve_step`**:
 
@@ -148,6 +163,7 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | Code | Meaning |
 |------|---------|
 | `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
+| `NESTED_ROUTE_STEP_FORBIDDEN` | Child tries to open another step instead of returning to its parent |
 | `DEAD_STEP` | Step unreachable from flow entry |
 | `HANDLER_ORPHAN_KEY` | Handler `contract_key` not in flow catalog |
 | `PAYLOAD_ARTIFACT_NAME_COLLISION` | Same branch declares one name as payload property and artifact slot |

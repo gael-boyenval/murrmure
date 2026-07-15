@@ -21,6 +21,30 @@
 - Flow preview payload v2 carries the authorized graph and server-computed
   `can_run`; clients no longer infer contracts or handler bindings.
 
+## Tutorial v3 Task 08 — nested build/review call-return (2026-07-15)
+
+### Added
+
+- `murrmure_open_child_step` atomically yields an assigned parent, revokes and
+  terminates the old assignment, and opens one direct declared child with
+  required idempotency.
+- Child return emits distinct yielded/resolved/resumed journal events and
+  creates a fresh parent assignment with canonical `returned_child` identity,
+  branch, iteration, payload, and promoted artifact references.
+- Agent, shell/script, and View adapters share the same nested context and
+  lifecycle. Views activate children through the credential-free host bridge.
+- The parent-owned build/review fixture, race/return integration suite, and
+  `check:nested-call-return` documentation guard are release-blocking.
+
+### Breaking
+
+- Nested children may no longer route directly to siblings. They return to an
+  ancestor with `resume` (the immediate parent by default); only the resumed
+  parent may activate its next direct child.
+- Removed parent-completion vocabulary and long-lived yielded assignments have
+  no active nested runtime path. Immediate run failure remains explicit as
+  `route: { run: failed }`.
+
 ## Tutorial v3 Task 07 — connected agent build assignments (2026-07-15)
 
 ### Added

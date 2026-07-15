@@ -37,6 +37,10 @@ export interface ViewCanvasHostProps {
     submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
   ) => Promise<Ack>;
   onCancelSubmission?: (submission_id: string) => Promise<void> | void;
+  onOpenChild?: (
+    child_step_id: string,
+    idempotency_key: string,
+  ) => Promise<Ack>;
   /** Host-mediated v3 cancel. */
   onCancel?: () => Promise<Ack>;
   onResolved?: () => void;
@@ -67,6 +71,7 @@ export function ViewCanvasHost({
   onSubmitBranch,
   onCancel,
   onCancelSubmission,
+  onOpenChild,
   onResolved,
   devMode,
   fixtureTabs,
@@ -202,6 +207,7 @@ export function ViewCanvasHost({
             context={context}
             onSubmitBranch={handleSubmitBranch}
             onCancelSubmission={onCancelSubmission}
+            onOpenChild={onOpenChild}
             onCancel={handleCancel}
             onResolved={onResolved}
             className="absolute inset-0 h-full w-full border-0 bg-background"

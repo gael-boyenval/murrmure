@@ -242,6 +242,25 @@ export function registerPlatformMcpHandlers(
     return data;
   });
 
+  registry.registerHandler("murrmure_open_child_step", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? "");
+    const parent_step_id = String(args.parent_step_id ?? "");
+    const child_step_id = String(args.child_step_id ?? "");
+    const idempotency_key = String(args.idempotency_key ?? "");
+    if (!run_id || !parent_step_id || !child_step_id || !idempotency_key) {
+      throw new Error("run_id, parent_step_id, child_step_id, and idempotency_key are required");
+    }
+    const res = await fetch(
+      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(parent_step_id)}/children/open`,
+      {
+        method: "POST",
+        headers: mcpHeaders(authCtx),
+        body: JSON.stringify({ child_step_id, idempotency_key }),
+      },
+    );
+    return assertHttpOk(res, "Open child step");
+  });
+
   registry.registerHandler("murrmure_create_session", async (args, authCtx) => {
     const res = await fetch(`${hubUrl()}/v1/sessions`, {
       method: "POST",

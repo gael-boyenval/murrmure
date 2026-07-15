@@ -50,12 +50,12 @@ describe("preview-review-v2 reference example", () => {
     expect(build.steps?.map((s) => s.id)).toEqual(["build-loop", "review"]);
 
     const buildLoop = build.steps?.[0];
-    expect(buildLoop?.branches?.completed).toMatchObject({ route: { step: "build.review" } });
+    expect(buildLoop?.branches?.completed).toMatchObject({ resume: "build" });
 
     const nestedReview = build.steps?.[1];
     expect(nestedReview?.branches?.validated).toMatchObject({ resume: "build" });
     expect(nestedReview?.branches?.changes_required).toMatchObject({
-      route: { step: "build.build-loop" },
+      resume: "build",
     });
   });
 
@@ -67,9 +67,10 @@ describe("preview-review-v2 reference example", () => {
     }
   });
 
-  test("feature-build skill uses resolve_step and contract file loop", () => {
+  test("feature-build skill uses parent-owned child activation loop", () => {
     const skill = readFileSync(join(EXAMPLE_ROOT, "skills/feature-build/SKILL.md"), "utf-8");
     expect(skill).toContain("murrmure_resolve_step");
+    expect(skill).toContain("murrmure_open_child_step");
     expect(skill).toContain("active-step-contract.json");
     expect(skill).not.toContain("murrmure_complete_action");
   });
@@ -86,6 +87,8 @@ describe("preview-review-v2 reference example", () => {
       "intake_view",
       "feature_write_spec",
       "feature_build",
+      "feature_build_loop",
+      "review_view",
       "feature_archive",
       "feature_commit",
     ]);

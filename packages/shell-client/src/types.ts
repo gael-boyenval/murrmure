@@ -331,6 +331,15 @@ export interface RunDetailPayload {
     step_id: string;
     parent_id?: string | null;
     description?: string;
+    reason?: "opened" | "resumed";
+    declared_children?: string[];
+    returned_child?: {
+      step_id: string;
+      branch: string;
+      iteration: number;
+      payload: Record<string, unknown>;
+      artifacts_out: Array<Record<string, unknown>>;
+    };
     /** Sanitized resolver descriptor; `null` means no space handler is bound. */
     resolver: {
       handler_id: string;
@@ -432,6 +441,18 @@ export interface ShellClient {
         idempotency_key?: string;
       },
     ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
+    openChild(
+      run_id: string,
+      parent_step_id: string,
+      body: { child_step_id: string; idempotency_key: string },
+    ): Promise<{
+      ok: boolean;
+      run_id: string;
+      parent_step_id: string;
+      child_step_id: string;
+      iteration: number;
+      deduplicated: boolean;
+    }>;
     createUploadIntent(
       run_id: string,
       step_id: string,

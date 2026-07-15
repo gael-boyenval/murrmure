@@ -22,7 +22,12 @@ import {
   parentHasNestedChildren,
   topLevelCatalogSteps,
 } from "./step-catalog.js";
-import { openStepContract, type StepOpenJournal } from "./step-open.js";
+import {
+  dispatchStepResolverAssignment,
+  openStepContract,
+  type StepOpenJournal,
+} from "./step-open.js";
+import { buildStepContractSlice, writeActiveStepContract } from "./step-contract-slice.js";
 import {
   mergeCheckpointOutputIntoInput,
   mergeStepOutputIntoExecContext,
@@ -83,6 +88,19 @@ function isRunCompleteRoute(routes: StepCatalogRoute[]): boolean {
 
 function resumeTargetFromRoutes(routes: StepCatalogRoute[]): string | undefined {
   return routes.find((r) => r.engine === "resume")?.step_id;
+}
+
+function isCatalogAncestor(
+  catalog: StepContractCatalog,
+  child: StepContractCatalogEntry,
+  targetStepId: string,
+): boolean {
+  let parentId = child.parent_id;
+  while (parentId) {
+    if (parentId === targetStepId) return true;
+    parentId = catalogEntryForStep(catalog, parentId)?.parent_id ?? null;
+  }
+  return false;
 }
 
 function stepsToResetForBackwardLoop(
@@ -169,22 +187,82 @@ async function applyResolvedRoutes(
     token_id: string;
     journal: StepResolveJournal;
     advance: FlowAdvanceDeps;
+    returned_child: {
+      step_id: string;
+      branch: string;
+      iteration: number;
+      payload: Record<string, unknown>;
+      artifacts_out: Array<Record<string, unknown>>;
+    };
   },
 ): Promise<void> {
   const { routes } = input;
 
   const resumeTarget = resumeTargetFromRoutes(routes);
   if (resumeTarget) {
-    // Resume returns control to an already-open ancestor without reopening or
-    // resolving it. The parent remains open and owns its own resolution.
     const ancestorEntry = catalogEntryForStep(input.catalog, resumeTarget);
-    if (ancestorEntry) {
-      await deps.studio.upsertRunStepMemo({
+    const memos = await deps.studio.listRunStepMemos(input.run_id);
+    const ancestorMemo = memos.find((memo) => memo.step_id === resumeTarget);
+    if (!ancestorEntry || ancestorMemo?.status !== "yielded") return;
+
+    const returnedChildren = {
+      ...((input.exec_context._returned_children ?? {}) as Record<string, unknown>),
+      [resumeTarget]: input.returned_child,
+    };
+    const assignmentReasons = {
+      ...((input.exec_context._step_assignment_reasons ?? {}) as Record<string, string>),
+      [resumeTarget]: "resumed",
+    };
+    const resumedContext = {
+      ...input.exec_context,
+      _returned_children: returnedChildren,
+      _step_assignment_reasons: assignmentReasons,
+    };
+    await persistRunExecContext(deps.studio, input.run_id, resumedContext);
+    await deps.studio.upsertRunStepMemo({
+      ...ancestorMemo,
+      run_id: input.run_id,
+      step_id: resumeTarget,
+      status: "working",
+    });
+    await input.journal.append({
+      type: JOURNAL_EVENT_TYPES.STEP_RESUMED,
+      space_id: input.space_id,
+      session_id: input.session_id,
+      run_id: input.run_id,
+      step_id: resumeTarget,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      data: { reason: "resumed", returned_child: input.returned_child },
+    });
+
+    const spaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
+    const bindings = await deps.studio.getSpaceBindings(spaceBare);
+    const spaceRoot = resolveSpaceRoot(bindings);
+    if (spaceRoot) {
+      const slice = buildStepContractSlice({
+        entry: ancestorEntry,
+        catalog: input.catalog,
+        exec_context: resumedContext,
         run_id: input.run_id,
-        step_id: resumeTarget,
-        status: "working",
+        space_root: spaceRoot,
       });
+      await writeActiveStepContract({ space_root: spaceRoot, run_id: input.run_id, slice });
     }
+    const run = await deps.studio.getRun(input.runBare);
+    const flowEntry = run?.flow_id
+      ? await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id)
+      : null;
+    await dispatchStepResolverAssignment(input.advance, {
+      flow_name: flowEntry?.name,
+      run_id: input.run_id,
+      session_id: input.session_id ?? "",
+      space_id: input.space_id,
+      step_id: resumeTarget,
+      reason: "resumed",
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+    });
     return;
   }
 
@@ -383,6 +461,26 @@ export async function resolveFlowStep(
 
   const ts = deps.clock.nowIso();
   const routes = branchRoutes(entry, input.body.branch);
+  const resumeTarget = resumeTargetFromRoutes(routes);
+  if (resumeTarget) {
+    if (!isCatalogAncestor(catalog, entry, resumeTarget)) {
+      return {
+        ok: false,
+        code: "RESUME_TARGET_NOT_ANCESTOR",
+        message: `Resume target '${resumeTarget}' is not an ancestor of '${input.step_id}'`,
+        http: 409,
+      };
+    }
+    const targetMemo = memos.find((candidate) => candidate.step_id === resumeTarget);
+    if (targetMemo?.status !== "yielded") {
+      return {
+        ok: false,
+        code: "RESUME_TARGET_NOT_OPEN",
+        message: `Resume target '${resumeTarget}' is not an open yielded ancestor`,
+        http: 409,
+      };
+    }
+  }
   const failRun = isFailRoute(routes);
   const nextStatus: RunStepMemo["status"] = failRun ? "failed" : "completed";
 
@@ -489,6 +587,22 @@ export async function resolveFlowStep(
   }
 
   const advanceDeps = defaultAdvanceDeps(deps, input);
+  const trackedIterations = (execContext._step_iterations ?? {}) as Record<string, unknown>;
+  const iteration = Number(trackedIterations[input.step_id] ?? 1);
+  const artifactBag = (execContext.artifacts ?? {}) as Record<string, unknown>;
+  const childArtifactSlots = artifactBag[input.step_id];
+  const returnedChild = {
+    step_id: input.step_id,
+    branch: input.body.branch,
+    iteration: Number.isInteger(iteration) && iteration > 0 ? iteration : 1,
+    payload,
+    artifacts_out: childArtifactSlots && typeof childArtifactSlots === "object"
+      ? Object.values(childArtifactSlots).filter(
+          (artifact): artifact is Record<string, unknown> =>
+            Boolean(artifact) && typeof artifact === "object",
+        )
+      : [],
+  };
   await applyResolvedRoutes(deps, {
     run_id: input.run_id,
     runBare,
@@ -503,6 +617,7 @@ export async function resolveFlowStep(
     token_id: input.token_id,
     journal: input.journal,
     advance: advanceDeps,
+    returned_child: returnedChild,
   });
 
   return {

@@ -28,7 +28,18 @@ steps:
     description: Agent writes spec to repo.
 
   - id: build
-    description: Build site and human review loop until validated.
+    description: Coordinate build and human review children until validated.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [preview_url]
+          properties:
+            preview_url: { type: string }
+        route: { step: archive }
+      failed:
+        schema: { type: object }
+        route: { run: failed }
     steps:
       - id: build-loop
         description: Implement site; resolve when preview URL ready.
@@ -39,12 +50,12 @@ steps:
               required: [preview_url]
               properties:
                 preview_url: { type: string }
-            route: { step: build.review }
+            resume: build
           failed:
             schema: { type: object }
-            route: { run: failed }
+            resume: build
       - id: review
-        description: Human validates preview — wait; do not resolve yourself.
+        description: Human validates the current preview.
         branches:
           validated:
             schema: { type: object }
@@ -54,7 +65,7 @@ steps:
               type: object
               properties:
                 comments: { type: array }
-            route: { step: build.build-loop }
+            resume: build
           cancel:
             schema: { type: object }
             route: { run: failed }

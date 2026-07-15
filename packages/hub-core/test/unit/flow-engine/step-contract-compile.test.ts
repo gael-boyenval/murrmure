@@ -32,8 +32,8 @@ const LINEAR_MANIFEST: FlowManifest = {
           id: "build-loop",
           description: "Implement; resolve when preview URL ready.",
           branches: {
-            completed: { schema: { type: "object" }, route: { step: "build.review" } },
-            failed: { schema: { type: "object" }, route: { run: "failed" } },
+            completed: { schema: { type: "object" } },
+            failed: { schema: { type: "object" } },
           },
         },
         {
@@ -43,7 +43,6 @@ const LINEAR_MANIFEST: FlowManifest = {
             validated: { schema: { type: "object" }, resume: "build" },
             changes_required: {
               schema: { type: "object" },
-              route: { step: "build.build-loop" },
             },
           },
         },
@@ -84,16 +83,12 @@ describe("flow-engine/step-contract-compile", () => {
     expect(intake?.branches.cancel?.routes).toEqual([{ engine: "fail_run" }]);
 
     const loop = catalog!.entries.find((e) => e.step_id === "build.build-loop");
-    expect(loop?.branches.completed?.routes).toEqual([
-      { engine: "open", step_id: "build.review" },
-    ]);
-    expect(loop?.branches.failed?.routes).toEqual([{ engine: "fail_run" }]);
+    expect(loop?.branches.completed?.routes).toEqual([{ engine: "resume", step_id: "build" }]);
+    expect(loop?.branches.failed?.routes).toEqual([{ engine: "resume", step_id: "build" }]);
 
     const review = catalog!.entries.find((e) => e.step_id === "build.review");
     expect(review?.branches.validated?.routes).toEqual([{ engine: "resume", step_id: "build" }]);
-    expect(review?.branches.changes_required?.routes).toEqual([
-      { engine: "open", step_id: "build.build-loop" },
-    ]);
+    expect(review?.branches.changes_required?.routes).toEqual([{ engine: "resume", step_id: "build" }]);
   });
 
   test("default branches: completed opens next sibling, failed fails the run", () => {
@@ -167,6 +162,34 @@ describe("flow-engine/step-contract-compile", () => {
       "flw_custom",
     );
     expect(warnings.some((w) => w.code === "CUSTOM_BRANCH_REQUIRES_ROUTE")).toBe(true);
+  });
+
+  test("nested children cannot route directly to sibling steps", () => {
+    const { catalog, warnings } = compileStepContractCatalog(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "nested-owner",
+        triggers: { manual: true },
+        steps: [{
+          id: "parent",
+          steps: [
+            {
+              id: "a",
+              branches: {
+                completed: { schema: { type: "object" }, route: { step: "parent.b" } },
+              },
+            },
+            { id: "b" },
+          ],
+        }],
+      },
+      "flw_nested_owner",
+    );
+    expect(warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "NESTED_ROUTE_STEP_FORBIDDEN", step_id: "parent.a" }),
+    ]));
+    const child = catalog?.entries.find((entry) => entry.step_id === "parent.a");
+    expect(child?.branches.completed?.routes).toEqual([{ engine: "resume", step_id: "parent" }]);
   });
 
   test("lint reports dead steps", () => {

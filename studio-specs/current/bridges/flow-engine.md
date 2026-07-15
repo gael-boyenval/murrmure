@@ -27,8 +27,9 @@ Maps rev-1 flow manifest semantics to hub runtime behavior. See [product/spec.md
 | `space-home.ts` | Aggregated `/v1/spaces/:id/home` payload |
 | `templates.ts` | `{{input.*}}`, `{{steps.*}}`, `{{event.*}}` resolution |
 | `step-contract-compile.ts` | YAML → `StepContractCatalog`; nested flatten |
-| `step-resolve.ts` | Unified `resolve_step` handler; nested `route` / `resume` |
-| `step-open.ts` | Open step + handler dispatch + first nested child bootstrap |
+| `step-resolve.ts` | Unified `resolve_step` handler; nested child return |
+| `step-open.ts` | Open step + exclusive handler assignment dispatch |
+| `open-child-step.ts` | Atomic parent yield, credential revocation, direct-child activation |
 | `step-catalog.ts` | Catalog lookups; nested children ordering |
 | `step-contract-slice.ts` | Runtime injection slice + `active-step-contract.json` |
 
@@ -47,8 +48,8 @@ Flows authored with resolver-agnostic **`step`** blocks compile a **`StepContrac
 | Concept | Behavior |
 |---------|----------|
 | **Top-level step** | `route: { step: <id> }` opens the next step; `route: { run: completed \| failed }` terminates |
-| **Nested step** | Qualified id `parent.child`; `route: { step: parent.child }` opens a child; `resume: <parent>` yields back to an open parent |
-| **engine-routed** | Engine opens siblings (e.g. `build.review` after `build.build-loop` resolves); agent waits via `murrmure_wait_for_run` |
+| **Nested step** | Qualified id `parent.child`; assigned parent activates one direct child with `murrmure_open_child_step`; child `resume` returns to the yielded ancestor |
+| **Call/return** | Child activation yields/revokes parent before dispatch; return creates a fresh parent assignment with canonical `returned_child` |
 | **Default branches** | Omitted `branches` inject `completed` / `failed`; explicit maps are exact (`branches: {}` rejected) |
 | **Unbound step** | No handler ⇒ open and externally resolvable; `open_steps[]` projects `resolver: null` |
 
@@ -56,11 +57,15 @@ Normative detail: [step-contract.md](./step-contract.md). Execution binding: [ha
 
 ### Nested runtime (preview-review)
 
-1. Engine opens **build** → dispatches handler `feature_build` (`on: step.opened::preview-review.build`) → opens **build.build-loop**
-2. Agent resolves **build.build-loop** (`completed`, `{ preview_url }`) → `route: { step: build.review }`
-3. Engine opens **build.review** (no bound handler) → appears in `open_steps[]` with `resolver: null`
-4. Human validates → `resume: build` → **build** completed → **archive**
-5. Feedback → `route: { step: build.build-loop }` → same shell session (owner handler not re-dispatched)
+1. Engine opens **build** and dispatches its exclusive resolver assignment.
+2. Parent calls `murrmure_open_child_step(build.build-loop)`; parent becomes
+   `yielded`, its credential/process are revoked, and the child opens.
+3. Build child resolves with `{ preview_url }`; `resume: build` creates a fresh
+   parent assignment containing that canonical `returned_child`.
+4. Parent opens **build.review** and yields. The View resolves review.
+5. `changes_required` resumes the parent so it can open a new build iteration;
+   `validated` resumes the parent so it can resolve its own completed branch and
+   open **archive**.
 
 Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_catalog` is present.
 

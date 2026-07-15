@@ -2,7 +2,7 @@
 
 **Status:** Normative — **shipped** (HANDLER-CUTOVER 2026-07-09; VIEW-RESOLVER cutover 2026-07-14)
 **Plan:** [2026-07-09-space-handlers-contract-keys-plan.md](../../plans/2026-07-09-space-handlers-contract-keys-plan.md), [Tutorial v3 Task 04](../../plans/2026-07-14-tutorial-v3-build-tasks/04-intake-view.md)
-**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md), [ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md), [ADR-013 — agent assignment prompt protocol](../../ADR/ADR-013-agent-assignment-prompt-protocol.md)
+**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md), [ADR-013 — agent assignment prompt protocol](../../ADR/ADR-013-agent-assignment-prompt-protocol.md), [ADR-015 — nested call/return](../../ADR/ADR-015-nested-step-call-return.md)
 
 Spaces own execution via **handlers**. A step handler binds to a resolver-agnostic
 step with `on: step.opened::{flow_name}.{qualified_step_id}` (the **`on::key`
@@ -166,6 +166,12 @@ fallback controls for unbound steps, and must not become a second workflow
 engine. See [ADR-009](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
 for the hardened host boundary.
 
+For a nested parent, the projection also carries `reason` (`opened` or
+`resumed`), direct `declared_children`, and optional canonical
+`returned_child`. A View activates a child only through the host-mediated
+`openChild(child_step_id, idempotency_key)` operation. The iframe still receives
+no Hub credential.
+
 ---
 
 ## Shell handler execution model
@@ -229,7 +235,7 @@ runtime owns process lifecycle. See
 
 ### Process lifecycle and credentials
 
-- Timeout, cancellation, external resolution, yield, run terminal, or Desktop
+- Timeout, cancellation, external resolution, nested yield, run terminal, or Desktop
   shutdown sends process-group `SIGTERM`, waits five seconds, then `SIGKILL`,
   and records exactly one terminal result. The `SIGKILL` escalation stays armed
   when the shell leader exits after `SIGTERM`, so a TERM-resistant descendant is
@@ -246,7 +252,7 @@ runtime owns process lifecycle. See
   `scope_ref` (`{run_id}:{step_id}:{handler_id}`) with a `harness_id` of
   `run:{run_id}`; `requireToken` denies an expired or revoked token. The
   assignment boundary is enforced on **every `step:resolve` endpoint** — step
-  resolve, upload-intent creation, file transfer, and intent abandon — by one
+  resolve, child activation, upload-intent creation, file transfer, and intent abandon — by one
   shared `requireAssignmentScope` helper: an ephemeral token may only act for
   its own run/step/space (denying another run/step with
   `TOKEN_RUN_SCOPE_MISMATCH` / `TOKEN_STEP_SCOPE_MISMATCH` and another space with
@@ -256,6 +262,11 @@ runtime owns process lifecycle. See
   child credential survives a finished assignment. The dispatch audit records
   only command/prompt/cwd — never the environment — so credentials never reach
   the journal or public surfaces.
+- Nested child activation revokes the current parent credential and terminates
+  its executor before child dispatch. Child return re-invokes the same exclusive
+  handler binding with reason `resumed` and a new credential. Shell/script
+  handlers are therefore new process assignments; optional agent-session reuse
+  is adapter behavior and does not change journal state.
 - A prompted agent also receives the non-secret
   `MURRMURE_ASSIGNMENT_SCOPE={run_id}:{step_id}:{handler_id}` marker. When its
   installed local MCP descriptor starts, the bundled bridge uses the ephemeral

@@ -7,6 +7,7 @@ import type {
 } from "@murrmure/contracts";
 import { parseHandlerStepBinding } from "@murrmure/contracts";
 import { catalogEntryForStep } from "./step-catalog.js";
+import { nestedCatalogChildren } from "./step-catalog.js";
 import { buildHandlerIndex, matchStepOpenedHandlers } from "../index/parse-handlers.js";
 import { computeContentDigest } from "../index/digest.js";
 import type { RunGraphResolver } from "./graph.js";
@@ -117,6 +118,17 @@ export function buildOpenStepProjections(
       step_id: entry.step_id,
       parent_id: entry.parent_id,
       description: entry.description,
+      reason:
+        ((context?.exec_context?._step_assignment_reasons ?? {}) as Record<string, unknown>)[entry.step_id] === "resumed"
+          ? "resumed"
+          : "opened",
+      declared_children: nestedCatalogChildren(catalog, entry.step_id).map((child) => child.step_id),
+      ...(() => {
+        const returned = ((context?.exec_context?._returned_children ?? {}) as Record<string, unknown>)[entry.step_id];
+        return returned && typeof returned === "object"
+          ? { returned_child: returned as OpenStepResolverProjection["returned_child"] }
+          : {};
+      })(),
       resolver,
       ...(view ? { view } : {}),
       branches: Object.entries(entry.branches).map(([branch, def]) => ({

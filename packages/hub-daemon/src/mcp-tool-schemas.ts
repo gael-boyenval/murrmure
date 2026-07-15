@@ -138,6 +138,15 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     { required: ["run_id", "step_id", "branch"] },
   ),
+  murrmure_open_child_step: objectSchema(
+    {
+      run_id: stringSchema("Run identifier"),
+      parent_step_id: stringSchema("Currently active parent step identifier"),
+      child_step_id: stringSchema("Direct declared child step identifier"),
+      idempotency_key: stringSchema("Required deterministic activation key"),
+    },
+    { required: ["run_id", "parent_step_id", "child_step_id", "idempotency_key"] },
+  ),
   murrmure_list_emittable_events: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
