@@ -220,4 +220,48 @@ describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
       expect(body.message).toContain(removed);
     }
   });
+
+  test("grant mint rejects removed capabilities in legacy scopes field (space-scoped route)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "removed-scope", scopes: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        code: string;
+        message: string;
+        hint?: { invalid_scopes?: string[] };
+      };
+      expect(body.code).toBe("unknown_scope");
+      expect(body.message).toContain(removed);
+      expect(body.hint?.invalid_scopes).toContain(removed);
+    }
+  });
+
+  test("grant mint rejects removed capabilities in legacy scopes field (top-level /v1/grants route)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ space_id: spaceId, label: "removed-scope", scopes: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        code: string;
+        message: string;
+        hint?: { invalid_scopes?: string[] };
+      };
+      expect(body.code).toBe("unknown_scope");
+      expect(body.message).toContain(removed);
+      expect(body.hint?.invalid_scopes).toContain(removed);
+    }
+  });
 });

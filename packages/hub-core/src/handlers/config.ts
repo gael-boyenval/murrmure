@@ -2,7 +2,7 @@ import type { CommandResult } from "@murrmure/runtime-contracts";
 import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 import type { Capability, FlowInstall, Member, StudioProvenance } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import { resolveEffectiveCapabilities } from "../grants/migrate.js";
+import { resolveEffectiveCapabilities, partitionScopes } from "../grants/migrate.js";
 import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
 import { computeFederationStatus } from "../federation/outbound-queue.js";
 import type { FederationRegistryDeps } from "../federation/registry.js";
@@ -386,6 +386,19 @@ export class ConfigHandler {
           {
             message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
             hint: { invalid_capabilities: invalid },
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
+    }
+    if (body.scopes?.length) {
+      const { invalid } = partitionScopes(body.scopes);
+      if (invalid.length > 0) {
+        return denialResult(
+          "unknown_scope",
+          {
+            message: `Unknown or removed scopes: ${invalid.join(", ")}`,
+            hint: { invalid_scopes: invalid },
           },
           HTTP_SEMANTIC.BAD_REQUEST,
         );

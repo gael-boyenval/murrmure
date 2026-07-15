@@ -139,4 +139,46 @@ describe("clean-state configuration", () => {
       http_semantic: 400,
     });
   });
+
+  test("mintGrant rejects removed capabilities in legacy scopes field", async () => {
+    const studio = new MemoryStudioPersistence();
+    const handler = new ConfigHandler(
+      studio,
+      { ulid: () => "01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+      { nowIso: () => "2026-07-14T00:00:00.000Z" },
+    );
+    await studio.insertSpace(
+      {
+        space_id: "space",
+        slug: "space",
+        name: "Space",
+        status: "active",
+        install_policy: "human_only",
+        preview_policy: "same_origin_only",
+      },
+      "2026-07-14T00:00:00.000Z",
+    );
+    const provenance = {
+      space_id: "spc_space",
+      actor_id: "act_admin",
+      token_id: "tok_admin",
+    };
+
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const result = await handler.mintGrant(
+        "spc_space",
+        { label: "removed-scope", scopes: ["space:read", removed] },
+        provenance,
+      );
+      expect(result).toMatchObject({
+        outcome: "denial",
+        code: "unknown_scope",
+        http_semantic: 400,
+      });
+      expect((result.body as { message: string }).message).toContain(removed);
+    }
+
+    const grants = await studio.listGrants("space");
+    expect(grants).toEqual([]);
+  });
 });

@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import type { Capability } from "@murrmure/contracts";
 import { partitionCapabilities } from "@murrmure/contracts";
+import { partitionScopes } from "@murrmure/hub-core";
 import type { CommandResult } from "@murrmure/runtime-contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
@@ -35,6 +36,20 @@ export function mountGrantV2Routes(app: Hono, ctx: DaemonContext): void {
             code: "unknown_capability",
             message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
             hint: { invalid_capabilities: invalid },
+          },
+          400,
+        );
+      }
+    }
+    const rawScopes = (body.scopes as unknown[] | undefined) ?? undefined;
+    if (rawScopes?.length) {
+      const { invalid } = partitionScopes(rawScopes);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_scope",
+            message: `Unknown or removed scopes: ${invalid.join(", ")}`,
+            hint: { invalid_scopes: invalid },
           },
           400,
         );

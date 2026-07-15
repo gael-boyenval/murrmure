@@ -3,6 +3,7 @@ import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
 import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
+import { partitionScopes } from "@murrmure/hub-core";
 import { normalizeTriggerBody } from "../triggers/index.js";
 import { grantResultBody } from "../grants/index.js";
 
@@ -187,6 +188,20 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
             code: "unknown_capability",
             message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
             hint: { invalid_capabilities: invalid },
+          },
+          400,
+        );
+      }
+    }
+    const rawScopes = (body?.scopes as unknown[] | undefined) ?? undefined;
+    if (rawScopes?.length) {
+      const { invalid } = partitionScopes(rawScopes);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_scope",
+            message: `Unknown or removed scopes: ${invalid.join(", ")}`,
+            hint: { invalid_scopes: invalid },
           },
           400,
         );
