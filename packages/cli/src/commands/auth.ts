@@ -81,7 +81,7 @@ export const loginCommand = defineCommand({
     ...globalArgs,
     open: {
       type: "boolean",
-      description: "Open browser to /spaces/new (bootstrap or grant mint instructions)",
+      description: "Open browser to /spaces/new (operator login and space bootstrap)",
       default: false,
     },
   },

@@ -177,7 +177,7 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | `flow:read` | Applied/live/history graph contracts + safe resolver identity — no Run without `flow:run` |
 | `step:resolve` | Resolve open steps (required to call `murrmure_resolve_step`) |
 
-Mint: `mrmr grant mint --capabilities flow:run,flow:read,step:resolve`.
+Create a local connection with the default `tutorial-builder/v1` profile: `mrmr connection create --space spc_…`.
 
 Desktop uses one digest-aware flow page for the current applied preview, live
 run, and history. The Hub normalizes default branches and matches handlers; UI

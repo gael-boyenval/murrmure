@@ -3,9 +3,8 @@
   "prompt": "How do I connect Cursor to Murrmure MCP?",
   "expected_keywords": [
     "murrmure-mcp",
-    "MURRMURE_HUB_TOKEN",
-    "mrmr grant mint",
-    "mrmr grant use",
+    "mrmr connection create",
+    "mrmr setup",
     "murrmure_space_status"
   ],
   "advisory": true
