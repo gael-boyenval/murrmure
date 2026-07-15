@@ -90,6 +90,12 @@ const ACTIVE_GUIDANCE_FORBIDDEN = [
     pattern: /awaiting_human/,
     allowIf: REMOVAL_CONTEXT,
   },
+  {
+    label: "active removed mcp_wake runtime prescription",
+    pattern:
+      /mcp_wake semantics|mcp\.wake_delivered|mcp\.wake_pending|wake_label is routing metadata|McpToolRegistry lookup|succeeds without catalog tool/,
+    allowIf: REMOVAL_CONTEXT,
+  },
 ];
 const SKILL_EVAL_ROOTS = ["packages/cli/test/skill-eval"];
 const SKILL_EVAL_FORBIDDEN = [

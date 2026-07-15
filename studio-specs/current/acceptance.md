@@ -12,7 +12,7 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 
 | ID | Symptom | Phase | Fixture | Test |
 |----|---------|-------|---------|------|
-| B1 | Checkpoint steps dispatch | 03 | `fixtures/flow-engine/declarative-gate-chain.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| B1 | ~~Checkpoint steps dispatch~~ — removed (Task 15 Lane A) | 03 → 15 | removed; superseded by `step:resolve` | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
 | B2 | `{{steps.*}}` templates | 03 | `fixtures/flow-engine/step-output-chaining.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
 | B3 | `MURRMURE_INPUT` on shell_spawn | 03 | `fixtures/flow-engine/murrmure-input-env.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
 | B4 | ViewCanvasHost at checkpoints | 05 | — (inline context) | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
@@ -22,6 +22,13 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 | B8 | Setup wizard | 08 | `fixtures/cli/wizard-onboard-smoke.json` | `packages/cli/test/wizard/setup.test.ts` |
 
 Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing.json`.
+
+> **B1 — checkpoint dispatch removed (Task 15 Lane A/C).** Declarative
+> checkpoint auto-dispatch is gone; the `checkpoint.test.ts` suite and
+> `declarative-gate-chain.json` fixture are retired. Step resolution uses the
+> clean `step:resolve` contract (`murrmure_resolve_step` / `mrmr step resolve`)
+> — see [Tutorial v3 progressive conformance (TV3)](#tutorial-v3-progressive-conformance-tv3)
+> and `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts`.
 
 ## Phase 10 — Docs & proof
 

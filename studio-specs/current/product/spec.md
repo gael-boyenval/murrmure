@@ -372,7 +372,7 @@ Before marking invoke `dispatched`:
    - **Default:** fail fast with `EXECUTOR_UNAVAILABLE` (Run step → `failed` with typed error)
    - **Opt-in:** `delivery: queue_until_executor` on action or invoke — Run step shows `waiting_for_executor` (visible in shell)
 
-Replaces v1 ambiguous `mcp.wake_pending` as silent default.
+Replaces the removed v1 `mcp.wake_pending` silent default.
 
 ### 4.4 Invoke HTTP
 
@@ -954,15 +954,25 @@ First successful `space link` by a user → **suggest** “Use as landing?” (b
 }
 ```
 
-### 10.8 v1 migration aliases
+### 10.8 v1 migration aliases (historical, non-normative)
 
-| v1 | rev-1 | Transition |
+> **Removed (Task 15 Lane C).** The v1→rev-1 migration aliases and
+> dual-emission shims below are a historical record only — the cutover is
+> complete and none of these remain active. Read paths use `run_id` /
+> `session_id` directly; `POST …/instances` and the `correlation_id` header are
+> gone (404); `mcp_wake` + `wake_label` is a retired wire (404), not an
+> action-invoke shim — the clean protocol uses event handlers +
+> `murrmure_emit_event` + flow triggers; `checkpoint.*` journal types and dual
+> emission are removed in favor of `step:resolve` (`murrmure_resolve_step`) and
+> `mrmr.gate.*` / `mrmr.run.*` only.
+
+| v1 (removed) | rev-1 clean protocol | Status |
 |----|-------|------------|
-| `instance_id` | `run_id` | Both accepted on read paths for one release |
-| `POST …/instances` | `POST …/runs` | Adapter creates Run + Session |
-| `correlation_id` | `session_id` | Deprecated header |
-| `mcp_wake` + `wake_label` | `POST …/actions/{name}/invoke` | Shim route |
-| `checkpoint.*` journal types | `mrmr.gate.*` | Dual emit during migration |
+| `instance_id` | `run_id` | Removed — read paths use `run_id` only |
+| `POST …/instances` | `POST …/runs` | Removed — 404 (adapter gone) |
+| `correlation_id` | `session_id` | Removed — deprecated header gone |
+| `mcp_wake` + `wake_label` | event handlers + `murrmure_emit_event` + flow triggers | Removed — 404 retired wire |
+| `checkpoint.*` journal types | `mrmr.gate.*` / `mrmr.run.*` + `step:resolve` | Removed — no dual emit |
 
 ### 10.9 MCP platform tools (normative)
 
@@ -1249,7 +1259,7 @@ Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 | Hub stores view registry | Views are clients, not protocol state |
 | `scope: global` on flow file | Duplicates grants |
 | Path-as-session-id | Breaks security, federation, rename |
-| Default `mcp.wake_pending` queue | Hides executor gaps |
+| Default `mcp.wake_pending` queue (removed) | Hides executor gaps |
 | "Attach session when possible" | Not implementable — mandatory |
 | Timeline as primary live UX | Use flowchart + journal replay |
 | Gate approve without graph preview (agent push) | Rubber stamp — meaningless oversight |
@@ -1316,10 +1326,17 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 
 **Rationale:** Invoke is the execution spine. Sessions without invoke are metadata. Views are optimization. Federation last.
 
-### v1 compatibility shims (during migration)
+### v1 compatibility shims (historical, non-normative — removed)
 
-- `POST /v1/spaces/{id}/instances` → creates Session+Run; returns `instance_id` = `run_id`
-- `mcp_wake` → routes to action invoke shim
+> **Removed (Task 15 Lane C).** These migration shims are gone; the clean
+> protocol is the only one. `POST /v1/spaces/{id}/instances` returns 404 (use
+> `POST …/runs`); `mcp_wake` is a retired wire (404), not an action-invoke
+> shim — use event handlers + `murrmure_emit_event` + flow triggers; the
+> review-loop is an example flow + view client, not a product center; and the
+> Configure UI routes are deprecated/redirected to CLI instruction pages.
+
+- `POST /v1/spaces/{id}/instances` → removed (404); create Session+Run via `POST …/runs`; `instance_id` is gone
+- `mcp_wake` → removed (404 retired wire); routes to no shim — use `on: event:` handlers + `murrmure_emit_event` + flow triggers
 - Review-loop capability → example flow + view client, not product center
 - Configure UI routes deprecated; redirect to CLI instruction pages
 

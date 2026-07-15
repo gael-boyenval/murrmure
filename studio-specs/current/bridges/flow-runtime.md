@@ -88,12 +88,14 @@ interface ControlBus {
 }
 
 interface McpWakeDispatcher {
-  wake(args: {
-    target_space_id: string;
-    wake_label: string;
-    payload: unknown;
-    session_hint: "wake";
-  }): Promise<void>;
+  // Wake wire (`POST /v1/mcp/wake`) is retired — 404 (phase 16). The clean
+  // protocol uses event handlers + `murrmure_emit_event` + flow triggers
+  // (see triggers/spec.md). This class now tracks connected MCP principals
+  // per space for executor preflight only — it no longer dispatches wakes.
+  connect(principal: ControlPrincipal): void;
+  disconnect(principal: ControlPrincipal): void;
+  hasConnectedSession(spaceId: string): boolean;
+  connectedPrincipals(spaceId: string): ControlPrincipal[];
 }
 ```
 
@@ -107,7 +109,6 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 | `flow.live_apply_failed` | Mount error |
 | `flow.unmounted` | Rollback/supersede |
 | `mcp.tools_changed` | Audit mirror |
-| `mcp.wake_delivered` | Wake delivered to session |
 
 ## SSE (optional)
 
@@ -120,4 +121,4 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 | `packages/hub-daemon/src/mount-registry.ts` | MountRegistry |
 | `packages/hub-daemon/src/mcp-tool-registry.ts` | Catalog rebuild |
 | `packages/hub-daemon/src/control-bus.ts` | Outbox + replay |
-| `packages/hub-daemon/src/mcp-wake-dispatcher.ts` | wake_label routing |
+| `packages/hub-daemon/src/mcp-wake-dispatcher.ts` | Connected-session tracking (wake wire retired — 404) |
