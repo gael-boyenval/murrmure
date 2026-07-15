@@ -148,7 +148,7 @@ Used by the hub daemon MCP integration (and `@murrmure/cli` when pointed at a se
 | `POST` | `/v1/mcp/tools/call?space_id=` | per-tool scope + ACL | Invoke a tool by name |
 
 ::: warning Retired
-`POST /v1/mcp/wake` returns **404** (phase 16). Downstream work uses **`murrmure_invoke_action`** and indexed hooks/triggers instead.
+`POST /v1/mcp/wake` returns **404** (phase 16). Downstream work uses event reactions (`on: event:` in `.mrmr/space/handlers.yaml`), **`murrmure_emit_event`** (`event:emit` capability), flow triggers, and indexed hooks/triggers — not `murrmure_invoke_action` (removed, Task 15 Lane A).
 :::
 
 

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
@@ -454,6 +454,71 @@ describe("phase 10 docs proof (10-T*)", () => {
         }
       }
     }
+  });
+
+  test("T15-LANE-C — active docs ban removed `murrmure_invoke_action` prescription", () => {
+    // murrmure_invoke_action was removed (Task 15 Lane A). A line that names it
+    // as removed/superseded/retired is a removal description, not a
+    // prescription — allowed. Prescribing it as the downstream/active path is
+    // drift (http-api.md once pointed mcp_wake downstream at it). Scans
+    // apps/docs (incl. reference/), studio-specs/current, and
+    // skill-developer/reference — the surfaces where the drift slipped through.
+    const REMOVAL_CONTEXT =
+      /\b(?:no|not|never|removed|superseded|without|absent|gone|retired)\b/i;
+    const PATTERN = /murrmure_invoke_action/;
+    const roots = [
+      join(REPO_ROOT, "apps/docs"),
+      join(REPO_ROOT, "studio-specs/current"),
+      join(REPO_ROOT, "packages/cli/skill-developer/reference"),
+    ];
+    for (const root of roots) {
+      for (const file of collectMarkdownFiles(root)) {
+        const rel = file.replace(`${REPO_ROOT}/`, "");
+        const lines = readFileSync(file, "utf-8").split("\n");
+        for (const line of lines) {
+          if (!PATTERN.test(line)) continue;
+          expect(
+            line,
+            `${rel}: prescribes removed murrmure_invoke_action without removal context`,
+          ).toMatch(REMOVAL_CONTEXT);
+        }
+      }
+    }
+  });
+
+  test("T15-LANE-C — tutorial v3 relative links resolve (no broken v2 references)", () => {
+    // Tutorial v3 must be self-contained: relative markdown links inside the
+    // v3 pages must resolve to existing files. The v2 tutorials were archived
+    // out of apps/docs/guide/tutorials/, so links like ../01-local-preview-review/
+    // are broken and must not reappear. Scoped to the v3 tutorial directory.
+    const tutorialRoot = join(
+      REPO_ROOT,
+      "apps/docs/guide/tutorials/01-local-preview-review-v3",
+    );
+    const linkRe = /\]\(([^)]+)\)/g;
+    const errors: string[] = [];
+    for (const file of collectMarkdownFiles(tutorialRoot)) {
+      const rel = file.replace(`${REPO_ROOT}/`, "");
+      const text = readFileSync(file, "utf-8");
+      // Strip fenced code blocks so links inside code/mermaid are not checked.
+      const stripped = text.replace(/```[^\n]*\n[\s\S]*?```/g, "");
+      for (const match of stripped.matchAll(linkRe)) {
+        const target = match[1];
+        // Only check relative links (skip http(s), mailto, absolute /routes).
+        if (!target.startsWith("./") && !target.startsWith("../")) continue;
+        const pathPart = target.split("#")[0].split("?")[0];
+        if (!pathPart) continue;
+        const resolved = resolve(dirname(file), pathPart);
+        if (existsSync(resolved)) continue;
+        // VitePress clean-URL conventions: extensionless → .md; trailing slash → index.md.
+        if (existsSync(`${resolved}.md`)) continue;
+        if (existsSync(join(resolved, "index.md"))) continue;
+        errors.push(
+          `${rel}: broken relative link ${target} (resolved to ${relative(REPO_ROOT, resolved)})`,
+        );
+      }
+    }
+    expect(errors, errors.join("\n")).toEqual([]);
   });
 
   test("VS-9 — v3 shell types and space-home route ban removed `requires_view`", () => {

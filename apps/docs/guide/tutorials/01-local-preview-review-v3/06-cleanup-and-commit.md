@@ -243,6 +243,6 @@ You wired the full pipeline: command copy, agent build (with resolve payload), c
 
 **Next paths:**
 
-- [Tutorial 1 — Full preview review](../01-local-preview-review/) — nested build/review, agent archive
+- **Archived v2 tutorial (non-normative)** — the original full preview review (nested build/review, agent archive); superseded and not in the active docs.
 - [Space handlers](../../space-handlers) — handler reference
 - [How it fits together](../../how-it-fits-together) — architecture map

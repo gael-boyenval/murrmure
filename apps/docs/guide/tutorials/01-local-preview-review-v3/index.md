@@ -4,11 +4,11 @@ Learn Murrmure by **watching one simple workflow evolve** — not by building ev
 
 You will launch Desktop, create a **space**, write a flow, build a **custom view**, run intake from the app, then extend the graph with command and agent handlers.
 
-The full preview-review loop (nested build/review, archive) lives in the **[original 9-part tutorial](../01-local-preview-review/)** — use it after this one.
+The full preview-review loop (nested build/review, archive) is documented in the **archived v2 tutorial (non-normative)**, superseded by this v3 path — it is preserved in the superseded tutorials archive, not the active docs.
 
 ## How this tutorial is different
 
-| | **This tutorial (v3)** | **Full tutorial (v1)** |
+| | **This tutorial (v3)** | **Full tutorial (v2, archived)** |
 |---|------------------------|------------------------|
 | **Goal** | Understand Murrmure's moving parts | Ship a production-style workflow |
 | **Structure** | One concept per beat, start → finish | Layer by layer (handlers, views, manifest, …) |
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ## After this tutorial
 
-- **[Tutorial 1 — Full walkthrough](../01-local-preview-review/)** — nested build/review loop, archive, richer handlers
+- **Archived v2 tutorial (non-normative)** — the original 9-part walkthrough (nested build/review loop, archive, richer handlers); superseded and not in the active docs.
 - [How it fits together](../../how-it-fits-together) — architecture map
 - [Space handlers](../../space-handlers) — handler reference
 

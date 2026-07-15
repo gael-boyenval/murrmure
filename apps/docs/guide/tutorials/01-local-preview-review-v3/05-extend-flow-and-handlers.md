@@ -201,7 +201,7 @@ terminates.
 | `contract_keys` count | Protocol contents |
 |----------------------|-------------------|
 | **One** (this handler) | **Contracts** — one MCP call per branch |
-| **More than one** (subgraph owner — [full tutorial](../01-local-preview-review/04-prompt-triggers)) | **Handler scope** + **Contracts** + **Discovery** |
+| **More than one** (subgraph owner — archived v2 tutorial, non-normative) | **Handler scope** + **Contracts** + **Discovery** |
 
 ### Extract — full prompt sent to the agent
 
@@ -249,7 +249,7 @@ murrmure_resolve_step({
 
 Each branch lists the full MCP call with `run_id` and `step_id` filled at spawn.
 
-**Subgraph-owner handlers** (multiple `contract_keys`) additionally receive **Handler scope** and **Discovery** — see `feature_build` in the [full tutorial](../01-local-preview-review/04-prompt-triggers).
+**Subgraph-owner handlers** (multiple `contract_keys`) additionally receive **Handler scope** and **Discovery** — see the `feature_build` example in the archived v2 tutorial (non-normative).
 
 After Steps 1–5, the complete flow manifest is:
 

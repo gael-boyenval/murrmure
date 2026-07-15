@@ -324,7 +324,7 @@ A human step is presented by a space-bound **`view_resolver`** (the space owns
 the View), or left unbound and observability-only. The engine opens no
 presentation itself and the shell synthesizes no form.
 
-### Q4 — `murrmure_invoke_action` fate
+### Q4 — `murrmure_invoke_action` fate (removed in Task 15 Lane A)
 
 **Status:** DECIDED
 

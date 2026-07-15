@@ -172,7 +172,7 @@ Part 5 adds **command** and **agent** steps after intake; [Part 6](./06-cleanup-
 | Upload cancelled | You clicked **Cancel upload** before commit | The step remains open; select or submit the file again |
 | No file under `runs/…/spec/` | Wrong run id | Use the **successful** second run, not the cancelled one |
 
-Full troubleshooting table: [Part 9 of the original tutorial](../01-local-preview-review/09-troubleshooting).
+The archived v2 tutorial (non-normative, Part 9) has a fuller troubleshooting table; this v3 path supersedes it.
 
 ## Checkpoint
 

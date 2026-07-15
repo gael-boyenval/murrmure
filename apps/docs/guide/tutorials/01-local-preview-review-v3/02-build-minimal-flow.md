@@ -6,7 +6,7 @@ The manifest lives at `.mrmr/flows/my-dev-flow/flow.manifest.yaml`. Execution (h
 
 We build **`my-dev-flow`** in two passes: first the flow shell, then a single **intake** step.
 
-The [full 9-part tutorial](../01-local-preview-review/) adds handlers, views, agent steps, and strict apply on top of this same manifest shape.
+The archived v2 tutorial (non-normative) adds handlers, views, agent steps, and strict apply on top of this same manifest shape; it is superseded by this v3 path.
 
 ## Step 1 — Flow shell
 
@@ -132,7 +132,7 @@ Each key under `branches` is an **outcome name** — what gets passed to `resolv
 - `route: { run: failed }` — run ends as failed.
 - `schema: { type: object }` — no extra fields required.
 
-That is all you need for this step. Loops and richer routing are in the [full tutorial manifest](../01-local-preview-review/05-flow-manifest).
+That is all you need for this step. Loops and richer routing appear in the archived v2 tutorial (non-normative), superseded by this v3 path.
 
 ## Checkpoint
 
