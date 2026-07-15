@@ -1,5 +1,27 @@
 # Changelog
 
+## Tutorial v3 Task 07 — connected agent build assignments (2026-07-15)
+
+### Added
+
+- Agent handler contracts now use the versioned
+  `Protocol: murrmure.agent/v1` envelope. Every branch is rendered
+  deterministically from the canonical compiled contract with a complete
+  Draft 2020-12 payload schema, separate artifact requirements, its control
+  effect, and a full resolve call carrying live run/step IDs.
+- Single-key assignments contain Contracts only; multi-key subgraph owners
+  additionally receive Discovery. Session, MCP-tools, Resolve-API,
+  `When ready:`, and placeholder-ID prose is removed.
+- Spawned connected agents now route their installed MCP descriptor through
+  ephemeral run/step/handler authority. The assignment bridge bypasses the
+  persistent OS-store connection and fails closed when assignment authority is
+  incomplete.
+- Local branch calls use workdir-relative artifact paths; remote/federated calls
+  use authorized upload-intent references. MCP resolve now forwards that remote
+  reference.
+- Tutorial Part 5, handler/agent docs, normative bridges, skills, fixtures, and
+  ADR-013 now describe the same prompt and authority boundary.
+
 ## Tutorial v3 Task 06 — safe shell handler copies a verified run-scoped artifact (2026-07-15)
 
 ### Added

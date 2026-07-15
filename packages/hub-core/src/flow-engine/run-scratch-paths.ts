@@ -47,6 +47,15 @@ export function runScratchDir(space_root: string, run_id: string): string {
   return join(space_root, runScratchRelPath(run_id));
 }
 
+/**
+ * Absolute space run-scratch root: `{space_root}/.mrmr/dev/runs`. The only
+ * constructor for the per-space runs tree; quota accounting and GC walk this
+ * directory instead of rebuilding the literal `.mrmr/dev/runs` path.
+ */
+export function spaceRunsDir(space_root: string): string {
+  return join(space_root, ".mrmr", "dev", "runs");
+}
+
 /** Absolute path to a run's `active-step-contract.json`. */
 export function activeContractPath(space_root: string, run_id: string): string {
   return join(runScratchDir(space_root, run_id), "active-step-contract.json");
@@ -60,6 +69,16 @@ export function stepWorkdirRel(run_id: string, step_id: string): string {
 /** Relative step stable (promoted artifact) dir: `.mrmr/dev/runs/{run_id}/steps/{step_id}`. */
 export function stepStableDirRel(run_id: string, step_id: string): string {
   return join(runScratchRelPath(run_id), "steps", step_id);
+}
+
+/**
+ * Relative stable slot dir for a collection: `.mrmr/dev/runs/{run_id}/steps/
+ * {step_id}/{slot}`. The `.directory` token binds to this promoted slot
+ * directory; a collection consumer copy is materialized under the consumer
+ * step's `inputs/{slot}` tree.
+ */
+export function stableSlotDirRel(run_id: string, step_id: string, slot: string): string {
+  return join(stepStableDirRel(run_id, step_id), slot);
 }
 
 /** Relative consumer-inputs dir for a step: `.mrmr/dev/runs/{run_id}/steps/{step_id}/inputs`. */
@@ -89,6 +108,21 @@ export function consumerInputPath(
   filename: string,
 ): string {
   return join(space_root, consumerInputRelPath(run_id, consumer_step, slot, filename));
+}
+
+/**
+ * Absolute path of a consumer step's verified input directory for one slot:
+ * `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}`. A collection
+ * `.directory` token resolves to this directory after every file in the slot is
+ * materialized atomically inside it.
+ */
+export function consumerInputsDirPath(
+  space_root: string,
+  run_id: string,
+  consumer_step: string,
+  slot: string,
+): string {
+  return join(space_root, stepInputsDirRel(run_id, consumer_step), slot);
 }
 
 /**

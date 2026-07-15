@@ -33,6 +33,7 @@ export interface MurrmureProtocolRenderInput {
   contract_markdown: string;
   contract_path?: string;
   workdir?: string;
+  contract_key_count?: number;
 }
 
 export function buildInvokeTemplateBindings(context: InvokeTemplateContext): Record<string, string> {
@@ -116,17 +117,21 @@ export function setMurrmureProtocolRenderer(
 
 function defaultMurrmureProtocolRender(ctx: MurrmureProtocolRenderInput): string {
   if (murrmureProtocolRenderer) return murrmureProtocolRenderer(ctx);
-  return [
-    "# Murrmure protocol (auto-generated — authoritative)",
+  const lines = [
+    "Protocol: murrmure.agent/v1",
     "",
-    `Run: ${ctx.run_id}`,
-    ctx.session_id ? `Session: ${ctx.session_id}` : "",
-    `Action: ${ctx.action_name}`,
-    "",
+    "## Contracts",
     ctx.contract_markdown,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ];
+  if ((ctx.contract_key_count ?? 1) > 1) {
+    lines.push(
+      "",
+      "## Discovery",
+      "Retrieve full scoped contracts after a transition:",
+      `murrmure_list_step_contracts({ run_id: "${ctx.run_id}" })`,
+    );
+  }
+  return lines.filter(Boolean).join("\n");
 }
 
 /** Fallback when an action has no `prompt` template. */
@@ -196,6 +201,9 @@ export function resolveInvokePrompt(
       contract_markdown: contractMarkdown,
       contract_path: context.step_contract_path,
       workdir: context.step_workdir,
+      contract_key_count: context.murrmure_bindings?.contractKeyCount
+        ? Number(context.murrmure_bindings.contractKeyCount)
+        : undefined,
     },
   });
 }

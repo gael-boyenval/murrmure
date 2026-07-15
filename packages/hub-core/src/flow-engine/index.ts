@@ -20,6 +20,8 @@ export * from "./step-contract-slice.js";
 export * from "./step-artifacts.js";
 export * from "./run-scratch-paths.js";
 export * from "./consumer-copy.js";
+export * from "./fs-bytes.js";
+export * from "./run-retention.js";
 export * from "./step-catalog.js";
 export * from "./step-open.js";
 export * from "./step-resolve.js";

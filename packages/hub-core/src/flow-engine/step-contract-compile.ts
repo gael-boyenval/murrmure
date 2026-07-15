@@ -28,7 +28,10 @@ const QUALIFIED_STEP_TOKEN_PATTERN =
   /^step\.([a-zA-Z0-9_.-]+)\.(description|workdir|iteration)$/;
 
 const QUALIFIED_ARTIFACT_TOKEN_PATTERN =
-  /^step\.([a-zA-Z0-9_.-]+)\.artifact\.([a-zA-Z0-9_-]+)\.(path|transfer_id)$/;
+  /^step\.([a-zA-Z0-9_.-]+)\.artifact\.([a-zA-Z0-9_-]+)\.(path|directory|transfer_id)$/;
+
+/** Artifact slot cardinality: a singleton binds `.path`, a collection binds `.directory`. */
+type SlotCardinality = "singleton" | "collection";
 
 export interface StepContractLintWarning {
   flow_id: string;
@@ -386,6 +389,7 @@ function lintMurrmureTokens(
   manifest: FlowManifest,
   flowId: string,
   knownStepIds: Set<string>,
+  slotCardinality: Map<string, Map<string, SlotCardinality>>,
   warnings: StepContractLintWarning[],
 ): void {
   const report = (stepId: string | undefined, token: string) => {
@@ -396,12 +400,42 @@ function lintMurrmureTokens(
       message: `Unknown {{murrmure.${token}}} — see ${STEP_CONTRACT_MIGRATION_DOC}`,
     });
   };
+  const reportCardinality = (
+    stepId: string | undefined,
+    producer: string,
+    slot: string,
+    kind: string,
+    actual: SlotCardinality,
+  ) => {
+    warnings.push({
+      flow_id: flowId,
+      step_id: stepId,
+      code: "ARTIFACT_TOKEN_CARDINALITY_MISMATCH",
+      message:
+        kind === "path"
+          ? `Slot '${producer}.${slot}' is a collection (max_files > 1); bind it with .directory, not .path`
+          : `Slot '${producer}.${slot}' is a singleton (max_files = 1); bind it with .path, not .directory (got ${actual})`,
+    });
+  };
 
   const scanString = (text: string, stepId?: string) => {
     for (const match of text.matchAll(MURRMURE_TOKEN_PATTERN)) {
       const tokenPath = match[1]?.trim() ?? "";
       if (!isKnownMurrmureToken(tokenPath, knownStepIds)) {
         report(stepId, tokenPath);
+        continue;
+      }
+      const artifactMatch = tokenPath.match(QUALIFIED_ARTIFACT_TOKEN_PATTERN);
+      if (artifactMatch) {
+        const [, producer, slot, kind] = artifactMatch;
+        if (kind === "path" || kind === "directory") {
+          const cardinality = slotCardinality.get(producer ?? "")?.get(slot ?? "");
+          if (cardinality && cardinality === "collection" && kind === "path") {
+            reportCardinality(stepId, producer ?? "", slot ?? "", kind, cardinality);
+          } else if (cardinality === "singleton" && kind === "directory") {
+            reportCardinality(stepId, producer ?? "", slot ?? "", kind, "singleton");
+          }
+        }
       }
     }
   };
@@ -411,6 +445,34 @@ function lintMurrmureTokens(
     if (row.step.description) scanString(row.step.description, row.qualifiedId);
     walkJsonValues(row.step.branches ?? {}, (text) => scanString(text, row.qualifiedId));
   }
+}
+
+/**
+ * Build a per-step map of artifact slot cardinality from the flattened manifest.
+ * A slot is a `collection` when any branch declares it with `max_files > 1`;
+ * otherwise it is a `singleton`. Apply-time token lint uses this to reject a
+ * singular `.path` binding for a collection slot and a `.directory` binding for
+ * a singleton slot.
+ */
+function buildSlotCardinality(flat: FlatStep[]): Map<string, Map<string, SlotCardinality>> {
+  const map = new Map<string, Map<string, SlotCardinality>>();
+  for (const row of flat) {
+    const slotMap = map.get(row.qualifiedId) ?? new Map<string, SlotCardinality>();
+    for (const branch of Object.values(row.step.branches ?? {})) {
+      const slots = (branch as StepBranchDefinition).artifact_slots ?? {};
+      for (const [slot, def] of Object.entries(slots)) {
+        const isCollection = (def.max_files ?? 1) > 1;
+        const prior = slotMap.get(slot);
+        if (isCollection || prior === "collection") {
+          slotMap.set(slot, "collection");
+        } else {
+          slotMap.set(slot, "singleton");
+        }
+      }
+    }
+    map.set(row.qualifiedId, slotMap);
+  }
+  return map;
 }
 
 function lintLegacySteps(
@@ -567,7 +629,8 @@ export function compileStepContractCatalog(
   flattenManifestSteps(contractSteps, null, null, topLevelOrder, flat);
 
   const knownStepIds = new Set(flat.map((r) => r.qualifiedId));
-  lintMurrmureTokens(flat, manifest, flowId, knownStepIds, warnings);
+  const slotCardinality = buildSlotCardinality(flat);
+  lintMurrmureTokens(flat, manifest, flowId, knownStepIds, slotCardinality, warnings);
   lintEmptyBranches(flat, flowId, warnings);
 
   const entries = compileCatalogEntries(flat, warnings, flowId);

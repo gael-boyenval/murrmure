@@ -17,4 +17,5 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-010](./ADR-010-branch-contract-artifact-upload-boundary.md) | accepted | Branch contract artifact upload boundary |
 | [ADR-011](./ADR-011-space-owned-flow-admission-and-apply-quiescence.md) | accepted | Space-owned flow admission and apply-quiescence concurrency boundary |
 | [ADR-012](./ADR-012-safe-shell-handler-interpolation-and-credentials.md) | accepted | Safe shell handler interpolation, execution, and assignment credentials |
+| [ADR-013](./ADR-013-agent-assignment-prompt-protocol.md) | accepted | Versioned agent assignment prompt and ephemeral bridge authority |
 

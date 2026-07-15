@@ -11,6 +11,9 @@ import {
 import { parseHandlerStepBinding } from "@murrmure/contracts";
 import {
   compileStepContractCatalog,
+  buildStepContractSlice,
+  renderAgentStepContractMarkdown,
+  renderMurrmureProtocolEnvelope,
   parseFlowManifest,
 } from "@murrmure/hub-core";
 import { loadTutorialSnapshot } from "../../../test-utils/tutorial-v3/snapshots.js";
@@ -207,6 +210,55 @@ describe("Tutorial v3 handler conformance", () => {
       rmSync(spaceRoot, { recursive: true, force: true });
     }
   });
-  test.skip("Task 07 — build prompt is versioned and branch-complete", () => {});
+  test("Task 07 — build prompt is versioned and branch-complete", () => {
+    const snapshot = loadTutorialSnapshot(5);
+    const handlersYaml = snapshot.files[".mrmr/space/handlers.yaml"];
+    const parsedHandlers = parseHandlersFile(parseYaml(handlersYaml));
+    expect(parsedHandlers.ok).toBe(true);
+    if (!parsedHandlers.ok) return;
+    const handler = parsedHandlers.value.handlers.find((entry) => entry.id === "dev_build");
+    expect(handler).toMatchObject({
+      on: "step.opened::my-dev-flow.build",
+      contract_keys: ["my-dev-flow.build"],
+      type: "shell_spawn",
+      complete: "explicit",
+    });
+    if (!handler || handler.type === "view_resolver") return;
+    expect(handler.prompt).not.toContain("murrmure_resolve_step");
+
+    const manifest = parseFlowManifest(
+      parseYaml(snapshot.files[".mrmr/flows/my-dev-flow/flow.manifest.yaml"]),
+    );
+    expect(manifest.ok).toBe(true);
+    if (!manifest.ok) return;
+    const { catalog } = compileStepContractCatalog(manifest.value, "flw_my_dev_flow");
+    const build = catalog?.entries.find((entry) => entry.step_id === "build");
+    expect(build).toBeDefined();
+    if (!build) return;
+    const slice = buildStepContractSlice({
+      entry: build,
+      exec_context: {},
+      run_id: "run_01LIVE",
+      space_root: "/tmp/tutorial",
+    });
+    const protocol = renderMurrmureProtocolEnvelope({
+      run_id: "run_01LIVE",
+      contract_key_count: handler.contract_keys.length,
+      contract_markdown: renderAgentStepContractMarkdown(slice, {
+        run_id: "run_01LIVE",
+      }),
+    });
+
+    expect(protocol.startsWith(snapshot.snippets["part-5-agent-protocol-prefix"])).toBe(true);
+    expect(protocol).not.toContain("<run_id>");
+    expect(protocol).not.toContain("## Session");
+    expect(protocol).not.toContain("## Discovery");
+    expect(protocol).not.toContain("## Resolve API");
+    expect(protocol.match(/murrmure_resolve_step\(\{/g)).toHaveLength(2);
+    expect(protocol).toContain('"commit_message":{"type":"string"}');
+    expect(protocol).toContain('payload: {"commit_message":"value","description":"value"}');
+    expect(protocol).toContain('branch: "completed"');
+    expect(protocol).toContain('branch: "failed"');
+  });
   test.skip("Task 11 — run scratch retention preserves references, not paths", () => {});
 });

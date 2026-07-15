@@ -131,6 +131,9 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
         },
         description: "Optional artifacts to register from workspace outputs",
       },
+      upload_intent_id: stringSchema(
+        "Authorized artifact upload reference for remote/federated resolution",
+      ),
       idempotency_key: stringSchema("Optional idempotency key"),
     },
     { required: ["run_id", "step_id", "branch"] },

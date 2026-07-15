@@ -1,15 +1,37 @@
-import { copyFile, mkdir, readFile, readdir, rm, stat, unlink, writeFile } from "node:fs/promises";
-import { basename, extname, join, normalize, relative, resolve } from "node:path";
+import { copyFile, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, normalize, relative, resolve } from "node:path";
 import type { ResolveStepArtifactOut, StepArtifactSlot } from "@murrmure/contracts";
-import { runScratchDir, stepStableDirRel, stepWorkdirRel } from "./run-scratch-paths.js";
+import { directoryBytes } from "./fs-bytes.js";
+import { runScratchDir, spaceRunsDir, stableSlotDirRel, stepStableDirRel, stepWorkdirRel } from "./run-scratch-paths.js";
 
-export interface ResolvedStepArtifact {
-  slot: string;
-  path: string;
+/**
+ * One ordered file within a resolved step-artifact slot. `path` is the stable
+ * promoted run-scratch relative path; `transfer_id`/`digest` are the global
+ * immutable references registered for the file (present when the run registers
+ * artifacts for federation). Remote consumers materialize from the references,
+ * never from `path`.
+ */
+export interface ResolvedArtifactFile {
   name: string;
+  path: string;
   transfer_id?: string;
   digest?: string;
   size_bytes?: number;
+}
+
+/**
+ * A resolved artifact slot is a bounded, ordered file collection. A singleton
+ * slot (`max_files` default 1) holds exactly one file and binds via `.path`; a
+ * collection slot (`max_files > 1`) holds one or more ordered files and binds
+ * via `.directory`. The two token shapes are not interchangeable: apply rejects
+ * a singular `.path` binding for a collection and a `.directory` binding for a
+ * singleton. `cardinality` is captured at promotion time from the slot
+ * definition so binding projection never needs the catalog.
+ */
+export interface ResolvedStepArtifact {
+  slot: string;
+  cardinality: "singleton" | "collection";
+  files: ResolvedArtifactFile[];
 }
 
 export type RunArtifactsBag = Record<string, Record<string, ResolvedStepArtifact>>;
@@ -34,6 +56,15 @@ export function stableArtifactRelPath(
   filename: string,
 ): string {
   return join(stepStableDirRel(run_id, step_id), slot, filename);
+}
+
+/** Relative stable slot directory for a collection's `.directory` binding. */
+export function stableSlotDirRelPath(
+  run_id: string,
+  step_id: string,
+  slot: string,
+): string {
+  return stableSlotDirRel(run_id, step_id, slot);
 }
 
 export async function ensureStepWorkdir(
@@ -161,7 +192,7 @@ export async function promoteArtifactsOut(input: {
   if (runStored + stepTotal > MAX_RUN_ARTIFACT_BYTES) {
     throw new Error("Artifacts exceed the 250 MiB run ceiling");
   }
-  const spaceStored = await directoryBytes(join(input.space_root, ".mrmr", "dev", "runs"));
+  const spaceStored = await directoryBytes(spaceRunsDir(input.space_root));
   if (spaceStored + stepTotal > MAX_SPACE_ARTIFACT_BYTES) {
     throw new Error("Artifacts exceed the 2 GiB space ceiling");
   }
@@ -180,7 +211,9 @@ export async function promoteArtifactsOut(input: {
   }
 
   await mkdir(stableDir, { recursive: true });
-  const promoted: ResolvedStepArtifact[] = [];
+  // Per-slot ordered files, preserving the submission/artifacts_out order, so
+  // the collection manifest stays deterministic for local and remote consumers.
+  const slotFiles = new Map<string, ResolvedArtifactFile[]>();
   try {
     for (const item of prepared) {
       const slotDir = join(stableDir, item.out.slot);
@@ -199,32 +232,30 @@ export async function promoteArtifactsOut(input: {
         transfer_id = reg.transfer_id;
         digest = reg.digest;
       }
-      promoted.push({
-        slot: item.out.slot,
-        path: relPath,
+      const file: ResolvedArtifactFile = {
         name: item.filename,
+        path: relPath,
         transfer_id,
         digest,
         size_bytes: item.bytes.length,
-      });
+      };
+      const list = slotFiles.get(item.out.slot) ?? [];
+      list.push(file);
+      slotFiles.set(item.out.slot, list);
     }
   } catch (error) {
     await rm(stableDir, { recursive: true, force: true });
     throw error;
   }
   await Promise.all(prepared.map((item) => unlink(item.srcAbs).catch(() => undefined)));
-  return promoted;
-}
-
-async function directoryBytes(path: string): Promise<number> {
-  const entries = await readdir(path, { withFileTypes: true }).catch(() => []);
-  let total = 0;
-  for (const entry of entries) {
-    const entryPath = join(path, entry.name);
-    if (entry.isDirectory()) total += await directoryBytes(entryPath);
-    else if (entry.isFile()) total += (await stat(entryPath)).size;
+  const promoted: ResolvedStepArtifact[] = [];
+  for (const [slot, files] of slotFiles) {
+    const slotDef = input.artifact_slots[slot];
+    const cardinality: ResolvedStepArtifact["cardinality"] =
+      (slotDef?.max_files ?? 1) > 1 ? "collection" : "singleton";
+    promoted.push({ slot, cardinality, files });
   }
-  return total;
+  return promoted;
 }
 
 export function mergeArtifactsIntoExecContext(
@@ -236,8 +267,16 @@ export function mergeArtifactsIntoExecContext(
     ...((execContext.artifacts ?? {}) as RunArtifactsBag),
   };
   const stepBag = { ...(bag[step_id] ?? {}) };
-  for (const artifact of artifacts) {
-    stepBag[artifact.slot] = artifact;
+  for (const collection of artifacts) {
+    const existing = stepBag[collection.slot];
+    if (existing) {
+      stepBag[collection.slot] = {
+        ...collection,
+        files: [...existing.files, ...collection.files],
+      };
+    } else {
+      stepBag[collection.slot] = collection;
+    }
   }
   bag[step_id] = stepBag;
   return { ...execContext, artifacts: bag };
@@ -247,27 +286,71 @@ export function runArtifactsFromExecContext(execContext: Record<string, unknown>
   return (execContext.artifacts ?? {}) as RunArtifactsBag;
 }
 
+/**
+ * Build shell prompt bindings for run artifacts. A singleton slot binds
+ * `step.{step}.artifact.{slot}.path` (and `.transfer_id`); a collection slot
+ * binds `step.{step}.artifact.{slot}.directory` to its stable promoted slot
+ * directory. The dispatch materializer overrides these with verified consumer
+ * copies at spawn time. The two token shapes are never emitted for the wrong
+ * cardinality, so a handler cannot accidentally bind a collection as a path.
+ */
 export function buildArtifactMurrmureBindings(artifacts: RunArtifactsBag): Record<string, string> {
   const bindings: Record<string, string> = {};
   for (const [stepId, slots] of Object.entries(artifacts)) {
     for (const [slot, record] of Object.entries(slots)) {
-      bindings[`step.${stepId}.artifact.${slot}.path`] = record.path;
-      if (record.transfer_id) {
-        bindings[`step.${stepId}.artifact.${slot}.transfer_id`] = record.transfer_id;
+      if (record.cardinality === "collection") {
+        const dirFile = record.files[0]?.path;
+        if (dirFile) {
+          bindings[`step.${stepId}.artifact.${slot}.directory`] = dirname(dirFile);
+        }
+        continue;
+      }
+      const file = record.files[0];
+      if (!file) continue;
+      bindings[`step.${stepId}.artifact.${slot}.path`] = file.path;
+      if (file.transfer_id) {
+        bindings[`step.${stepId}.artifact.${slot}.transfer_id`] = file.transfer_id;
       }
     }
   }
   return bindings;
 }
 
+/**
+ * Project artifact references for `inputs_from_run` (read by agents and remote
+ * consumers). A singleton projects `.path` + `.transfer_id`; a collection
+ * projects `.directory` plus an ordered `.files` array of immutable references
+ * (`name`, `transfer_id`, `digest`, `size_bytes`) and a `.transfer_ids` list,
+ * never local paths. Remote/federated consumers materialize a collection from
+ * the ordered references in their own space.
+ */
 export function artifactPathsForInputs(execContext: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = {};
   const artifacts = runArtifactsFromExecContext(execContext);
   for (const [stepId, slots] of Object.entries(artifacts)) {
     for (const [slot, record] of Object.entries(slots)) {
-      merged[`steps.${stepId}.artifact.${slot}.path`] = record.path;
-      if (record.transfer_id) {
-        merged[`steps.${stepId}.artifact.${slot}.transfer_id`] = record.transfer_id;
+      if (record.cardinality === "collection") {
+        const dirFile = record.files[0]?.path;
+        if (dirFile) {
+          merged[`steps.${stepId}.artifact.${slot}.directory`] = dirname(dirFile);
+        }
+        merged[`steps.${stepId}.artifact.${slot}.files`] = record.files.map((file) => ({
+          name: file.name,
+          transfer_id: file.transfer_id,
+          digest: file.digest,
+          size_bytes: file.size_bytes,
+        }));
+        const transferIds = record.files.map((file) => file.transfer_id).filter(Boolean) as string[];
+        if (transferIds.length) {
+          merged[`steps.${stepId}.artifact.${slot}.transfer_ids`] = transferIds;
+        }
+        continue;
+      }
+      const file = record.files[0];
+      if (!file) continue;
+      merged[`steps.${stepId}.artifact.${slot}.path`] = file.path;
+      if (file.transfer_id) {
+        merged[`steps.${stepId}.artifact.${slot}.transfer_id`] = file.transfer_id;
       }
     }
   }

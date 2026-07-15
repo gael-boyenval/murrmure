@@ -2,7 +2,7 @@
 
 **Status:** Normative — **shipped** (HANDLER-CUTOVER 2026-07-09; VIEW-RESOLVER cutover 2026-07-14)
 **Plan:** [2026-07-09-space-handlers-contract-keys-plan.md](../../plans/2026-07-09-space-handlers-contract-keys-plan.md), [Tutorial v3 Task 04](../../plans/2026-07-14-tutorial-v3-build-tasks/04-intake-view.md)
-**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md), [ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md)
+**ADR:** [ADR-009 — Space-owned view resolvers and hardened host](../../ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md), [ADR-011 — space-owned flow admission and apply quiescence](../../ADR/ADR-011-space-owned-flow-admission-and-apply-quiescence.md), [ADR-012 — safe shell handler interpolation, execution, and assignment credentials](../../ADR/ADR-012-safe-shell-handler-interpolation-and-credentials.md), [ADR-013 — agent assignment prompt protocol](../../ADR/ADR-013-agent-assignment-prompt-protocol.md)
 
 Spaces own execution via **handlers**. A step handler binds to a resolver-agnostic
 step with `on: step.opened::{flow_name}.{qualified_step_id}` (the **`on::key`
@@ -256,6 +256,22 @@ runtime owns process lifecycle. See
   child credential survives a finished assignment. The dispatch audit records
   only command/prompt/cwd — never the environment — so credentials never reach
   the journal or public surfaces.
+- A prompted agent also receives the non-secret
+  `MURRMURE_ASSIGNMENT_SCOPE={run_id}:{step_id}:{handler_id}` marker. When its
+  installed local MCP descriptor starts, the bundled bridge uses the ephemeral
+  assignment token and bypasses persistent OS-store credential lookup. Thus the
+  setup connection may discover/start the run while the child can mutate only
+  its assigned run and step. Missing assignment authority fails closed.
+
+### Agent prompt assembly
+
+The handler `prompt` is only the domain Task. The Hub appends the versioned
+`murrmure.agent/v1` contract generated from the canonical branch catalog; authors
+must not copy run IDs, branch schemas, resolve calls, or discovery instructions
+into the Task. `contract_keys` controls prompt/discovery scope, not dispatch:
+one key emits Contracts only; multiple keys additionally emit Discovery.
+Every branch receives the same deterministic rendering with live IDs and a
+complete resolve call. See [step-contract.md](./step-contract.md#agent-assignment-prompt-protocol).
 
 ### `complete:auto` outcomes
 

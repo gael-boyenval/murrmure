@@ -6,6 +6,8 @@ export interface InvokeStepContractContext {
   contract_path: string;
   workdir: string;
   prompt_bindings: Record<string, string>;
+  /** Prompt/discovery scope size; discovery is emitted only when greater than one. */
+  contract_key_count?: number;
   run_artifacts_json?: string;
   hub_token?: string;
   hub_url?: string;

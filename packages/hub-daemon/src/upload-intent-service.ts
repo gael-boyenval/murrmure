@@ -1,13 +1,14 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { ulid } from "ulid";
 import {
   MAX_ARTIFACT_FILE_BYTES,
   MAX_RUN_ARTIFACT_BYTES,
   MAX_SPACE_ARTIFACT_BYTES,
   MAX_STEP_RESOLUTION_BYTES,
-  stepStableDirPath,
+  runScratchDir,
+  spaceRunsDir,
   stepWorkdirPath,
   writeStepWorkdirFile,
 } from "@murrmure/hub-core";
@@ -130,7 +131,7 @@ export class UploadIntentService {
     const runReserved = active
       .filter((record) => record.run_id === input.run_id)
       .reduce((sum, record) => sum + record.files.reduce((n, file) => n + file.size_bytes, 0), 0);
-    const runArtifactsDir = dirname(dirname(stepStableDirPath(input.space_root, input.run_id, input.step_id)));
+    const runArtifactsDir = runScratchDir(input.space_root, input.run_id);
     const runStored = await directoryBytes(runArtifactsDir);
     if (runStored + runReserved + total > MAX_RUN_ARTIFACT_BYTES) {
       throw new UploadIntentError("ARTIFACT_QUOTA_EXCEEDED", "Run artifact quota exceeded", 413);
@@ -138,7 +139,7 @@ export class UploadIntentService {
     const spaceReserved = active
       .filter((record) => record.space_id === input.space_id)
       .reduce((sum, record) => sum + record.files.reduce((n, file) => n + file.size_bytes, 0), 0);
-    const spaceStored = await directoryBytes(join(input.space_root, ".mrmr", "dev", "runs"));
+    const spaceStored = await directoryBytes(spaceRunsDir(input.space_root));
     if (spaceStored + spaceReserved + total > MAX_SPACE_ARTIFACT_BYTES) {
       throw new UploadIntentError("ARTIFACT_QUOTA_EXCEEDED", "Space artifact quota exceeded", 413);
     }
@@ -263,7 +264,7 @@ export class UploadIntentService {
     const runReserved = reservations
       .filter((candidate) => candidate.run_id === record.run_id)
       .reduce((sum, candidate) => sum + candidate.files.reduce((n, file) => n + file.size_bytes, 0), 0);
-    const runArtifactsDir = dirname(dirname(stepStableDirPath(record.space_root, record.run_id, record.step_id)));
+    const runArtifactsDir = runScratchDir(record.space_root, record.run_id);
     if ((await directoryBytes(runArtifactsDir)) + runReserved > MAX_RUN_ARTIFACT_BYTES) {
       throw new UploadIntentError("ARTIFACT_QUOTA_EXCEEDED", "Run artifact quota exceeded", 413);
     }
@@ -271,7 +272,7 @@ export class UploadIntentService {
       .filter((candidate) => candidate.space_id === record.space_id)
       .reduce((sum, candidate) => sum + candidate.files.reduce((n, file) => n + file.size_bytes, 0), 0);
     if (
-      (await directoryBytes(join(record.space_root, ".mrmr", "dev", "runs"))) + spaceReserved >
+      (await directoryBytes(spaceRunsDir(record.space_root))) + spaceReserved >
       MAX_SPACE_ARTIFACT_BYTES
     ) {
       throw new UploadIntentError("ARTIFACT_QUOTA_EXCEEDED", "Space artifact quota exceeded", 413);

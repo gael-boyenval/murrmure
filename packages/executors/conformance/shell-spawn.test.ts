@@ -221,6 +221,9 @@ describe("shell-spawn helpers", () => {
     expect(capturedArgs?.[2]).toBe('node -e "process.stdout.write(\'{}\')"');
     expect(capturedEnv?.MURRMURE_HUB_TOKEN).toBe("tok_run_scoped");
     expect(capturedEnv?.MURRMURE_HUB_URL).toBe("http://127.0.0.1:8787");
+    expect(capturedEnv?.MURRMURE_ASSIGNMENT_SCOPE).toBe(
+      "run_demo:build.build-loop:build-owner",
+    );
     expect(capturedEnv?.MURRMURE_RUN_ID).toBe("run_demo");
     expect(capturedEnv?.MURRMURE_STEP_ID).toBe("build.build-loop");
   });

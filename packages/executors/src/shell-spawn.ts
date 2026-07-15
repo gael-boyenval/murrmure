@@ -17,6 +17,8 @@ import { resolveSafeShellCommand, HandlerBindingError } from "./shell-command.js
 import {
   ArtifactMaterializationError,
   materializeConsumerCopy,
+  materializeConsumerCopyDirectory,
+  runScratchDir,
   type RunArtifactsBag,
 } from "@murrmure/hub-core";
 
@@ -62,11 +64,6 @@ function shouldDeliverPromptViaStdin(command: string, promptTemplate?: string): 
   return Boolean(promptTemplate?.trim());
 }
 
-function bareRunId(run_id: string | undefined): string | undefined {
-  if (!run_id) return undefined;
-  return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-}
-
 function sanitizeStepId(step_id: string): string {
   return step_id.replace(/[^a-zA-Z0-9._-]+/g, "_");
 }
@@ -82,12 +79,11 @@ async function materializePromptArtifacts(input: {
     env.MURRMURE_PROMPT = input.prompt;
   }
 
-  const runBare = bareRunId(input.run_id);
-  if (!runBare) return { env };
+  if (!input.run_id) return { env };
 
-  const relDir = join(".mrmr", "dev", "runs", runBare);
+  const runDir = runScratchDir(input.space_root, input.run_id);
   const fileName = `${sanitizeStepId(input.step_id)}-invoke-prompt.md`;
-  const prompt_path = join(input.space_root, relDir, fileName);
+  const prompt_path = join(runDir, fileName);
   await mkdir(dirname(prompt_path), { recursive: true });
   await writeFile(prompt_path, input.prompt, "utf-8");
   env.MURRMURE_PROMPT_PATH = prompt_path;
@@ -111,14 +107,22 @@ function buildTemplateContext(invoke: InvokeRequest, context: DispatchContext) {
 const ARTIFACT_PATH_PLACEHOLDER_RE =
   /\{\{murrmure\.step\.([A-Za-z0-9._-]+)\.artifact\.([A-Za-z0-9._-]+)\.path\}\}/g;
 
+const ARTIFACT_DIRECTORY_PLACEHOLDER_RE =
+  /\{\{murrmure\.step\.([A-Za-z0-9._-]+)\.artifact\.([A-Za-z0-9._-]+)\.directory\}\}/g;
+
 /**
- * Materialize verified local consumer copies for every `{{murrmure.step.{p}.
- * artifact.{slot}.path}}` placeholder the command references, and return the
- * binding overrides (absolute consumer paths) the safe resolver should use.
+ * Materialize verified local consumer copies for every artifact placeholder the
+ * command references, and return the binding overrides the safe resolver uses.
  *
- * A referenced producer/slot that is absent from the run artifacts bag is
- * returned as `null` so the resolver fails fast with a missing-binding error
- * before any process is spawned.
+ * `{{murrmure.step.{p}.artifact.{slot}.path}}` resolves only for a singleton
+ * slot to one absolute, digest-verified consumer copy. `{{murrmure.step.{p}.
+ * artifact.{slot}.directory}}` resolves only for a collection slot to one
+ * verified consumer input directory containing every file in the ordered
+ * collection. A `.path` reference on a collection (or `.directory` on a
+ * singleton) is returned as `null` so the resolver fails fast with a typed
+ * missing-binding error before any process is spawned — singleton and
+ * collection token shapes cannot be confused. A referenced producer/slot that
+ * is absent from the run artifacts bag is likewise `null`.
  */
 export async function materializeArtifactBindings(input: {
   command: string;
@@ -128,30 +132,63 @@ export async function materializeArtifactBindings(input: {
   consumer_step: string;
 }): Promise<Record<string, string | null>> {
   const overrides: Record<string, string | null> = {};
-  const referenced = new Set<string>();
+  const pathRefs = new Set<string>();
+  const dirRefs = new Set<string>();
   for (const match of input.command.matchAll(ARTIFACT_PATH_PLACEHOLDER_RE)) {
-    referenced.add(`${match[1]}::${match[2]}`);
+    pathRefs.add(`${match[1]}::${match[2]}`);
   }
-  for (const ref of referenced) {
+  for (const match of input.command.matchAll(ARTIFACT_DIRECTORY_PLACEHOLDER_RE)) {
+    dirRefs.add(`${match[1]}::${match[2]}`);
+  }
+
+  for (const ref of pathRefs) {
     const [producer, slot] = ref.split("::");
     const key = `murrmure.step.${producer}.artifact.${slot}.path`;
     const record = input.runArtifacts[producer]?.[slot];
-    if (!record || !input.run_id) {
+    if (!record || !input.run_id || record.cardinality !== "singleton") {
       overrides[key] = null;
       continue;
     }
-    const source_path = join(input.space_root, record.path);
+    const file = record.files[0];
+    if (!file) {
+      overrides[key] = null;
+      continue;
+    }
+    const source_path = join(input.space_root, file.path);
     const copy = await materializeConsumerCopy({
       space_root: input.space_root,
       run_id: input.run_id,
       consumer_step: input.consumer_step,
       slot,
       source_path,
-      filename: record.name,
-      expected_digest: record.digest,
+      filename: file.name,
+      expected_digest: file.digest,
     });
     overrides[key] = copy.path;
   }
+
+  for (const ref of dirRefs) {
+    const [producer, slot] = ref.split("::");
+    const key = `murrmure.step.${producer}.artifact.${slot}.directory`;
+    const record = input.runArtifacts[producer]?.[slot];
+    if (!record || !input.run_id || record.cardinality !== "collection") {
+      overrides[key] = null;
+      continue;
+    }
+    const dir = await materializeConsumerCopyDirectory({
+      space_root: input.space_root,
+      run_id: input.run_id,
+      consumer_step: input.consumer_step,
+      slot,
+      files: record.files.map((file) => ({
+        source_path: join(input.space_root, file.path),
+        filename: file.name,
+        expected_digest: file.digest,
+      })),
+    });
+    overrides[key] = dir.directory;
+  }
+
   return overrides;
 }
 
@@ -247,10 +284,12 @@ export function resolveShellDispatchAudit(
 }
 
 /**
- * Build binding overrides that resolve every `{{murrmure.step.{p}.artifact.
- * {slot}.path}}` placeholder in `command` to an opaque reference (transfer id
- * when present in `runArtifacts`, else `artifact:{p}:{slot}`) — never a local
- * path. Used for the journaled dispatch audit.
+ * Build binding overrides that resolve every artifact placeholder in `command`
+ * to an opaque reference — never a local path. Used for the journaled dispatch
+ * audit. A singleton `.path` resolves to its transfer id (or `artifact:{p}:
+ * {slot}`); a collection `.directory` resolves to the symbolic `artifact:{p}:
+ * {slot}:directory`. Journals and public APIs receive references, never local
+ * run-scratch paths or consumer copy paths.
  */
 export function buildArtifactReferenceBindings(
   command: string,
@@ -265,10 +304,19 @@ export function buildArtifactReferenceBindings(
     if (seen.has(key)) continue;
     seen.add(key);
     const record = runArtifacts[producer]?.[slot];
-    const reference = record?.transfer_id
-      ? record.transfer_id
+    const reference = record?.files[0]?.transfer_id
+      ? record.files[0].transfer_id
       : `artifact:${producer}:${slot}`;
     bindings[`murrmure.step.${producer}.artifact.${slot}.path`] = reference;
+  }
+  for (const match of command.matchAll(ARTIFACT_DIRECTORY_PLACEHOLDER_RE)) {
+    const producer = match[1]!;
+    const slot = match[2]!;
+    const key = `${producer}::${slot}::directory`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    bindings[`murrmure.step.${producer}.artifact.${slot}.directory`] =
+      `artifact:${producer}:${slot}:directory`;
   }
   return bindings;
 }
@@ -657,6 +705,7 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           MURRMURE_RUN_ID: invoke.run_id ?? "",
           MURRMURE_SESSION_ID: invoke.session_id ?? "",
           MURRMURE_STEP_ID: step_id,
+          MURRMURE_ASSIGNMENT_SCOPE: `${invoke.run_id ?? ""}:${step_id}:${invoke.action_name}`,
           MURRMURE_INVOKE_PARAMS: JSON.stringify(invoke.params ?? {}),
           MURRMURE_INPUT: JSON.stringify(context.exec_input ?? invoke.exec_input ?? {}),
         };

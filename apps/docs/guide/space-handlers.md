@@ -22,7 +22,8 @@ handlers:
     type: shell_spawn
     complete: explicit
     prompt: |
-      Copy intake spec, then resolve via murrmure_resolve_step …
+      Copy the intake spec and implement the requested change.
+      Propose a conventional commit subject and a one-sentence description.
     command: cursor agent -p --force {{prompt}}
     cwd: "{{space_root}}"
 
@@ -59,6 +60,20 @@ contract_key := {flow_ref}.{qualified_step_id}   # prompt-scope only
 
 Human-step keys may appear in `contract_keys` for **scope/documentation** on subgraph-owner handlers — they are never dispatched on `step.opened`. A human step is presented by a space-bound **`view_resolver`** (the space owns the View), or left unbound and **observability-only** (no built-in form is synthesized).
 
+### Prompted agent contract
+
+Keep `prompt:` focused on the domain Task. At dispatch the Hub appends a
+generated protocol block beginning exactly `Protocol: murrmure.agent/v1`.
+For each active branch it includes the complete compact Draft 2020-12 payload
+schema, separate artifact constraints, the compiled control effect, and a full
+`murrmure_resolve_step` call with live run/step IDs and valid example values.
+Do not copy resolve mechanics or IDs into the authored prompt.
+
+One `contract_keys` entry emits Contracts only. More than one additionally emits
+Discovery so a subgraph owner can retrieve full scoped contracts after a
+transition. The v1 block has no Session, MCP-tools, or separate Resolve-API
+section. Cancel, failure, and custom branches use the same neutral template.
+
 ## Complete modes
 
 | Mode | Who resolves | Typical use |
@@ -94,7 +109,8 @@ values can never become shell fragments and the runtime owns process lifecycle.
 - **`{{prompt}}`** is delivered via stdin (stripped from the command) for
   prompt-scoped handlers, or substituted as one quoted argument otherwise.
   **`{{space_root}}`** is resolved in the `cwd` field as a path, not shell-quoted.
-- **Artifact path tokens** like `{{murrmure.step.{producer}.artifact.{slot}.path}}`
+- **Artifact path tokens** like
+  <code v-pre>{{murrmure.step.{producer}.artifact.{slot}.path}}</code>
   resolve only for local execution to a **verified, digest-checked, run-scoped
   consumer copy** at
   `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`. The
@@ -121,6 +137,11 @@ values can never become shell fragments and the runtime owns process lifecycle.
   the hub shuts down. The journal and public APIs never receive a local path or
   credential; artifact path tokens appear in the audit as opaque references, not
   local paths.
+- **Connected-agent authority.** Prompted handlers also receive
+  `MURRMURE_ASSIGNMENT_SCOPE`. Their installed local MCP descriptor detects this
+  assignment and uses only the ephemeral token; it does not read the persistent
+  OS-store connection. The persistent setup connection can discover/start work,
+  but the spawned assignment can mutate only its own run and step.
 
 ## `mrmr step resolve` (operator / shell path)
 

@@ -62,31 +62,42 @@ describe("flow-engine/step-resolve-artifacts", () => {
 
     expect(promoted).toHaveLength(1);
     expect(promoted[0]?.slot).toBe("spec");
-    expect(promoted[0]?.transfer_id).toBe("xfr_test");
+    expect(promoted[0]?.cardinality).toBe("singleton");
+    expect(promoted[0]?.files).toHaveLength(1);
+    expect(promoted[0]?.files[0]?.transfer_id).toBe("xfr_test");
     const rel = stableArtifactRelPath("run_01TEST", "intake", "spec", "hero-section.md");
-    expect(promoted[0]?.path).toBe(rel);
+    expect(promoted[0]?.files[0]?.path).toBe(rel);
     expect(readFileSync(join(spaceRoot, rel), "utf-8")).toBe("# Hero\n");
   });
 
-  test("mergeArtifactsIntoExecContext and bindings expose path tokens", () => {
+  test("mergeArtifactsIntoExecContext and bindings expose path tokens for a singleton", () => {
     const execContext = mergeArtifactsIntoExecContext(
       { input: { spec_filename: "hero-section.md" } },
       "intake",
       [
         {
           slot: "spec",
-          path: ".mrmr.temp/runs/run_01TEST/steps/intake/spec/hero-section.md",
-          name: "hero-section.md",
-          transfer_id: "xfr_test",
+          cardinality: "singleton",
+          files: [
+            {
+              name: "hero-section.md",
+              path: ".mrmr/dev/runs/run_01TEST/steps/intake/spec/hero-section.md",
+              transfer_id: "xfr_test",
+            },
+          ],
         },
       ],
     );
 
     const bindings = buildArtifactMurrmureBindings(
-      (execContext.artifacts ?? {}) as Record<string, Record<string, { path: string; transfer_id?: string }>>,
+      (execContext.artifacts ?? {}) as Record<
+        string,
+        Record<string, { cardinality: "singleton" | "collection"; files: { path: string; transfer_id?: string }[] }>
+      >,
     );
     expect(bindings["step.intake.artifact.spec.path"]).toContain("hero-section.md");
     expect(bindings["step.intake.artifact.spec.transfer_id"]).toBe("xfr_test");
+    expect(bindings["step.intake.artifact.spec.directory"]).toBeUndefined();
   });
 
   test("promoteArtifactsOut rejects path traversal", async () => {

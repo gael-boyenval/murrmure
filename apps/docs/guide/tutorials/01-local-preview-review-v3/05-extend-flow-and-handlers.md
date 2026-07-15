@@ -162,13 +162,8 @@ Append to `.mrmr/space/handlers.yaml`:
 +    complete: explicit
 +    prompt: |
 +      Read specs/current/spec.md and implement what it asks for in this repo.
-+
-+      Workflow:
-+      1. Read the spec under specs/current/spec.md
-+      2. Make the code changes the spec describes
-+      3. Resolve build on branch completed with commit_message and description
-+         (conventional commit subject + one-sentence summary of what you built)
-+      4. If you cannot finish, resolve build on branch failed
++      Make the requested code changes and propose a conventional commit subject
++      plus a one-sentence description of what you built.
 +    command: cursor agent -p --force {{prompt}}
 +    timeout_ms: 3600000
 ```
@@ -178,7 +173,7 @@ Append to `.mrmr/space/handlers.yaml`:
 | **`on`** | Dispatches this handler when **`build`** opens. |
 | **`contract_keys`** | **Prompt API only** — which catalog keys to compile into contract markdown appended to the agent prompt. Here one key: **`my-dev-flow.build`** (must match `contract-keys.json`). Dispatch uses **`on`**; keys do not select the handler. |
 | **`complete: explicit`** | The agent decides when work is done and **must** call **`murrmure_resolve_step`**. |
-| **`prompt`** | Your **Task** — the workflow the agent should follow. Keep Murrmure mechanics out of the task; the protocol block carries contracts and tools. |
+| **`prompt`** | Your **Task** — the work and deliverable the agent should produce. Keep Murrmure mechanics out of it; the protocol block carries branches, schemas, live IDs, and calls. |
 
 ### How the hub builds the full agent prompt
 
@@ -195,6 +190,14 @@ Every injected protocol block starts with:
 Protocol: murrmure.agent/v1
 ```
 
+The connected tool you configured in Part 1 discovers and starts work with its
+persistent local connection. `dev_build` does not inherit that authority: the
+Hub gives the spawned assignment an ephemeral run/step/handler token. Its MCP
+bridge detects the assignment context, bypasses the persistent connection, and
+can mutate only this `build` step. The token never appears in the prompt or
+audit and is revoked when the step, process, timeout, cancellation, or Hub
+terminates.
+
 | `contract_keys` count | Protocol contents |
 |----------------------|-------------------|
 | **One** (this handler) | **Contracts** — one MCP call per branch |
@@ -209,18 +212,12 @@ Abbreviated; single-key handler (`contract_keys: [my-dev-flow.build]`):
 # Task
 
 Read specs/current/spec.md and implement what it asks for in this repo.
-
-Workflow:
-1. Read the spec under specs/current/spec.md
-2. Make the code changes the spec describes
-3. Resolve build on branch completed with commit_message and description
-   (conventional commit subject + one-sentence summary of what you built)
-4. If you cannot finish, resolve build on branch failed
+Make the requested code changes and propose a conventional commit subject
+plus a one-sentence description of what you built.
 
 <!-- MURRMURE_TASK_END -->
 
 <!-- MURRMURE_PROTOCOL_BEGIN -->
-# Murrmure protocol
 Protocol: murrmure.agent/v1
 
 ## Contracts
@@ -228,22 +225,25 @@ Protocol: murrmure.agent/v1
 Agent implements the spec and proposes commit subject + description.
 
 Branch `completed`:
-  Required payload: commit_message, description
-  Then: run completes
-  murrmure_resolve_step({
-    run_id: "run_01J8K2M4N6P0Q2R4",
-    step_id: "build",
-    branch: "completed",
-    payload: { commit_message: "…", description: "…" }
-  })
+Payload schema: {"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"commit_message":{"type":"string"},"description":{"type":"string"}},"required":["commit_message","description"],"type":"object"}
+Artifact requirements: none
+Then: run completes
+murrmure_resolve_step({
+  run_id: "run_01J8K2M4N6P0Q2R4",
+  step_id: "build",
+  branch: "completed",
+  payload: {"commit_message":"value","description":"value"}
+})
 
 Branch `failed`:
-  Then: fail run
-  murrmure_resolve_step({
-    run_id: "run_01J8K2M4N6P0Q2R4",
-    step_id: "build",
-    branch: "failed"
-  })
+Payload schema: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object"}
+Artifact requirements: none
+Then: fail run
+murrmure_resolve_step({
+  run_id: "run_01J8K2M4N6P0Q2R4",
+  step_id: "build",
+  branch: "failed"
+})
 <!-- MURRMURE_PROTOCOL_END -->
 ```
 
@@ -330,13 +330,8 @@ handlers:
     complete: explicit
     prompt: |
       Read specs/current/spec.md and implement what it asks for in this repo.
-
-      Workflow:
-      1. Read the spec under specs/current/spec.md
-      2. Make the code changes the spec describes
-      3. Resolve build on branch completed with commit_message and description
-         (conventional commit subject + one-sentence summary of what you built)
-      4. If you cannot finish, resolve build on branch failed
+      Make the requested code changes and propose a conventional commit subject
+      plus a one-sentence description of what you built.
     command: cursor agent -p --force {{prompt}}
     timeout_ms: 3600000
 ```
@@ -390,6 +385,7 @@ The spec is still under **`specs/current/`** — archiving and committing happen
 | `EXECUTOR_UNAVAILABLE` | Shell cannot run | Space linked; hub running — default delivery fails fast; fix executor, re-run |
 | `build` stuck open | Agent did not resolve | Nudge: `murrmure_resolve_step` on `build` / `completed` with payload |
 | Build resolve rejected | Payload missing required fields | Hub validates against **`completed`** schema — pass `commit_message` and `description` |
+| Resolve denied for another run/step | Assignment authority is intentionally scoped | Use only the live `run_id` and `step_id` in the injected branch call |
 
 ## Checkpoint
 

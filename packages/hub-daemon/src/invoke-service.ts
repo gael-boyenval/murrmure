@@ -633,6 +633,8 @@ export class InvokeService {
         contract_keys: matchedHandler?.contract_keys,
         hub_token: resolveToken,
         hub_url: `http://127.0.0.1:${this.ctx.config.port}`,
+        artifact_transport:
+          matchedHandler?.type === "remote_hub" ? "remote_reference" : "local_path",
       });
       if (stepContract) {
         request.step_contract = stepContract;

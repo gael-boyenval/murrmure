@@ -58,6 +58,20 @@ or upgrading it so discovery and the launcher refresh.
 Unknown tools use the generic adapter. It writes no tool configuration and
 prints portable MCP/skill instructions using the same descriptor.
 
+## Spawned handler assignments
+
+The same installed descriptor is safe to use from a prompted local handler.
+The Hub gives the child a short-lived run/step/handler credential and
+`MURRMURE_ASSIGNMENT_SCOPE`. In that context the bundled bridge bypasses the
+persistent Keychain connection and uses only assignment authority. It fails
+closed if the ephemeral token is absent.
+
+The generated `murrmure.agent/v1` prompt contains complete branch calls with
+live IDs. The child can resolve its assigned step, but cross-run, cross-step,
+cross-space, expired, and revoked writes are denied. The credential is never
+written to MCP config, prompt text, audit, or logs and is revoked when the
+assignment terminates.
+
 ## Manage trust boundaries
 
 Use a second connection for another computer, team member, CI runner, or

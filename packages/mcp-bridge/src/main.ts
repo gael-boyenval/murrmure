@@ -34,7 +34,7 @@ export interface BridgeConfig {
   token: string;
   discoveryPath: string;
   connectionId?: string;
-  authMode: "local" | "headless-ci";
+  authMode: "local" | "assignment" | "headless-ci";
 }
 
 export interface StartMcpBridgeOptions {
@@ -96,15 +96,17 @@ function mapCatalogTools(tools: CatalogTool[]): Array<{
 export function resolveBridgeConfig(options?: {
   homePath?: string;
   argv?: string[];
+  env?: NodeJS.ProcessEnv;
   readCredential?: (hubId: string, connectionId: string) => string;
 }): BridgeConfig {
   const argv = options?.argv ?? process.argv.slice(2);
+  const env = options?.env ?? process.env;
   if (argv.includes("--headless-ci")) {
     const explicitHub = argumentValue(argv, "--hub");
     const discovery = explicitHub
       ? null
       : discoverHubEndpoint({ homePath: options?.homePath });
-    const token = process.env.MURRMURE_HUB_TOKEN?.trim() ?? "";
+    const token = env.MURRMURE_HUB_TOKEN?.trim() ?? "";
     if (!token) {
       throw new Error(
         "Headless CI mode requires MURRMURE_HUB_TOKEN runtime secret injection.",
@@ -130,6 +132,28 @@ export function resolveBridgeConfig(options?: {
     throw new Error("Local --connection must begin with con_.");
   }
   const hubUrl = normalizeHubId(hubId);
+  const assignmentScope = env.MURRMURE_ASSIGNMENT_SCOPE?.trim();
+  const assignmentToken = env.MURRMURE_HUB_TOKEN?.trim();
+  if (assignmentScope) {
+    if (!assignmentToken) {
+      throw new Error(
+        "Assignment MCP startup requires MURRMURE_HUB_TOKEN.",
+      );
+    }
+    const [runId, stepId, handlerId, ...extra] = assignmentScope.split(":");
+    if (!runId || !stepId || !handlerId || extra.length > 0) {
+      throw new Error(
+        "MURRMURE_ASSIGNMENT_SCOPE must be {run_id}:{step_id}:{handler_id}.",
+      );
+    }
+    return {
+      hubUrl,
+      token: assignmentToken,
+      discoveryPath: resolveSharedDiscoveryPath(options?.homePath),
+      connectionId,
+      authMode: "assignment",
+    };
+  }
   const token = (options?.readCredential ?? readMacOsConnectionToken)(
     hubUrl,
     connectionId,

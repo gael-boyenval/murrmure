@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, realpath, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
-import { runScratchDir, consumerInputPath } from "./run-scratch-paths.js";
+import { consumerInputPath, consumerInputsDirPath, runScratchDir } from "./run-scratch-paths.js";
 
 export interface ConsumerCopyResult {
   /** Absolute path of the verified consumer copy. */
@@ -210,4 +210,67 @@ export async function materializeConsumerCopy(input: {
   }
 
   return { path: dest, digest, size_bytes: buffer.length };
+}
+
+export interface ConsumerCollectionFileInput {
+  /** Absolute path of the producer artifact (must be inside the run scratch tree). */
+  source_path: string;
+  /** Filename to use for the consumer copy. */
+  filename: string;
+  /** Optional `sha256:<hex>` to verify before copying. */
+  expected_digest?: string;
+}
+
+export interface ConsumerCollectionCopyResult {
+  /** Absolute path of the verified consumer input directory for the slot. */
+  directory: string;
+  /** Per-file verified copies, in submission order. */
+  files: ConsumerCopyResult[];
+}
+
+/**
+ * Materialize one verified local consumer input directory for a collection
+ * slot. Every file in the ordered collection is copied atomically into
+ * `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/` with its
+ * normalized unique name and digest verified, so a handler receives one
+ * directory whose contents equal the ordered collection manifest.
+ *
+ * Materialization is all-or-nothing: if any file fails (missing source,
+ * traversal, digest mismatch, or copy failure), the partial slot directory is
+ * removed and the error rethrown, so a handler never observes a half-populated
+ * collection directory. Each file reuses `materializeConsumerCopy`'s symlink
+ * containment and atomic-rename guarantees.
+ */
+export async function materializeConsumerCopyDirectory(input: {
+  space_root: string;
+  run_id: string;
+  consumer_step: string;
+  slot: string;
+  files: ConsumerCollectionFileInput[];
+}): Promise<ConsumerCollectionCopyResult> {
+  const directory = consumerInputsDirPath(
+    input.space_root,
+    input.run_id,
+    input.consumer_step,
+    input.slot,
+  );
+  const results: ConsumerCopyResult[] = [];
+  try {
+    for (const file of input.files) {
+      const copy = await materializeConsumerCopy({
+        space_root: input.space_root,
+        run_id: input.run_id,
+        consumer_step: input.consumer_step,
+        slot: input.slot,
+        source_path: file.source_path,
+        filename: file.filename,
+        expected_digest: file.expected_digest,
+      });
+      results.push(copy);
+    }
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true });
+    throw error;
+  }
+  return { directory, files: results };
 }

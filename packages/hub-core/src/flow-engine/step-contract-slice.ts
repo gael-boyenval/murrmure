@@ -9,6 +9,7 @@ import type {
   StepContractSliceBranch,
   RunStepMemo,
 } from "@murrmure/contracts";
+import { payloadSchemaForContract } from "@murrmure/contracts";
 import type { InvokeStepContractContext } from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { catalogEntryForStep, flowStepContractCatalog } from "./step-catalog.js";
@@ -21,11 +22,12 @@ import {
   activeContractPath,
   bareRunId,
   prefixedRunId,
+  runScratchRelPath,
   stepWorkdirRel,
 } from "./run-scratch-paths.js";
 
 export function activeStepContractRelPath(run_id: string): string {
-  return join(".mrmr", "dev", "runs", prefixedRunId(run_id), "active-step-contract.json");
+  return join(runScratchRelPath(run_id), "active-step-contract.json");
 }
 
 export function activeStepContractPath(space_root: string, run_id: string): string {
@@ -125,52 +127,179 @@ export async function writeActiveStepContract(input: {
 
 export function renderMurrmureProtocolEnvelope(input: {
   run_id: string;
-  session_id?: string;
-  space_id?: string;
-  action_name: string;
-  space_root: string;
   contract_markdown: string;
-  contract_path?: string;
-  workdir?: string;
+  contract_key_count?: number;
 }): string {
   const lines: string[] = [
-    "# Murrmure protocol (auto-generated — authoritative)",
+    "Protocol: murrmure.agent/v1",
     "",
-    "Use the **Task** section for what to build or change. Use this section for how to interact with Murrmure.",
-    "If the run is cancelled, failed, or completed, stop immediately — do not keep working.",
-    "",
-    "## Session",
-    `- **Run:** ${input.run_id}`,
+    "## Contracts",
+    input.contract_markdown,
   ];
-  if (input.session_id) lines.push(`- **Session:** ${input.session_id}`);
-  if (input.space_id) lines.push(`- **Space:** ${input.space_id}`);
-  lines.push(`- **Action:** ${input.action_name}`);
-  lines.push(`- **Space root:** ${input.space_root}`);
-  if (input.workdir) lines.push(`- **Step workdir:** ${input.workdir}`);
-  if (input.contract_path) {
-    lines.push(`- **Active contract file:** ${input.contract_path}`);
+  if ((input.contract_key_count ?? 1) > 1) {
+    lines.push("");
+    lines.push("## Discovery");
+    lines.push("Retrieve full scoped contracts after a transition:");
+    lines.push(`murrmure_list_step_contracts({ run_id: "${prefixedRunId(input.run_id)}" })`);
   }
-  lines.push("");
-  lines.push("## Step contract");
-  lines.push(input.contract_markdown);
-  lines.push("");
-  lines.push("## Discovery");
-  lines.push(
-    "After each engine transition, re-read the active contract file above (or `MURRMURE_ACTIVE_STEP_CONTRACT_PATH`).",
-  );
-  lines.push("Structured JSON is also in `MURRMURE_STEP_CONTRACT`; workdir in `MURRMURE_STEP_WORKDIR`.");
-  lines.push("");
-  lines.push("## Resolve API");
-  lines.push("- `murrmure_resolve_step` — close the active open step with a branch + payload.");
-  lines.push("- `murrmure_wait_for_run` — block until open steps finish (long-lived build sessions only).");
-  lines.push("- Resolve only the active open step id; do not resolve steps that are not open.");
   return lines.join("\n").trim();
 }
 
-export function renderAgentStepContractMarkdown(slice: StepContractSlice): string {
-  const lines: string[] = [`## Active step: ${slice.step_id}`];
+const JSON_SCHEMA_2020_12 = "https://json-schema.org/draft/2020-12/schema";
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => [key, sortJson(nested)]),
+  );
+}
+
+function compactJson(value: unknown): string {
+  return JSON.stringify(sortJson(value));
+}
+
+function payloadSchema(branch: StepContractSliceBranch): Record<string, unknown> {
+  const projected =
+    payloadSchemaForContract(branch.schema, branch.artifact_required) ?? { type: "object" };
+  return { ...projected, $schema: JSON_SCHEMA_2020_12 };
+}
+
+function stringPlaceholder(schema: Record<string, unknown>): string {
+  const format = typeof schema.format === "string" ? schema.format : undefined;
+  const byFormat: Record<string, string> = {
+    date: "2026-01-01",
+    time: "12:00:00Z",
+    "date-time": "2026-01-01T12:00:00Z",
+    duration: "PT1H",
+    email: "agent@example.com",
+    hostname: "example.com",
+    ipv4: "192.0.2.1",
+    ipv6: "2001:db8::1",
+    uuid: "00000000-0000-4000-8000-000000000000",
+    uri: "https://example.com",
+    "uri-reference": "/artifact",
+  };
+  const candidate = (format && byFormat[format]) || "value";
+  const minLength =
+    typeof schema.minLength === "number" && schema.minLength > candidate.length
+      ? schema.minLength
+      : candidate.length;
+  return candidate.padEnd(minLength, "x");
+}
+
+function schemaPlaceholder(schema: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return {};
+  const record = schema as Record<string, unknown>;
+  if ("const" in record) return record.const;
+  if (Array.isArray(record.enum) && record.enum.length > 0) return record.enum[0];
+  for (const union of ["oneOf", "anyOf"] as const) {
+    const options = record[union];
+    if (Array.isArray(options) && options.length > 0) return schemaPlaceholder(options[0]);
+  }
+  const type = Array.isArray(record.type)
+    ? record.type.find((candidate) => candidate !== "null")
+    : record.type;
+  if (type === "string") return stringPlaceholder(record);
+  if (type === "integer" || type === "number") {
+    if (typeof record.minimum === "number") return record.minimum;
+    if (typeof record.exclusiveMinimum === "number") return record.exclusiveMinimum + 1;
+    return 0;
+  }
+  if (type === "boolean") return true;
+  if (type === "null") return null;
+  if (type === "array") {
+    const count =
+      typeof record.minItems === "number" && record.minItems > 0 ? record.minItems : 1;
+    return Array.from({ length: count }, () => schemaPlaceholder(record.items));
+  }
+  const properties =
+    record.properties && typeof record.properties === "object" && !Array.isArray(record.properties)
+      ? (record.properties as Record<string, unknown>)
+      : {};
+  const required = Array.isArray(record.required)
+    ? record.required.filter((key): key is string => typeof key === "string")
+    : [];
+  return Object.fromEntries(
+    [...required]
+      .sort((left, right) => left.localeCompare(right))
+      .map((key) => [key, schemaPlaceholder(properties[key])]),
+  );
+}
+
+function artifactRequirements(branch: StepContractSliceBranch): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(branch.artifact_slots)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([slot, definition]) => [
+        slot,
+        {
+          ...definition,
+          required: branch.artifact_required.includes(slot),
+          min_files: Math.max(
+            definition.min_files ?? 0,
+            branch.artifact_required.includes(slot) ? 1 : 0,
+          ),
+          max_files: definition.max_files ?? 1,
+        },
+      ]),
+  );
+}
+
+function localArtifactExamples(branch: StepContractSliceBranch): string[] {
+  const examples: string[] = [];
+  for (const slot of branch.artifact_required
+    .slice()
+    .sort((left, right) => left.localeCompare(right))) {
+    const definition = branch.artifact_slots[slot] ?? {};
+    const count = Math.min(
+      Math.max(definition.min_files ?? 1, 1),
+      definition.max_files ?? 1,
+    );
+    const extension = definition.extensions?.[0] ?? "";
+    for (let index = 0; index < count; index += 1) {
+      const suffix = count > 1 ? `-${index + 1}` : "";
+      examples.push(`{ slot: "${slot}", path: "${slot}${suffix}${extension}" }`);
+    }
+  }
+  return examples;
+}
+
+function renderResolveCall(input: {
+  run_id: string;
+  step_id: string;
+  branch_name: string;
+  branch: StepContractSliceBranch;
+  artifact_transport: "local_path" | "remote_reference";
+}): string[] {
+  const payload = schemaPlaceholder(payloadSchema(input.branch)) as Record<string, unknown>;
+  const fields = [
+    `  run_id: "${prefixedRunId(input.run_id)}",`,
+    `  step_id: "${input.step_id}",`,
+    `  branch: "${input.branch_name}",`,
+  ];
+  if (Object.keys(payload).length > 0) fields.push(`  payload: ${compactJson(payload)},`);
+  if (input.branch.artifact_required.length > 0) {
+    if (input.artifact_transport === "local_path") {
+      const artifacts = localArtifactExamples(input.branch).join(", ");
+      fields.push(`  artifacts_out: [${artifacts}],`);
+    } else {
+      fields.push('  upload_intent_id: "upi_authorized_artifact_reference",');
+    }
+  }
+  fields[fields.length - 1] = fields[fields.length - 1]!.replace(/,$/, "");
+  return ["murrmure_resolve_step({", ...fields, "})"];
+}
+
+export function renderAgentStepContractMarkdown(
+  slice: StepContractSlice,
+  input: { run_id: string; artifact_transport?: "local_path" | "remote_reference" },
+): string {
+  const lines: string[] = [`### Active step: ${slice.step_id}`];
   if (slice.iteration && slice.iteration > 1) {
-    lines[0] = `## Active step: ${slice.step_id} (iteration ${slice.iteration})`;
+    lines[0] = `### Active step: ${slice.step_id} (iteration ${slice.iteration})`;
   }
   if (slice.parent_id) {
     lines.push(`Parent: ${slice.parent_id} (nested child — resolve this step_id, not the parent)`);
@@ -179,22 +308,24 @@ export function renderAgentStepContractMarkdown(slice: StepContractSlice): strin
   if (slice.workdir) lines.push(`Workdir: ${slice.workdir}`);
   lines.push("");
 
-  for (const [branchName, branch] of Object.entries(slice.branches)) {
-    const required = branch.payload_required;
-    const payloadHint =
-      required.length > 0
-        ? `{ ${required.map((k) => `${k}: …`).join(", ")} }`
-        : "{ … }";
+  for (const branchName of Object.keys(slice.branches).sort((left, right) => left.localeCompare(right))) {
+    const branch = slice.branches[branchName]!;
+    lines.push(`Branch \`${branchName}\`:`);
+    lines.push(`Payload schema: ${compactJson(payloadSchema(branch))}`);
+    const artifacts = artifactRequirements(branch);
     lines.push(
-      `When ready: murrmure_resolve_step({ run_id: "<run_id>", step_id: "${slice.step_id}", branch: "${branchName}", payload: ${payloadHint} })`,
+      `Artifact requirements: ${Object.keys(artifacts).length > 0 ? compactJson(artifacts) : "none"}`,
     );
-    if (required.length > 0) {
-      lines.push(`Required payload: ${required.join(", ")}`);
-    }
-    if (branch.artifact_required.length > 0) {
-      lines.push(`Required artifacts: ${branch.artifact_required.join(", ")}`);
-    }
     lines.push(`Then: ${branch.then}`);
+    lines.push(
+      ...renderResolveCall({
+        run_id: input.run_id,
+        step_id: slice.step_id,
+        branch_name: branchName,
+        branch,
+        artifact_transport: input.artifact_transport ?? "local_path",
+      }),
+    );
     lines.push("");
   }
 
@@ -223,7 +354,8 @@ function renderScopeEntryMarkdown(input: {
   const lines: string[] = [`### Scoped step: ${slice.step_id}`];
   if (slice.parent_id) lines.push(`Parent: ${slice.parent_id}`);
   if (slice.description) lines.push(slice.description);
-  for (const [branchName, branch] of Object.entries(slice.branches)) {
+  for (const branchName of Object.keys(slice.branches).sort((left, right) => left.localeCompare(right))) {
+    const branch = slice.branches[branchName]!;
     const required = branch.payload_required;
     lines.push(`- Branch \`${branchName}\`: ${branch.then}`);
     if (required.length > 0) {
@@ -270,8 +402,12 @@ export function buildMurrmurePromptBindings(input: {
   run_id: string;
   exec_context?: Record<string, unknown>;
   handler_scope_contract?: string;
+  artifact_transport?: "local_path" | "remote_reference";
 }): Record<string, string> {
-  const activeStepContract = renderAgentStepContractMarkdown(input.slice);
+  const activeStepContract = renderAgentStepContractMarkdown(input.slice, {
+    run_id: input.run_id,
+    artifact_transport: input.artifact_transport,
+  });
   const combinedContract = input.handler_scope_contract?.trim()
     ? `${input.handler_scope_contract.trim()}\n\n${activeStepContract}`
     : activeStepContract;
@@ -307,8 +443,11 @@ export function buildInvokeStepContractContext(input: {
   handler_scope_contract?: string;
   hub_token?: string;
   hub_url?: string;
+  contract_key_count?: number;
+  artifact_transport?: "local_path" | "remote_reference";
 }): InvokeStepContractContext {
   const prompt_bindings = buildMurrmurePromptBindings(input);
+  prompt_bindings.contractKeyCount = String(input.contract_key_count ?? 1);
   const artifacts = input.exec_context ? runArtifactsFromExecContext(input.exec_context) : {};
   return {
     slice_json: JSON.stringify(input.slice),
@@ -318,6 +457,7 @@ export function buildInvokeStepContractContext(input: {
     run_artifacts_json: Object.keys(artifacts).length > 0 ? JSON.stringify(artifacts) : undefined,
     hub_token: input.hub_token,
     hub_url: input.hub_url,
+    contract_key_count: input.contract_key_count ?? 1,
   };
 }
 
@@ -349,6 +489,7 @@ export async function buildFlowInvokeStepContract(
     contract_keys?: string[];
     hub_token?: string;
     hub_url?: string;
+    artifact_transport?: "local_path" | "remote_reference";
   },
 ): Promise<InvokeStepContractContext | undefined> {
   const bare = bareRunId(input.run_id);
@@ -386,6 +527,8 @@ export async function buildFlowInvokeStepContract(
     handler_scope_contract: handlerScopeContract,
     hub_token: input.hub_token,
     hub_url: input.hub_url,
+    contract_key_count: Math.max(1, input.contract_keys?.length ?? 0),
+    artifact_transport: input.artifact_transport,
   });
 }
 

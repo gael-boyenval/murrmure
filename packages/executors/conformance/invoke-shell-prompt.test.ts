@@ -21,7 +21,8 @@ describe("invoke-shell-prompt", () => {
           agentStepContract: [
             "## Active step: build.build-loop",
             "",
-            'When ready: murrmure_resolve_step({ run_id: "<run_id>", step_id: "build.build-loop", branch: "completed", payload: { … } })',
+            "Branch `completed`:",
+            'murrmure_resolve_step({ run_id: "run_1", step_id: "build.build-loop", branch: "completed" })',
           ].join("\n"),
         },
       },
@@ -33,6 +34,12 @@ describe("invoke-shell-prompt", () => {
     expect(scopeIndex).toBeGreaterThanOrEqual(0);
     expect(activeIndex).toBeGreaterThanOrEqual(0);
     expect(scopeIndex).toBeLessThan(activeIndex);
+    const protocolStart = prompt.indexOf("<!-- MURRMURE_PROTOCOL_BEGIN -->\n");
+    expect(
+      prompt.slice(protocolStart + "<!-- MURRMURE_PROTOCOL_BEGIN -->\n".length),
+    ).toMatch(/^Protocol: murrmure\.agent\/v1\n/);
+    expect(prompt).not.toContain("## Session");
+    expect(prompt).not.toContain("## Resolve API");
   });
 
   test("does not prepend briefing for handler-style prompt path", () => {
@@ -57,5 +64,22 @@ describe("invoke-shell-prompt", () => {
     expect(prompt).not.toContain("## Space briefing");
     expect(prompt).toContain("<!-- MURRMURE_TASK_BEGIN -->");
     expect(prompt).toContain("<!-- MURRMURE_PROTOCOL_BEGIN -->");
+  });
+
+  test("renders discovery only for multi-key prompt scope", () => {
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "build-owner",
+        space_id: "spc_demo",
+        run_id: "run_1",
+        murrmure_bindings: {
+          run_id: "run_1",
+          contractKeyCount: "2",
+          agentStepContract: "### Active step: build",
+        },
+      },
+      "Build it.",
+    );
+    expect(prompt).toContain("## Discovery");
   });
 });

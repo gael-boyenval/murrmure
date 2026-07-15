@@ -226,6 +226,7 @@ export function registerPlatformMcpHandlers(
           branch,
           payload: args.payload ?? {},
           artifacts_out: args.artifacts_out,
+          upload_intent_id: args.upload_intent_id,
           idempotency_key: args.idempotency_key,
         }),
       },

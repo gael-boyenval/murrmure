@@ -3,7 +3,7 @@ name: murrmure-developer
 description: >-
   Authoring skill for `.mrmr/` spaces: handlers, contract keys, flow/view
   authoring, and apply-time validation workflows.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Murrmure Developer Skill
@@ -55,11 +55,9 @@ handlers:
     type: shell_spawn             # shell_spawn | mcp_session | queue_poll | remote_hub | view_resolver
     complete: explicit            # auto | cli | explicit
     prompt: |
-      … task brief …
-      Then: murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "my_step", branch: "completed" })
-    command: cursor agent -p --force --approve-mcps {{prompt}}
-    cwd: "{{space_root}}"
-    delivery: fail_fast
+      Read the specification and implement the requested change.
+      Propose a conventional commit subject and one-sentence description.
+    command: cursor agent -p --force {{prompt}}
     timeout_ms: 3600000
 
   # Bind a locally built View to a step (executor-free).
@@ -77,6 +75,20 @@ handlers:
 | `complete: cli` | Command must invoke `mrmr step resolve`; lint enforces |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. `view_resolver` forbids `command`/`prompt`/`params`/`cwd`. |
 | `kill_on` | **Removed** — authored `kill_on` is rejected; assignment termination is runtime-owned |
+
+### Prompt protocol
+
+Write only the domain Task in `prompt:`. The Hub appends
+`Protocol: murrmure.agent/v1` from the canonical compiled contract, including
+deterministic Draft 2020-12 schemas, separate artifact requirements, live
+run/step IDs, and one complete resolve call per branch. Do not author resolve
+calls, run IDs, Session metadata, discovery prose, or tool lists.
+
+Use one `contract_keys` entry for a normal step assignment; it receives
+Contracts only. Use multiple keys only for a genuine subgraph owner that needs
+Discovery. The spawned MCP bridge uses ephemeral run/step/handler authority,
+never the persistent local connection. Local artifact calls use paths under the
+active workdir; remote/federated calls use authorized upload references.
 
 ### Shell command grammar (safe interpolation)
 

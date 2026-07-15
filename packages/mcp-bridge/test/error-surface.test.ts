@@ -62,6 +62,40 @@ describe("bridge error surfaces", () => {
     expect(config.token).toBe("tok_from_store");
   });
 
+  test("handler assignment mode uses ephemeral authority without reading the connection", () => {
+    const config = resolveBridgeConfig({
+      argv: [
+        "--hub",
+        "http://127.0.0.1:8787",
+        "--connection",
+        "con_local",
+      ],
+      env: {
+        MURRMURE_ASSIGNMENT_SCOPE: "run_live:build:dev_build",
+        MURRMURE_HUB_TOKEN: "tok_ephemeral",
+      },
+      readCredential: () => {
+        throw new Error("persistent credential must not be read");
+      },
+    });
+    expect(config.authMode).toBe("assignment");
+    expect(config.token).toBe("tok_ephemeral");
+  });
+
+  test("handler assignment mode fails closed without its ephemeral token", () => {
+    expect(() =>
+      resolveBridgeConfig({
+        argv: [
+          "--hub",
+          "http://127.0.0.1:8787",
+          "--connection",
+          "con_local",
+        ],
+        env: { MURRMURE_ASSIGNMENT_SCOPE: "run_live:build:dev_build" },
+      }),
+    ).toThrow(/requires MURRMURE_HUB_TOKEN/);
+  });
+
   test("headless CI mode explicitly accepts runtime secret injection", () => {
     const homePath = makeTempHome("mcp-bridge-errors-ci-");
     writeSharedDiscovery(homePath, "http://127.0.0.1:8787");

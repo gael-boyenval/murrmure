@@ -10,9 +10,12 @@ Local MCP config uses the stable launcher plus ID arguments:
 ~/.murrmure/bin/murrmure-mcp --hub <hub-id> --connection <con-id>
 ```
 
-No environment variable carries a local connection token. The bridge reads it
-from macOS Keychain. `MURRMURE_HUB_TOKEN` is accepted only with explicit
-`--headless-ci` and must be injected at process runtime by the CI provider.
+No environment variable carries a persistent local connection token. The bridge
+normally reads it from macOS Keychain. Inside a Hub-spawned handler,
+`MURRMURE_ASSIGNMENT_SCOPE` makes the same descriptor use the injected
+short-lived assignment token instead; outside assignments,
+`MURRMURE_HUB_TOKEN` is accepted only with explicit `--headless-ci` and must be
+injected at process runtime by the CI provider.
 
 ## CLI / executor env
 
@@ -57,6 +60,7 @@ When a handler or legacy action uses `shell_spawn`, hub injects:
 | `MURRMURE_RUN_ID` | Run id |
 | `MURRMURE_SESSION_ID` | Session id |
 | `MURRMURE_STEP_ID` | Step id |
+| `MURRMURE_ASSIGNMENT_SCOPE` | Non-secret `{run_id}:{step_id}:{handler_id}` marker; makes the bundled MCP bridge bypass the persistent connection and use assignment authority |
 | `MURRMURE_INVOKE_PARAMS` | JSON resolved handler/action params |
 | `MURRMURE_PROMPT` | Resolved prompt template |
 | `MURRMURE_INPUT` | JSON `exec_context.input` from run start |

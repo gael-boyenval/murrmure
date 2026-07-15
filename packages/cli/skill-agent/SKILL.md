@@ -3,7 +3,7 @@ name: murrmure-agent
 description: >-
   Runtime MCP operating skill for Murrmure agents. Use when handling
   run/session/step lifecycle, resolving steps, or inspecting run context.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Murrmure Agent Skill
@@ -29,9 +29,10 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | Variable | Where | Purpose |
 |----------|-------|---------|
 | `--hub` + `--connection` | Local MCP descriptor | Hub/connection IDs; bridge resolves the credential from the OS store |
-| `MURRMURE_HUB_TOKEN` | Explicit headless CI only | Runtime secret injection; never local config, files, args, or logs |
+| `MURRMURE_HUB_TOKEN` | Handler assignment or explicit headless CI | Ephemeral/runtime secret injection; never local config, files, args, prompts, or logs |
 | `MURRMURE_RUN_ID` | Handler child env | Current run (shell_spawn dispatch) |
 | `MURRMURE_STEP_ID` | Handler child env | Active step id |
+| `MURRMURE_ASSIGNMENT_SCOPE` | Handler child env | Non-secret run/step/handler assignment marker used by the bundled bridge |
 | `MURRMURE_SESSION_ID` | Handler child env | Session correlation |
 | `MURRMURE_INPUT` | Handler child env | Step input JSON |
 | `MURRMURE_STEP_CONTRACT` | Handler child env | Active step contract JSON |
@@ -39,6 +40,25 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 
 Handler dispatch injects run-scoped credentials and context. Do not reuse a
 persistent local connection inside shell commands.
+
+### Assignment prompt protocol
+
+Every generated handler contract begins exactly
+`Protocol: murrmure.agent/v1`. Treat the authored Task as what to build and the
+generated Contracts as the only source for branches, schemas, IDs, artifacts,
+and resolve calls. Each branch includes a complete Draft 2020-12 payload schema,
+separate artifact requirements, and a full `murrmure_resolve_step` call with
+live IDs and valid example values. Do not guess or replace those IDs.
+
+A single-key assignment has no Discovery section. Multi-key subgraph owners
+receive Discovery and may refresh full contracts after a transition. Branch
+names are neutral: use the rendered `Then` effect rather than inferring behavior
+from names such as `failed`, `cancel`, or a custom label.
+
+The installed local MCP descriptor automatically uses the ephemeral assignment
+token when `MURRMURE_ASSIGNMENT_SCOPE` is present; it does not read the
+persistent local connection in that child. Cross-run/cross-step writes and
+expired or revoked assignment writes are denied.
 
 ## Bootstrap (before operating a run)
 
@@ -119,8 +139,8 @@ inside `MURRMURE_STEP_WORKDIR`, then pass a relative
 `artifacts_out: [{ "slot": "spec", "path": "spec.md" }]`. The local bridge
 verifies the path stays inside that workdir, derives bounded metadata, and the
 Hub applies the same slot, quota, promotion, and idempotency rules as a View.
-Remote agents cannot submit machine-local paths; use artifact references or the
-authorized upload protocol exposed by their bridge. Read prior step artifact
+Remote agents cannot submit machine-local paths; use the authorized upload
+reference shown in the generated call. Read prior step artifact
 paths from contract context (`{{murrmure.step.*}}` in handler params).
 
 ### Federation reads

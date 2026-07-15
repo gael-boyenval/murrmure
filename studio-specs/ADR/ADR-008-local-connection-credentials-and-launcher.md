@@ -41,6 +41,12 @@ identity and made one credential per integration context appear normal.
 8. Setup-created connections are space-wide for current and future flows.
    Advanced restricted creation accepts only canonical flow IDs already applied
    to that space.
+9. A handler-spawned agent reuses the installed local MCP descriptor but not
+   its persistent connection authority. The executor supplies
+   `MURRMURE_ASSIGNMENT_SCOPE` plus an ephemeral `MURRMURE_HUB_TOKEN`; the
+   bundled bridge detects that assignment marker, bypasses OS credential lookup,
+   and uses only the run/step/handler-scoped token. A missing assignment token
+   fails closed. See [ADR-013](./ADR-013-agent-assignment-prompt-protocol.md).
 
 ## Consequences
 
@@ -54,3 +60,5 @@ identity and made one credential per integration context appear normal.
   MCP client configuration.
 - Credential-store prompts and real signed/notarized relocation remain release
   smoke checks; deterministic launcher and adapter behavior remains automated.
+- The same installed descriptor can serve operator discovery and spawned
+  assignments without copying the persistent credential into a child process.

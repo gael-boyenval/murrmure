@@ -23,6 +23,7 @@ import { ArtifactService } from "./artifact-service.js";
 import { createDaemonFederationPort } from "./federation-wire.js";
 import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./flow-scheduler-cron.js";
 import { registerArtifactGcCron } from "./artifact-gc-cron.js";
+import { createRunRetentionDeps, registerRunRetentionGc } from "./run-retention-gc.js";
 import { createOutOfShellService, wrapHandlerForOutOfShell } from "./out-of-shell-service.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
 import { UploadIntentService } from "./upload-intent-service.js";
@@ -209,6 +210,9 @@ export async function startHubDaemon(config: DaemonConfig) {
     });
 
   const stopArtifactGc = registerArtifactGcCron(ctx.artifactService);
+  const stopRunRetention = registerRunRetentionGc(createRunRetentionDeps(murrmurePersistence), {
+    log: (line) => console.log(line),
+  });
   const stopFlowScheduler = registerFlowSchedulerCron(
     murrmurePersistence,
     ctx.invokeService,
@@ -276,6 +280,7 @@ export async function startHubDaemon(config: DaemonConfig) {
       cancelAllShellExecutors();
       revokeAllResolveCredentials();
       stopArtifactGc();
+      stopRunRetention();
       stopFlowScheduler();
       stopTimeoutSweep();
       uploadIntentService.stop();

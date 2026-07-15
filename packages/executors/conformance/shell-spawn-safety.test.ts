@@ -209,10 +209,15 @@ describe("shell-spawn consumer-copy materialization", () => {
       intake: {
         spec: {
           slot: "spec",
-          path: producerRel,
-          name: "spec.md",
-          digest,
-          size_bytes: content.length,
+          cardinality: "singleton" as const,
+          files: [
+            {
+              name: "spec.md",
+              path: producerRel,
+              digest,
+              size_bytes: content.length,
+            },
+          ],
         },
       },
     };
@@ -303,11 +308,16 @@ describe("shell-spawn dispatch audit reference resolution", () => {
       intake: {
         spec: {
           slot: "spec",
-          path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
-          name: "spec.md",
-          digest: "sha256:abc",
-          size_bytes: 1,
-          transfer_id: "xfr_01JXTREFERENCE",
+          cardinality: "singleton" as const,
+          files: [
+            {
+              name: "spec.md",
+              path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
+              digest: "sha256:abc",
+              size_bytes: 1,
+              transfer_id: "xfr_01JXTREFERENCE",
+            },
+          ],
         },
       },
     };
@@ -325,10 +335,15 @@ describe("shell-spawn dispatch audit reference resolution", () => {
       intake: {
         spec: {
           slot: "spec",
-          path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
-          name: "spec.md",
-          digest: "sha256:abc",
-          size_bytes: 1,
+          cardinality: "singleton" as const,
+          files: [
+            {
+              name: "spec.md",
+              path: ".mrmr/dev/runs/run_demo/steps/intake/spec/spec.md",
+              digest: "sha256:abc",
+              size_bytes: 1,
+            },
+          ],
         },
       },
     };
@@ -395,10 +410,15 @@ describe("shell-spawn typed dispatch errors fail before spawn", () => {
       intake: {
         spec: {
           slot: "spec",
-          path: linkRel,
-          name: "link.md",
-          digest: "sha256:abc",
-          size_bytes: 1,
+          cardinality: "singleton" as const,
+          files: [
+            {
+              name: "link.md",
+              path: linkRel,
+              digest: "sha256:abc",
+              size_bytes: 1,
+            },
+          ],
         },
       },
     };

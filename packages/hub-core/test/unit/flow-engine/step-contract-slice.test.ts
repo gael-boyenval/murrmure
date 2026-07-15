@@ -4,6 +4,7 @@ import {
   buildMurrmurePromptBindings,
   buildInvokeStepContractContext,
   renderAgentStepContractMarkdown,
+  renderMurrmureProtocolEnvelope,
   renderThenHint,
   listStepContractsForRun,
   buildInputsFromRun,
@@ -80,10 +81,80 @@ describe("flow-engine/step-contract-slice", () => {
       run_id: "run_01TEST",
       space_root: "/tmp/space",
     });
-    const md = renderAgentStepContractMarkdown(slice);
-    expect(md).toContain("## Active step: build");
-    expect(md).toContain('murrmure_resolve_step({ run_id: "<run_id>", step_id: "build", branch: "completed"');
+    const md = renderAgentStepContractMarkdown(slice, { run_id: "run_01TEST" });
+    expect(md).toContain("### Active step: build");
+    expect(md).toContain('run_id: "run_01TEST"');
+    expect(md).toContain('step_id: "build"');
+    expect(md).toContain('branch: "completed"');
+    expect(md).toContain('"$schema":"https://json-schema.org/draft/2020-12/schema"');
+    expect(md).not.toContain("<run_id>");
+    expect(md).not.toContain("When ready:");
     expect(md).toContain("Then: engine opens archive");
+  });
+
+  test("renders deterministic branch-neutral payload and artifact contracts", () => {
+    const slice = {
+      step_id: "build",
+      parent_id: null,
+      branches: {
+        z_custom: {
+          schema: {
+            type: "object",
+            required: ["description", "bundle"],
+            properties: { description: { type: "string" } },
+          },
+          payload_required: ["description"],
+          artifact_required: ["bundle"],
+          artifact_slots: { bundle: { max_files: 1, extensions: [".zip"] } },
+          then: "engine advances",
+        },
+        cancel: {
+          schema: { type: "object" },
+          payload_required: [],
+          artifact_required: [],
+          artifact_slots: {},
+          then: "fail run",
+        },
+      },
+      inputs_from_run: {},
+    };
+    const local = renderAgentStepContractMarkdown(slice, {
+      run_id: "01LIVE",
+      artifact_transport: "local_path",
+    });
+    expect(local.indexOf("Branch `cancel`")).toBeLessThan(local.indexOf("Branch `z_custom`"));
+    expect(local).toContain('payload: {"description":"value"}');
+    expect(local).not.toContain('"required":["bundle","description"]');
+    expect(local).toContain('"bundle":{"extensions":[".zip"],"max_files":1,"min_files":1,"required":true}');
+    expect(local).toContain('artifacts_out: [{ slot: "bundle", path: "bundle.zip" }]');
+
+    const remote = renderAgentStepContractMarkdown(slice, {
+      run_id: "01LIVE",
+      artifact_transport: "remote_reference",
+    });
+    expect(remote).toContain('upload_intent_id: "upi_authorized_artifact_reference"');
+    expect(remote).not.toContain("artifacts_out:");
+  });
+
+  test("protocol v1 omits discovery for one key and gates it for many", () => {
+    const single = renderMurrmureProtocolEnvelope({
+      run_id: "run_01LIVE",
+      contract_markdown: "### Active step: build",
+      contract_key_count: 1,
+    });
+    expect(single.startsWith("Protocol: murrmure.agent/v1\n")).toBe(true);
+    expect(single).not.toContain("## Session");
+    expect(single).not.toContain("## MCP tools");
+    expect(single).not.toContain("## Resolve API");
+    expect(single).not.toContain("## Discovery");
+
+    const multiple = renderMurrmureProtocolEnvelope({
+      run_id: "run_01LIVE",
+      contract_markdown: "### Active step: build",
+      contract_key_count: 2,
+    });
+    expect(multiple).toContain("## Discovery");
+    expect(multiple).toContain('murrmure_list_step_contracts({ run_id: "run_01LIVE" })');
   });
 
   test("buildMurrmurePromptBindings exposes composite and atomic tokens", () => {
@@ -112,9 +183,12 @@ describe("flow-engine/step-contract-slice", () => {
         intake: {
           spec: {
             slot: "spec",
-            path: ".mrmr/dev/runs/run_01TEST/steps/intake/spec/x.md",
-            name: "x.md",
-            transfer_id: "xfr_01",
+            cardinality: "singleton",
+            files: [{
+              path: ".mrmr/dev/runs/run_01TEST/steps/intake/spec/x.md",
+              name: "x.md",
+              transfer_id: "xfr_01",
+            }],
           },
         },
       },

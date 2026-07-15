@@ -1,7 +1,7 @@
 # Bridge — Step contracts (v3, resolver-agnostic)
 
-**Status:** Normative — **shipped** (Tutorial v3, Task 03)
-**Spec:** [step contracts v3](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md), [ADR-007](../../ADR/ADR-007-resolver-agnostic-step-contracts.md)
+**Status:** Normative — **shipped** (Tutorial v3, Tasks 03 and 07)
+**Spec:** [step contracts v3](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md), [connected agent build](../../plans/2026-07-14-tutorial-v3-build-tasks/07-connected-agent-build.md), [ADR-007](../../ADR/ADR-007-resolver-agnostic-step-contracts.md), [ADR-013](../../ADR/ADR-013-agent-assignment-prompt-protocol.md)
 
 Murrmure flow steps are **resolver-agnostic contracts**. A step is `id`, optional
 `description`, optional `branches`, and optional nested `steps` — nothing else.
@@ -293,6 +293,36 @@ Legacy `{{input.*}}`, `{{origin_space}}`, `{{steps.*}}` tokens are unchanged.
 ---
 
 ## Resolve API
+
+### Agent assignment prompt protocol
+
+An executor handler with a `prompt` receives a user-authored **Task** followed by
+one generated protocol block. The block begins exactly:
+
+```text
+Protocol: murrmure.agent/v1
+```
+
+The active step is compiled from the same canonical `BranchResolveContract` used
+by resolve validation. Branches use deterministic name ordering and one neutral
+template. Each branch contains:
+
+- its complete compact Draft 2020-12 payload schema, recursively key-sorted;
+- artifact requirements as a separate contract (never payload fields);
+- the compiled `Then` control effect;
+- a complete `murrmure_resolve_step` call with live `run_id`, live `step_id`,
+  exact branch, and schema-valid example values.
+
+Single-key assignments contain Contracts only. `## Discovery` and a live
+`murrmure_list_step_contracts` call appear only when handler prompt scope has
+more than one `contract_keys` entry. `## Session`, `## MCP tools`,
+`## Resolve API`, `When ready:`, and placeholder IDs are not part of v1.
+
+Local bridge assignments may submit files from the active step workdir with
+`artifacts_out: [{ slot, path }]`. Remote/federated assignments use an authorized
+upload-intent reference; the Hub never reads an agent-machine path.
+
+See [ADR-013](../../ADR/ADR-013-agent-assignment-prompt-protocol.md).
 
 Agents, views, and authorized protocol clients complete steps via
 **`murrmure_resolve_step`** (`step:resolve` capability):
