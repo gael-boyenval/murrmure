@@ -48,8 +48,8 @@ mrmr connection create --space spc_… --json # explicit local connection
 In **Murrmure Desktop** → space home → **Run** on the indexed flow (e.g. **example**).
 
 - Indexed flows come from `.mrmr/flows/` via `mrmr space apply`
-- Checkpoint steps with `presentation.view` open in **ViewCanvasHost** (full canvas custom view)
-- Shell chrome (flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a view is specified
+- Steps bound to a `view_resolver` handler open the bound custom view in **ViewCanvasHost** (full canvas custom view); the flow manifest carries no `presentation` field
+- Shell chrome (flowchart, gate inbox) is **operator/admin mode** — not the primary human path when a view is bound
 
 CLI alternative:
 

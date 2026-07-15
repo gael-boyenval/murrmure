@@ -15,7 +15,7 @@ my-project/
       bindings.yaml           # optional — remote flow/view refs for worker spaces
     flows/
       my-flow/
-        flow.manifest.yaml    # protocol: steps, branches, presentation
+        flow.manifest.yaml    # protocol: steps, branches (no presentation field)
     views/
       my-view/
         view.manifest.yaml    # custom checkpoint UI (optional)

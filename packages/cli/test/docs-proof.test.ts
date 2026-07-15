@@ -403,11 +403,14 @@ describe("phase 10 docs proof (10-T*)", () => {
     expect(scanned, "fenced blocks scanned").toBeGreaterThan(0);
   });
 
-  test("VS-9 — repo docs ban removed `gate.requires_view` / `start.*` constructs in prose", () => {
+  test("VS-9 — repo docs ban removed `gate.requires_view` / `start.*` / `presentation.view` constructs in prose", () => {
     // Dotted field paths that only appear as stale prescriptions, never in
     // legitimate removal/migration descriptions (which name the bare token).
+    // `presentation.view` was the v2 checkpoint-step modality; v3 binds views
+    // through a `view_resolver` handler and the flow manifest carries no
+    // `presentation` field.
     const REMOVED_PROSE_CONSTRUCTS =
-      /gate\.requires_view\b|start\.(requires_view|flow_call|manual|event|schedule)\b/;
+      /gate\.requires_view\b|start\.(requires_view|flow_call|manual|event|schedule)\b|presentation\.view\b/;
     for (const file of collectV3CleanDocs()) {
       const rel = file.replace(`${REPO_ROOT}/`, "");
       const text = readFileSync(file, "utf-8");
@@ -486,15 +489,15 @@ describe("phase 10 docs proof (10-T*)", () => {
     }
   });
 
-  test("T15-LANE-C — tutorial v3 relative links resolve (no broken v2 references)", () => {
-    // Tutorial v3 must be self-contained: relative markdown links inside the
-    // v3 pages must resolve to existing files. The v2 tutorials were archived
-    // out of apps/docs/guide/tutorials/, so links like ../01-local-preview-review/
-    // are broken and must not reappear. Scoped to the v3 tutorial directory.
-    const tutorialRoot = join(
-      REPO_ROOT,
-      "apps/docs/guide/tutorials/01-local-preview-review-v3",
-    );
+  test("T15-LANE-C — tutorial relative links resolve (no broken v2 references)", () => {
+    // The tutorials directory must be self-contained: relative markdown links
+    // inside apps/docs/guide/tutorials/ — including the tutorials index — must
+    // resolve to existing files. The v2 tutorials were archived out to
+    // studio-specs/archives/superseded/tutorials/, so links like
+    // ../01-local-preview-review/ are broken and must not reappear. Scoped to
+    // the whole tutorials directory so the index page's archive link is guarded
+    // alongside the v3 pages.
+    const tutorialRoot = join(REPO_ROOT, "apps/docs/guide/tutorials");
     const linkRe = /\]\(([^)]+)\)/g;
     const errors: string[] = [];
     for (const file of collectMarkdownFiles(tutorialRoot)) {
