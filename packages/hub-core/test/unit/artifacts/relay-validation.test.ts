@@ -202,4 +202,28 @@ describe("loadRelayedArtifactBytes", () => {
     expect(result!.digest).toBe(computeBytesDigest(new TextEncoder().encode("local")));
     expect(remoteCalled).toBe(false);
   });
+
+  test("local ACL binds to the requester space principal (parity with artifacts_in)", async () => {
+    // The same artifact record is authorized to `spc_consumer` only. The
+    // consumer context's `requester_space_id` is the ACL principal — an
+    // authorized requester resolves, a different (unbound) requester is
+    // denied with the same code as `artifacts_in`.
+    const record = localRecord({ authorized_readers: [REQUESTER] });
+    const authorized = await loadRelayedArtifactBytes({
+      transfer_id: TRANSFER_ID,
+      requester_space_id: REQUESTER,
+      requester_actor_id: ACTOR,
+      loadLocal: async () => record,
+    });
+    expect(authorized).not.toBeNull();
+
+    await expect(
+      loadRelayedArtifactBytes({
+        transfer_id: TRANSFER_ID,
+        requester_space_id: "spc_other",
+        requester_actor_id: "actor_other",
+        loadLocal: async () => record,
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_ACCESS_DENIED" });
+  });
 });

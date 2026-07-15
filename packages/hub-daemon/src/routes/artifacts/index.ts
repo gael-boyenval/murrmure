@@ -49,12 +49,19 @@ export function mountArtifactRoutes(app: Hono, ctx: DaemonContext): void {
   // through this route using the relayed `hub_token` / `hub_url`, then
   // materializes verified consumer copies in its own space — without
   // destination pre-seeding. Authorization is the artifact `authorized_readers`
-  // ACL (the requester `space_id` must be listed), enforced inside
-  // `serveArtifactBytes` alongside expiry and digest checks. The token's own
-  // space boundary is intentionally not re-checked here: a cross-hub fetch
-  // legitimately presents a producer-space credential (e.g. a relayed
-  // `step:resolve` token) while requesting bytes authorized to the consumer
-  // space, so the ACL is the authoritative gate. Reachable with `blob:read` or
+  // ACL, enforced inside `serveArtifactBytes` alongside expiry and digest
+  // checks.
+  //
+  // The ACL principal is bound to the credential, not a caller-supplied
+  // `?space_id=` (parity with the `artifacts_in` path, where the principal is
+  // the authenticated invoke context). A federated resolve token carries a
+  // persisted `consumer_space_id` binding (set by the producer when minting the
+  // token for a `remote_hub` dispatch); the claimed `space_id` must match that
+  // binding. A same-space `blob:read` / `step:resolve` token (no consumer
+  // binding) may only read its own space's artifacts. A bootstrap or
+  // wrong-space credential is rejected with 403 `ARTIFACT_ACCESS_DENIED` before
+  // any bytes are read — a caller may no longer claim another ACL-authorized
+  // space by supplying an arbitrary `?space_id=`. Reachable with `blob:read` or
   // a federated `step:resolve` credential.
   app.get("/v1/artifacts/:transfer_id/bytes", async (c) => {
     const transfer_id = c.req.param("transfer_id");
@@ -63,16 +70,41 @@ export function mountArtifactRoutes(app: Hono, ctx: DaemonContext): void {
     const scopeCheck = requireAnyScope(auth, ["blob:read", "step:resolve"]);
     if (scopeCheck) return scopeCheck;
 
-    const spaceId =
-      c.req.query("space_id") ??
-      (auth.space_id !== "bootstrap" ? `spc_${bareSpaceId(auth.space_id)}` : undefined);
-    if (!spaceId) {
+    const claimedSpaceId = c.req.query("space_id");
+    if (!claimedSpaceId) {
       return c.json({ code: "INVALID_REQUEST", message: "space_id query parameter is required" }, 400);
+    }
+
+    // Bind the ACL principal to the credential. A consumer-bound resolve token
+    // must claim its bound consumer space; an unbound token may only claim its
+    // own space. Anything else is a wrong-space claim → 403.
+    let requesterSpaceId: string;
+    if (auth.consumer_space_id) {
+      if (bareSpaceId(claimedSpaceId) !== bareSpaceId(auth.consumer_space_id)) {
+        return c.json(
+          {
+            code: "ARTIFACT_ACCESS_DENIED",
+            message: "Token is not bound to the requested consumer space",
+          },
+          403,
+        );
+      }
+      requesterSpaceId = auth.consumer_space_id;
+    } else if (auth.space_id !== "bootstrap" && bareSpaceId(claimedSpaceId) === bareSpaceId(auth.space_id)) {
+      requesterSpaceId = claimedSpaceId;
+    } else {
+      return c.json(
+        {
+          code: "ARTIFACT_ACCESS_DENIED",
+          message: "Token is not authorized for the requested consumer space",
+        },
+        403,
+      );
     }
 
     const result = await artifactService.serveArtifactBytes({
       transfer_id,
-      requester_space_id: spaceId,
+      requester_space_id: requesterSpaceId,
       requester_actor_id: auth.actor_id,
     });
     if (result.http !== 200) {

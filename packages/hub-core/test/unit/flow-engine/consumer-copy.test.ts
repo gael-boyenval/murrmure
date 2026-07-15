@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
   ArtifactMaterializationError,
   materializeConsumerCopy,
+  materializeRemoteArtifactReferences,
+  type RemoteArtifactReferenceSlot,
 } from "../../../src/flow-engine/consumer-copy.js";
 
 function sha256(text: string): string {
@@ -326,5 +328,166 @@ describe("materializeConsumerCopy", () => {
     expect(existsSync(first.path)).toBe(true);
     expect(statSync(first.path).size).toBe("first".length);
     expect(existsSync(join(dirname(first.path), ".tmp-"))).toBe(false);
+  });
+});
+
+describe("materializeRemoteArtifactReferences — relayed name/slot traversal hardening", () => {
+  let spaceRoot: string;
+
+  beforeEach(() => {
+    spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-rr-"));
+  });
+
+  afterEach(() => {
+    rmSync(spaceRoot, { recursive: true, force: true });
+  });
+
+  function bytesFor(content: string) {
+    const bytes = new TextEncoder().encode(content);
+    return { bytes, digest: sha256(content) };
+  }
+
+  function slotRef(over: Partial<RemoteArtifactReferenceSlot> & { files: { name: string; transfer_id: string; digest?: string }[] }): RemoteArtifactReferenceSlot {
+    return {
+      producer_step: over.producer_step ?? "intake",
+      slot: over.slot ?? "assets",
+      cardinality: over.cardinality ?? "collection",
+      files: over.files,
+    };
+  }
+
+  test("materializes valid relayed references under the consumer inputs tree", async () => {
+    const result = await materializeRemoteArtifactReferences({
+      space_root: spaceRoot,
+      run_id: "demo",
+      consumer_step: "build",
+      references: [
+        slotRef({
+          files: [
+            { name: "01-openapi.json", transfer_id: "xfr_1", digest: bytesFor("a").digest },
+            { name: "02-paths.json", transfer_id: "xfr_2", digest: bytesFor("b").digest },
+          ],
+        }),
+      ],
+      loadBytes: async (tid) => (tid === "xfr_1" ? bytesFor("a") : tid === "xfr_2" ? bytesFor("b") : null),
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].files.map((f) => f.name)).toEqual(["01-openapi.json", "02-paths.json"]);
+    for (const f of result[0].files) {
+      expect(existsSync(f.path)).toBe(true);
+      expect(f.path).toContain(join(".mrmr", "dev", "runs", "run_demo", "steps", "build", "inputs", "assets"));
+    }
+  });
+
+  test("rejects a relayed filename with `..` traversal and writes no file", async () => {
+    const escapeName = "../../../../../../escape.txt";
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            cardinality: "singleton",
+            files: [{ name: escapeName, transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    // Nothing escaped the space root.
+    expect(existsSync(join(spaceRoot, "escape.txt"))).toBe(false);
+    expect(existsSync(join(dirname(spaceRoot), "escape.txt"))).toBe(false);
+  });
+
+  test("rejects an absolute relayed filename", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            cardinality: "singleton",
+            files: [{ name: "/etc/passwd", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects a relayed filename containing a path separator", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            files: [{ name: "sub/dir.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects a relayed slot with `..` traversal before creating any directory", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            slot: "../escape",
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    expect(existsSync(join(spaceRoot, "escape"))).toBe(false);
+  });
+
+  test("rejects a relayed producer_step with a path separator", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            producer_step: "../escape",
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("cleans a partial collection directory when a later file name is rejected", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "build",
+        references: [
+          slotRef({
+            files: [
+              { name: "01-ok.json", transfer_id: "xfr_1", digest: bytesFor("a").digest },
+              { name: "../escape.txt", transfer_id: "xfr_2", digest: bytesFor("b").digest },
+            ],
+          }),
+        ],
+        loadBytes: async (tid) => (tid === "xfr_1" ? bytesFor("a") : bytesFor("b")),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    // The collection slot directory was removed on the all-or-nothing failure.
+    const slotDir = join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "steps", "build", "inputs", "assets");
+    expect(existsSync(slotDir)).toBe(false);
+    expect(existsSync(join(spaceRoot, "escape.txt"))).toBe(false);
   });
 });

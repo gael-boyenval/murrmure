@@ -29,6 +29,13 @@ export interface TokenRow {
   expires_at?: string;
   /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
   scope_ref?: string;
+  /**
+   * Consumer space a federated resolve token is bound to. Set when the token
+   * is minted for a `remote_hub` dispatch so the producer bytes endpoint can
+   * bind the artifact ACL principal to the credential instead of trusting an
+   * arbitrary `?space_id=` claim (parity with the `artifacts_in` path).
+   */
+  consumer_space_id?: string;
 }
 
 export interface GrantRow {

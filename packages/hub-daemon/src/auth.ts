@@ -11,6 +11,12 @@ export interface TokenContext {
   flow_acl?: string[];
   /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
   scope_ref?: string;
+  /**
+   * Consumer space a federated resolve token is bound to. The producer bytes
+   * endpoint binds the artifact ACL principal to this instead of trusting an
+   * arbitrary `?space_id=` claim.
+   */
+  consumer_space_id?: string;
 }
 
 export function parseBearer(req: Request): string | undefined {
@@ -81,6 +87,7 @@ export async function requireToken(
     harness_id: token.harness_id,
     flow_acl: token.flow_acl,
     scope_ref: token.scope_ref,
+    consumer_space_id: token.consumer_space_id,
   };
 }
 

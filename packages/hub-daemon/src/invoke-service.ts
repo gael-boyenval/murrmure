@@ -232,6 +232,14 @@ export class InvokeService {
     handler_id: string;
     /** Assignment TTL backstop (ms); expiry is set to now + ttl. */
     ttl_ms: number;
+    /**
+     * Consumer space to bind this federated resolve token to. Set for a
+     * `remote_hub` dispatch so the producer `GET .../bytes` endpoint binds the
+     * artifact ACL principal to the credential (parity with `artifacts_in`),
+     * instead of trusting an arbitrary `?space_id=` claim. Omitted for local
+     * dispatches (the handler resolves in the same space as the run).
+     */
+    consumer_space_id?: string;
   }): Promise<string> {
     const token_id = ulid();
     const ts = new Date();
@@ -251,6 +259,13 @@ export class InvokeService {
         scope_ref: `${input.run_id}:${input.step_id}:${input.handler_id}`,
         status: "active",
         expires_at,
+        // Bind the federated resolve token to the consumer space so the producer
+        // bytes endpoint can authorize the cross-hub fetch against the
+        // credential rather than a caller-supplied `?space_id=`. The binding is
+        // persisted on the token row and enforced at the producer.
+        consumer_space_id: input.consumer_space_id
+          ? bareSpaceId(input.consumer_space_id)
+          : undefined,
       },
       ts.toISOString(),
     );
@@ -700,6 +715,16 @@ export class InvokeService {
     if (run_id && parsed.data.step_id && resolved.space_root) {
       const matchedHandler = indexedHandler ?? await this.loadIndexedHandler(bare, input.action_name);
       const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
+      // For a `remote_hub` dispatch the resolve token is relayed to the consumer
+      // hub, which uses it to fetch artifact bytes from this (producer) hub.
+      // Bind the token to the consumer space so the producer bytes endpoint
+      // authorizes the cross-hub fetch against the credential (parity with the
+      // `artifacts_in` path) instead of trusting a caller-supplied `?space_id=`.
+      let consumerSpaceId: string | undefined;
+      if (matchedHandler && matchedHandler.type === "remote_hub") {
+        const remoteSpaceId = matchedHandler.params?.remote_space_id;
+        consumerSpaceId = typeof remoteSpaceId === "string" ? remoteSpaceId : undefined;
+      }
       const resolveToken = await this.mintRunResolveToken({
         run_id,
         space_id: bare,
@@ -707,6 +732,7 @@ export class InvokeService {
         step_id: parsed.data.step_id,
         handler_id: input.action_name,
         ttl_ms,
+        consumer_space_id: consumerSpaceId,
       });
       // Track the ephemeral credential so any terminal path can revoke it.
       registerResolveCredential(run_id, parsed.data.step_id, resolveToken);

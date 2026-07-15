@@ -219,14 +219,15 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       status: row.status as TokenRow["status"],
       expires_at: row.expires_at ?? undefined,
       scope_ref: row.scope_ref ?? undefined,
+      consumer_space_id: row.consumer_space_id ?? undefined,
     };
   }
 
   async insertToken(row: TokenRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, flow_acl_json, capabilities_json, status, created_at, expires_at, scope_ref)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, flow_acl_json, capabilities_json, status, created_at, expires_at, scope_ref, consumer_space_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.token_id,
@@ -240,6 +241,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         created_at,
         row.expires_at ?? null,
         row.scope_ref ?? null,
+        row.consumer_space_id ?? null,
       );
   }
 

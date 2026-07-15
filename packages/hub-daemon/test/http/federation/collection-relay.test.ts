@@ -57,7 +57,7 @@ function findEntry(root: string, name: string): string | undefined {
  * `ARTIFACT_ACCESS_DENIED` before any bytes are materialized.
  */
 describe("federation/collection-relay — two-hub cross-hub artifact retrieval", () => {
-  let hubA: { baseUrl: string; cleanup: () => void; token: string; spaceId: string };
+  let hubA: { baseUrl: string; cleanup: () => void; token: string; spaceId: string; boundToken: string };
   let hubB: {
     baseUrl: string;
     cleanup: () => void;
@@ -66,6 +66,38 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     root: string;
     dataDir: string;
   };
+  let daemonA: Awaited<ReturnType<typeof startHubDaemon>>;
+  let daemonB: Awaited<ReturnType<typeof startHubDaemon>>;
+
+  const bare = (id: string) => (id.startsWith("spc_") ? id.slice(4) : id);
+
+  /**
+   * Mint a federated resolve token on the producer hub (hubA) bound to the
+   * consumer space, mirroring what `invokeAction` mints for a `remote_hub`
+   * dispatch. The producer `GET .../bytes` endpoint binds the artifact ACL
+   * principal to this credential (not a caller-supplied `?space_id=`), so the
+   * legitimate cross-hub fetch proves ACL identity binding — parity with the
+   * normal `artifacts_in` path.
+   */
+  async function mintBoundResolveToken(consumerSpaceId: string): Promise<string> {
+    const tokenId = `reltok_${Math.random().toString(36).slice(2)}`;
+    await daemonA.ctx.murrmurePersistence.insertToken(
+      {
+        token_id: tokenId,
+        actor_id: "actor_relay",
+        space_id: bare(hubA.spaceId),
+        scopes: ["step:resolve"],
+        capabilities: ["step:resolve"],
+        harness_id: "run:run_prod",
+        scope_ref: "run_prod:build:relay_collection",
+        status: "active",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        consumer_space_id: bare(consumerSpaceId),
+      },
+      new Date().toISOString(),
+    );
+    return `tok_${tokenId}`;
+  }
 
   const collection = [
     { name: "01-openapi.json", content: '{"openapi":"3.0"}\n' },
@@ -86,14 +118,14 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     const tokenA = "01JBOOTSTRAPTOKEN0000000A";
     const tokenB = "01JBOOTSTRAPTOKEN0000000B";
 
-    const daemonA = await startHubDaemon({
+    daemonA = await startHubDaemon({
       databasePath: join(dirA, "murrmure.db"),
       port: 0,
       dataDir: join(dirA, "data"),
       defaultSpaceId: "",
       bootstrapToken: tokenA,
     });
-    const daemonB = await startHubDaemon({
+    daemonB = await startHubDaemon({
       databasePath: join(dirB, "murrmure.db"),
       port: 0,
       dataDir: join(dirB, "data"),
@@ -108,6 +140,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
       baseUrl: `http://127.0.0.1:${portA}`,
       token: tokenA,
       spaceId: "",
+      boundToken: "",
       cleanup: () => {
         daemonA.server.close();
         rmSync(dirA, { recursive: true, force: true });
@@ -199,6 +232,11 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     });
     hubA.spaceId = ((await createdA.json()) as { space_id: string }).space_id;
 
+    // Mint a federated resolve token on the producer bound to the consumer
+    // space, mirroring `invokeAction`'s `remote_hub` mint. The producer bytes
+    // endpoint binds the artifact ACL principal to this credential.
+    hubA.boundToken = await mintBoundResolveToken(hubB.spaceId);
+
     // Register the collection on hubA, authorizing the consumer space (hubB).
     // These bytes exist ONLY on hubA — hubB's artifact store is never seeded.
     collectionArtifacts = [];
@@ -273,7 +311,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
       },
       run_artifacts_json: JSON.stringify(runArtifacts),
       contract_key_count: 2,
-      hub_token: addTokenId(hubA.token),
+      hub_token: hubA.boundToken,
       hub_url: hubA.baseUrl,
     };
   }
@@ -428,6 +466,69 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     expect(
       findEntry(join(hubB.root, ".mrmr", "dev", "runs"), "producer-only.json"),
       "no consumer copy materialized for the denied reference",
+    ).toBeUndefined();
+  }, 30_000);
+
+  test("destination rejects a relayed credential bound to the wrong consumer space", async () => {
+    // Mint a producer resolve token bound to hubA's OWN space (wrong consumer)
+    // but reference an artifact ACL-authorized to hubB. The producer bytes
+    // endpoint must reject at the binding gate (consumer_space_id=hubA ≠
+    // claimed hubB) before any bytes are served — proving the ACL principal is
+    // bound to the credential, not a caller-supplied `?space_id=`. A uniquely-
+    // named artifact isolates this assertion from the positive test's copies.
+    const target = "wrong-space-target.json";
+    const content = "wrong-space-target-bytes";
+    const put = await fetch(`${hubA.baseUrl}/v1/artifacts`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${addTokenId(hubA.token)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: hubA.spaceId,
+        name: target,
+        content_base64: Buffer.from(content, "utf8").toString("base64"),
+        authorized_readers: [hubB.spaceId],
+      }),
+    });
+    expect(put.status).toBe(201);
+    const artifact = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
+
+    const wrongToken = await mintBoundResolveToken(hubA.spaceId);
+    const relay = buildRemoteStepContractRelay(
+      producerStepContract([
+        {
+          id: artifact.transfer_id,
+          name: target,
+          digest: artifact.digest,
+          size_bytes: artifact.size_bytes,
+          content,
+        },
+      ]),
+    );
+    expect(relay).toBeDefined();
+    // Override the relayed hub_token with the wrong-consumer-bound credential.
+    (relay as { hub_token?: string }).hub_token = wrongToken;
+
+    const res = await fetch(
+      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+        },
+        body: JSON.stringify({ step_id: "build", step_contract: relay }),
+      },
+    );
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("ARTIFACT_ACCESS_DENIED");
+
+    // No consumer copy was materialized for the wrong-space credential.
+    expect(
+      findEntry(join(hubB.root, ".mrmr", "dev", "runs"), target),
+      "no consumer copy materialized for the wrong-space credential",
     ).toBeUndefined();
   }, 30_000);
 });

@@ -152,6 +152,16 @@ at apply time (`HANDLER_BINDING_VALUE_MISSING`) and lints as
   validated against `authorized_readers` and expiry before materialization — the
   same ACL/expiry checks the normal `artifacts_in` path enforces — so a caller
   cannot bypass artifact authorization by supplying a `step_contract`. The
+  producer bytes endpoint binds the artifact ACL principal to the credential, not
+  a caller-supplied `?space_id=` (parity with `artifacts_in`, whose principal is the
+  authenticated invoke context): the resolve token the producer mints for a
+  `remote_hub` dispatch carries a persisted `consumer_space_id` binding, and the
+  claimed `space_id` must match it; a same-space `blob:read` token may read only its
+  own space's artifacts; a bootstrap or wrong-space credential is rejected with
+  `ARTIFACT_ACCESS_DENIED` before any bytes are served. Relayed reference `name`
+  and `slot` strings are validated before they are joined into a consumer-copy path
+  — no `..`, absolute paths, or path separators — so a crafted, digest-valid
+  reference cannot escape the linked space root during materialization. The
   journaled dispatch audit carries opaque references
   (`artifact:{producer}:{slot}(:directory)`, or the transfer id) and never a
   `.mrmr/dev/runs` host path.

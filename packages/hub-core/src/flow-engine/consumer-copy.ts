@@ -39,6 +39,32 @@ function safeFilename(name: string): string {
 }
 
 /**
+ * Validate a single path segment that crosses a federation boundary
+ * (`slot`, `producer_step`, or a reference `name`) before it is joined into a
+ * consumer-copy path. Relayed reference strings are caller-supplied and must
+ * never carry `..`, an absolute path, or any path separator — otherwise a
+ * crafted, digest-valid reference could escape the linked space root during
+ * materialization. Reject (do not silently strip) so a malformed relay is a
+ * loud, typed failure rather than a quiet write to an unexpected location.
+ */
+function safePathSegment(name: string, kind: string): string {
+  if (
+    !name ||
+    name === "." ||
+    name === ".." ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    isAbsolute(name)
+  ) {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_PATH_TRAVERSAL",
+      `Invalid artifact ${kind} '${name}'`,
+    );
+  }
+  return name;
+}
+
+/**
  * Materialize one verified local consumer copy of a run-scoped artifact.
  *
  * The source must be a regular file inside the run's scratch tree
@@ -326,9 +352,14 @@ export async function materializeRemoteArtifactReferences(input: {
 }): Promise<MaterializedRemoteReferenceSlot[]> {
   const results: MaterializedRemoteReferenceSlot[] = [];
   for (const ref of input.references) {
+    // Relayed `slot` / `producer_step` / `name` strings are caller-supplied and
+    // are joined directly into the consumer-copy path; reject any traversal,
+    // absolute, or separator-bearing segment before constructing paths.
+    const slot = safePathSegment(ref.slot, "slot");
+    const producerStep = safePathSegment(ref.producer_step, "producer step");
     const directory =
       ref.cardinality === "collection"
-        ? consumerInputsDirPath(input.space_root, input.run_id, input.consumer_step, ref.slot)
+        ? consumerInputsDirPath(input.space_root, input.run_id, input.consumer_step, slot)
         : undefined;
     if (directory) await mkdir(directory, { recursive: true });
     const files: MaterializedRemoteReferenceFile[] = [];
@@ -345,12 +376,13 @@ export async function materializeRemoteArtifactReferences(input: {
             `Remote artifact '${file.name}' (transfer ${file.transfer_id}) digest mismatch: expected ${file.digest}, got ${digest}`,
           );
         }
+        const filename = safePathSegment(file.name, "filename");
         const dest = consumerInputPath(
           input.space_root,
           input.run_id,
           input.consumer_step,
-          ref.slot,
-          file.name,
+          slot,
+          filename,
         );
         await mkdir(dirname(dest), { recursive: true });
         const tmp = join(dirname(dest), `.tmp-${randomBytes(8).toString("hex")}`);
@@ -366,15 +398,15 @@ export async function materializeRemoteArtifactReferences(input: {
             }`,
           );
         }
-        files.push({ name: file.name, transfer_id: file.transfer_id, digest, path: dest });
+        files.push({ name: filename, transfer_id: file.transfer_id, digest, path: dest });
       }
     } catch (error) {
       if (directory) await rm(directory, { recursive: true, force: true });
       throw error;
     }
     results.push({
-      producer_step: ref.producer_step,
-      slot: ref.slot,
+      producer_step: producerStep,
+      slot,
       cardinality: ref.cardinality,
       files,
       directory,

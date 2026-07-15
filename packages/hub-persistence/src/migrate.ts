@@ -379,6 +379,9 @@ export function migrateStudio(db: Database.Database): void {
   if (!tokenColNames.has("scope_ref")) {
     db.exec(`ALTER TABLE tokens ADD COLUMN scope_ref TEXT`);
   }
+  if (!tokenColNames.has("consumer_space_id")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN consumer_space_id TEXT`);
+  }
 
   if (!colNames.has("query_policy_json")) {
     db.exec(`ALTER TABLE spaces ADD COLUMN query_policy_json TEXT`);

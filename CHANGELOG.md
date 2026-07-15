@@ -59,6 +59,19 @@
   are materialized. The producer `.../bytes` endpoint enforces the same ACL,
   expiry, and digest checks and is reachable with `blob:read` or a federated
   `step:resolve` credential.
+- The producer `.../bytes` endpoint binds the artifact ACL principal to the
+  credential, not a caller-supplied `?space_id=` (parity with `artifacts_in`).
+  The resolve token minted for a `remote_hub` dispatch carries a persisted
+  `consumer_space_id` binding; the claimed `space_id` must match it. A
+  same-space `blob:read` token may read only its own space's artifacts. A
+  bootstrap or wrong-space credential is rejected with `ARTIFACT_ACCESS_DENIED`
+  (403) before any bytes are served — a caller can no longer claim another
+  ACL-authorized space by supplying an arbitrary `?space_id=`.
+- Relayed reference `name` and `slot` strings are validated before they are
+  joined into a consumer-copy path: no `..`, absolute paths, or path separators
+  are accepted. A crafted, digest-valid reference that would escape the linked
+  space root during materialization is rejected with `ARTIFACT_PATH_TRAVERSAL`
+  before any consumer bytes are written.
 - **Run retention GC**: terminal local bytes expire at `ended_at + 7 days`;
   active run directories are never collected. GC runs at Hub startup and every
   24 hours, removes only the per-run tree, preserves journal metadata and
