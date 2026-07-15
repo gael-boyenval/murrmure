@@ -823,15 +823,21 @@ export class InvokeService {
         // A typed artifact validation failure (ACL / expiry / digest / not-found
         // from the relayed reference) rejects the invoke with parity codes — a
         // caller-supplied `step_contract` may not bypass `artifacts_in`
-        // authorization. A digest mismatch raised while writing the consumer
-        // copy is likewise a validation failure. Anything else (reconstruction
-        // / transport / copy I/O) is best-effort: drop the contract and let the
+        // authorization. A digest mismatch or a path-traversal segment
+        // (`consumer_step` / `slot` / `name` / `producer_step`) raised while
+        // validating/writing the consumer copy is likewise a definitive
+        // validation failure: a crafted relayed `step_id` may not write verified
+        // bytes outside the linked space root. Anything else (reconstruction /
+        // transport / copy I/O) is best-effort: drop the contract and let the
         // handler run with params.
         if (error instanceof RelayedArtifactValidationError) {
           const status = error.code === "ARTIFACT_ACCESS_DENIED" ? 403 : 404;
           return { http: status as 403 | 404, body: { code: error.code, message: error.message } };
         }
-        if (error instanceof ArtifactMaterializationError && error.code === "ARTIFACT_DIGEST_MISMATCH") {
+        if (
+          error instanceof ArtifactMaterializationError &&
+          (error.code === "ARTIFACT_DIGEST_MISMATCH" || error.code === "ARTIFACT_PATH_TRAVERSAL")
+        ) {
           return { http: 404 as const, body: { code: error.code, message: error.message } };
         }
         request.step_contract = undefined;

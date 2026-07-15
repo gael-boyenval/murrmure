@@ -158,11 +158,15 @@ at apply time (`HANDLER_BINDING_VALUE_MISSING`) and lints as
   `remote_hub` dispatch carries a persisted `consumer_space_id` binding, and the
   claimed `space_id` must match it; a same-space `blob:read` token may read only its
   own space's artifacts; a bootstrap or wrong-space credential is rejected with
-  `ARTIFACT_ACCESS_DENIED` before any bytes are served. Relayed reference `name`
-  and `slot` strings are validated before they are joined into a consumer-copy path
-  — no `..`, absolute paths, or path separators — so a crafted, digest-valid
-  reference cannot escape the linked space root during materialization. The
-  journaled dispatch audit carries opaque references
+  `ARTIFACT_ACCESS_DENIED` before any bytes are served. Relayed reference
+  `name`, `slot`, `producer_step`, and the destination `consumer_step` (the
+  relayed public invoke `step_id`) are all validated as single safe path
+  segments before they are joined into a consumer-copy path — no `..`, absolute
+  paths, or path separators — so a crafted, digest-valid reference or a crafted
+  relayed `step_id` cannot escape the linked space root during materialization;
+  a resolved-path containment check at the write sink backstops that validation.
+  A malformed relay is rejected with `ARTIFACT_PATH_TRAVERSAL` before any consumer
+  bytes are written. The journaled dispatch audit carries opaque references
   (`artifact:{producer}:{slot}(:directory)`, or the transfer id) and never a
   `.mrmr/dev/runs` host path.
 

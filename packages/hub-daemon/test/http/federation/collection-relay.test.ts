@@ -531,4 +531,51 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
       "no consumer copy materialized for the wrong-space credential",
     ).toBeUndefined();
   }, 30_000);
+
+  test("destination rejects a relayed invoke whose step_id would escape the linked space root", async () => {
+    // A crafted relayed public `step_id` is used as the destination
+    // `consumer_step` path segment. Without segment validation it would
+    // normalize past the run scratch tree: `join(space_root,
+    // .mrmr/dev/runs/{run_id}/steps/../../../../../../murrmure_relay_escape/
+    // inputs/assets/01-openapi.json)` cancels every run-scratch segment and
+    // lands at `dirname(space_root)/murrmure_relay_escape/inputs/assets/...`,
+    // writing verified producer bytes outside the linked space root. The
+    // destination must reject the relay with a typed ARTIFACT_PATH_TRAVERSAL
+    // before any consumer copy is materialized or any producer fetch occurs.
+    const relay = buildRemoteStepContractRelay(producerStepContract(collectionArtifacts));
+    expect(relay).toBeDefined();
+
+    const escapeStep = "../../../../../../murrmure_relay_escape";
+    const res = await fetch(
+      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+        },
+        body: JSON.stringify({ step_id: escapeStep, step_contract: relay }),
+      },
+    );
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("ARTIFACT_PATH_TRAVERSAL");
+
+    // No consumer copy was materialized under the destination runs tree.
+    expect(
+      findEntry(join(hubB.root, ".mrmr", "dev", "runs"), "murrmure_relay_escape"),
+      "no escape directory materialized under the destination runs tree",
+    ).toBeUndefined();
+    // Nothing escaped the space root: the traversal-normalized escape base
+    // (one level above the space root, independent of the generated run id)
+    // was never created, and no collection filename landed out of root.
+    expect(existsSync(join(hubB.root, "..", "murrmure_relay_escape"))).toBe(false);
+    expect(existsSync(join(hubB.root, "murrmure_relay_escape"))).toBe(false);
+    for (const file of collection) {
+      expect(
+        findEntry(join(hubB.root, "..", "murrmure_relay_escape"), file.name),
+        `no out-of-root write of ${file.name}`,
+      ).toBeUndefined();
+    }
+  }, 30_000);
 });

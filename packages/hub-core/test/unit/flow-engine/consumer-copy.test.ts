@@ -490,4 +490,83 @@ describe("materializeRemoteArtifactReferences — relayed name/slot traversal ha
     expect(existsSync(slotDir)).toBe(false);
     expect(existsSync(join(spaceRoot, "escape.txt"))).toBe(false);
   });
+
+  test("rejects a relayed consumer_step with `..` traversal and writes no file outside the space root", async () => {
+    // A crafted relayed invoke `step_id` used as `consumer_step` would, without
+    // segment validation, resolve past the run scratch tree: `join(spaceRoot,
+    // .mrmr/dev/runs/run_demo/steps/../../../../../../escape/inputs/assets/ok.txt)`
+    // normalizes to `dirname(spaceRoot)/escape/inputs/assets/ok.txt`. The
+    // segment check rejects it before any path is constructed or directory made.
+    const escapeStep = "../../../../../../escape";
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: escapeStep,
+        references: [
+          slotRef({
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    // Nothing escaped the space root or its parent.
+    expect(existsSync(join(dirname(spaceRoot), "escape"))).toBe(false);
+    expect(existsSync(join(spaceRoot, "escape"))).toBe(false);
+    // No run-scratch tree was created for the malicious step.
+    expect(existsSync(join(spaceRoot, ".mrmr", "dev", "runs", "run_demo", "steps", escapeStep))).toBe(false);
+  });
+
+  test("rejects an absolute relayed consumer_step", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "/etc/escape",
+        references: [
+          slotRef({
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects a relayed consumer_step containing a path separator", async () => {
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "sub/step",
+        references: [
+          slotRef({
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects a malicious relayed consumer_step before creating any collection directory", async () => {
+    // A collection slot would otherwise `mkdir` the escape directory before the
+    // per-file name check runs; the consumer_step segment check fires first.
+    await expect(
+      materializeRemoteArtifactReferences({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "../escape",
+        references: [
+          slotRef({
+            files: [{ name: "ok.txt", transfer_id: "xfr_1", digest: bytesFor("x").digest }],
+          }),
+        ],
+        loadBytes: async () => bytesFor("x"),
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    expect(existsSync(join(dirname(spaceRoot), "escape"))).toBe(false);
+    expect(existsSync(join(spaceRoot, "escape"))).toBe(false);
+  });
 });

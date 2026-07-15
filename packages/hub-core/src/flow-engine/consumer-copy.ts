@@ -39,13 +39,47 @@ function safeFilename(name: string): string {
 }
 
 /**
+ * Resolve-path containment backstop at a consumer-copy write sink. After the
+ * destination directory is created, realpath it and confirm it stays inside the
+ * run scratch tree; a host-level symlink on either side is canonicalized so it
+ * cannot produce a false-positive escape. This is defense in depth behind
+ * `safePathSegment`: even if a caller-supplied segment ever slipped past
+ * segment validation, verified bytes could not be written outside the linked
+ * space root. Mirrors the containment check in `materializeConsumerCopy`.
+ */
+async function assertContainedInRunTree(destDir: string, runRoot: string, label: string): Promise<void> {
+  let realDestDir: string;
+  try {
+    realDestDir = await realpath(destDir);
+  } catch {
+    // destDir was just created; fall back to the literal path, which is
+    // constructed inside the run scratch tree.
+    realDestDir = destDir;
+  }
+  let realRunRoot: string;
+  try {
+    realRunRoot = await realpath(runRoot);
+  } catch {
+    realRunRoot = runRoot;
+  }
+  const destRel = relative(realRunRoot, realDestDir);
+  if (destRel === "" || destRel.startsWith("..") || isAbsolute(destRel)) {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_PATH_TRAVERSAL",
+      `${label} '${destDir}' resolves outside the run scratch tree`,
+    );
+  }
+}
+
+/**
  * Validate a single path segment that crosses a federation boundary
- * (`slot`, `producer_step`, or a reference `name`) before it is joined into a
- * consumer-copy path. Relayed reference strings are caller-supplied and must
- * never carry `..`, an absolute path, or any path separator — otherwise a
- * crafted, digest-valid reference could escape the linked space root during
- * materialization. Reject (do not silently strip) so a malformed relay is a
- * loud, typed failure rather than a quiet write to an unexpected location.
+ * (`consumer_step`, `slot`, `producer_step`, or a reference `name`) before it
+ * is joined into a consumer-copy path. Relayed reference strings are
+ * caller-supplied and must never carry `..`, an absolute path, or any path
+ * separator — otherwise a crafted, digest-valid reference could escape the
+ * linked space root during materialization. Reject (do not silently strip) so a
+ * malformed relay is a loud, typed failure rather than a quiet write to an
+ * unexpected location.
  */
 function safePathSegment(name: string, kind: string): string {
   if (
@@ -350,6 +384,16 @@ export async function materializeRemoteArtifactReferences(input: {
   references: RemoteArtifactReferenceSlot[];
   loadBytes: (transfer_id: string) => Promise<{ bytes: Uint8Array; digest?: string } | null>;
 }): Promise<MaterializedRemoteReferenceSlot[]> {
+  // The relayed `consumer_step` is a peer hub's public invoke `step_id` —
+  // caller-supplied and joined directly into the consumer-copy path. Reject any
+  // traversal, absolute, or separator-bearing segment before constructing any
+  // path; without this a crafted relayed invoke (e.g.
+  // `step_id="../../../../escape"`) could write verified bytes outside the
+  // linked space root. `slot` / `producer_step` / `name` are validated
+  // per-reference below, and a resolved-path containment check at the write
+  // sink backstops all of them.
+  const consumerStep = safePathSegment(input.consumer_step, "consumer step");
+  const runRoot = runScratchDir(input.space_root, input.run_id);
   const results: MaterializedRemoteReferenceSlot[] = [];
   for (const ref of input.references) {
     // Relayed `slot` / `producer_step` / `name` strings are caller-supplied and
@@ -359,7 +403,7 @@ export async function materializeRemoteArtifactReferences(input: {
     const producerStep = safePathSegment(ref.producer_step, "producer step");
     const directory =
       ref.cardinality === "collection"
-        ? consumerInputsDirPath(input.space_root, input.run_id, input.consumer_step, slot)
+        ? consumerInputsDirPath(input.space_root, input.run_id, consumerStep, slot)
         : undefined;
     if (directory) await mkdir(directory, { recursive: true });
     const files: MaterializedRemoteReferenceFile[] = [];
@@ -380,12 +424,33 @@ export async function materializeRemoteArtifactReferences(input: {
         const dest = consumerInputPath(
           input.space_root,
           input.run_id,
-          input.consumer_step,
+          consumerStep,
           slot,
           filename,
         );
-        await mkdir(dirname(dest), { recursive: true });
-        const tmp = join(dirname(dest), `.tmp-${randomBytes(8).toString("hex")}`);
+        const destDir = dirname(dest);
+        await mkdir(destDir, { recursive: true });
+        // Contain the destination: a pre-existing symlink anywhere in the
+        // destination parent chain must not let the temp write and rename land
+        // outside the run scratch tree. realpath the destination directory after
+        // mkdir and confirm it stays inside the run scratch tree — a
+        // defense-in-depth backstop behind the segment validation above.
+        await assertContainedInRunTree(destDir, runRoot, "Remote consumer copy destination");
+        // The final destination entry must be a real file written inside the
+        // tree — never a pre-existing symlink that points elsewhere.
+        try {
+          const destStat = await lstat(dest);
+          if (destStat.isSymbolicLink()) {
+            throw new ArtifactMaterializationError(
+              "ARTIFACT_PATH_TRAVERSAL",
+              `Remote consumer copy destination '${dest}' is a symlink and cannot be overwritten`,
+            );
+          }
+        } catch (error) {
+          if (error instanceof ArtifactMaterializationError) throw error;
+          // dest does not exist yet — expected on first materialization.
+        }
+        const tmp = join(destDir, `.tmp-${randomBytes(8).toString("hex")}`);
         try {
           await writeFile(tmp, bytes);
           await rename(tmp, dest);
