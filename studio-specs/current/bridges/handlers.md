@@ -205,11 +205,16 @@ runtime owns process lifecycle. See
   escapes, `lstat` rejects a symlinked source, and `realpath` canonicalizes both
   sides before confirming the real path stays in-tree — so an in-tree symlinked
   parent that resolves outside is rejected as `ARTIFACT_PATH_TRAVERSAL`. The
-  source is read once. The copy is written to a temp sibling and atomically
-  renamed into place (POSIX `rename` atomically replaces any existing
-  destination), so a partial file is never observable and a prior copy is never
-  left missing. A digest mismatch refuses the copy before any consumer bytes are
-  written.
+  destination is contained symmetrically: after `mkdir` the consumer
+  `inputs/{slot}` directory is `realpath`-canonicalized and rejected if it
+  resolves outside the run scratch tree (defeating a pre-existing symlink at
+  `.../inputs/{slot}`), and the final destination entry is rejected if it is a
+  pre-existing symlink, so the temp write and atomic rename can never land
+  outside the tree or overwrite a malicious link. The source is read once. The
+  copy is written to a temp sibling and atomically renamed into place (POSIX
+  `rename` atomically replaces any existing destination), so a partial file is
+  never observable and a prior copy is never left missing. A digest mismatch
+  refuses the copy before any consumer bytes are written.
 - Public APIs, Views, journals, and remote handlers receive **references,
   never local paths**. The dispatch audit resolves an artifact `.path`
   placeholder to an opaque reference (transfer id when available, else
@@ -228,18 +233,29 @@ runtime owns process lifecycle. See
   shutdown sends process-group `SIGTERM`, waits five seconds, then `SIGKILL`,
   and records exactly one terminal result. The `SIGKILL` escalation stays armed
   when the shell leader exits after `SIGTERM`, so a TERM-resistant descendant is
-  still reaped after the grace period. Hub/Desktop shutdown cancels every
-  registered shell executor. Authored `kill_on` is removed.
-- Each spawned handler receives an **ephemeral run/step-scoped credential**
-  (`MURRMURE_HUB_TOKEN`) in its environment, never the persistent machine
-  connection. The token carries an `expires_at` backstop and a `scope_ref`
-  (`{run_id}:{step_id}`); `requireToken` denies an expired or revoked token and
-  the resolve route denies a `scope_ref` mismatch
-  (`TOKEN_STEP_SCOPE_MISMATCH`). The credential is revoked on every terminal
-  path — step resolve/auto-complete, run terminal, and Desktop shutdown — so no
-  persistent child credential survives a finished assignment. The dispatch audit
-  records only command/prompt/cwd — never the environment — so credentials never
-  reach the journal or public surfaces.
+  still reaped after the grace period. The escalation timer is ref'd and
+  awaitable, and Hub/Desktop shutdown awaits `awaitAllShellExecutorsTerminated`
+  before exiting, so a TERM-resistant descendant can no longer outlive the
+  daemon. Termination is once-only: the executor deregisters its cancel handle
+  when the process settles, so a timeout followed by run-failure cancellation
+  signals the group exactly once. Hub/Desktop shutdown cancels every registered
+  shell executor. Authored `kill_on` is removed.
+- Each spawned handler receives an **ephemeral run/step/handler-scoped
+  credential** (`MURRMURE_HUB_TOKEN`) in its environment, never the persistent
+  machine connection. The token carries an `expires_at` backstop and a
+  `scope_ref` (`{run_id}:{step_id}:{handler_id}`) with a `harness_id` of
+  `run:{run_id}`; `requireToken` denies an expired or revoked token. The
+  assignment boundary is enforced on **every `step:resolve` endpoint** — step
+  resolve, upload-intent creation, file transfer, and intent abandon — by one
+  shared `requireAssignmentScope` helper: an ephemeral token may only act for
+  its own run/step/space (denying another run/step with
+  `TOKEN_RUN_SCOPE_MISMATCH` / `TOKEN_STEP_SCOPE_MISMATCH` and another space with
+  `scope_enforcement_failure`), while a grant token carries only the space
+  boundary. The credential is revoked on every terminal path — step
+  resolve/auto-complete, run terminal, and Desktop shutdown — so no persistent
+  child credential survives a finished assignment. The dispatch audit records
+  only command/prompt/cwd — never the environment — so credentials never reach
+  the journal or public surfaces.
 
 ### `complete:auto` outcomes
 
@@ -297,7 +313,7 @@ Warning by default (`WORKER_NO_BINDINGS`). Strict error in CI when `mrmr space d
 
 **Status:** DECIDED
 
-`MURRMURE_HUB_TOKEN` injected on `shell_spawn` dispatch is **short-lived and run/step-scoped** (resolve capability only). Minted per dispatch with an `expires_at` backstop and a `scope_ref` (`{run_id}:{step_id}`); revoked on step resolve/auto-complete, run terminal, and Desktop shutdown. Never reuse long-lived grant tokens in shell env. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly and is denied on `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH`) or expiry/revocation. Views receive no hub credential.
+`MURRMURE_HUB_TOKEN` injected on `shell_spawn` dispatch is **short-lived and run/step/handler-scoped** (resolve capability only). Minted per dispatch with an `expires_at` backstop, a `scope_ref` (`{run_id}:{step_id}:{handler_id}`), and a `harness_id` of `run:{run_id}`; revoked on step resolve/auto-complete, run terminal, and Desktop shutdown. Never reuse long-lived grant tokens in shell env. The assignment boundary is enforced on every `step:resolve` endpoint — `mrmr step resolve`, upload-intent creation, file transfer, and intent abandon — by one shared `requireAssignmentScope` helper, so an ephemeral token can never act for another run/step/space. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly and is denied on `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH` / `TOKEN_RUN_SCOPE_MISMATCH`), cross-space (`scope_enforcement_failure`), or expiry/revocation. Views receive no hub credential.
 
 ### Q7 — `complete: cli` branch validation
 

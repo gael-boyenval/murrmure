@@ -70,6 +70,34 @@
   are substituted or rejected as unknown instead of silently passing through.
 - The exact Tutorial Part 5 (`write_spec_copy`) conformance test is now active.
 
+### Fixed (second post-review, 2026-07-15)
+
+- The assignment boundary is now enforced on **every `step:resolve` endpoint** —
+  step resolve, upload-intent creation, file transfer, and intent abandon — by
+  one shared `requireAssignmentScope` helper. An ephemeral handler token
+  (`scope_ref` `{run_id}:{step_id}:{handler_id}`, `harness_id` `run:{run_id}`)
+  can no longer create upload intents or transfer files for another active
+  run/step or in another space; mismatches return `TOKEN_RUN_SCOPE_MISMATCH`,
+  `TOKEN_STEP_SCOPE_MISMATCH`, or `scope_enforcement_failure`. Grant tokens keep
+  the space-only boundary.
+- Hub/Desktop shutdown now **awaits the SIGKILL escalation** before exiting. The
+  escalation timer is ref'd and `killChildProcess` returns an awaitable promise
+  that `awaitAllShellExecutorsTerminated` collects at shutdown, so a
+  TERM-resistant descendant can no longer outlive the daemon.
+- `materializeConsumerCopy` now contains the **destination parent**: after
+  `mkdir` the consumer `inputs/{slot}` directory is `realpath`-canonicalized
+  and rejected if it resolves outside the run scratch tree, and a pre-existing
+  symlink at the destination filename is rejected — so a malicious
+  `.../inputs/{slot}` symlink can no longer redirect the temp write and atomic
+  rename outside the tree.
+- Process-tree termination is now **once-only**: the executor deregisters its
+  cancel handle when the process settles (timeout, error, or close), so a
+  timeout that locally terminates followed by the run-failure cancellation path
+  signals the group exactly once (one `SIGTERM`, one `SIGKILL`, one terminal
+  result). New integrated and HTTP regressions cover cross-run/step/space
+  upload scope, awaited shutdown escalation, destination-parent symlink escape,
+  and integrated timeout/cancel once-only behavior.
+
 ## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
 
 ### Added

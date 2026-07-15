@@ -144,6 +144,43 @@ export async function materializeConsumerCopy(input: {
   const destDir = dirname(dest);
   await mkdir(destDir, { recursive: true });
 
+  // Contain the destination: a pre-existing symlink anywhere in the destination
+  // parent chain (e.g. `.../inputs/{slot}` → an outside directory) must not let
+  // the temp write and rename land outside the run scratch tree. realpath the
+  // destination directory after mkdir and confirm it stays inside the run
+  // scratch tree, canonicalizing against the same realRunRoot used for the
+  // source so a host-level symlink cannot produce a false-positive escape.
+  let realDestDir: string;
+  try {
+    realDestDir = await realpath(destDir);
+  } catch {
+    // destDir was just created; fall back to the literal path, which is
+    // constructed inside the run scratch tree.
+    realDestDir = destDir;
+  }
+  const destRel = relative(realRunRoot, realDestDir);
+  if (destRel === "" || destRel.startsWith("..") || isAbsolute(destRel)) {
+    throw new ArtifactMaterializationError(
+      "ARTIFACT_PATH_TRAVERSAL",
+      `Consumer copy destination '${destDir}' resolves outside the run scratch tree`,
+    );
+  }
+
+  // The final destination entry must be a real file written inside the tree —
+  // never a pre-existing symlink that points elsewhere.
+  try {
+    const destStat = await lstat(dest);
+    if (destStat.isSymbolicLink()) {
+      throw new ArtifactMaterializationError(
+        "ARTIFACT_PATH_TRAVERSAL",
+        `Consumer copy destination '${dest}' is a symlink and cannot be overwritten`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof ArtifactMaterializationError) throw error;
+    // dest does not exist yet — expected on first materialization.
+  }
+
   // Read the real source once to compute the digest; keep the buffer for the
   // copy so the source is touched exactly once and remains immutable.
   const buffer = await readFile(realSource);

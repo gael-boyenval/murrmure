@@ -7,7 +7,7 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, awaitAllShellExecutorsTerminated, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
 import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -281,6 +281,10 @@ export async function startHubDaemon(config: DaemonConfig) {
       uploadIntentService.stop();
       releaseLock(config);
       await closeServerGracefully(server);
+      // Await the SIGKILL escalation so a TERM-resistant descendant is reaped
+      // before the daemon process exits; the escalation timers are ref'd so
+      // this keeps the event loop alive until every tree is gone.
+      await awaitAllShellExecutorsTerminated();
       await kernelPersistence.close();
       db.close();
     })();

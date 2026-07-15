@@ -87,6 +87,75 @@ export function provenanceFrom(ctx: TokenContext, spaceId: string, commandId?: s
   };
 }
 
+function bareRunId(run_id: string): string {
+  return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
+}
+
+function bareSpaceId(id: string): string {
+  return id.startsWith("spc_") ? id.slice(4) : id;
+}
+
+export interface AssignmentScope {
+  run_id: string;
+  step_id: string;
+  /** Bare run space id (`run.space_id`); omitted to skip the space boundary. */
+  space_id?: string;
+}
+
+/**
+ * Enforce the assignment boundary for an ephemeral resolve token on every
+ * endpoint reachable with `step:resolve`.
+ *
+ * Ephemeral tokens minted per `shell_spawn` dispatch carry a `scope_ref`
+ * (`{run_id}:{step_id}[:{handler_id}]`) and a `harness_id` of `run:{run_id}`.
+ * Such a token may only act for its own run/step/space — never another active
+ * run/step, and never another space. A step binds exactly one handler, so the
+ * run:step assignment identity implies the handler; the optional handler
+ * segment is carried on the token for audit/binding and not re-checked here
+ * (route handlers are step-keyed and do not receive a handler parameter).
+ *
+ * Non-ephemeral grant tokens (no `scope_ref`, no `run:` harness_id) carry only
+ * the space boundary, preserving human/agent submission to any step in their
+ * own space. Returns a 403 Response on any mismatch, else null.
+ */
+export function requireAssignmentScope(
+  ctx: TokenContext,
+  scope: AssignmentScope,
+): Response | null {
+  if (scope.space_id && ctx.space_id !== "bootstrap") {
+    if (bareSpaceId(ctx.space_id) !== bareSpaceId(scope.space_id)) {
+      return denialResponse(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
+        message: "Token is not scoped to this space",
+        hint: { nearest_space_id: `spc_${bareSpaceId(ctx.space_id)}` },
+      });
+    }
+  }
+
+  if (ctx.harness_id?.startsWith("run:")) {
+    const tokenRun = ctx.harness_id.slice("run:".length);
+    if (tokenRun !== scope.run_id && tokenRun !== bareRunId(scope.run_id)) {
+      return denialResponse("TOKEN_RUN_SCOPE_MISMATCH", {
+        message: "Token is not scoped to this run",
+      });
+    }
+  }
+
+  if (ctx.scope_ref) {
+    const segments = ctx.scope_ref.split(":");
+    const tokenRun = segments[0];
+    const tokenStep = segments[1];
+    const runMatches =
+      tokenRun === scope.run_id || tokenRun === bareRunId(scope.run_id);
+    if (!runMatches || tokenStep !== scope.step_id) {
+      return denialResponse("TOKEN_STEP_SCOPE_MISMATCH", {
+        message: "Token is not scoped to this step",
+      });
+    }
+  }
+
+  return null;
+}
+
 export async function resolveTokenCapabilities(
   studio: StudioPersistencePort,
   auth: { token_id: string; scopes: string[] },

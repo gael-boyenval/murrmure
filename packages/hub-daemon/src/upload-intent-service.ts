@@ -209,6 +209,24 @@ export class UploadIntentService {
     return metadata;
   }
 
+  /**
+   * Return the run/step/space an intent is bound to, provided it belongs to the
+   * given actor/token. Used by upload routes to enforce the assignment-token
+   * scope boundary on every endpoint reachable with an ephemeral resolve token.
+   * Returns null when the intent is absent or belongs to another actor/token.
+   */
+  getIntentScope(
+    intentId: string,
+    actorId: string,
+    tokenId: string,
+  ): { run_id: string; step_id: string; space_id: string } | null {
+    const record = this.records.get(intentId);
+    if (!record || record.actor_id !== actorId || record.token_id !== tokenId) {
+      return null;
+    }
+    return { run_id: record.run_id, step_id: record.step_id, space_id: record.space_id };
+  }
+
   async recordTransferFailure(
     intentId: string,
     index: number,

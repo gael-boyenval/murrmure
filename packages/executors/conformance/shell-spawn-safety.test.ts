@@ -6,6 +6,11 @@ import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createShellSpawnExecutor } from "../src/shell-spawn.js";
 import { resolveShellDispatchAudit } from "../src/shell-spawn.js";
+import {
+  cancelRunExecutors,
+  clearRunExecutorCancelRegistry,
+  registerShellProcessCancel,
+} from "@murrmure/hub-core";
 import type { DispatchContext, InvokeRequest } from "@murrmure/runtime-contracts";
 
 interface FakeChild {
@@ -109,6 +114,69 @@ describe("shell-spawn process-group termination", () => {
     expect(killSpy).toHaveBeenCalledWith(-424242, "SIGTERM");
     await vi.advanceTimersByTimeAsync(5000);
     expect(killSpy).toHaveBeenCalledWith(-424242, "SIGKILL");
+    vi.clearAllTimers();
+    killSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  test("integrated timeout then run-failure cancel terminates the tree once with one result", async () => {
+    vi.useFakeTimers();
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const child = makeFakeChild({ pid: 515151, neverClose: true });
+    const spawnStub = asSpawn(() => child);
+    clearRunExecutorCancelRegistry();
+
+    let completions = 0;
+    let runFailureCancelCount: number | undefined;
+    const executor = createShellSpawnExecutor({
+      spawn: spawnStub,
+      onProcessStart: ({ run_id, step_id, child: started }) => {
+        // Mirror invoke-service: register a cancel handle and return its
+        // unregister so the executor deregisters on finish.
+        return registerShellProcessCancel(run_id, step_id, started);
+      },
+      onShellComplete: async (input) => {
+        completions += 1;
+        // Simulate handleShellComplete -> failRunWithNotification ->
+        // terminateRunExecutors -> cancelRunExecutors (the run-failure path).
+        runFailureCancelCount = cancelRunExecutors(input.run_id);
+      },
+    });
+    const context: DispatchContext = {
+      action: { name: "act", command: "sleep 100", timeout_ms: 20 },
+      binding: { type: "shell_spawn", executor_id: "shell" },
+      space_root: "/tmp/repo",
+      step_contract: {
+        slice_json: "{}",
+        contract_path: "/tmp/repo/.mrmr/dev/runs/run_demo/active-step-contract.json",
+        workdir: "/tmp/repo/.mrmr/dev/runs/run_demo/steps/write_spec/work",
+      },
+    };
+
+    const outcome = await executor.dispatch(baseInvoke(), context);
+    expect(outcome.status).toBe("dispatched");
+
+    await vi.advanceTimersByTimeAsync(20);
+    // One terminal result recorded.
+    expect(completions).toBe(1);
+    // The cancel handle was deregistered on finish, so the run-failure cancel
+    // path finds nothing and never re-terminates the tree (once-only).
+    expect(runFailureCancelCount).toBe(0);
+    expect(killSpy).toHaveBeenCalledWith(-515151, "SIGTERM");
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(killSpy).toHaveBeenCalledWith(-515151, "SIGKILL");
+
+    const termCalls = killSpy.mock.calls.filter(
+      ([pid, sig]) => pid === -515151 && sig === "SIGTERM",
+    ).length;
+    const killCalls = killSpy.mock.calls.filter(
+      ([pid, sig]) => pid === -515151 && sig === "SIGKILL",
+    ).length;
+    expect(termCalls).toBe(1);
+    expect(killCalls).toBe(1);
+
+    clearRunExecutorCancelRegistry();
     vi.clearAllTimers();
     killSpy.mockRestore();
     vi.useRealTimers();

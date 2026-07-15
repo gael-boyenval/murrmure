@@ -56,7 +56,14 @@ while flows stay portable and spaces own what each handler does.
    host-level symlink such as macOS `/var` → `/private/var` cannot produce a
    false positive) before confirming the real path stays in-tree — this also
    defeats an in-tree symlinked parent directory that resolves outside. The
-   source is read once and never mutated, and the copy is written to a temp
+   destination is contained symmetrically: after `mkdir` the consumer
+   `inputs/{slot}` directory is `realpath`-canonicalized against the same
+   `realRunRoot` and rejected if it resolves outside the run scratch tree
+   (defeating a pre-existing symlink at `.../inputs/{slot}` pointing elsewhere),
+   and the final destination entry is `lstat`-checked and rejected if it is a
+   pre-existing symlink, so the temp write and atomic rename can never land
+   outside the tree or overwrite a malicious link. The source is read once and
+   never mutated, and the copy is written to a temp
    sibling and atomically renamed into place (POSIX `rename` atomically replaces
    any existing destination), so a partial file is never observable and a prior
    copy is never left missing. A digest mismatch refuses the copy before any
@@ -78,16 +85,36 @@ while flows stay portable and spaces own what each handler does.
    signal when no pid is available. The `SIGKILL` escalation stays armed when the
    shell leader exits after `SIGTERM` (the `close` handler only clears it on a
    natural exit), so a TERM-resistant descendant in the group is still reaped
-   after the grace period. Hub/Desktop shutdown calls `cancelAllShellExecutors` so
-   no spawned handler process tree is orphaned when the daemon stops.
+   after the grace period. The escalation timer is **ref'd** (not `unref`'d) and
+   `killChildProcess` returns an awaitable `Promise<void>` that resolves once the
+   tree is gone; Hub/Desktop shutdown awaits `awaitAllShellExecutorsTerminated`
+   before closing persistence and exiting, so a TERM-resistant descendant can no
+   longer outlive the daemon. Termination is **once-only**: the executor
+   deregisters its cancel handle from the registry when the process settles
+   (timeout, error, or close) via the `onProcessStart` unregister callback, so a
+   timeout that initiates local termination followed by the run-failure
+   cancellation path signals the group exactly once (`SIGTERM` then `SIGKILL`),
+   recording one terminal result. Hub/Desktop shutdown calls
+   `cancelAllShellExecutors` so no spawned handler process tree is orphaned when
+   the daemon stops.
 7. **Ephemeral assignment credentials.** Each spawned handler receives a
-   run/step-scoped credential (`MURRMURE_HUB_TOKEN`) in its environment, never
-   the persistent machine connection. The token carries an `expires_at` backstop
-   (action timeout plus grace, else a default TTL) and a `scope_ref`
-   (`{run_id}:{step_id}`); `requireToken` denies an expired or revoked token and
-   the resolve route denies a `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH`).
-   A `run-resolve-credential-registry` tracks every minted token and revokes it
-   on each terminal path — step resolve/auto-complete, run terminal
+   run/step/handler-scoped credential (`MURRMURE_HUB_TOKEN`) in its environment,
+   never the persistent machine connection. The token carries an `expires_at`
+   backstop (action timeout plus grace, else a default TTL) and a `scope_ref`
+   (`{run_id}:{step_id}:{handler_id}`); a `harness_id` of `run:{run_id}` marks it
+   as ephemeral. `requireToken` denies an expired or revoked token. The
+   assignment boundary is enforced on **every endpoint reachable with
+   `step:resolve`** — step resolve, upload-intent creation, file transfer, and
+   intent abandon — by one shared `requireAssignmentScope` helper: an ephemeral
+   token may only act for its own run/step/space (denying another active
+   run/step with `TOKEN_RUN_SCOPE_MISMATCH` / `TOKEN_STEP_SCOPE_MISMATCH` and
+   another space with `scope_enforcement_failure`), while a non-ephemeral grant
+   token carries only the space boundary (preserving human/agent submission to
+   any step in their own space). A step binds exactly one handler, so the
+   run:step assignment identity implies the handler; the handler segment is
+   carried on the token for audit/binding and not re-checked at step-keyed
+   routes. A `run-resolve-credential-registry` tracks every minted token and
+   revokes it on each terminal path — step resolve/auto-complete, run terminal
    (`terminateRunExecutors`), and Hub/Desktop shutdown (`revokeAllResolveCredentials`)
    — via a daemon-installed revoker, so no persistent child credential survives a
    finished assignment. The dispatch audit records only `command`, `prompt`, and
@@ -134,9 +161,10 @@ while flows stay portable and spaces own what each handler does.
   missing/null/empty distinction across spaces, apostrophes, quotes, `$()`,
   backticks, newlines, leading dashes, Unicode, and empty strings.
 - `materializeConsumerCopy` (`packages/hub-core/src/flow-engine/consumer-copy.ts`)
-  and its unit suite enforce digest mismatch, traversal, symlinked-source and
-  symlinked-parent rejection, interrupted copy, atomic visibility, immutable
-  source, and basename-neutralized filenames.
+  and its unit suite enforce digest mismatch, traversal, symlinked-source,
+  symlinked-parent, **and destination-parent/destination-symlink** rejection,
+  interrupted copy, atomic visibility, immutable source, and basename-neutralized
+  filenames.
 - `runScratchPaths` (`packages/hub-core/src/flow-engine/run-scratch-paths.ts`)
   is the single source for run-scoped paths; `step-artifacts.ts` and
   `step-contract-slice.ts` delegate to it.
@@ -145,7 +173,20 @@ while flows stay portable and spaces own what each handler does.
   (including SIGKILL-after-close), that the audit never exposes the hub token,
   that artifact `.path` audit placeholders resolve to references not local
   paths, and that binding/materialization failures return typed codes without
-  spawning.
+  spawning. An integrated suite proves **once-only** termination: a timeout that
+  locally terminates followed by the run-failure cancellation path signals the
+  group exactly once (one `SIGTERM`, one `SIGKILL`, one terminal result) because
+  the executor deregisters its cancel handle on finish.
+- `requireAssignmentScope` (`packages/hub-daemon/src/routes/config/scopes.ts`)
+  and its unit + HTTP suites enforce the assignment boundary on every
+  `step:resolve` endpoint — cross-run (`TOKEN_RUN_SCOPE_MISMATCH`), cross-step
+  (`TOKEN_STEP_SCOPE_MISMATCH`), and cross-space (`scope_enforcement_failure`)
+  denial for ephemeral tokens, with grant tokens carrying only the space
+  boundary — including upload-intent creation, file transfer, and abandon.
+- `run-executor-cancel` (`packages/hub-core/src/invoke/run-executor-cancel.ts`)
+  exposes `awaitAllShellExecutorsTerminated`; its unit suite proves shutdown
+  awaits the ref'd SIGKILL escalation before resolving and that termination is
+  idempotent (a repeated cancel does not re-signal).
 - `run-resolve-credential-registry` (`packages/hub-core/src/invoke/`) and its
   unit suite enforce step/run/shutdown revocation and cross-step isolation;
   `auth-credential-lifecycle` enforces expiry and revocation denial in

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -230,6 +230,74 @@ describe("materializeConsumerCopy", () => {
         filename: "spec.md",
       }),
     ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+  });
+
+  test("rejects a destination parent symlink that resolves outside the run scratch tree", async () => {
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "content");
+    // Pre-create the consumer inputs/{slot} directory as a symlink to an
+    // outside directory, so a naive temp-write + rename would land outside.
+    const outside = join(spaceRoot, "outside-slot");
+    mkdirSync(outside, { recursive: true });
+    const slotDir = join(
+      spaceRoot,
+      ".mrmr",
+      "dev",
+      "runs",
+      "run_demo",
+      "steps",
+      "write_spec",
+      "inputs",
+      "spec",
+    );
+    mkdirSync(dirname(slotDir), { recursive: true });
+    symlinkSync(outside, slotDir, "dir");
+
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: producer.abs,
+        filename: "spec.md",
+        expected_digest: producer.digest,
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    // The outside directory never receives the consumer copy.
+    expect(existsSync(join(outside, "spec.md"))).toBe(false);
+  });
+
+  test("rejects a pre-existing symlink at the destination filename", async () => {
+    const producer = makeProducer("run_demo", "intake", "spec", "spec.md", "content");
+    const outside = join(spaceRoot, "outside-file.md");
+    writeFileSync(outside, "secret");
+    const destDir = join(
+      spaceRoot,
+      ".mrmr",
+      "dev",
+      "runs",
+      "run_demo",
+      "steps",
+      "write_spec",
+      "inputs",
+      "spec",
+    );
+    mkdirSync(destDir, { recursive: true });
+    symlinkSync(outside, join(destDir, "spec.md"), "file");
+
+    await expect(
+      materializeConsumerCopy({
+        space_root: spaceRoot,
+        run_id: "demo",
+        consumer_step: "write_spec",
+        slot: "spec",
+        source_path: producer.abs,
+        filename: "spec.md",
+        expected_digest: producer.digest,
+      }),
+    ).rejects.toMatchObject({ code: "ARTIFACT_PATH_TRAVERSAL" });
+    // The outside file is untouched.
+    expect(readFileSync(outside, "utf8")).toBe("secret");
   });
 
   test("leaves a prior copy intact when a re-copy fails (no partial overwrite)", async () => {

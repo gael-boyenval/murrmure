@@ -10,7 +10,7 @@ import {
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
-import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
+import { requireCapability, resolveTokenCapabilities, requireAssignmentScope } from "../config/scopes.js";
 import { flowAdvanceDeps } from "../../flow-advance.js";
 import { broadcastSse } from "../../context.js";
 import { UploadIntentError } from "../../upload-intent-service.js";
@@ -55,28 +55,16 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "RUN_NOT_FOUND", message: "Run not found" }, 404);
     }
 
-    const token = await murrmurePersistence.getToken(auth.token_id.replace(/^tok_/, ""));
-    const tokenRunScope = token?.harness_id?.startsWith("run:")
-      ? token.harness_id.slice("run:".length)
-      : undefined;
-    if (tokenRunScope && tokenRunScope !== run_id && tokenRunScope !== bare) {
-      return c.json(
-        { code: "TOKEN_RUN_SCOPE_MISMATCH", message: "Token is not scoped to this run" },
-        403,
-      );
-    }
-    // Ephemeral resolve tokens are scoped to the exact assignment (run:step);
-    // a token minted for another step may not resolve this one.
-    if (token?.scope_ref) {
-      const expected = `${run_id}:${step_id}`;
-      const expectedBare = `${bare}:${step_id}`;
-      if (token.scope_ref !== expected && token.scope_ref !== expectedBare) {
-        return c.json(
-          { code: "TOKEN_STEP_SCOPE_MISMATCH", message: "Token is not scoped to this step" },
-          403,
-        );
-      }
-    }
+    // An ephemeral assignment token may only resolve its own run/step/space;
+    // a grant token may only resolve within its own space. This single check
+    // replaces the inline run/step scope_ref comparisons and the redundant
+    // token re-fetch.
+    const assignmentScope = requireAssignmentScope(auth, {
+      run_id,
+      step_id,
+      space_id: run.space_id,
+    });
+    if (assignmentScope) return assignmentScope;
 
     const space_id = run.space_id
       ? prefixedSpaceId(run.space_id)

@@ -7,7 +7,7 @@ import {
 import { validateBranchContract, type ArtifactFileMetadata } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
-import { resolveTokenCapabilities, requireCapability } from "../config/scopes.js";
+import { resolveTokenCapabilities, requireCapability, requireAssignmentScope } from "../config/scopes.js";
 import { UploadIntentError, type UploadIntentFile } from "../../upload-intent-service.js";
 
 interface IntentBody {
@@ -138,16 +138,25 @@ export function mountStepWorkUploadRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "RUN_TERMINAL", message: `Run is ${run.lifecycle}` }, 409);
     }
 
+    if (!run.space_id) {
+      return c.json({ code: "SPACE_MISSING", message: "Run has no space_id" }, 422);
+    }
+
+    // An ephemeral assignment token may only create upload intents for its own
+    // run/step/space; a grant token may only act within its own space.
+    const assignmentScope = requireAssignmentScope(auth, {
+      run_id,
+      step_id,
+      space_id: run.space_id,
+    });
+    if (assignmentScope) return assignmentScope;
+
     const memo = (await murrmurePersistence.listRunStepMemos(run_id)).find((m) => m.step_id === step_id);
     if (!memo || memo.status !== "working") {
       return c.json(
         { code: "STEP_NOT_ACTIVE", message: `Step '${step_id}' is not active for work upload` },
         409,
       );
-    }
-
-    if (!run.space_id) {
-      return c.json({ code: "SPACE_MISSING", message: "Run has no space_id" }, 422);
     }
 
     const flow = await murrmurePersistence.getFlowIndexEntry(run.flow_id, run.space_id);
@@ -210,6 +219,16 @@ export function mountStepWorkUploadRoutes(app: Hono, ctx: DaemonContext): void {
     if (!Number.isSafeInteger(index) || index < 0) {
       return c.json({ code: "UPLOAD_FILE_NOT_FOUND", message: "Invalid upload file index" }, 404);
     }
+    const intentScope = ctx.uploadIntentService.getIntentScope(
+      c.req.param("intent_id"),
+      auth.actor_id,
+      auth.token_id,
+    );
+    if (!intentScope) {
+      return c.json({ code: "UPLOAD_INTENT_NOT_FOUND", message: "Upload intent not found or expired" }, 410);
+    }
+    const assignmentScope = requireAssignmentScope(auth, intentScope);
+    if (assignmentScope) return assignmentScope;
     try {
       const metadata = ctx.uploadIntentService.authorizeFile(
         c.req.param("intent_id"),
@@ -251,6 +270,16 @@ export function mountStepWorkUploadRoutes(app: Hono, ctx: DaemonContext): void {
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
     const scopeCheck = requireCapability(auth, "step:resolve", effective);
     if (scopeCheck) return scopeCheck;
+    const intentScope = ctx.uploadIntentService.getIntentScope(
+      c.req.param("intent_id"),
+      auth.actor_id,
+      auth.token_id,
+    );
+    if (!intentScope) {
+      return c.json({ code: "UPLOAD_INTENT_NOT_FOUND", message: "Upload intent not found or expired" }, 410);
+    }
+    const assignmentScope = requireAssignmentScope(auth, intentScope);
+    if (assignmentScope) return assignmentScope;
     try {
       await ctx.uploadIntentService.abandonAuthorized(
         c.req.param("intent_id"),

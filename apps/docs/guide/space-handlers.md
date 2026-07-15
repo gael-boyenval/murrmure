@@ -99,21 +99,28 @@ values can never become shell fragments and the runtime owns process lifecycle.
   consumer copy** at
   `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`. The
   original artifact is never mutated; the copy is atomic (temp file + rename)
-  and symlink-hardened, and a traversal or digest mismatch refuses it before any
-  consumer bytes are written.
+  and symlink-hardened on both ends — a symlinked source, a symlinked parent, a
+  symlinked destination parent, or a pre-existing symlink at the destination
+  filename is rejected, and a traversal or digest mismatch refuses the copy
+  before any consumer bytes are written.
 - **Execution.** Multiline commands run as `/bin/sh -e -c "<script>"` with no
   login profile and no silent shell fallback. Omitted `cwd` defaults to the
   space root; omitted `delivery` defaults to fail fast.
 - **Timeout and termination.** `timeout_ms` (default 30000) caps the run. On
   timeout, cancellation, external resolution, yield, run terminal, or Desktop
   shutdown the runtime sends process-group `SIGTERM`, waits five seconds, then
-  `SIGKILL`, and records one terminal result. Authored `kill_on` is removed.
-- **Credentials.** Each spawned handler receives a short-lived run/step-scoped
-  `MURRMURE_HUB_TOKEN` (resolve capability only), never the persistent machine
-  connection. The token expires, is scoped to the one step, and is revoked when
-  the step resolves, the run ends, or the hub shuts down. The journal and public
-  APIs never receive a local path or credential; artifact path tokens appear in
-  the audit as opaque references, not local paths.
+  `SIGKILL`, and records one terminal result. Shutdown awaits that escalation
+  before exiting, and a timeout followed by run-failure cancellation signals the
+  group exactly once. Authored `kill_on` is removed.
+- **Credentials.** Each spawned handler receives a short-lived
+  run/step/handler-scoped `MURRMURE_HUB_TOKEN` (resolve capability only), never
+  the persistent machine connection. The token expires, is scoped to the one
+  run/step/space, and is enforced on every `step:resolve` endpoint (resolve,
+  upload-intent creation, file transfer, abandon) — it cannot act for another
+  run, step, or space. It is revoked when the step resolves, the run ends, or
+  the hub shuts down. The journal and public APIs never receive a local path or
+  credential; artifact path tokens appear in the audit as opaque references, not
+  local paths.
 
 ## `mrmr step resolve` (operator / shell path)
 
@@ -124,7 +131,7 @@ For `complete: cli` handlers, or shell scripts that need hub resolve without MCP
 mrmr step resolve --branch completed --payload-json '{"preview_url":"http://localhost:3000"}'
 ```
 
-Hub injects short-lived run/step-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one step, and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a scope mismatch or expired/revoked token.
+Hub injects short-lived run/step/handler-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one run/step/space, is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a run/step/space scope mismatch or expired/revoked token.
 
 Agents in IDE sessions should prefer **`murrmure_resolve_step`** MCP tool (`step:resolve` capability).
 

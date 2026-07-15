@@ -52,7 +52,7 @@ export interface ShellCompleteInput {
 
 export interface ShellSpawnDeps {
   spawn?: typeof spawn;
-  onProcessStart?: (input: { run_id?: string; step_id: string; child: ReturnType<typeof spawn> }) => void;
+  onProcessStart?: (input: { run_id?: string; step_id: string; child: ReturnType<typeof spawn> }) => (() => void) | void;
   onOutputChunk?: (input: ShellStreamChunk) => void;
   onShellComplete?: (input: ShellCompleteInput) => void | Promise<void>;
 }
@@ -355,7 +355,7 @@ function runCommand(
   return new Promise((resolve, reject) => {
     const child = spawnShellScript(spawnFn, command, cwd, extraEnv, stdinPrompt);
 
-    onProcessStart?.({
+    const onProcessStartCleanup = onProcessStart?.({
       run_id: processMeta?.run_id,
       step_id: processMeta?.step_id ?? "unknown",
       child,
@@ -385,6 +385,7 @@ function runCommand(
 
     child.on("error", (err) => {
       if (!terminating) clearTimers();
+      onProcessStartCleanup?.();
       reject(err);
     });
 
@@ -393,6 +394,10 @@ function runCommand(
       // TERM-resistant descendant in the process group is reaped after the
       // grace period; only clear it on a natural exit.
       if (!terminating) clearTimers();
+      // Deregister the cancel handle now that the process has settled, so a
+      // later run-failure/external-resolve cancel cannot re-terminate the same
+      // tree (once-only termination).
+      onProcessStartCleanup?.();
       resolve({ stdout: buffers.stdout, stderr: buffers.stderr, code });
     });
   });
@@ -411,7 +416,7 @@ function runCommandDetached(
   const child = spawnShellScript(spawnFn, command, cwd, extraEnv, stdinPrompt);
   child.unref?.();
 
-  deps.onProcessStart?.({
+  const onProcessStartCleanup = deps.onProcessStart?.({
     run_id: processMeta.run_id,
     step_id: processMeta.step_id,
     child,
@@ -442,6 +447,12 @@ function runCommandDetached(
     if (settled) return;
     settled = true;
     clearTimeout(timer);
+    // Deregister the cancel handle the moment the process settles (timeout,
+    // error, or close) so a subsequent run-failure/external-resolve cancel
+    // cannot re-terminate the same tree — the local SIGKILL escalation stays
+    // armed to reap any TERM-resistant descendant. This makes integrated
+    // timeout/cancel termination once-only.
+    onProcessStartCleanup?.();
     void deps.onShellComplete?.({
       run_id: processMeta.run_id,
       step_id: processMeta.step_id,

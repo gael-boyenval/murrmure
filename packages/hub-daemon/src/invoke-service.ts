@@ -71,7 +71,9 @@ export class InvokeService {
     this.registry = createExecutorRegistry({
       shellSpawn: {
         onProcessStart: ({ run_id, step_id, child }) => {
-          registerShellProcessCancel(run_id, step_id, child);
+          // Register the cancel handle and return its unregister so the
+          // executor can deregister on finish (once-only termination).
+          return registerShellProcessCancel(run_id, step_id, child);
         },
         onOutputChunk: (chunk) => {
           void this.handleShellOutputChunk(chunk);
@@ -187,6 +189,8 @@ export class InvokeService {
     space_id: string;
     actor_id: string;
     step_id: string;
+    /** Handler (action) identity the token is minted for. */
+    handler_id: string;
     /** Assignment TTL backstop (ms); expiry is set to now + ttl. */
     ttl_ms: number;
   }): Promise<string> {
@@ -201,7 +205,11 @@ export class InvokeService {
         scopes: ["step:resolve"],
         capabilities: ["step:resolve"],
         harness_id: `run:${input.run_id}`,
-        scope_ref: `${input.run_id}:${input.step_id}`,
+        // The assignment scope is space/run/step/handler. A step binds exactly
+        // one handler, so run:step implies the handler; the handler segment is
+        // carried so the token is bound to the specific handler dispatch and
+        // auditable, and route handlers verify the run:step prefix.
+        scope_ref: `${input.run_id}:${input.step_id}:${input.handler_id}`,
         status: "active",
         expires_at,
       },
@@ -613,6 +621,7 @@ export class InvokeService {
         space_id: bare,
         actor_id: input.actor_id,
         step_id: parsed.data.step_id,
+        handler_id: input.action_name,
         ttl_ms,
       });
       // Track the ephemeral credential so any terminal path can revoke it.

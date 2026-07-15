@@ -60,7 +60,7 @@ When a handler or legacy action uses `shell_spawn`, hub injects:
 | `MURRMURE_INVOKE_PARAMS` | JSON resolved handler/action params |
 | `MURRMURE_PROMPT` | Resolved prompt template |
 | `MURRMURE_INPUT` | JSON `exec_context.input` from run start |
-| `MURRMURE_HUB_TOKEN` | Short-lived run/step-scoped token (resolve capability only; expires and revoked on step/run terminal or shutdown) |
+| `MURRMURE_HUB_TOKEN` | Short-lived run/step/handler-scoped token (resolve capability only; expires and revoked on step/run terminal or shutdown; enforced on every `step:resolve` endpoint) |
 | `MURRMURE_HUB_URL` | Hub base URL (for `mrmr step resolve`) |
 | `MURRMURE_STEP_CONTRACT` | Active step contract JSON (when available) |
 
@@ -73,4 +73,4 @@ Handler `command` / `prompt` templates may also resolve `&#123;&#123;space_root&
 - Never commit `MURRMURE_HUB_TOKEN` to git.
 - Revoke or rotate a compromised connection immediately with `mrmr connection revoke|rotate`.
 - Browser session cookies are not API tokens.
-- Dispatch-injected `MURRMURE_HUB_TOKEN` is run/step-scoped and expires — do not reuse as a persistent connection. It is revoked when its step resolves, the run ends, or the hub shuts down.
+- Dispatch-injected `MURRMURE_HUB_TOKEN` is run/step/handler-scoped and expires — do not reuse as a persistent connection. It is revoked when its step resolves, the run ends, or the hub shuts down, and the assignment boundary is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), so it cannot act for another run, step, or space.
