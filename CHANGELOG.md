@@ -98,6 +98,20 @@
   upload scope, awaited shutdown escalation, destination-parent symlink escape,
   and integrated timeout/cancel once-only behavior.
 
+### Fixed (third post-review, 2026-07-15)
+
+- The process-group `SIGKILL` escalation now **survives the shell leader
+  exiting after `SIGTERM`**. Previously `killChildProcess` registered `finish`
+  on the leader's `close`/`exit`, which cleared the five-second escalation
+  timer and resolved the promise the moment the leader died — so a
+  TERM-resistant descendant in the process group could outlive the daemon while
+  `awaitAllShellExecutorsTerminated` returned. The `close`/`exit` handler now
+  resolves early only once a signal-0 probe confirms the **entire process group**
+  is dead; a surviving descendant keeps the group alive, so the ref'd SIGKILL
+  escalation fires on the group after the grace period and shutdown awaits full
+  group death. New regression covers leader exit plus a surviving TERM-resistant
+  descendant (one `SIGTERM`, one `SIGKILL`).
+
 ## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
 
 ### Added

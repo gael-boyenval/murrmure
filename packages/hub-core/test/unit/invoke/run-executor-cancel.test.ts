@@ -103,12 +103,15 @@ describe("unit/invoke/run-executor-cancel", () => {
   });
 
   test("termination is once-only: a repeated cancel does not re-signal", async () => {
+    vi.useFakeTimers();
     const kill = vi.fn();
     const child = new EventEmitter() as unknown as ChildProcess;
     (child as { pid?: number }).pid = 8888;
     (child as { exitCode: number | null }).exitCode = null;
     (child as { signalCode: string | null }).signalCode = null;
     (child as { kill: typeof kill }).kill = kill;
+    // The process group stays alive after the leader exits (a TERM-resistant
+    // descendant), so the SIGKILL escalation fires once after the grace period.
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
     registerShellProcessCancel("run_once", "build", child);
@@ -116,14 +119,65 @@ describe("unit/invoke/run-executor-cancel", () => {
     // The handle is removed from the registry after the first cancel, so a
     // run-terminal cancel finds nothing and never re-signals the tree.
     expect(cancelRunExecutors("run_once")).toBe(0);
-    expect(kill).toHaveBeenCalledTimes(1);
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
     expect(killSpy).toHaveBeenCalledWith(-8888, "SIGTERM");
 
-    // Let the leader exit so the pending termination promise resolves; this
-    // clears the SIGKILL escalation without re-signaling.
-    child.emit("close", 0);
+    // Leader exits on SIGTERM; the descendant keeps the group alive so the
+    // escalation stays armed and fires exactly once.
+    (child as { exitCode: number | null }).exitCode = 143;
+    child.emit("close", 143);
+    await vi.advanceTimersByTimeAsync(5000);
     await awaitAllShellExecutorsTerminated();
-    expect(kill).toHaveBeenCalledTimes(1);
+
+    const termCalls = killSpy.mock.calls.filter(
+      ([p, s]) => p === -8888 && s === "SIGTERM",
+    ).length;
+    const killCalls = killSpy.mock.calls.filter(
+      ([p, s]) => p === -8888 && s === "SIGKILL",
+    ).length;
+    expect(termCalls).toBe(1);
+    expect(killCalls).toBe(1);
     killSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  test("SIGKILL escalation survives leader exit when a TERM-resistant descendant lives", async () => {
+    vi.useFakeTimers();
+    const kill = vi.fn();
+    const child = new EventEmitter() as unknown as ChildProcess;
+    (child as { pid?: number }).pid = 6666;
+    (child as { exitCode: number | null }).exitCode = null;
+    (child as { signalCode: string | null }).signalCode = null;
+    (child as { kill: typeof kill }).kill = kill;
+    // A TERM-resistant descendant keeps the process group alive even after the
+    // leader exits on SIGTERM: the signal-0 probe succeeds, so the escalation
+    // must stay armed and fire SIGKILL on the group after the grace period.
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+    registerShellProcessCancel("run_desc", "build", child);
+    expect(cancelAllShellExecutors()).toBe(1);
+    // SIGTERM is sent immediately to the leader and the process group.
+    expect(kill).toHaveBeenCalledWith("SIGTERM");
+    expect(killSpy).toHaveBeenCalledWith(-6666, "SIGTERM");
+
+    // The shell leader exits on SIGTERM while the descendant survives.
+    (child as { exitCode: number | null }).exitCode = 143;
+    child.emit("close", 143);
+
+    const awaited = awaitAllShellExecutorsTerminated();
+    let resolved = false;
+    void awaited.then(() => { resolved = true; });
+    // Before the grace period elapses, shutdown is still awaiting the escalation.
+    await vi.advanceTimersByTimeAsync(4999);
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    // After the grace period, the SIGKILL escalation fires on the group and
+    // shutdown resolves — the descendant cannot outlive the daemon.
+    await vi.advanceTimersByTimeAsync(2);
+    await awaited;
+    expect(resolved).toBe(true);
+    expect(killSpy).toHaveBeenCalledWith(-6666, "SIGKILL");
+    killSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

@@ -83,8 +83,10 @@ while flows stay portable and spaces own what each handler does.
    (`process.kill(-pgid, ...)`), waits five seconds, then `SIGKILL`, and records
    exactly one terminal result. `terminateProcessGroup` falls back to a direct
    signal when no pid is available. The `SIGKILL` escalation stays armed when the
-   shell leader exits after `SIGTERM` (the `close` handler only clears it on a
-   natural exit), so a TERM-resistant descendant in the group is still reaped
+   shell leader exits after `SIGTERM` (the `close`/`exit` handler only resolves
+   early once a signal-0 probe confirms the entire process group is dead — a
+   surviving TERM-resistant descendant keeps the group alive, so the escalation
+   stays armed), so a TERM-resistant descendant in the group is still reaped
    after the grace period. The escalation timer is **ref'd** (not `unref`'d) and
    `killChildProcess` returns an awaitable `Promise<void>` that resolves once the
    tree is gone; Hub/Desktop shutdown awaits `awaitAllShellExecutorsTerminated`
@@ -185,8 +187,10 @@ while flows stay portable and spaces own what each handler does.
   boundary — including upload-intent creation, file transfer, and abandon.
 - `run-executor-cancel` (`packages/hub-core/src/invoke/run-executor-cancel.ts`)
   exposes `awaitAllShellExecutorsTerminated`; its unit suite proves shutdown
-  awaits the ref'd SIGKILL escalation before resolving and that termination is
-  idempotent (a repeated cancel does not re-signal).
+  awaits the ref'd SIGKILL escalation before resolving, that the escalation
+  survives a leader exit when a TERM-resistant descendant keeps the group alive
+  (signal-0 probe), and that termination is idempotent (a repeated cancel does
+  not re-signal).
 - `run-resolve-credential-registry` (`packages/hub-core/src/invoke/`) and its
   unit suite enforce step/run/shutdown revocation and cross-step isolation;
   `auth-credential-lifecycle` enforces expiry and revocation denial in

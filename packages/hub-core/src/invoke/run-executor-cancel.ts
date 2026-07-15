@@ -54,6 +54,12 @@ export function registerRunExecutorCancel(
  * SIGKILL escalation timer is intentionally NOT unref'd — Hub/Desktop shutdown
  * awaits the returned promise, so the event loop stays alive until a
  * TERM-resistant descendant is reaped.
+ *
+ * The escalation stays armed even when the shell leader exits on SIGTERM: the
+ * leader's `close`/`exit` only resolves early once the ENTIRE process group is
+ * confirmed dead (probed with signal 0). A surviving TERM-resistant descendant
+ * keeps the group alive, so the SIGKILL escalation fires on the group after the
+ * grace period and the awaited shutdown does not return until the tree is gone.
  */
 function killChildProcess(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
@@ -64,6 +70,15 @@ function killChildProcess(child: ChildProcess): Promise<void> {
     const pid = child.pid;
     let settled = false;
     let escalation: ReturnType<typeof setTimeout> | undefined;
+
+    const reapGroup = (signal: "SIGTERM" | "SIGKILL"): void => {
+      if (!pid) return;
+      try {
+        process.kill(-pid, signal);
+      } catch {
+        // Process group already gone.
+      }
+    };
     const finish = () => {
       if (settled) return;
       settled = true;
@@ -76,18 +91,28 @@ function killChildProcess(child: ChildProcess): Promise<void> {
     } catch {
       /* already gone */
     }
-    if (pid) {
-      try {
-        process.kill(-pid, "SIGTERM");
-      } catch {
-        // Process group kill is best-effort (shell may not own a group).
-      }
-    }
+    reapGroup("SIGTERM");
 
-    // Resolve early when the leader exits; otherwise escalate to SIGKILL.
+    // When the leader exits, only resolve early if the ENTIRE process group is
+    // dead (probe with signal 0). A TERM-resistant descendant keeps the group
+    // alive, so the SIGKILL escalation stays armed and awaited.
+    const onLeaderGone = (): void => {
+      if (settled) return;
+      if (!pid) {
+        finish();
+        return;
+      }
+      try {
+        // A live member (e.g. a TERM-resistant descendant) keeps the probe alive;
+        // leave the SIGKILL escalation armed.
+        process.kill(-pid, 0);
+      } catch {
+        finish();
+      }
+    };
     if (typeof (child as { once?: unknown }).once === "function") {
-      child.once("close", finish);
-      child.once("exit", finish);
+      child.once("close", onLeaderGone);
+      child.once("exit", onLeaderGone);
     }
 
     escalation = setTimeout(() => {
@@ -101,13 +126,7 @@ function killChildProcess(child: ChildProcess): Promise<void> {
           /* already gone */
         }
       }
-      if (pid) {
-        try {
-          process.kill(-pid, "SIGKILL");
-        } catch {
-          // Process group already gone.
-        }
-      }
+      reapGroup("SIGKILL");
       finish();
     }, TERMINATION_GRACE_MS);
   });
