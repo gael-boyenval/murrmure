@@ -266,9 +266,9 @@ or duplicate flow name fails apply atomically with a typed code
 `RUN_POLICY_DUPLICATE`) and preserves the prior index. An admitted run and its
 journal events pin the applied `flow_digest` that was current at start.
 
-## Legacy files (pre-cutover)
+## Legacy files (removed)
 
-`actions.yaml`, `hooks.yaml`, and `executors.yaml` under `.mrmr/space/` are accepted until HANDLER-CUTOVER but **new spaces should use `handlers.yaml` only**. Migrate step reactions to exact `on: step.opened::{flow_name}.{qualified_step_id}` bindings and journal reactions to `on: event:`.
+`actions.yaml`, `hooks.yaml`, and `executors.yaml` under `.mrmr/space/` (and the legacy `murrmure/` layout) are **removed** — the handlers-only cutover is complete (Task 15). Spaces use `handlers.yaml` only: step reactions bind via exact `on: step.opened::{flow_name}.{qualified_step_id}` and journal reactions bind via `on: event:`. `mrmr space apply` no longer indexes the legacy files.
 
 ## Doctor and apply
 

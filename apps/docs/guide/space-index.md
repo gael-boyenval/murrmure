@@ -23,7 +23,7 @@ my-project/
       contract-keys.json      # codegen from apply (optional)
 ```
 
-Legacy scaffold may still include empty `actions.yaml`, `executors.yaml`, `hooks.yaml` under `.mrmr/space/` — **new authoring uses `handlers.yaml`**. See [Space handlers](./space-handlers).
+The handlers-only cutover is complete (Task 15): `mrmr space init` scaffolds only `space.yaml` + `handlers.yaml` under `.mrmr/space/` — no `actions.yaml`, `executors.yaml`, or `hooks.yaml`. Authoring uses `handlers.yaml` only. See [Space handlers](./space-handlers).
 
 ## Commands
 

@@ -127,8 +127,8 @@ Deployables (later):
 | `evolution` | Lens A/B, test orchestration, promote FSM, notify live | Skip test/notify |
 | `projections` | Audit, gate queue, triggers, grants, health, drift, federation status | Second source of truth |
 | `notify` | SSE multiplex, long-poll resolve, MCP control outbox | Domain events only |
-| `invoke` *(v2, hub-core)* | Action resolve, preflight, idempotency, dispatch orchestration | Persistence I/O; executor adapters live in `studio-executors` |
-| `ExecutorPort` *(v2)* | `shell_spawn`, `mcp_session` adapters — **implemented** phase 03 | Silent wake_pending default |
+| `invoke` *(v2, hub-core)* | Step/handler dispatch, preflight, idempotency, executor orchestration (public action-invoke route removed — Task 15) | Persistence I/O; executor adapters live in `@murrmure/executors` |
+| `ExecutorPort` *(v2)* | `shell_spawn`, `mcp_session` adapters for handler executors — **implemented** phase 03 | Silent wake_pending default |
 
 ---
 

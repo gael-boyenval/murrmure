@@ -118,6 +118,12 @@ const ACTIVE_GUIDANCE_MD_FORBIDDEN = [
     pattern: /\bwake_label\b/,
     allowIf: REMOVAL_CONTEXT,
   },
+  {
+    label: "active removed handlers-cutover legacy acceptance",
+    pattern:
+      /until HANDLER-CUTOVER|may still index|still indexes for unmigrated|\bunmigrated spaces\b/,
+    allowIf: REMOVAL_CONTEXT,
+  },
 ];
 const SKILL_EVAL_ROOTS = ["packages/cli/test/skill-eval"];
 const SKILL_EVAL_FORBIDDEN = [

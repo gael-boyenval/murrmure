@@ -17,7 +17,7 @@ my-space/
     dev/contracts/contract-keys.json   # apply output — contract key catalog
 ```
 
-Legacy `murrmure/` paths are accepted until HANDLER-CUTOVER but new spaces should use `.mrmr/`.
+Legacy `murrmure/` paths are removed — the handlers-only cutover is complete (Task 15); spaces use `.mrmr/` only.
 
 ## Commands
 

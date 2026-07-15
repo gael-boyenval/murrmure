@@ -293,10 +293,11 @@ my-backend-space/
   mcp.json / .cursor/   # user-owned harness config
   src/                  # code project (example)
   docs/                 # knowledge base (alternative)
-  murrmure/
-    actions.yaml        # action registry: name X → local executor
-    triggers.yaml       # when to invoke / start flows / extend sessions
-    flows/              # optional — local or scope: global orchestration
+  .mrmr/
+    space/
+      space.yaml        # slug, tags, link block (space_id + host)
+      handlers.yaml     # step + event handlers (only indexed file)
+    flows/              # optional — local or global orchestration (protocol only)
     views/              # optional — view packages (decoupled from flows)
   .mrmr.temp/           # gitignored exchange mailbox
     inbox/
@@ -464,9 +465,9 @@ Detail: [space-flow-protocol-v2.md §4](../../archives/plans/space-flow-protocol
 
 Trigger **definitions** belong in the **space** (`.mrmr/space/handlers.yaml`), not as Murrmure-owned agent configuration. Emission is via **`murrmure_emit_event`** (`event:emit` capability), gated at apply time by `.mrmr/space/events.yaml`.
 
-### Action `X` lives in the space; execution is user-owned (legacy — HANDLER-CUTOVER)
+### Action `X` lives in the space; execution is user-owned (legacy — removed, Task 15)
 
-> The clean protocol uses **handlers** (`on::key` for steps, `on: event:` for reactions) bound in `.mrmr/space/handlers.yaml`. The Action + Executor table below is the pre-cutover legacy model, retained until HANDLER-CUTOVER; new spaces use handlers only.
+> The clean protocol uses **handlers** (`on::key` for steps, `on: event:` for reactions) bound in `.mrmr/space/handlers.yaml`. The Action + Executor table below is the pre-cutover legacy model, **removed** — the handlers-only cutover is complete (Task 15); spaces use handlers only.
 
 | Murrmure (protocol) | Space (implementation) |
 |---------------------|-------------------------|
@@ -527,7 +528,7 @@ Any client may speak Murrmure protocol:
 |--------|----------------|
 | Claude Desktop | Trigger flow; run a handler in remote space (via HTTP/MCP adapter) |
 | Cursor | MCP connected to hub; reacts to events via `on: event:` handlers and `murrmure_emit_event` |
-| Pi / shell | Executor for action `X` in `actions.yaml` (legacy) or handler `shell_spawn` |
+| Pi / shell | Handler `shell_spawn` executor (legacy `actions.yaml` executors removed — Task 15) |
 | Cron / hub scheduler | Time-based trigger delivery |
 | Another Murrmure hub | Federation (remote orchestrator) |
 | Desktop app | Protocol server + shell; observes sessions; does not define agents |
@@ -566,7 +567,7 @@ This is **authorization + wire**, not **agent definition**.
 | **Shell orchestration graph editor** | File/CLI-first; shell visualizes only |
 | Flow installed independently in every space | Prefer indexed flows + scope local/global |
 | Megabyte payloads inline in events | Breaks journal; use artifacts |
-| Hub defines what action `X` executes | Belongs in space `actions.yaml` |
+| Hub defines what action `X` executes | Belongs in space `handlers.yaml` |
 | Triggers authored only in Configure UI with agent semantics | Belongs in space files; Murrmure indexes |
 | Assuming MCP always connected without executor | “Wake” with no listener |
 | Murrmure runs LLM loop inside hub | Explicitly out of product scope |
@@ -624,7 +625,7 @@ Captured for later; **do not implement** without a new plan slice:
 
 ## External references (not adoption)
 
-Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — different center of gravity (space/session vs agent peer). **Borrow:** task/context grouping, lifecycle states, parallel work, artifact patterns. **Optional later:** `actions.yaml` executor `a2a` for external agents.
+Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — different center of gravity (space/session vs agent peer). **Borrow:** task/context grouping, lifecycle states, parallel work, artifact patterns. **Optional later:** an `a2a` handler type for external agents (legacy `actions.yaml` executor removed — Task 15).
 
 **Research repos** (`.opensrc` via `projects.yaml`): A2A, Windmill, Inngest, CloudEvents, Temporal, MCP SDK — patterns for runs UX, triggers, event envelope, orchestration. See [space-flow-protocol-v2.md §0c](../../archives/plans/space-flow-protocol-v2.md).
 

@@ -24,10 +24,11 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing.json`.
 
 > **B1 — checkpoint dispatch removed (Task 15 Lane A/C).** Declarative
-> checkpoint auto-dispatch is gone; the `checkpoint.test.ts` suite and
-> `declarative-gate-chain.json` fixture are retired. Step resolution uses the
-> clean `step:resolve` contract (`murrmure_resolve_step` / `mrmr step resolve`)
-> — see [Tutorial v3 progressive conformance (TV3)](#tutorial-v3-progressive-conformance-tv3)
+> checkpoint auto-dispatch is gone; the `checkpoint.test.ts` suite and the
+> `declarative-gate-chain.json` + `gate-loop-on-resolve.json` fixtures are
+> retired. Step resolution uses the clean `step:resolve` contract
+> (`murrmure_resolve_step` / `mrmr step resolve`) — see
+> [Tutorial v3 progressive conformance (TV3)](#tutorial-v3-progressive-conformance-tv3)
 > and `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts`.
 
 ## Phase 10 — Docs & proof
@@ -42,7 +43,7 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
 | Zero retired install guidance in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
 | Clean first boot and production import boundaries | Tutorial v3 Task 01 | `pnpm check:clean-state` |
-| Tutorial pages (29, including Tutorial v3) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
+| Tutorial pages (8 — v3 tutorial + tutorials index) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
 
 ## Flow runtime (CR)
 
@@ -57,10 +58,11 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 
 | Fixture | Proves | Test |
 |---------|--------|------|
-| `fixtures/triggers/spec-published-wake-dev.json` | Trigger wakes dev agent | `…/triggers/spec-published-wake-dev.test.ts` |
-| `fixtures/triggers/dedup-spec-publish.json` | Delivery dedup by fingerprint | `…/triggers/dedup-spec-publish.test.ts` |
+| `fixtures/triggers/dedup-spec-publish.json` | `event:emit` (`spec.published`) → `on: event:` handler delivery + dedup by fingerprint | `…/triggers/dedup-spec-publish.test.ts` |
 | event catalog | Event-type catalog endpoint | `…/triggers/event-catalog.test.ts` |
 | trigger register | Async trigger registration | `…/config/trigger-register.test.ts` |
+
+Historical fixture (retired `mcp_wake` wire): `fixtures/triggers/spec-published-wake-dev.json` — kept as a removal record only; the wire is retired (404). See [triggers/spec.md](./triggers/spec.md) TR-min/TR-full.
 
 ## Cross-space XS0 (same hub)
 
@@ -99,10 +101,10 @@ Test tree: `test-utils/spaces/preview-review-v2/`.
 | ID | Fixture / artifact | Proves | Layer | Test |
 |----|-------------------|--------|-------|------|
 | R1 | `test-utils/spaces/preview-review-v2/` + `fixtures/reference-workflow/preview-review-v2-apply.json` | Normative tree passes `space apply --strict` | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
-| R3 | shell ViewCanvasHost | Checkpoint view in primary region (not drawer) | CI | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
-| R4 | `fixtures/flow-engine/gate-loop-on-resolve.json` | Request changes → build reruns (engine half) | CI | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
-| R5 | `fixtures/flow-engine/declarative-gate-chain.json` | Validated → terminal completed | CI | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
-| R4/R5 | `fixtures/flow-engine/step-output-chaining.json` | `{{steps.*}}` in invoke params | CI | `packages/hub-core/test/unit/flow-engine/step-output.test.ts` |
+| R3 | shell ViewCanvasHost | ViewCanvasHost at input-required (gate) in primary region (not drawer) | CI | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
+| R4 | `test-utils/spaces/preview-review-v2/` + `step:resolve` contract | Request changes → build reruns (review loop) | CI + manual | `packages/cli/test/preview-review-v2-example.test.ts` + release checklist **10-T1** |
+| R5 | `test-utils/spaces/preview-review-v2/` + `step:resolve` contract | Validated → terminal completed | CI + manual | `packages/cli/test/preview-review-v2-example.test.ts` + release checklist **10-T1** |
+| R4/R5 | `fixtures/flow-engine/step-output-chaining.json` | `{{steps.*}}` in handler params | CI | `packages/hub-core/test/unit/flow-engine/step-output.test.ts` |
 | R6 | example + workflow grep | Zero legacy install commands in reference workflow | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
 | R2 | Tutorial 1 walkthrough | Non-contributor scaffold → Run Desktop | manual | release checklist **10-T1** |
 | R3/R4 | Tutorial 1 visual | ViewCanvasHost + round-trip UX | manual | release checklist **10-T1** |

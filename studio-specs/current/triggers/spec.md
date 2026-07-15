@@ -25,7 +25,7 @@ handlers:
 
 **Dedup chain (§4.5):** `dedup_key = hash(source, event.id, hook_id)` propagates to run `exec_context.idempotency_key`. Redelivered events skip duplicate runs.
 
-**Legacy trigger templates (`mcp_wake`):** retained as historical/legacy trigger-action presets only. The `POST /v1/mcp/wake` wire is retired (**404**, phase 16); new spaces declare `on: event:` handlers instead. `murrmure/hooks.yaml` (alias: `triggers.yaml`) still indexes for unmigrated spaces. Prefer event handlers over `mcp_wake` trigger actions for new spaces.
+**Legacy trigger templates (`mcp_wake`):** retained as historical/legacy trigger-action presets only. The `POST /v1/mcp/wake` wire is retired (**404**, phase 16) and the handlers-only cutover is complete (Task 15) — space reactions live only in `.mrmr/space/handlers.yaml` (`on: event:`); `murrmure/hooks.yaml` (alias: `triggers.yaml`) no longer indexes. New spaces declare `on: event:` handlers; there is no active `mcp_wake` trigger-action acceptance.
 
 **Prerequisites:** config CS2, feature-spec FS0, flow-runtime CR1.
 
@@ -191,16 +191,18 @@ Components: `TriggerTemplatePicker`, `EventCatalogSelect`, `TriggerTestFireButto
 
 ## Acceptance — TR-min
 
-Fixtures: [../fixtures/triggers/spec-published-wake-dev.json](../fixtures/triggers/spec-published-wake-dev.json)
+Post-cutover, trigger acceptance is the clean protocol: an `on: event:` handler in `.mrmr/space/handlers.yaml` reacts to an emitted event and starts downstream work via a flow trigger (`mrmr flow run`). The legacy `mcp_wake` fixtures below are historical/removal records only — the wire is retired (404).
 
-1. Register spec-published-wake-dev via template
-2. Publish spec → exactly one mcp_wake delivery
-3. Duplicate publish same spec_key **and version** → dedup drop in delivery log (`duplicate_business_key`)
+Historical fixture (retired wire): [../fixtures/triggers/spec-published-wake-dev.json](../fixtures/triggers/spec-published-wake-dev.json)
+
+1. Apply a space with an `on: event:` handler bound to `spec.published` (emittable via `.mrmr/space/events.yaml`)
+2. Emit `spec.published` via `murrmure_emit_event` → exactly one handler delivery (Session + Run + journal `mrmr.handler.delivered`)
+3. Duplicate emit same business key **and version** within the dedup window → dedup drop in delivery log (`duplicate_business_key`)
 
 ## Acceptance — TR-full
 
-Fixtures: [../fixtures/triggers/dedup-spec-publish.json](../fixtures/triggers/dedup-spec-publish.json)
+Historical fixture (retired wire): [../fixtures/triggers/dedup-spec-publish.json](../fixtures/triggers/dedup-spec-publish.json)
 
-4. Event catalog lists spec.published after feature-spec live apply
-5. Test fire replays without re-emitting source event
-6. Wake fails → integration_failure event + delivery log failed
+4. Event catalog lists `spec.published` after feature-spec live apply
+5. Test fire replays the handler without re-emitting the source event
+6. Handler delivery fails → `integration_failure` event + delivery log `outcome: failed`

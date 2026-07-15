@@ -85,7 +85,7 @@ Prefer handler `on: event:` over the retired `mcp_wake` trigger actions for new 
 
 ## Shell / trigger registration (v2)
 
-Trigger registration is **CLI-first** (`mrmr space trigger *`) or via event handlers in `.mrmr/space/handlers.yaml` + `mrmr space apply`. Legacy `murrmure/hooks.yaml` still indexes for unmigrated spaces. Configure trigger UI components were retired with Configure shell.
+Trigger registration is **CLI-first** (`mrmr space trigger *`) or via event handlers in `.mrmr/space/handlers.yaml` + `mrmr space apply`. The handlers-only cutover is complete (Task 15): `murrmure/hooks.yaml` no longer indexes — space reactions live only in `.mrmr/space/handlers.yaml`. Configure trigger UI components were retired with Configure shell.
 
 ## Package
 

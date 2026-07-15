@@ -18,10 +18,10 @@ the space, never in the flow.
 
 **Path:** `.mrmr/space/handlers.yaml` (v1)
 
-**Legacy:** `murrmure/actions.yaml`, `murrmure/hooks.yaml`, and
-`murrmure/executors.yaml` may still index for unmigrated spaces. `mrmr space
-apply --strict` warns when both handlers and legacy actions are present; new
-spaces should use handlers only. Flow steps must not declare `executor.action`.
+**Legacy (removed):** `murrmure/actions.yaml`, `murrmure/hooks.yaml`, and
+`murrmure/executors.yaml` no longer index — the handlers-only cutover is complete
+(Task 15); `mrmr space apply` reads `.mrmr/space/handlers.yaml` alone. Flow steps
+must not declare `executor.action`.
 
 ```yaml
 version: 1

@@ -115,7 +115,7 @@ Concepts (not stored)
   View  = client that reads protocol (architectural rule)
 ```
 
-**Count:** 6 hub entities + 4 space-indexed concepts (+ legacy Action/Executor during HANDLER-CUTOVER).
+**Count:** 6 hub entities + 4 space-indexed concepts (legacy Action/Executor removed in the handlers-only cutover — Task 15).
 
 ### 2.2 Responsibility table — hub-owned
 
@@ -135,8 +135,8 @@ Concepts (not stored)
 | **Space** | Directory content; `.mrmr/` index; team artifacts |
 | **Handler** | Step/event dispatch: `on::key`, `type`, `complete`, prompt/command (`contract_keys` is prompt-scope only) |
 | **Flow** | Declarative step graph; start conditions; branch schemas — **protocol only** |
-| **Action** *(legacy)* | Named callable in `actions.yaml` — accepted until HANDLER-CUTOVER |
-| **Executor** *(legacy)* | Reachability binding for legacy actions |
+| **Action** *(legacy — removed)* | Named callable in `actions.yaml` — removed; handlers-only cutover complete (Task 15) |
+| **Executor** *(legacy — removed)* | Reachability binding for legacy actions (removed with them) |
 
 ### 2.4 Demoted / folded
 
@@ -238,7 +238,7 @@ Flow declares graph once; each Run records execution of a segment or matrix bran
 | Origin | `step_id` | Step memo |
 |--------|-----------|-----------|
 | Hook delivery | `hook:{hook_id}` | Single row; journal replay or one-node graph |
-| Direct action invoke *(legacy — HANDLER-CUTOVER)* | `action:{action_name}` | Same; superseded by `handler:{id}` for new spaces |
+| Direct action invoke *(legacy — removed)* | `action:{action_name}` | Removed; superseded by `handler:{id}` (handlers-only cutover complete — Task 15) |
 | MCP orchestration attach (pre-bind) | `orchestration:proposed` | Until graph binds; then flow step ids apply |
 
 **Session cancel cascade:**
@@ -298,14 +298,14 @@ contract_key := {flow_ref}.{qualified_step_id}
 
 ---
 
-### 4.1 Action + Executor *(legacy — HANDLER-CUTOVER)*
+### 4.1 Action + Executor *(legacy — removed, Task 15)*
 
-The sections below describe the pre-cutover **Action + Executor** invoke model, including the public action-invoke HTTP route in [§4.4](#44-invoke-http). Legacy `actions.yaml`, `executors.yaml`, and `hooks.yaml` — and that `POST /v1/spaces/{space_id}/actions/{action_name}/invoke` route — remain accepted until HANDLER-CUTOVER; new spaces use handlers + `murrmure_resolve_step` instead (no public action-invoke route in the clean protocol).
+The sections below describe the pre-cutover **Action + Executor** invoke model as a historical record, including the public action-invoke HTTP route in [§4.4](#44-invoke-http). Legacy `actions.yaml`, `executors.yaml`, and `hooks.yaml` — and that `POST /v1/spaces/{space_id}/actions/{action_name}/invoke` route — are **removed**; the handlers-only cutover is complete (Task 15). Spaces use handlers + `murrmure_resolve_step` instead (no public action-invoke route in the clean protocol).
 
-### 4.1a Action (space-owned, hub-indexed) *(legacy — HANDLER-CUTOVER)*
+### 4.1a Action (space-owned, hub-indexed) *(legacy — removed, Task 15)*
 
 ```yaml
-# legacy: .mrmr/space/actions.yaml (or murrmure/actions.yaml during migration)
+# legacy (removed — handlers-only cutover complete, Task 15): .mrmr/space/actions.yaml
 version: 1
 actions:
   review_url:
@@ -362,7 +362,7 @@ executors:
     type: shell_spawn
 ```
 
-### 4.3 Invoke preflight *(legacy — HANDLER-CUTOVER)*
+### 4.3 Invoke preflight *(legacy — removed, Task 15)*
 
 Before marking invoke `dispatched`:
 
@@ -374,7 +374,7 @@ Before marking invoke `dispatched`:
 
 Replaces the removed v1 `mcp.wake_pending` silent default.
 
-### 4.4 Invoke HTTP *(legacy — HANDLER-CUTOVER)*
+### 4.4 Invoke HTTP *(legacy — removed, Task 15)*
 
 ```http
 POST /v1/spaces/{space_id}/actions/{action_name}/invoke
@@ -1032,10 +1032,7 @@ my-space/
   .mrmr/
     space/
       space.yaml                # slug, tags, link block (space_id + host)
-      handlers.yaml             # canonical — step + event handlers
-      actions.yaml              # legacy stub (HANDLER-CUTOVER)
-      executors.yaml            # legacy stub
-      hooks.yaml                # legacy stub
+      handlers.yaml             # canonical — step + event handlers (only indexed file)
     flows/
       preview-review/           # example — only when scaffolded with --with-examples
         flow.manifest.yaml      # protocol only
@@ -1047,7 +1044,7 @@ my-space/
     outbox/
 ```
 
-**Migration note:** Legacy `murrmure/` layout and `triggers.yaml` / `hooks.yaml` accepted as aliases until HANDLER-CUTOVER. `.murrmure/link.json` is deprecated — use `space.yaml` `link:` block.
+**Migration note:** The handlers-only cutover is complete (Task 15) — only `.mrmr/` indexes, and `mrmr space apply` reads `.mrmr/space/handlers.yaml` alone. Legacy `murrmure/` layout and `triggers.yaml` / `hooks.yaml` / `actions.yaml` / `executors.yaml` are removed (historical record only). `.murrmure/link.json` is deprecated — use `space.yaml` `link:` block.
 
 ---
 
