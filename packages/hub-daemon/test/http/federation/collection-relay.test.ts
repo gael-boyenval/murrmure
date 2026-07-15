@@ -1,10 +1,19 @@
 import { describe, expect, test, beforeAll, afterAll } from "vitest";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ulid } from "ulid";
 import { startHubDaemon } from "../../../src/main.js";
-import { addTokenId } from "@murrmure/hub-core";
+import { addTokenId, buildRemoteStepContractRelay, exchangeFilePath } from "@murrmure/hub-core";
 import { createRemoteHubExecutor } from "@murrmure/executors";
 import type {
   DispatchContext,
@@ -12,35 +21,64 @@ import type {
   InvokeStepContractContext,
 } from "@murrmure/runtime-contracts";
 
+/** Recursively find any entry named `name` under `root`; returns its path or undefined. */
+function findEntry(root: string, name: string): string | undefined {
+  if (!existsSync(root)) return undefined;
+  for (const entry of readdirSync(root)) {
+    const full = join(root, entry);
+    if (entry === name) return full;
+    try {
+      if (statSync(full).isDirectory()) {
+        const found = findEntry(full, name);
+        if (found) return found;
+      }
+    } catch {
+      /* ignore broken entries */
+    }
+  }
+  return undefined;
+}
+
 /**
- * Real two-hub collection relay: a producer hub relays an ordered collection to
- * a peer hub, which runs the destination `InvokeService` (relay handling +
- * materialization + rebind) and a consuming `shell_spawn` handler that binds
- * `.directory` to its own materialized consumer copy.
+ * Real two-hub collection relay proving cross-hub artifact byte transfer.
  *
- * Unlike `remote-hub-relay.test.ts` (which captures the outbound executor body
- * only), this test crosses the HTTP/destination boundary: the real
- * `createRemoteHubExecutor` serializes a sanitized reference-only step contract,
- * a real `fetch` POSTs it to hubB's live `/v1/spaces/:space/actions/:action/
- * invoke`, and hubB's `InvokeService` reconstructs the contract, materializes
- * the ordered references from local bytes, rebinds the verified consumer copies
- * into the handler tokens, and dispatches a real collection-consuming handler.
+ * The producer hub (hubA) registers the collection bytes in its own artifact
+ * store and authorizes the consumer space. The consumer hub (hubB) never has
+ * the bytes pre-seeded: its destination `InvokeService` reconstructs the
+ * relayed reference-only step contract, fetches each referenced artifact from
+ * hubA's `GET /v1/artifacts/:transfer_id/bytes` endpoint (validating ACL /
+ * expiry / digest on the producer), materializes verified consumer copies in
+ * its own run-scratch tree, rebinds them into the handler tokens, and a real
+ * `shell_spawn` handler binds `.directory` to its materialized consumer copy.
+ *
+ * A second test proves the relay path enforces artifact ACL parity with the
+ * normal `artifacts_in` path: a relayed reference whose producer artifact is
+ * not authorized for the consumer space is rejected with
+ * `ARTIFACT_ACCESS_DENIED` before any bytes are materialized.
  */
-describe("federation/collection-relay — two-hub destination materialization", () => {
-  let hubA: { baseUrl: string; cleanup: () => void; token: string };
+describe("federation/collection-relay — two-hub cross-hub artifact retrieval", () => {
+  let hubA: { baseUrl: string; cleanup: () => void; token: string; spaceId: string };
   let hubB: {
     baseUrl: string;
     cleanup: () => void;
     token: string;
     spaceId: string;
     root: string;
+    dataDir: string;
   };
 
   const collection = [
     { name: "01-openapi.json", content: '{"openapi":"3.0"}\n' },
     { name: "02-paths.json", content: '{"paths":{}}\n' },
   ];
-  let transferIds: { id: string; name: string; digest: string; size_bytes: number }[];
+  interface UploadedArtifact {
+    id: string;
+    name: string;
+    digest: string;
+    size_bytes: number;
+    content: string;
+  }
+  let collectionArtifacts: UploadedArtifact[] = [];
 
   beforeAll(async () => {
     const dirA = mkdtempSync(join(tmpdir(), "fed-coll-hub-a-"));
@@ -69,6 +107,7 @@ describe("federation/collection-relay — two-hub destination materialization", 
     hubA = {
       baseUrl: `http://127.0.0.1:${portA}`,
       token: tokenA,
+      spaceId: "",
       cleanup: () => {
         daemonA.server.close();
         rmSync(dirA, { recursive: true, force: true });
@@ -78,6 +117,7 @@ describe("federation/collection-relay — two-hub destination materialization", 
       baseUrl: `http://127.0.0.1:${portB}`,
       token: tokenB,
       root: dirB,
+      dataDir: join(dirB, "data"),
       spaceId: "",
       cleanup: () => {
         daemonB.server.close();
@@ -85,15 +125,18 @@ describe("federation/collection-relay — two-hub destination materialization", 
       },
     };
 
+    const authA = () => ({
+      Authorization: `Bearer ${addTokenId(tokenA)}`,
+      "Content-Type": "application/json",
+    });
     const authB = () => ({
       Authorization: `Bearer ${addTokenId(tokenB)}`,
       "Content-Type": "application/json",
     });
 
-    // hubB (consumer): a real space with a linked root, a collection-consuming
-    // shell handler, and the producer's collection bytes pre-seeded in its
-    // artifact store under the relayed transfer ids (mirroring bytes replicated
-    // to the destination before the relay).
+    // hubB (consumer): a real space with a linked root and a collection-
+    // consuming shell handler that binds `.directory` and writes the sorted
+    // filenames to a marker file in the space root (its cwd).
     const createdB = await fetch(`${hubB.baseUrl}/v1/spaces`, {
       method: "POST",
       headers: authB(),
@@ -107,8 +150,6 @@ describe("federation/collection-relay — two-hub destination materialization", 
       body: JSON.stringify({ host: "test", path: dirB, primary: true }),
     });
 
-    // The consuming handler lists the materialized collection directory and
-    // writes the sorted filenames to a marker file in the space root (its cwd).
     mkdirSync(join(dirB, "bin"), { recursive: true });
     writeFileSync(
       join(dirB, "bin", "consume.sh"),
@@ -148,45 +189,40 @@ describe("federation/collection-relay — two-hub destination materialization", 
       }),
     });
 
-    // Pre-seed hubB's artifact store with the collection bytes under explicit
-    // transfer ids (idempotent re-registration). The producer relay references
-    // these same ids; the destination materializes from its local copies.
-    transferIds = [];
+    // hubA (producer): a real space that owns the collection bytes. The
+    // producer relay references these transfer ids; the destination fetches
+    // them from hubA. No link is required to register artifacts.
+    const createdA = await fetch(`${hubA.baseUrl}/v1/spaces`, {
+      method: "POST",
+      headers: authA(),
+      body: JSON.stringify({ slug: "collection-producer", name: "Collection Producer" }),
+    });
+    hubA.spaceId = ((await createdA.json()) as { space_id: string }).space_id;
+
+    // Register the collection on hubA, authorizing the consumer space (hubB).
+    // These bytes exist ONLY on hubA — hubB's artifact store is never seeded.
+    collectionArtifacts = [];
     for (const file of collection) {
-      const transfer_id = `xfr_${ulid()}`;
-      const put = await fetch(`${hubB.baseUrl}/v1/artifacts`, {
+      const put = await fetch(`${hubA.baseUrl}/v1/artifacts`, {
         method: "PUT",
-        headers: authB(),
+        headers: authA(),
         body: JSON.stringify({
-          space_id: hubB.spaceId,
+          space_id: hubA.spaceId,
           name: file.name,
           content_base64: Buffer.from(file.content, "utf8").toString("base64"),
           authorized_readers: [hubB.spaceId],
-          transfer_id,
         }),
       });
       expect(put.status).toBe(201);
       const artifact = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
-      transferIds.push({
+      collectionArtifacts.push({
         id: artifact.transfer_id,
         name: file.name,
         digest: artifact.digest,
         size_bytes: artifact.size_bytes,
+        content: file.content,
       });
     }
-
-    // hubA (producer): a real space mirroring the peer, so the relayed
-    // `hub_token` / `hub_url` point at a live producer hub that holds the
-    // originals. The producer step contract is built below to reference the
-    // relayed collection.
-    await fetch(`${hubA.baseUrl}/v1/spaces`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${addTokenId(tokenA)}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ slug: "collection-producer", name: "Collection Producer" }),
-    });
   }, 60_000);
 
   afterAll(() => {
@@ -195,8 +231,9 @@ describe("federation/collection-relay — two-hub destination materialization", 
   });
 
   /** Producer step contract carrying the collection run-artifacts bag (the
-   *  producer `path` values are stripped by the relay sanitizer). */
-  function producerStepContract(): InvokeStepContractContext {
+   *  producer `path` values are stripped by the relay sanitizer; only
+   *  `transfer_id` / `digest` / `name` / `size_bytes` cross the boundary). */
+  function producerStepContract(files: UploadedArtifact[]): InvokeStepContractContext {
     const slice = {
       step_id: "build",
       branches: {
@@ -214,7 +251,7 @@ describe("federation/collection-relay — two-hub destination materialization", 
         assets: {
           slot: "assets",
           cardinality: "collection",
-          files: transferIds.map((f) => ({
+          files: files.map((f) => ({
             name: f.name,
             path: `.mrmr/dev/runs/run_prod/steps/intake/assets/${f.name}`,
             transfer_id: f.id,
@@ -241,8 +278,16 @@ describe("federation/collection-relay — two-hub destination materialization", 
     };
   }
 
-  test("destination InvokeService materializes the relayed collection and the handler binds .directory", async () => {
+  test("destination fetches relayed collection bytes from the producer hub and binds .directory", async () => {
     const markerPath = join(hubB.root, "consume-result.txt");
+
+    // Prove the destination store is NOT pre-seeded: the collection bytes live
+    // only on hubA. The destination must fetch them across the federation
+    // boundary to materialize consumer copies.
+    for (const artifact of collectionArtifacts) {
+      const destExchange = exchangeFilePath(hubB.dataDir, artifact.id, artifact.name);
+      expect(existsSync(destExchange), "destination artifact store must not be pre-seeded").toBe(false);
+    }
 
     // Real remote_hub executor; relayInvoke performs a real HTTP POST to hubB.
     const executor = createRemoteHubExecutor({
@@ -280,9 +325,6 @@ describe("federation/collection-relay — two-hub destination materialization", 
       params: { message: "relay-collection" },
       exec_input: { owner: "alice" },
       expect: { response_schema: "murrmure:result/v1:ok" },
-      // Producer transfer ids ride along in artifacts_in; finding-1 keeps the
-      // destination store resolution from rejecting them before relay handling.
-      artifacts_in: transferIds.map((f) => f.id),
       delivery: "fail_fast",
     };
     const context: DispatchContext = {
@@ -295,7 +337,7 @@ describe("federation/collection-relay — two-hub destination materialization", 
       },
       space_root: "/producer",
       exec_input: { owner: "alice" },
-      step_contract: producerStepContract(),
+      step_contract: producerStepContract(collectionArtifacts),
     };
 
     const outcome = await executor.dispatch(invoke, context);
@@ -316,12 +358,76 @@ describe("federation/collection-relay — two-hub destination materialization", 
     const listed = marker!.trim().split(/\n+/).filter(Boolean);
     expect(listed).toEqual(collection.map((f) => f.name));
 
-    // The materialized consumer directory lives under the destination's own
-    // run-scratch tree (never a producer path), and contains both files.
+    // The materialized consumer copies live under the destination's own
+    // run-scratch tree (never a producer path), and the destination store was
+    // never seeded — bytes were fetched from hubA and written as consumer
+    // copies only. The marker lists filenames, never producer run ids or
+    // producer asset paths.
     const runsDir = join(hubB.root, ".mrmr", "dev", "runs");
     expect(existsSync(runsDir)).toBe(true);
-    const markerBlob = marker!;
-    expect(markerBlob).not.toContain("run_prod");
-    expect(markerBlob).not.toContain("steps/intake/assets");
+    expect(marker!).not.toContain("run_prod");
+    expect(marker!).not.toContain("steps/intake/assets");
+    for (const artifact of collectionArtifacts) {
+      const destExchange = exchangeFilePath(hubB.dataDir, artifact.id, artifact.name);
+      expect(existsSync(destExchange), "destination store must remain unseeded after relay").toBe(false);
+    }
+  }, 30_000);
+
+  test("destination rejects a relayed reference whose producer artifact is not ACL-authorized", async () => {
+    // Register an artifact on hubA authorized to hubA's space only — NOT to the
+    // consumer space (hubB). The relay references it; the destination fetch
+    // must be denied by the producer's ACL check.
+    const secret = "producer-only-bytes";
+    const put = await fetch(`${hubA.baseUrl}/v1/artifacts`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${addTokenId(hubA.token)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: hubA.spaceId,
+        name: "producer-only.json",
+        content_base64: Buffer.from(secret, "utf8").toString("base64"),
+        authorized_readers: [hubA.spaceId],
+      }),
+    });
+    expect(put.status).toBe(201);
+    const unauthorized = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
+
+    // Build a relayed step contract that references the unauthorized artifact,
+    // then POST it straight to the destination invoke.
+    const relay = buildRemoteStepContractRelay(
+      producerStepContract([
+        {
+          id: unauthorized.transfer_id,
+          name: "producer-only.json",
+          digest: unauthorized.digest,
+          size_bytes: unauthorized.size_bytes,
+          content: secret,
+        },
+      ]),
+    );
+    expect(relay).toBeDefined();
+
+    const res = await fetch(
+      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${addTokenId(hubB.token)}`,
+        },
+        body: JSON.stringify({ step_id: "build", step_contract: relay }),
+      },
+    );
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("ARTIFACT_ACCESS_DENIED");
+
+    // No consumer copy was materialized for the rejected reference.
+    expect(
+      findEntry(join(hubB.root, ".mrmr", "dev", "runs"), "producer-only.json"),
+      "no consumer copy materialized for the denied reference",
+    ).toBeUndefined();
   }, 30_000);
 });

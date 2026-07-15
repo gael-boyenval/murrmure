@@ -48,6 +48,19 @@ Scopes: `blob:read`
 
 Copies exchange bytes to `{space_root}/.mrmr.temp/inbox/{transfer_id}/{name}` after digest verification.
 
+### `GET /v1/artifacts/{transfer_id}/bytes?space_id=spc_…`
+
+Serves the raw exchange bytes to a federated consumer. The requester `space_id`
+must be listed in `authorized_readers` (the authoritative gate — the token's own
+space boundary is intentionally not re-checked, so a cross-hub fetch may present a
+producer-space credential while requesting bytes authorized to the consumer space).
+Enforces expiry and digest verification identically to the local materialize path
+and returns `application/octet-stream` with `x-murrmure-digest` / `x-murrmure-name`
+headers. A destination hub uses this to retrieve relayed references by
+`transfer_id` without destination pre-seeding.
+
+Scopes: `blob:read` or a federated `step:resolve` credential.
+
 ## Invoke integration
 
 `POST /v1/spaces/{space_id}/actions/{action_name}/invoke` accepts:
@@ -131,9 +144,17 @@ at apply time (`HANDLER_BINDING_VALUE_MISSING`) and lints as
   visibility.
 - A **remote/federated** consumer receives ordered immutable artifact references
   (`transfer_id`, `digest`, `size_bytes`) and materializes them in its own
-  space — never the producer's local path. The journaled dispatch audit carries
-  opaque references (`artifact:{producer}:{slot}(:directory)`, or the transfer
-  id) and never a `.mrmr/dev/runs` host path.
+  space — never the producer's local path. The destination fetches each
+  referenced artifact from the producer's `GET /v1/artifacts/{transfer_id}/bytes`
+  endpoint using the relayed `hub_url` / `hub_token` (no destination pre-seeding)
+  and re-verifies the digest against the reference before writing consumer copies,
+  then rebinds the verified copies into the handler tokens. Relayed references are
+  validated against `authorized_readers` and expiry before materialization — the
+  same ACL/expiry checks the normal `artifacts_in` path enforces — so a caller
+  cannot bypass artifact authorization by supplying a `step_contract`. The
+  journaled dispatch audit carries opaque references
+  (`artifact:{producer}:{slot}(:directory)`, or the transfer id) and never a
+  `.mrmr/dev/runs` host path.
 
 **Run retention:** active run directories are never collected. Terminal local
 bytes (`completed`/`failed`/`cancelled` with `ended_at`) expire at

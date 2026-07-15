@@ -25,6 +25,10 @@ import {
   reconstructStepContractFromRelay,
   rebindRemoteMaterializedCopies,
   materializeRemoteArtifactReferences,
+  loadRelayedArtifactBytes,
+  RelayedArtifactValidationError,
+  type RelayedArtifactRemoteResult,
+  ArtifactMaterializationError,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -173,6 +177,35 @@ export class InvokeService {
     const run = await this.studio.getRun(bare);
     if (!run) return undefined;
     return ((run.exec_context.input ?? {}) as Record<string, unknown>) ?? {};
+  }
+
+  /**
+   * Fetch artifact bytes from the producer hub's
+   * `GET /v1/artifacts/:transfer_id/bytes` endpoint using the relayed
+   * `hub_token` / `hub_url`. The producer enforces ACL / expiry / digest; the
+   * returned status is mapped by `loadRelayedArtifactBytes` into a typed
+   * validation error (403 / 410 / 404 / 422) or a transient best-effort skip.
+   */
+  private async fetchRelayedArtifactBytes(input: {
+    hub_url: string;
+    hub_token?: string;
+    transfer_id: string;
+    requester_space_id: string;
+  }): Promise<RelayedArtifactRemoteResult> {
+    const base = input.hub_url.replace(/\/$/, "");
+    const url =
+      `${base}/v1/artifacts/${encodeURIComponent(input.transfer_id)}/bytes` +
+      `?space_id=${encodeURIComponent(input.requester_space_id)}`;
+    const headers: Record<string, string> = {};
+    if (input.hub_token) headers.Authorization = `Bearer ${input.hub_token}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 200) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const digest = res.headers.get("x-murrmure-digest") ?? undefined;
+      return { status: 200, bytes, digest };
+    }
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    return { status: res.status, message: body.message };
   }
 
   private async loadIndexedHandler(
@@ -593,10 +626,12 @@ export class InvokeService {
     // peer hub) carries producer transfer ids in `artifacts_in`; those are not
     // registered in this hub's local artifact store. Resolving them here would
     // reject the invoke with `ARTIFACT_NOT_FOUND` before the relay handling
-    // below can reconstruct + materialize the ordered references. So for a
-    // relayed invoke, skip the destination-store resolution entirely — the
-    // relay block materializes references from local bytes (best-effort) and
-    // leaves the rest for the handler to fetch via `hub_token` / `hub_url`.
+    // below can fetch + validate the ordered references. So for a relayed
+    // invoke, skip the destination-store resolution entirely — the relay block
+    // validates each reference against ACL / expiry / digest (parity with this
+    // path), fetching bytes from the producer hub via the relayed `hub_token` /
+    // `hub_url` when they are not already local, and leaves only transiently
+    // unavailable references for the handler to fetch.
     if (parsed.data.artifacts_in?.length && !parsed.data.step_contract) {
       if (!resolved.space_root) {
         return {
@@ -694,13 +729,20 @@ export class InvokeService {
     // contract (no local run exists on this hub for the relayed run_id, so
     // `buildFlowInvokeStepContract` returned undefined above), reconstruct a
     // local `InvokeStepContractContext` from the sanitized relay and carry the
-    // relayed run input. Then best-effort materialize the ordered artifact
-    // references into this space's consumer input tree from any bytes already
-    // local, and rebind the verified destination copies into the reconstructed
-    // contract/handler tokens so `shell_spawn` binds `.path` / `.directory` to
-    // this space's own consumer copies. References without local bytes are left
-    // reference-only for the handler to fetch via the relayed `hub_token` /
-    // `hub_url`. This never fails the invoke.
+    // relayed run input. Then resolve + validate the ordered artifact
+    // references: each reference is first looked up in this hub's local artifact
+    // store (validated with `planMaterialize` — expiry / `authorized_readers`
+    // ACL / digest, parity with the `artifacts_in` path), and when not local it
+    // is fetched from the producer hub via the relayed `hub_token` / `hub_url`
+    // (`GET /v1/artifacts/:transfer_id/bytes`), which enforces the same ACL /
+    // expiry / digest checks on the producer side. Verified bytes are
+    // materialized into this space's consumer input tree and rebound into the
+    // reconstructed contract so `shell_spawn` binds `.path` / `.directory` to
+    // this space's own consumer copies. A definitive ACL / expiry / digest /
+    // not-found failure rejects the invoke with the same codes as `artifacts_in`
+    // (a caller-supplied `step_contract` may not bypass artifact authorization);
+    // a transiently unavailable reference (network error / 5xx) is left
+    // reference-only for the handler to fetch via `hub_token` / `hub_url`.
     if (
       parsed.data.step_contract &&
       resolved.space_root &&
@@ -724,11 +766,23 @@ export class InvokeService {
             run_id,
             consumer_step: parsed.data.step_id,
             references: relay.artifact_references,
-            loadBytes: async (transfer_id) => {
-              const row = await this.artifacts.loadArtifactForInvoke(transfer_id);
-              return row ? { bytes: row.bytes, digest: row.manifest.digest } : null;
-            },
-          }).catch(() => [] as Awaited<ReturnType<typeof materializeRemoteArtifactReferences>>);
+            loadBytes: (transfer_id) =>
+              loadRelayedArtifactBytes({
+                transfer_id,
+                requester_space_id: prefixedSpaceId(bare),
+                requester_actor_id: input.actor_id,
+                loadLocal: (tid) => this.artifacts.loadArtifactForInvoke(tid),
+                fetchRemote: relay.hub_url
+                  ? (tid) =>
+                      this.fetchRelayedArtifactBytes({
+                        hub_url: relay.hub_url!,
+                        hub_token: relay.hub_token,
+                        transfer_id: tid,
+                        requester_space_id: prefixedSpaceId(bare),
+                      })
+                  : undefined,
+              }),
+          });
           if (materialized.length) {
             reconstructed = rebindRemoteMaterializedCopies({
               stepContract: reconstructed,
@@ -739,9 +793,21 @@ export class InvokeService {
           }
         }
         request.step_contract = reconstructed;
-      } catch {
-        // Reconstruction is best-effort; a failure must not break the relayed
-        // invoke. The handler still receives params/artifacts_in.
+      } catch (error) {
+        // A typed artifact validation failure (ACL / expiry / digest / not-found
+        // from the relayed reference) rejects the invoke with parity codes — a
+        // caller-supplied `step_contract` may not bypass `artifacts_in`
+        // authorization. A digest mismatch raised while writing the consumer
+        // copy is likewise a validation failure. Anything else (reconstruction
+        // / transport / copy I/O) is best-effort: drop the contract and let the
+        // handler run with params.
+        if (error instanceof RelayedArtifactValidationError) {
+          const status = error.code === "ARTIFACT_ACCESS_DENIED" ? 403 : 404;
+          return { http: status as 403 | 404, body: { code: error.code, message: error.message } };
+        }
+        if (error instanceof ArtifactMaterializationError && error.code === "ARTIFACT_DIGEST_MISMATCH") {
+          return { http: 404 as const, body: { code: error.code, message: error.message } };
+        }
         request.step_contract = undefined;
       }
     }

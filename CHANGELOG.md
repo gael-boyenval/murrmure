@@ -44,9 +44,21 @@
   visibility (`materializeConsumerCopyDirectory`).
 - Remote/federated consumers receive **ordered immutable artifact references**
   (`transfer_id`, `digest`, `size_bytes`) and materialize them in their own
-  space. The journaled dispatch audit carries opaque references
+  space. The destination fetches each referenced artifact from the producer's
+  new `GET /v1/artifacts/{transfer_id}/bytes` endpoint using the relayed
+  `hub_url` / `hub_token` (no destination pre-seeding), re-verifies the digest,
+  writes consumer copies under its own run-scratch tree, and rebinds them into
+  the handler tokens. The journaled dispatch audit carries opaque references
   (`artifact:{producer}:{slot}(:directory)`, or the transfer id) — never a
   `.mrmr/dev/runs` host path.
+- Relayed artifact references are validated against `authorized_readers` and
+  expiry before materialization — the same ACL/expiry checks the normal
+  `artifacts_in` path enforces — so a caller cannot bypass artifact
+  authorization by supplying a `step_contract`. An unauthorized relayed
+  reference is rejected with `ARTIFACT_ACCESS_DENIED` (403) before any bytes
+  are materialized. The producer `.../bytes` endpoint enforces the same ACL,
+  expiry, and digest checks and is reachable with `blob:read` or a federated
+  `step:resolve` credential.
 - **Run retention GC**: terminal local bytes expire at `ended_at + 7 days`;
   active run directories are never collected. GC runs at Hub startup and every
   24 hours, removes only the per-run tree, preserves journal metadata and

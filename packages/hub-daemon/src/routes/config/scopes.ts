@@ -19,11 +19,29 @@ export function hasScope(ctx: TokenContext, scope: string): boolean {
   return ctx.scopes.includes(scope) || ctx.scopes.includes("space:admin");
 }
 
+/** True when the token holds any of the given scopes (or `space:admin`). */
+export function hasAnyScope(ctx: TokenContext, scopes: string[]): boolean {
+  if (ctx.space_id === "bootstrap") return true;
+  if (ctx.scopes.includes("space:admin")) return true;
+  return scopes.some((scope) => ctx.scopes.includes(scope));
+}
+
 export function requireScope(ctx: TokenContext, scope: string): Response | null {
   if (hasScope(ctx, scope)) return null;
   return denialResponse(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
     message: SCOPE_MESSAGES[scope] ?? `Missing required scope: ${scope}`,
     hint: { required_scope: scope, nearest_space_id: ctx.space_id !== "bootstrap" ? `spc_${ctx.space_id}` : undefined },
+  });
+}
+
+/** Require any one of the given scopes; used by endpoints reachable through
+ *  more than one capability (e.g. artifact bytes via `blob:read` or a federated
+ *  `step:resolve` credential). */
+export function requireAnyScope(ctx: TokenContext, scopes: string[]): Response | null {
+  if (hasAnyScope(ctx, scopes)) return null;
+  return denialResponse(MURRMURE_DENIAL_CODES.SCOPE_ENFORCEMENT_FAILURE, {
+    message: `Missing required scope: ${scopes.join(" or ")}`,
+    hint: { required_scopes: scopes, nearest_space_id: ctx.space_id !== "bootstrap" ? `spc_${ctx.space_id}` : undefined },
   });
 }
 

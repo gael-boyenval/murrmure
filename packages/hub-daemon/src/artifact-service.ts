@@ -13,6 +13,8 @@ import {
   exchangeFilePath,
   inboxFilePath,
   isArtifactReaderAuthorized,
+  isArtifactExpired,
+  computeBytesDigest,
   outboxFilePath,
   planMaterialize,
   registerArtifactManifest,
@@ -274,6 +276,83 @@ export class ArtifactService {
       expires_at: row.expires_at,
       bytes: this.readExchangeBytes(row.transfer_id, row.name),
     };
+  }
+
+  /**
+   * Serve the raw bytes of a registered artifact to a federated consumer after
+   * enforcing the same ACL / expiry / digest checks the local materialize path
+   * enforces. This is the producer-side surface that lets a destination hub
+   * fetch relayed artifact references by `transfer_id` without destination
+   * pre-seeding: the consumer invokes this via the relayed `hub_token` /
+   * `hub_url`, verifies the digest against the relayed reference, and
+   * materializes a verified consumer copy in its own space.
+   *
+   * Authorization is the artifact's `authorized_readers` ACL (the requester
+   * space must be listed) — the gate that matters for a cross-hub fetch where
+   * the caller's token may be scoped to the producer's space. A 403 is returned
+   * for an unauthorized reader, 410 for an expired artifact, 404 when the
+   * artifact or its exchange bytes are missing, and 422 when the exchange bytes
+   * no longer match the registered digest.
+   */
+  async serveArtifactBytes(input: {
+    transfer_id: string;
+    requester_space_id: string;
+    requester_actor_id: string;
+  }): Promise<
+    | { http: 200; bytes: Buffer; name: string; digest: string }
+    | { http: 403 | 404 | 410 | 422; body: { code: string; message: string } }
+  > {
+    const row = await this.studio.getArtifact(input.transfer_id);
+    if (!row) {
+      return {
+        http: 404,
+        body: { code: "ARTIFACT_NOT_FOUND", message: "Artifact not found" },
+      };
+    }
+
+    if (
+      !isArtifactReaderAuthorized(
+        row.authorized_readers,
+        input.requester_space_id,
+        input.requester_actor_id,
+      )
+    ) {
+      return {
+        http: 403,
+        body: {
+          code: "ARTIFACT_ACCESS_DENIED",
+          message: "Reader is not authorized for this artifact",
+        },
+      };
+    }
+
+    if (isArtifactExpired(row.expires_at)) {
+      return {
+        http: 410,
+        body: { code: "ARTIFACT_EXPIRED", message: "Artifact has expired" },
+      };
+    }
+
+    const exchangePath = exchangeFilePath(this.dataDir(), row.transfer_id, row.name);
+    if (!existsSync(exchangePath)) {
+      return {
+        http: 404,
+        body: { code: "ARTIFACT_NOT_FOUND", message: "Artifact bytes are not available" },
+      };
+    }
+
+    const bytes = this.readExchangeBytes(row.transfer_id, row.name);
+    if (computeBytesDigest(bytes) !== row.digest) {
+      return {
+        http: 422,
+        body: {
+          code: "ARTIFACT_DIGEST_MISMATCH",
+          message: `Digest mismatch for artifact '${input.transfer_id}'`,
+        },
+      };
+    }
+
+    return { http: 200, bytes, name: row.name, digest: row.digest };
   }
 
   async runGc(actor_id = "actor_system", token_id = "01JBOOTSTRAPTOKEN00000001"): Promise<number> {
