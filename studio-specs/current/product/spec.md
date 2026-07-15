@@ -95,7 +95,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 6. **CLI-first mutation; shell-first observation** — shell reacts in real time to CLI.
 7. **Artifact exchange** — `.mrmr.temp/` + global exchange store.
 8. **Harness-agnostic clients** — Cursor, Claude Desktop, CLI, cron, federation.
-9. **Preserve v1** — evolve with explicit migration aliases (`instance_id` → `run_id`).
+9. **Preserve v1** — cutover complete; migration aliases removed (historical record in [§10.8](#108-v1-migration-aliases-historical-non-normative)).
 
 ---
 
@@ -238,7 +238,7 @@ Flow declares graph once; each Run records execution of a segment or matrix bran
 | Origin | `step_id` | Step memo |
 |--------|-----------|-----------|
 | Hook delivery | `hook:{hook_id}` | Single row; journal replay or one-node graph |
-| Direct action invoke | `action:{action_name}` | Same |
+| Direct action invoke *(legacy — HANDLER-CUTOVER)* | `action:{action_name}` | Same; superseded by `handler:{id}` for new spaces |
 | MCP orchestration attach (pre-bind) | `orchestration:proposed` | Until graph binds; then flow step ids apply |
 
 **Session cancel cascade:**
@@ -300,9 +300,9 @@ contract_key := {flow_ref}.{qualified_step_id}
 
 ### 4.1 Action + Executor *(legacy — HANDLER-CUTOVER)*
 
-The sections below describe the pre-cutover **Action + Executor** invoke model. Legacy `actions.yaml`, `executors.yaml`, and `hooks.yaml` remain accepted until HANDLER-CUTOVER; new spaces should use handlers only.
+The sections below describe the pre-cutover **Action + Executor** invoke model, including the public action-invoke HTTP route in [§4.4](#44-invoke-http). Legacy `actions.yaml`, `executors.yaml`, and `hooks.yaml` — and that `POST /v1/spaces/{space_id}/actions/{action_name}/invoke` route — remain accepted until HANDLER-CUTOVER; new spaces use handlers + `murrmure_resolve_step` instead (no public action-invoke route in the clean protocol).
 
-### 4.1a Action (space-owned, hub-indexed)
+### 4.1a Action (space-owned, hub-indexed) *(legacy — HANDLER-CUTOVER)*
 
 ```yaml
 # legacy: .mrmr/space/actions.yaml (or murrmure/actions.yaml during migration)
@@ -362,7 +362,7 @@ executors:
     type: shell_spawn
 ```
 
-### 4.3 Invoke preflight (new — required)
+### 4.3 Invoke preflight *(legacy — HANDLER-CUTOVER)*
 
 Before marking invoke `dispatched`:
 
@@ -374,7 +374,7 @@ Before marking invoke `dispatched`:
 
 Replaces the removed v1 `mcp.wake_pending` silent default.
 
-### 4.4 Invoke HTTP
+### 4.4 Invoke HTTP *(legacy — HANDLER-CUTOVER)*
 
 ```http
 POST /v1/spaces/{space_id}/actions/{action_name}/invoke

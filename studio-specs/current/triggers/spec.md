@@ -54,21 +54,28 @@ handlers:
 - Citizen integrator marketplace
 - Parallel fan-out override (hub default sequential per partition)
 
-## Legacy trigger action schema (`mcp_wake`)
+## Legacy trigger action schema (`mcp_wake` — retired)
 
-Legacy trigger templates use **`action.type: "mcp_wake"`** (retired `POST /v1/mcp/wake` wire; new spaces use `on: event:` handlers — see [bridges/triggers.md](../bridges/triggers.md)):
+> **Removed (Task 15 Lane C).** The `mcp_wake` trigger-action schema is a
+> historical preset only — the `POST /v1/mcp/wake` wire is retired (**404**,
+> phase 16) and `mcpWake(...)` is not a runtime primitive. New spaces use
+> `on: event:` handlers + `murrmure_emit_event` — see [bridges/triggers.md](../bridges/triggers.md). The shape below is retained as a removal record.
+
+Legacy trigger templates used **`action.type: "mcp_wake"`** (retired wire; new spaces use `on: event:` handlers):
 
 ```typescript
+// Historical only — retired wire; do not implement. Clean protocol: event
+// handlers + murrmure_emit_event.
 interface McpWakeAction {
   type: "mcp_wake";
   target_space_id: string;
-  wake_label: string;           // canonical — routing metadata, not catalog tool name
+  wake_label: string;           // retired — routing metadata, not catalog tool name
   payload_map: Record<string, string>;  // JSONPath → payload field
   session_hint?: "wake";
 }
 ```
 
-**Legacy aliases (read only, normalize on register):** `wake_mcp_agent`, `tool` → map to `mcp_wake` + `wake_label`.
+**Legacy aliases (retired, normalize on register was removed):** `wake_mcp_agent`, `tool` → mapped to `mcp_wake` + `wake_label` — gone with the wire.
 
 **Dedup block (canonical):**
 
@@ -81,28 +88,18 @@ interface TriggerDedup {
 
 **Dedup drop reason (canonical enum):** `duplicate_business_key` | `duplicate_event_id` | `disabled` | `policy_denied`
 
-**Registration:** requires scope `trigger:register`. Handler `wake_label` values must be on space **allow-list** (configurable per space; default: template presets only). Registration appends audit row.
+**Registration (legacy):** required scope `trigger:register`; the retired `wake_label` allow-list no longer applies — the clean protocol gates emittable event types in `.mrmr/space/events.yaml` at apply time. Registration appends audit row.
 
-## Template: `spec-published-wake-dev` (legacy)
+## Template: `spec-published-wake-dev` (legacy — retired)
 
-**When:** `spec.published` in source space (Specs).
+> **Removed (Task 15 Lane C).** This `mcp_wake` trigger template is a historical
+> preset only — the wire is retired (**404**, phase 16) and the
+> retired `wake_label` (`handle_spec_published`) routes nowhere. The clean protocol
+> reacts to `spec.published` with an `on: event:` handler in
+> `.mrmr/space/handlers.yaml` that runs `mrmr flow run`. Kept as a removal record.
 
-**Action:** `mcp_wake` (legacy trigger action)
-
-```json
-{
-  "type": "mcp_wake",
-  "target_space_id": "spc_dev_code",
-  "wake_label": "handle_spec_published",
-  "payload_map": {
-    "spec_key": "$.payload.spec_key",
-    "title": "$.payload.title",
-    "version": "$.payload.version",
-    "summary": "$.payload.summary",
-    "source_space_id": "$.space_id"
-  }
-}
-```
+**When (historical):** `spec.published` in source space (Specs).
+**Action (historical):** retired `mcp_wake` trigger action targeting `spc_dev_code` with the retired `wake_label` `handle_spec_published`.
 
 **Do not include `body_ref` in wake payload** — cross-space minimum disclosure (c02-J14). Woken agent fetches detail via `query_ask` / `spec_summary@1` on source space.
 
@@ -112,22 +109,16 @@ Republish same version → dedup drop. Republish v2 → new delivery.
 
 **Partition:** `space_id:instance_id` from source event.
 
-## Template: `work-ready-wake-frontend` (legacy)
+## Template: `work-ready-wake-frontend` (legacy — retired)
 
-**When:** `work.ready` in `backend-api`, filter `payload.type == "api_change"`.
+> **Removed (Task 15 Lane C).** This `mcp_wake` trigger template is a historical
+> preset only — the wire is retired (**404**, phase 16) and the
+> retired `wake_label` (`handle_work_ready`) routes nowhere. The clean protocol reacts
+> to `work.ready` with an `on: event:` handler that runs `mrmr flow run`. Kept
+> as a removal record.
 
-```json
-{
-  "type": "mcp_wake",
-  "target_space_id": "spc_ui_sandbox",
-  "wake_label": "handle_work_ready",
-  "payload_map": {
-    "type": "$.payload.type",
-    "summary": "$.payload.summary",
-    "openapi_diff_ref": "$.payload.openapi_diff_ref"
-  }
-}
-```
+**When (historical):** `work.ready` in `backend-api`, filter `payload.type == "api_change"`.
+**Action (historical):** retired `mcp_wake` trigger action targeting `spc_ui_sandbox` with the retired `wake_label` `handle_work_ready`.
 
 **Dedup default:** `{ "key_jsonpaths": ["$.payload.openapi_diff_ref"], "window_seconds": 86400 }`
 
@@ -177,12 +168,14 @@ Rebuilt on `capability.live_applied`.
 > **Retired wire:** `POST /v1/mcp/wake` returns **404** (phase 16). New spaces declare event reactions with `on: event:` in `.mrmr/space/handlers.yaml` and emit via `murrmure_emit_event` (`event:emit` capability); downstream work starts through flow triggers — **not** `murrmure_invoke_action` (removed, Task 15 Lane A). The legacy internal dispatch below applies only to unmigrated `mcp_wake` trigger templates.
 
 ```typescript
+// Historical only — retired wire; no mcpWake(...) runtime primitive. Clean
+// protocol: on: event: handlers + murrmure_emit_event (not mcpWake).
 const payload = applyJsonPathMap(sourceEvent.payload, action.payload_map);
-await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" });
+await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" }); // gone
 ```
 
-**session_hint wake (v1):** prefer connected MCP session on target space; else enqueue + `control.wake_pending`.  
-**v2 default:** invoke preflight — fail fast when no MCP session unless queue mode opted in.
+**session_hint wake (v1, retired):** the retired `control.wake_pending` queue no longer exists — fail fast instead.
+**v2 default (clean protocol):** invoke preflight — fail fast when no MCP session unless queue mode opted in.
 
 ## Trigger builder UI
 

@@ -97,6 +97,28 @@ const ACTIVE_GUIDANCE_FORBIDDEN = [
     allowIf: REMOVAL_CONTEXT,
   },
 ];
+// mcp_wake wire tokens (mcpWake, control.wake_pending, wake_label) are retired
+// (Task 15 Lane C). They may appear in normative markdown only as explicit
+// removal/historical descriptions — never as active prescription. Scoped to
+// `.md` so historical `.json` fixtures (test data, not prescription) are exempt.
+const ACTIVE_GUIDANCE_MD_ROOTS = ["studio-specs/current"];
+const ACTIVE_GUIDANCE_MD_FORBIDDEN = [
+  {
+    label: "active removed mcpWake runtime call",
+    pattern: /\bmcpWake\b/,
+    allowIf: REMOVAL_CONTEXT,
+  },
+  {
+    label: "active removed control.wake_pending prescription",
+    pattern: /control\.wake_pending/,
+    allowIf: REMOVAL_CONTEXT,
+  },
+  {
+    label: "active removed wake_label prescription",
+    pattern: /\bwake_label\b/,
+    allowIf: REMOVAL_CONTEXT,
+  },
+];
 const SKILL_EVAL_ROOTS = ["packages/cli/test/skill-eval"];
 const SKILL_EVAL_FORBIDDEN = [
   {
@@ -177,6 +199,12 @@ scan(
     collectFiles(join(REPO_ROOT, path), /\.json$/),
   ),
   SKILL_EVAL_FORBIDDEN,
+);
+scan(
+  ACTIVE_GUIDANCE_MD_ROOTS.flatMap((path) =>
+    collectFiles(join(REPO_ROOT, path), /\.md$/),
+  ),
+  ACTIVE_GUIDANCE_MD_FORBIDDEN,
 );
 
 if (hits.length > 0) {

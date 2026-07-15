@@ -403,11 +403,14 @@ Timeout returns **200 + structured snapshot**, not silent hang.
 - `partition.key`: `space_id` (default) | `space_id:instance_id` | `trigger_id`
 - `alerting.on_external_failure`: `default` | `enabled` | `disabled`
 
-### Handler allow-list (v1)
+### Handler allow-list (v1 — historical)
+
+> **Removed (Task 15 Lane C).** The `mcp_wake` handler type is a retired
+> historical preset (the `POST /v1/mcp/wake` wire returns **404**, phase 16). The clean protocol uses **event handlers** in `.mrmr/space/handlers.yaml` (`on: event: { type, source? }`) + **`murrmure_emit_event`** (`event:emit` capability) + flow start conditions — not this v1 allow-list. The table below is a removal record only.
 
 | Type | Idempotent default |
 |------|-------------------|
-| `mcp_wake` | yes |
+| `mcp_wake` (retired — 404) | yes |
 | `http_webhook` | configurable |
 | `http_github_actions_dispatch` | **no** |
 | `cli_allowlisted` | configurable |

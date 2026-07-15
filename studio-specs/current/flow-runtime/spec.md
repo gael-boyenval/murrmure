@@ -166,7 +166,7 @@ Pre-invoke on `tools/call`: verify tool ∈ catalog; strict Zod per flow leaf.
 
 > **Removed (Task 15 Lane C).** The active `mcp_wake` / `wake_label` dispatch
 > flow is no longer part of the protocol. The legacy `POST /v1/mcp/wake` wire
-> returns **404** (phase 16), and the `control.wake_pending` pending-wake queue
+> returns **404** (phase 16), and the retired `control.wake_pending` pending-wake queue
 > and `mcp.wake_delivered` / `mcp.wake_pending` journal events are gone —
 > `mcpWake(...)` is not a runtime primitive. The clean protocol uses **event
 > handlers** (`.mrmr/space/handlers.yaml` `on: event: { type, source? }`),

@@ -13,8 +13,8 @@ Symptom IDs from [plan/index.md § Gaps](../plans/product/plan/index.md) — all
 | ID | Symptom | Phase | Fixture | Test |
 |----|---------|-------|---------|------|
 | B1 | ~~Checkpoint steps dispatch~~ — removed (Task 15 Lane A) | 03 → 15 | removed; superseded by `step:resolve` | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
-| B2 | `{{steps.*}}` templates | 03 | `fixtures/flow-engine/step-output-chaining.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
-| B3 | `MURRMURE_INPUT` on shell_spawn | 03 | `fixtures/flow-engine/murrmure-input-env.json` | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| B2 | `{{steps.*}}` templates | 03 | `fixtures/flow-engine/step-output-chaining.json` | `packages/hub-core/test/unit/flow-engine/step-output.test.ts` |
+| B3 | `MURRMURE_INPUT` on shell_spawn | 03 | `fixtures/flow-engine/murrmure-input-env.json` | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` — see [Tutorial v3 (TV3)](#tutorial-v3-progressive-conformance-tv3) |
 | B4 | ViewCanvasHost at checkpoints | 05 | — (inline context) | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
 | B5 | Apply lint capabilities | 01 | `fixtures/space-apply/unsupported-step-kind.json` | `packages/cli/test/space-apply.test.ts` |
 | B6 | `space flow init` scaffold | 04 | — (snapshot tree) | `packages/cli/test/space-flow-init.test.ts` |
@@ -100,9 +100,9 @@ Test tree: `test-utils/spaces/preview-review-v2/`.
 |----|-------------------|--------|-------|------|
 | R1 | `test-utils/spaces/preview-review-v2/` + `fixtures/reference-workflow/preview-review-v2-apply.json` | Normative tree passes `space apply --strict` | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
 | R3 | shell ViewCanvasHost | Checkpoint view in primary region (not drawer) | CI | `packages/shell-web/src/components/ViewCanvasHost.test.tsx` |
-| R4 | `fixtures/flow-engine/gate-loop-on-resolve.json` | Request changes → build reruns (engine half) | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
-| R5 | `fixtures/flow-engine/declarative-gate-chain.json` | Validated → terminal completed | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
-| R4/R5 | `fixtures/flow-engine/step-output-chaining.json` | `{{steps.*}}` in invoke params | CI | `packages/hub-core/test/unit/flow-engine/checkpoint.test.ts` |
+| R4 | `fixtures/flow-engine/gate-loop-on-resolve.json` | Request changes → build reruns (engine half) | CI | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
+| R5 | `fixtures/flow-engine/declarative-gate-chain.json` | Validated → terminal completed | CI | `packages/hub-core/test/unit/flow-engine/step-resolve.test.ts` |
+| R4/R5 | `fixtures/flow-engine/step-output-chaining.json` | `{{steps.*}}` in invoke params | CI | `packages/hub-core/test/unit/flow-engine/step-output.test.ts` |
 | R6 | example + workflow grep | Zero legacy install commands in reference workflow | CI | `packages/cli/test/preview-review-v2-example.test.ts` |
 | R2 | Tutorial 1 walkthrough | Non-contributor scaffold → Run Desktop | manual | release checklist **10-T1** |
 | R3/R4 | Tutorial 1 visual | ViewCanvasHost + round-trip UX | manual | release checklist **10-T1** |
