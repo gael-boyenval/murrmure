@@ -3,7 +3,8 @@
 **Status:** Ready after Task 13  
 **Build order:** 14  
 **Depends on:** 13  
-**Source work packages:** final acceptance subset of T01/T15
+**Source work packages:** final acceptance subset of T01/T15  
+**Deferred to Task 15:** legacy v2 runtime, CLI typecheck debt, v2 tutorial/bridge docs — see [Task 15](./15-legacy-v2-runtime-typecheck-and-docs.md)
 
 ## Goal
 

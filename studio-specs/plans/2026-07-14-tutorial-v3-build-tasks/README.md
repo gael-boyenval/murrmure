@@ -37,6 +37,7 @@ This directory turns the coordinating plan into implementation-sized tasks. Task
 | 12 | [Use one truthful flow page from preview through history](./12-shared-flow-page.md) | 7 | 03, 04, 05, 07, 09 | Users inspect and run a flow on one authorization-safe static/live/historical graph. |
 | 13 | [Complete the clean-slate cutover](./13-clean-slate-cutover.md) | 8 | 01–12 | Removed APIs, seed/FDK behavior, paths, UI, docs, and skills cannot return. |
 | 14 | [Release through the complete tutorial](./14-release-through-tutorial.md) | 9 | 13 | Parts 1–6 pass verbatim in CI and packaged macOS acceptance with required evidence. |
+| 15 | [Legacy v2 runtime, CLI typecheck, and v2 docs cutover](./15-legacy-v2-runtime-typecheck-and-docs.md) | 10 | 14 | Deferred Task 13/14 blockers closed: v2 runtime removed, `pnpm -r typecheck` green, v2 tutorials/bridges retired. |
 
 ## Parallel build waves
 
@@ -47,10 +48,13 @@ This directory turns the coordinating plan into implementation-sized tasks. Task
                  │       │       └──> 08
                  │       └──────────> 11
                  └──> 09 ───────────> 12
-01–12 ───────────────────────────────> 13 ──> 14
+01–12 ───────────────────────────────> 13 ──> 14 ──> 15
+                                              ├── A (v2 runtime)
+                                              ├── B (CLI typecheck)
+                                              └── C (v2 docs) after A
 ```
 
-Tasks 08, 10, 11, and 12 may proceed in parallel once their own dependencies are satisfied. Task 13 is an integration/removal gate, not permission to defer slice-owned cleanup or documentation.
+Tasks 08, 10, 11, and 12 may proceed in parallel once their own dependencies are satisfied. Task 13 is an integration/removal gate, not permission to defer slice-owned cleanup or documentation. Task 15 closes the three blockers deferred from Tasks 13–14 (legacy v2 runtime, CLI typecheck debt, v2 tutorial/bridge docs); Lanes A and B may run in parallel, Lane C waits for Lane A.
 
 ## Hot-file ownership and merge dependencies
 
