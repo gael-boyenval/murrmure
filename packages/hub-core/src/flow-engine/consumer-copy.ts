@@ -274,3 +274,111 @@ export async function materializeConsumerCopyDirectory(input: {
   }
   return { directory, files: results };
 }
+
+export interface RemoteArtifactReferenceFile {
+  name: string;
+  transfer_id?: string;
+  digest?: string;
+  size_bytes?: number;
+}
+
+export interface RemoteArtifactReferenceSlot {
+  producer_step: string;
+  slot: string;
+  cardinality: "singleton" | "collection";
+  files: RemoteArtifactReferenceFile[];
+}
+
+export interface MaterializedRemoteReferenceFile {
+  name: string;
+  transfer_id?: string;
+  digest: string;
+  /** Absolute path of the verified consumer copy in the destination space. */
+  path: string;
+}
+
+export interface MaterializedRemoteReferenceSlot {
+  producer_step: string;
+  slot: string;
+  cardinality: "singleton" | "collection";
+  /** Verified consumer copies in submission order (only files with local bytes). */
+  files: MaterializedRemoteReferenceFile[];
+  /** Absolute consumer directory for a collection slot, when materialized. */
+  directory?: string;
+}
+
+/**
+ * Materialize ordered remote artifact references into the destination space's
+ * consumer input tree. For each collection slot, one verified directory is
+ * built under `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/`
+ * containing every referenced file whose bytes are local, in submission order,
+ * each digest-verified and atomically renamed into place. Singletons are
+ * written as a single verified copy. References whose bytes are not local are
+ * skipped (returned without a `path`) so the handler can fetch them via the
+ * relayed `hub_token` / `hub_url`. No producer host path is read or written.
+ */
+export async function materializeRemoteArtifactReferences(input: {
+  space_root: string;
+  run_id: string;
+  consumer_step: string;
+  references: RemoteArtifactReferenceSlot[];
+  loadBytes: (transfer_id: string) => Promise<{ bytes: Uint8Array; digest?: string } | null>;
+}): Promise<MaterializedRemoteReferenceSlot[]> {
+  const results: MaterializedRemoteReferenceSlot[] = [];
+  for (const ref of input.references) {
+    const directory =
+      ref.cardinality === "collection"
+        ? consumerInputsDirPath(input.space_root, input.run_id, input.consumer_step, ref.slot)
+        : undefined;
+    if (directory) await mkdir(directory, { recursive: true });
+    const files: MaterializedRemoteReferenceFile[] = [];
+    try {
+      for (const file of ref.files) {
+        if (!file.transfer_id) continue;
+        const loaded = await input.loadBytes(file.transfer_id);
+        if (!loaded) continue;
+        const bytes = Buffer.from(loaded.bytes);
+        const digest = loaded.digest ?? sha256OfFile(bytes);
+        if (file.digest && file.digest !== digest) {
+          throw new ArtifactMaterializationError(
+            "ARTIFACT_DIGEST_MISMATCH",
+            `Remote artifact '${file.name}' (transfer ${file.transfer_id}) digest mismatch: expected ${file.digest}, got ${digest}`,
+          );
+        }
+        const dest = consumerInputPath(
+          input.space_root,
+          input.run_id,
+          input.consumer_step,
+          ref.slot,
+          file.name,
+        );
+        await mkdir(dirname(dest), { recursive: true });
+        const tmp = join(dirname(dest), `.tmp-${randomBytes(8).toString("hex")}`);
+        try {
+          await writeFile(tmp, bytes);
+          await rename(tmp, dest);
+        } catch (error) {
+          await rm(tmp, { force: true });
+          throw new ArtifactMaterializationError(
+            "ARTIFACT_COPY_FAILED",
+            `Failed to materialize remote artifact '${file.name}': ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+        files.push({ name: file.name, transfer_id: file.transfer_id, digest, path: dest });
+      }
+    } catch (error) {
+      if (directory) await rm(directory, { recursive: true, force: true });
+      throw error;
+    }
+    results.push({
+      producer_step: ref.producer_step,
+      slot: ref.slot,
+      cardinality: ref.cardinality,
+      files,
+      directory,
+    });
+  }
+  return results;
+}

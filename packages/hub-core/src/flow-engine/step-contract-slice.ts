@@ -10,13 +10,19 @@ import type {
   RunStepMemo,
 } from "@murrmure/contracts";
 import { payloadSchemaForContract } from "@murrmure/contracts";
-import type { InvokeStepContractContext } from "@murrmure/runtime-contracts";
+import type {
+  InvokeStepContractContext,
+  RemoteStepContractRelay,
+} from "@murrmure/runtime-contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { catalogEntryForStep, flowStepContractCatalog, nestedCatalogChildren } from "./step-catalog.js";
 import {
   artifactPathsForInputs,
   buildArtifactMurrmureBindings,
+  buildRemoteArtifactReferences,
   runArtifactsFromExecContext,
+  sanitizeRunArtifactsBagForRemote,
+  type RunArtifactsBag,
 } from "./step-artifacts.js";
 import {
   activeContractPath,
@@ -618,5 +624,118 @@ export async function listStepContractsForRun(
     active,
     callable,
     graph_digest: catalog.graph_digest,
+  };
+}
+
+/**
+ * Build a reference-only step contract slice for the remote/federated
+ * boundary. The producer `workdir` (a run-scratch relative path) is dropped,
+ * and `inputs_from_run` is rewritten to drop every producer `.path` /
+ * `.directory` artifact key while preserving ordered `.files` references,
+ * `.transfer_ids`, step outputs, and run input values. The returned slice
+ * carries no host path and no local artifact token.
+ */
+export function sanitizeStepContractSliceForRemote(slice: StepContractSlice): StepContractSlice {
+  const sanitizedInputs: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(slice.inputs_from_run ?? {})) {
+    if (key.endsWith(".path") || key.endsWith(".directory")) continue;
+    sanitizedInputs[key] = value;
+  }
+  return {
+    step_id: slice.step_id,
+    parent_id: slice.parent_id,
+    description: slice.description,
+    branches: slice.branches,
+    reason: slice.reason,
+    declared_children: slice.declared_children,
+    returned_child: slice.returned_child,
+    iteration: slice.iteration,
+    inputs_from_run: sanitizedInputs,
+  };
+}
+
+/**
+ * Build a reference-only `RemoteStepContractRelay` from a local
+ * `InvokeStepContractContext` for `remote_hub` dispatch. The producer
+ * `contract_path`, `workdir`, and `prompt_bindings` (host paths) are dropped;
+ * the slice is sanitized; `run_artifacts` drops every `path` field; and
+ * ordered `artifact_references` are derived from the run artifacts bag. The
+ * result carries no host path, run-scratch path, or local `.path` /
+ * `.directory` token, so it is safe to relay across a federation boundary.
+ * Returns `undefined` when the source slice JSON cannot be parsed.
+ */
+export function buildRemoteStepContractRelay(
+  stepContract: InvokeStepContractContext,
+): RemoteStepContractRelay | undefined {
+  let slice: StepContractSlice;
+  try {
+    slice = JSON.parse(stepContract.slice_json) as StepContractSlice;
+  } catch {
+    return undefined;
+  }
+  const sanitizedSlice = sanitizeStepContractSliceForRemote(slice);
+  let runArtifactsBag: RunArtifactsBag = {};
+  if (stepContract.run_artifacts_json) {
+    try {
+      runArtifactsBag = JSON.parse(stepContract.run_artifacts_json) as RunArtifactsBag;
+    } catch {
+      runArtifactsBag = {};
+    }
+  }
+  const sanitizedBag = sanitizeRunArtifactsBagForRemote(runArtifactsBag);
+  const artifactReferences = buildRemoteArtifactReferences({ artifacts: sanitizedBag });
+  const relay: RemoteStepContractRelay = {
+    slice: sanitizedSlice as unknown as Record<string, unknown>,
+    artifact_references: artifactReferences,
+  };
+  if (Object.keys(sanitizedBag).length > 0) {
+    relay.run_artifacts = sanitizedBag as unknown as Record<string, unknown>;
+  }
+  if (stepContract.contract_key_count !== undefined) {
+    relay.contract_key_count = stepContract.contract_key_count;
+  }
+  if (stepContract.hub_token) relay.hub_token = stepContract.hub_token;
+  if (stepContract.hub_url) relay.hub_url = stepContract.hub_url;
+  return relay;
+}
+
+/**
+ * Reconstruct a local `InvokeStepContractContext` on the destination hub from
+ * a relayed reference-only `RemoteStepContractRelay`. The sanitized slice is
+ * written to the destination's canonical active-step-contract path; `workdir`
+ * and `contract_path` point at the destination space's run-scratch tree;
+ * prompt bindings are rebuilt locally from the sanitized slice and the
+ * reference-only run artifacts bag (so no producer host path is reconstructed).
+ * `hub_token` / `hub_url` are carried through so the remote handler can fetch
+ * artifact bytes from the origin hub when they are not already local.
+ */
+export async function reconstructStepContractFromRelay(
+  relay: RemoteStepContractRelay,
+  input: { space_root: string; run_id: string; step_id: string },
+): Promise<InvokeStepContractContext> {
+  const slice = relay.slice as unknown as StepContractSlice;
+  await writeActiveStepContract({
+    space_root: input.space_root,
+    run_id: input.run_id,
+    slice,
+  });
+  const runArtifactsBag = (relay.run_artifacts ?? {}) as RunArtifactsBag;
+  const promptBindings = buildMurrmurePromptBindings({
+    slice,
+    space_root: input.space_root,
+    run_id: input.run_id,
+    exec_context: { artifacts: runArtifactsBag },
+    artifact_transport: "remote_reference",
+  });
+  return {
+    slice_json: JSON.stringify(slice),
+    contract_path: activeStepContractPath(input.space_root, input.run_id),
+    workdir: stepWorkdirPath(input.space_root, input.run_id, slice.step_id),
+    prompt_bindings: promptBindings,
+    run_artifacts_json:
+      Object.keys(runArtifactsBag).length > 0 ? JSON.stringify(runArtifactsBag) : undefined,
+    contract_key_count: relay.contract_key_count,
+    hub_token: relay.hub_token,
+    hub_url: relay.hub_url,
   };
 }

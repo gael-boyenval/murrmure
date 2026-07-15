@@ -287,6 +287,146 @@ export function runArtifactsFromExecContext(execContext: Record<string, unknown>
 }
 
 /**
+ * One ordered artifact reference for a remote/federated consumer — never a
+ * local path. Mirrors `RemoteArtifactFileReference` on the wire.
+ */
+export interface RemoteArtifactFileReference {
+  name: string;
+  transfer_id?: string;
+  digest?: string;
+  size_bytes?: number;
+}
+
+/**
+ * Ordered artifact references for one producer step + slot, for remote relay.
+ * `cardinality` is carried so the remote consumer binds the correct token
+ * shape without the producer's catalog.
+ */
+export interface RemoteArtifactSlotReference {
+  producer_step: string;
+  slot: string;
+  cardinality: "singleton" | "collection";
+  files: RemoteArtifactFileReference[];
+}
+
+/**
+ * Ordered artifact references for remote/federated consumers — never local
+ * paths. One entry per producer step + slot, preserving submission order.
+ * Remote consumers materialize a collection directory or a singleton copy from
+ * the immutable `transfer_id` / `digest` references in their own space.
+ */
+export function buildRemoteArtifactReferences(
+  execContext: Record<string, unknown>,
+): RemoteArtifactSlotReference[] {
+  const artifacts = runArtifactsFromExecContext(execContext);
+  const refs: RemoteArtifactSlotReference[] = [];
+  for (const [stepId, slots] of Object.entries(artifacts)) {
+    for (const [slot, record] of Object.entries(slots)) {
+      refs.push({
+        producer_step: stepId,
+        slot,
+        cardinality: record.cardinality,
+        files: record.files.map((file) => ({
+          name: file.name,
+          transfer_id: file.transfer_id,
+          digest: file.digest,
+          size_bytes: file.size_bytes,
+        })),
+      });
+    }
+  }
+  return refs;
+}
+
+/**
+ * Reference-only `inputs_from_run` projection for the remote boundary. Drops
+ * the producer `.path` / `.directory` keys (host-relative run-scratch paths);
+ * keeps ordered `.files` references and `.transfer_ids` for collections, and
+ * `.transfer_id` plus `name` / `digest` / `size_bytes` for singletons. Step
+ * outputs and run input values are preserved untouched.
+ */
+export function artifactReferencesForInputs(
+  execContext: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  const artifacts = runArtifactsFromExecContext(execContext);
+  for (const [stepId, slots] of Object.entries(artifacts)) {
+    for (const [slot, record] of Object.entries(slots)) {
+      if (record.cardinality === "collection") {
+        merged[`steps.${stepId}.artifact.${slot}.files`] = record.files.map((file) => ({
+          name: file.name,
+          transfer_id: file.transfer_id,
+          digest: file.digest,
+          size_bytes: file.size_bytes,
+        }));
+        const transferIds = record.files
+          .map((file) => file.transfer_id)
+          .filter(Boolean) as string[];
+        if (transferIds.length) {
+          merged[`steps.${stepId}.artifact.${slot}.transfer_ids`] = transferIds;
+        }
+        continue;
+      }
+      const file = record.files[0];
+      if (!file) continue;
+      merged[`steps.${stepId}.artifact.${slot}.transfer_id`] = file.transfer_id;
+      merged[`steps.${stepId}.artifact.${slot}.name`] = file.name;
+      merged[`steps.${stepId}.artifact.${slot}.digest`] = file.digest;
+      merged[`steps.${stepId}.artifact.${slot}.size_bytes`] = file.size_bytes;
+    }
+  }
+  return merged;
+}
+
+/**
+ * A run artifacts bag sanitized for the federation boundary: every file is a
+ * reference (`name` / `transfer_id` / `digest` / `size_bytes`) with no producer
+ * `path`. Mirrors `ResolvedStepArtifact` minus the host-relative `path` field.
+ */
+export interface RemoteResolvedArtifactFile {
+  name: string;
+  transfer_id?: string;
+  digest?: string;
+  size_bytes?: number;
+}
+
+export interface RemoteResolvedStepArtifact {
+  slot: string;
+  cardinality: "singleton" | "collection";
+  files: RemoteResolvedArtifactFile[];
+}
+
+export type RemoteRunArtifactsBag = Record<string, Record<string, RemoteResolvedStepArtifact>>;
+
+/**
+ * Drop the local `path` field from every file in a run artifacts bag so the
+ * bag can cross a federation boundary as references only. `name`,
+ * `transfer_id`, `digest`, and `size_bytes` are preserved; `cardinality` and
+ * `slot` are unchanged. The returned bag never carries a host or run-scratch
+ * path.
+ */
+export function sanitizeRunArtifactsBagForRemote(bag: RunArtifactsBag): RemoteRunArtifactsBag {
+  const out: RemoteRunArtifactsBag = {};
+  for (const [stepId, slots] of Object.entries(bag)) {
+    const slotMap: Record<string, RemoteResolvedStepArtifact> = {};
+    for (const [slot, record] of Object.entries(slots)) {
+      slotMap[slot] = {
+        slot: record.slot,
+        cardinality: record.cardinality,
+        files: record.files.map((file) => ({
+          name: file.name,
+          transfer_id: file.transfer_id,
+          digest: file.digest,
+          size_bytes: file.size_bytes,
+        })),
+      };
+    }
+    out[stepId] = slotMap;
+  }
+  return out;
+}
+
+/**
  * Build shell prompt bindings for run artifacts. A singleton slot binds
  * `step.{step}.artifact.{slot}.path` (and `.transfer_id`); a collection slot
  * binds `step.{step}.artifact.{slot}.directory` to its stable promoted slot
@@ -323,6 +463,12 @@ export function buildArtifactMurrmureBindings(artifacts: RunArtifactsBag): Recor
  * (`name`, `transfer_id`, `digest`, `size_bytes`) and a `.transfer_ids` list,
  * never local paths. Remote/federated consumers materialize a collection from
  * the ordered references in their own space.
+ *
+ * This is the **local** projection: `.path` / `.directory` are run-scratch
+ * relative paths meaningful to a local handler whose command placeholders are
+ * overridden with verified consumer copies at spawn. For the federation
+ * boundary use `artifactReferencesForInputs`, which drops `.path` /
+ * `.directory` so no producer host path crosses the wire.
  */
 export function artifactPathsForInputs(execContext: Record<string, unknown>): Record<string, unknown> {
   const merged: Record<string, unknown> = {};

@@ -22,6 +22,8 @@ import {
   registerResolveCredential,
   revokeStepResolveCredentials,
   resolveSpaceRoot,
+  reconstructStepContractFromRelay,
+  materializeRemoteArtifactReferences,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
@@ -676,6 +678,50 @@ export class InvokeService {
       });
       if (stepContract) {
         request.step_contract = stepContract;
+      }
+    }
+
+    // Remote/federated relay: when a peer hub relays a reference-only step
+    // contract (no local run exists on this hub for the relayed run_id, so
+    // `buildFlowInvokeStepContract` returned undefined above), reconstruct a
+    // local `InvokeStepContractContext` from the sanitized relay and carry the
+    // relayed run input. Then best-effort materialize the ordered artifact
+    // references into this space's consumer input tree from any bytes already
+    // local; references without local bytes are left for the handler to fetch
+    // via the relayed `hub_token` / `hub_url`. This never fails the invoke.
+    if (
+      parsed.data.step_contract &&
+      resolved.space_root &&
+      run_id &&
+      parsed.data.step_id &&
+      !request.step_contract
+    ) {
+      const relay = parsed.data.step_contract;
+      try {
+        request.step_contract = await reconstructStepContractFromRelay(relay, {
+          space_root: resolved.space_root,
+          run_id,
+          step_id: parsed.data.step_id,
+        });
+        if (parsed.data.exec_input) {
+          request.exec_input = parsed.data.exec_input;
+        }
+        if (relay.artifact_references?.length) {
+          await materializeRemoteArtifactReferences({
+            space_root: resolved.space_root,
+            run_id,
+            consumer_step: parsed.data.step_id,
+            references: relay.artifact_references,
+            loadBytes: async (transfer_id) => {
+              const row = await this.artifacts.loadArtifactForInvoke(transfer_id);
+              return row ? { bytes: row.bytes, digest: row.manifest.digest } : null;
+            },
+          }).catch(() => undefined);
+        }
+      } catch {
+        // Reconstruction is best-effort; a failure must not break the relayed
+        // invoke. The handler still receives params/artifacts_in.
+        request.step_contract = undefined;
       }
     }
 

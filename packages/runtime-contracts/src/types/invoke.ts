@@ -13,6 +13,53 @@ export interface InvokeStepContractContext {
   hub_url?: string;
 }
 
+/**
+ * One ordered artifact reference for a remote/federated consumer — never a
+ * local path. Remote consumers materialize from the immutable `transfer_id`
+ * and verify against `digest`; `name` preserves collection order.
+ */
+export interface RemoteArtifactFileReference {
+  name: string;
+  transfer_id?: string;
+  digest?: string;
+  size_bytes?: number;
+}
+
+/**
+ * Ordered artifact references for one producer step + slot, relayed across a
+ * federation boundary. `cardinality` is carried so the remote consumer binds
+ * the correct token shape (singleton `.transfer_id` vs collection directory)
+ * without needing the producer's catalog.
+ */
+export interface RemoteArtifactSlotReference {
+  producer_step: string;
+  slot: string;
+  cardinality: "singleton" | "collection";
+  files: RemoteArtifactFileReference[];
+}
+
+/**
+ * Reference-only step contract relayed through `remote_hub`. None of the
+ * fields carry a producer host path, run-scratch path, or local `.path` /
+ * `.directory` token: `slice` is sanitized (no `workdir`, reference-only
+ * `inputs_from_run`), `artifact_references` and `run_artifacts` drop every
+ * `path` field. The destination hub reconstructs a local
+ * `InvokeStepContractContext` from this and materializes references in its own
+ * space; `hub_token` / `hub_url` let the remote handler fetch bytes from the
+ * origin hub when they are not already local.
+ */
+export interface RemoteStepContractRelay {
+  /** Sanitized `StepContractSlice` (no `workdir`; reference-only `inputs_from_run`). */
+  slice: Record<string, unknown>;
+  /** Ordered artifact references per producer step + slot (no local paths). */
+  artifact_references: RemoteArtifactSlotReference[];
+  /** Sanitized run artifacts bag (no `path` fields) for `MURRMURE_RUN_ARTIFACTS`. */
+  run_artifacts?: Record<string, unknown>;
+  contract_key_count?: number;
+  hub_token?: string;
+  hub_url?: string;
+}
+
 /** Shared invoke wire types (rev-1 §4.4). */
 export interface InvokeExpect {
   response_schema?: string;
