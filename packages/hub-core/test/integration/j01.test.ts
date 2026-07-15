@@ -31,7 +31,7 @@ describe("j01/happy-path", () => {
       token_id: "01JMAYATOKEN00000000001",
       actor_id: "actor_maya",
       space_id: bareSpace,
-      capabilities: ["flow:run", "gate:resolve", "space:read"],
+      capabilities: ["flow:run", "space:read"],
     });
 
     const devTok = addTokenId("01JDEVTOKEN000000000001");
@@ -125,7 +125,7 @@ describe("j01/reviewer-gate", () => {
       token_id: "01JMAYATOKEN00000000002",
       actor_id: "actor_maya",
       space_id: bareSpace,
-      capabilities: ["flow:run", "gate:resolve"],
+      capabilities: ["flow:run"],
     });
 
     const devTok = addTokenId("01JDEVTOKEN000000000002");

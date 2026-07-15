@@ -6,8 +6,7 @@ const VALID_CAPABILITIES: Capability[] = [
   "space:enter",
   "flow:read",
   "flow:run",
-  "action:invoke",
-  "gate:resolve",
+  "event:emit",
   "step:resolve",
   "journal:read",
   "executor:poll",
@@ -19,15 +18,15 @@ const V1_SCOPE_TO_CAPABILITIES: Record<string, Capability[]> = {
   "space:read": ["space:read"],
   "space:enter": ["space:enter"],
   "space:admin": ["hub:admin", "space:read", "space:write", "space:enter"],
-  "state:transition": ["flow:run", "action:invoke"],
+  "state:transition": ["flow:run"],
   "event:read": ["journal:read"],
-  "event:emit": ["action:invoke"],
+  "event:emit": ["event:emit"],
   "flow:install": ["space:write", "flow:read"],
   "flow:configure": ["space:write", "flow:read"],
   "trigger:register": ["space:write"],
   "blob:read": ["space:read"],
   "blob:write": ["space:write"],
-  "federation:emit": ["action:invoke"],
+  "federation:emit": ["event:emit"],
 };
 
 export function mapV1ScopesToCapabilities(scopes: string[]): Capability[] {
@@ -69,7 +68,7 @@ export function canStartFlow(capabilities: Capability[]): boolean {
   return hasCapability(capabilities, "flow:run");
 }
 
-/** Conformance: grant without gate:resolve cannot resolve gate. */
+/** Conformance: gate approval / run cancel require flow:run on the run. */
 export function canResolveGate(capabilities: Capability[]): boolean {
-  return hasCapability(capabilities, "gate:resolve");
+  return hasCapability(capabilities, "flow:run");
 }

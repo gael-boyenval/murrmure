@@ -8,7 +8,6 @@ const SCOPE_MESSAGES: Record<string, string> = {
   "space:admin": "Administrator access required for this action",
   "space:read": "Read access to this space is required",
   "space:enter": "You need permission to enter this space",
-  "action:invoke": "Action invoke permission required",
   "flow:install": "Flow install permission required",
   "flow:configure": "Flow configure permission required",
   "trigger:register": "Trigger register permission required",
@@ -63,8 +62,7 @@ export function actorKind(ctx: TokenContext, effective?: Capability[]): "human" 
 
   const caps = effective ?? resolveEffectiveCapabilities({ scopes: ctx.scopes });
   if (hasCapability(caps, "hub:admin")) return "human";
-  if (hasCapability(caps, "gate:resolve") && !hasCapability(caps, "space:write")) return "human";
-  if (hasCapability(caps, ["space:write", "action:invoke", "flow:run"])) return "agent";
+  if (hasCapability(caps, ["space:write", "flow:run"])) return "agent";
 
   return "human";
 }

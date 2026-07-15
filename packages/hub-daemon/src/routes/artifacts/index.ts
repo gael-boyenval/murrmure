@@ -8,14 +8,30 @@ export function mountArtifactRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, artifactService } = ctx;
 
   app.put("/v1/artifacts", async (c) => {
-    const body = await c.req.json();
-    const sourceSpaceId = typeof body?.space_id === "string" ? body.space_id : undefined;
+    const sourceSpaceId = c.req.header("x-murrmure-space-id");
     const auth = await requireToken(murrmurePersistence, c.req.raw, sourceSpaceId);
     if (auth instanceof Response) return auth;
     const scopeCheck = requireScope(auth, "blob:write");
     if (scopeCheck) return scopeCheck;
+
+    const readersHeader = c.req.header("x-murrmure-authorized-readers") ?? "";
+    const ttlDaysHeader = c.req.header("x-murrmure-ttl-days");
+    const metadata = {
+      space_id: sourceSpaceId,
+      name: c.req.header("x-murrmure-name") ?? undefined,
+      authorized_readers: readersHeader
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+      hold: c.req.header("x-murrmure-hold") === "true" ? true : undefined,
+      ttl_days: ttlDaysHeader ? Number(ttlDaysHeader) : undefined,
+      transfer_id: c.req.header("x-murrmure-transfer-id") ?? undefined,
+    };
+
+    const bytes = Buffer.from(await c.req.raw.arrayBuffer());
     const result = await artifactService.putArtifact({
-      body,
+      bytes,
+      metadata,
       actor_id: auth.actor_id,
       token_id: auth.token_id,
     });

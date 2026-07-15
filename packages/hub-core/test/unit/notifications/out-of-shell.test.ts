@@ -29,7 +29,7 @@ describe("notifications/out-of-shell", () => {
     expect(plans[0]?.desktop?.title).toContain("Review");
   });
 
-  test("run failed notifies watchers and gate:resolve holders", () => {
+  test("run failed notifies watchers and flow:run holders", () => {
     const plans = planOutOfShellDispatches({
       event_type: JOURNAL_EVENT_TYPES.RUN_FAILED,
       space_id: "spc_demo",
@@ -37,7 +37,7 @@ describe("notifications/out-of-shell", () => {
       run_id: "run_fail",
       data: {},
       grants: [
-        { grant_id: "g1", space_id: "demo", actor_id: "actor_resolver", scopes: ["gate:resolve"], status: "active" },
+        { grant_id: "g1", space_id: "demo", actor_id: "actor_resolver", scopes: ["flow:run"], status: "active" },
       ],
       session_actor_id: "actor_session",
       created_by: { type: "actor", actor_id: "actor_creator" },

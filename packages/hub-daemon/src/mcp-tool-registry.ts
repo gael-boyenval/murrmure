@@ -146,17 +146,13 @@ export class McpToolRegistry {
       case "space:read":
         return hasCapability(effective, ["space:read", "journal:read"]);
       case "state:transition":
-        return hasCapability(effective, ["flow:run", "action:invoke"]);
+        return hasCapability(effective, "flow:run");
       case "event:emit":
-        return hasCapability(effective, "action:invoke");
-      case "action:invoke":
-        return hasCapability(effective, "action:invoke");
+        return hasCapability(effective, "event:emit");
       case "flow:run":
-        return hasCapability(effective, ["flow:run", "action:invoke"]);
+        return hasCapability(effective, "flow:run");
       case "flow:read":
         return hasCapability(effective, ["flow:read", "flow:run"]);
-      case "gate:resolve":
-        return hasCapability(effective, "gate:resolve");
       case "step:resolve":
         return hasCapability(effective, "step:resolve");
       case "journal:read":

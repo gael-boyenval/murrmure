@@ -180,10 +180,10 @@ export function mountResolveStepRoutes(app: Hono, ctx: DaemonContext): void {
         dispatchSteps: deps.dispatchSteps,
         registerArtifact: async ({ name, bytes }) => {
           const put = await ctx.artifactService.putArtifact({
-            body: {
+            bytes: Buffer.from(bytes),
+            metadata: {
               space_id,
               name,
-              content_base64: bytes.toString("base64"),
               authorized_readers: [space_id, `actor:${auth.actor_id}`],
             },
             actor_id: auth.actor_id,

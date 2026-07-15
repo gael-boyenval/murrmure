@@ -98,13 +98,14 @@ describe("http/artifacts/bytes", () => {
   async function upload(input: { name: string; content: string; authorized_readers: string[] }) {
     const put = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "PUT",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        space_id: spaceA,
-        name: input.name,
-        content_base64: Buffer.from(input.content, "utf8").toString("base64"),
-        authorized_readers: input.authorized_readers,
-      }),
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": input.name,
+        "x-murrmure-authorized-readers": input.authorized_readers.join(","),
+      },
+      body: Buffer.from(input.content, "utf8"),
     });
     expect(put.status).toBe(201);
     return (await put.json()) as { artifact: { transfer_id: string; digest: string } };

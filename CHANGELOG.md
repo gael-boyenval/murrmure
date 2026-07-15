@@ -1,5 +1,54 @@
 # Changelog
 
+## Task 15 Lane A — v2 runtime cutover: capabilities, gates, checkpoints, artifacts (2026-07-15)
+
+### Removed
+
+- `action:invoke` and `gate:resolve` capabilities from the capability enum
+  (`packages/contracts/src/grants/capability.ts`,
+  `packages/hub-core/src/grants/migrate.ts`). No compatibility aliases; v1
+  `event:emit` / `federation:emit` scopes now map to a native `event:emit`
+  capability (not to `action:invoke`).
+- Public `POST /v1/spaces/:id/actions/:name/invoke` HTTP route. Action
+  execution is now internal flow/hook/scheduler dispatch only
+  (`invokeService` used privately). The 10+ action-invoke HTTP tests are
+  strict 404 rejection tests at the boundary.
+- Checkpoint-era flow-engine machinery: `checkpoint-dispatch.ts`,
+  `checkpoint-resolve.ts`, `checkpoint-runner.ts`,
+  `isDeclarativeCheckpointStep`, and v2-only `on_resolve`/`goto` routing in
+  `advance.ts` / `advance-runner.ts` / `gates/service.ts`. All flows are
+  step-contract post-cutover. `checkpoint.test.ts` deleted; Task 08 nested
+  `STEP_YIELDED` / `STEP_RESUMED` verified unregressed.
+- `content_base64` from `ArtifactPutBodySchema` and the `PUT /v1/artifacts`
+  JSON body path. Artifact registration now takes an `application/octet-stream`
+  body with `x-murrmure-space-id` / `x-murrmure-name` /
+  `x-murrmure-authorized-readers` headers; internal `putArtifact` callers
+  (resolve-step promotion) pass raw bytes.
+
+### Changed
+
+- Gate policy: flow step progression uses `step:resolve` only. Run/session
+  cancel, orchestration gate approval, and notification fallbacks now require
+  `flow:run` on the run. `resolveGateV2` renamed to `resolveGate`
+  (`packages/hub-core/src/gates/service.ts`); the checkpoint-gate branch is
+  gone, the orchestration-approval path keeps clean authz.
+- Federated relay wire (`packages/hub-daemon/src/federation-wire.ts`) now
+  targets a dedicated internal dispatch endpoint
+  `POST /v1/federation/relay/spaces/:id/actions/:name/invoke`
+  (`packages/hub-daemon/src/routes/federation/index.ts`), gated on `flow:run`
+  — not the removed public action-invoke route. Cross-hub collection relay
+  verified end-to-end.
+
+### Added
+
+- `event:emit` native capability.
+- `check:clean-state` enforcement now forbids `action:invoke`, `gate:resolve`,
+  `isDeclarativeCheckpointStep` in production source, and `content_base64` in
+  the artifact PUT schema/path.
+- `checkpoint-resolve.json` skill-eval retargeted to post-cutover gate
+  approval (`disposition` / `continue` / `cancel` / `output` + `flow:run`;
+  dropped removed `on_resolve`).
+
 ## Task 15 Lane A — legacy v2 runtime teardown (2026-07-15)
 
 ### Removed

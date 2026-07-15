@@ -58,13 +58,14 @@ describe("http/artifacts/acl", () => {
   test("denies fetch when requester space is not in authorized_readers", async () => {
     const put = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        space_id: spaceA,
-        name: "secret.txt",
-        content_base64: Buffer.from("secret", "utf-8").toString("base64"),
-        authorized_readers: [spaceA],
-      }),
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": "secret.txt",
+        "x-murrmure-authorized-readers": spaceA,
+      },
+      body: Buffer.from("secret", "utf-8"),
     });
     const { artifact } = await put.json();
 

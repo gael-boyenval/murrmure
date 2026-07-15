@@ -68,11 +68,12 @@ export class ArtifactService {
   }
 
   async putArtifact(input: {
-    body: unknown;
+    bytes: Buffer;
+    metadata: unknown;
     actor_id: string;
     token_id: string;
   }) {
-    const parsed = ArtifactPutBodySchema.safeParse(input.body);
+    const parsed = ArtifactPutBodySchema.safeParse(input.metadata);
     if (!parsed.success) {
       return {
         http: 400 as const,
@@ -90,12 +91,7 @@ export class ArtifactService {
       return { http: 404 as const, body: { code: "space_not_found", message: "Space not found" } };
     }
 
-    let bytes: Buffer;
-    try {
-      bytes = Buffer.from(parsed.data.content_base64, "base64");
-    } catch {
-      return { http: 400 as const, body: { code: "INVALID_CONTENT", message: "content_base64 is invalid" } };
-    }
+    const bytes = input.bytes;
     if (bytes.length === 0) {
       return { http: 400 as const, body: { code: "INVALID_CONTENT", message: "Artifact content is empty" } };
     }

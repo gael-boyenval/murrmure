@@ -23,7 +23,7 @@ async function resolveFlowRunAuth(
         scopes: token.scopes,
         capabilities: token.capabilities,
       })
-    : ["hub:admin", "flow:run", "action:invoke"];
+    : ["hub:admin", "flow:run"];
   return {
     actor_id,
     token_id,

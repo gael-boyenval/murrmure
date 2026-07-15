@@ -49,11 +49,11 @@ function linearManifest(): FlowManifest {
 }
 
 describe("flow-engine/engine-capabilities", () => {
-  test("ENGINE_DISPATCH_KINDS includes invoke/gate/checkpoint/step_contract", () => {
+  test("ENGINE_DISPATCH_KINDS includes invoke/gate/step_contract", () => {
     expect(ENGINE_DISPATCH_KINDS).toContain("invoke");
     expect(ENGINE_DISPATCH_KINDS).toContain("gate");
-    expect(ENGINE_DISPATCH_KINDS).toContain("checkpoint");
     expect(ENGINE_DISPATCH_KINDS).toContain("step_contract");
+    expect(ENGINE_DISPATCH_KINDS).not.toContain("checkpoint");
   });
 
   test("clean step-contract bundle lints with no warnings", () => {

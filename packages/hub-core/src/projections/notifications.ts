@@ -108,15 +108,15 @@ export function buildHumanStepNotificationDrafts(input: {
   return drafts;
 }
 
-function grantHasGateResolve(grant: GrantRow): boolean {
+function grantHasFlowRun(grant: GrantRow): boolean {
   const caps = resolveEffectiveCapabilities({
     scopes: grant.scopes,
     capabilities: grant.capabilities,
   });
-  return hasCapability(caps, "gate:resolve");
+  return hasCapability(caps, "flow:run");
 }
 
-/** Route gate notifications: assignees first, else gate:resolve grant holders. */
+/** Route gate notifications: assignees first, else flow:run grant holders. */
 export function resolveGateNotificationRecipients(input: {
   assignees?: string[];
   grants: GrantRow[];
@@ -128,7 +128,7 @@ export function resolveGateNotificationRecipients(input: {
   const recipients = new Set<string>();
   for (const grant of input.grants) {
     if (grant.status !== "active") continue;
-    if (grantHasGateResolve(grant)) {
+    if (grantHasFlowRun(grant)) {
       recipients.add(grant.actor_id);
     }
   }
@@ -199,7 +199,7 @@ export function buildGateNotificationDrafts(input: {
   return drafts;
 }
 
-/** Run failed out-of-shell + in-app: session actor, creator, gate:resolve holders. */
+/** Run failed out-of-shell + in-app: session actor, creator, flow:run holders. */
 export function resolveRunFailedNotificationRecipients(input: {
   session_actor_id?: string;
   created_by?: SessionCreatedBy;
@@ -212,7 +212,7 @@ export function resolveRunFailedNotificationRecipients(input: {
   }
   for (const grant of input.grants) {
     if (grant.status !== "active") continue;
-    if (grantHasGateResolve(grant)) {
+    if (grantHasFlowRun(grant)) {
       recipients.add(grant.actor_id);
     }
   }

@@ -11,7 +11,7 @@ import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractM
 import { lintHandlerCatalogCoverage } from "../index/handler-catalog-lint.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
-export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint", "step_contract"] as const;
+export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "step_contract"] as const;
 
 export type EngineDispatchKind = (typeof ENGINE_DISPATCH_KINDS)[number];
 
@@ -63,13 +63,6 @@ function findView(
   views: FlowApplyLintIndex["views"],
 ): FlowApplyLintIndex["views"][number] | undefined {
   return views.find((v) => v.view_id === viewId || v.manifest.id === viewId);
-}
-
-/** Route must declare `goto` or `fail: true` — empty `{}` is not explicit (decision 06). */
-function isExplicitOnResolveRoute(route: { goto?: string; fail?: boolean } | undefined): boolean {
-  if (!route) return false;
-  if (route.fail === true) return true;
-  return typeof route.goto === "string" && route.goto.length > 0;
 }
 
 function viewBuildVerified(view: FlowApplyLintIndex["views"][number]): boolean {

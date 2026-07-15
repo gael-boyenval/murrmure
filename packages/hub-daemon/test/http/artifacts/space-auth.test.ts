@@ -78,13 +78,12 @@ describe("http/artifacts/space-auth", () => {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceB,
+        "x-murrmure-name": "cross-space.txt",
+        "x-murrmure-authorized-readers": spaceA,
       },
-      body: JSON.stringify({
-        space_id: spaceB,
-        name: "cross-space.txt",
-        content_base64: Buffer.from("nope", "utf-8").toString("base64"),
-      }),
+      body: Buffer.from("nope", "utf-8"),
     });
     expect(put.status).toBe(403);
     const body = await put.json();
@@ -94,13 +93,14 @@ describe("http/artifacts/space-auth", () => {
   test("materialize rejects scoped token targeting another space", async () => {
     const put = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "PUT",
-      headers: bootstrapHeaders(),
-      body: JSON.stringify({
-        space_id: spaceA,
-        name: "shared.txt",
-        content_base64: Buffer.from("shared", "utf-8").toString("base64"),
-        authorized_readers: [spaceB],
-      }),
+      headers: {
+        ...bootstrapHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": "shared.txt",
+        "x-murrmure-authorized-readers": spaceB,
+      },
+      body: Buffer.from("shared", "utf-8"),
     });
     expect(put.status).toBe(201);
     const { artifact } = await put.json();

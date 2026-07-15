@@ -3,11 +3,14 @@ import { TransferIdSchema } from "../ids.js";
 
 const WireSpaceIdSchema = z.string().regex(/^spc_/, "Expected spc_ prefixed space id");
 
+/**
+ * Metadata for registering an artifact via `PUT /v1/artifacts`. Artifact bytes
+ * travel out-of-band as the request body (octet-stream); this shape describes
+ * the header-derived metadata only — base64 JSON content is no longer accepted.
+ */
 export const ArtifactPutBodySchema = z.object({
   space_id: WireSpaceIdSchema,
   name: z.string().min(1),
-  /** Base64-encoded artifact bytes. */
-  content_base64: z.string().min(1),
   authorized_readers: z.array(z.string()).min(1),
   hold: z.boolean().optional(),
   ttl_days: z.number().int().positive().optional(),

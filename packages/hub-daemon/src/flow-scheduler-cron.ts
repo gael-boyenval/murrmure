@@ -44,7 +44,7 @@ export function registerFlowSchedulerCron(
           space_id: prefixedSpaceId(space.space_id),
           actor_id: actor.actor_id,
           token_id: actor.token_id,
-          capabilities: ["flow:run", "action:invoke", "hub:admin"],
+          capabilities: ["flow:run", "hub:admin"],
           mode: "schedule",
           input: { scheduled_at: now.toISOString() },
         });
@@ -93,7 +93,7 @@ export async function matchFlowEventStarts(
       space_id: prefixedSpaceId(bare),
       actor_id: input.actor_id,
       token_id: input.token_id,
-      capabilities: input.capabilities ?? ["flow:run", "action:invoke"],
+      capabilities: input.capabilities ?? ["flow:run"],
       mode: "event",
       event_type: input.event_type,
       event_source: input.source,

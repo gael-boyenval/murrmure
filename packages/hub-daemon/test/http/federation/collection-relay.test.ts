@@ -243,13 +243,14 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     for (const file of collection) {
       const put = await fetch(`${hubA.baseUrl}/v1/artifacts`, {
         method: "PUT",
-        headers: authA(),
-        body: JSON.stringify({
-          space_id: hubA.spaceId,
-          name: file.name,
-          content_base64: Buffer.from(file.content, "utf8").toString("base64"),
-          authorized_readers: [hubB.spaceId],
-        }),
+        headers: {
+          ...authA(),
+          "Content-Type": "application/octet-stream",
+          "x-murrmure-space-id": hubA.spaceId,
+          "x-murrmure-name": file.name,
+          "x-murrmure-authorized-readers": hubB.spaceId,
+        },
+        body: Buffer.from(file.content, "utf8"),
       });
       expect(put.status).toBe(201);
       const artifact = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
@@ -335,7 +336,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
           ? input.remote_space_id
           : `spc_${input.remote_space_id}`;
         const res = await fetch(
-          `${hubB.baseUrl}/v1/spaces/${spaceId}/actions/${encodeURIComponent(input.action_name)}/invoke`,
+          `${hubB.baseUrl}/v1/federation/relay/spaces/${spaceId}/actions/${encodeURIComponent(input.action_name)}/invoke`,
           {
             method: "POST",
             headers: {
@@ -420,14 +421,12 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
       method: "PUT",
       headers: {
         Authorization: `Bearer ${addTokenId(hubA.token)}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": hubA.spaceId,
+        "x-murrmure-name": "producer-only.json",
+        "x-murrmure-authorized-readers": hubA.spaceId,
       },
-      body: JSON.stringify({
-        space_id: hubA.spaceId,
-        name: "producer-only.json",
-        content_base64: Buffer.from(secret, "utf8").toString("base64"),
-        authorized_readers: [hubA.spaceId],
-      }),
+      body: Buffer.from(secret, "utf8"),
     });
     expect(put.status).toBe(201);
     const unauthorized = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
@@ -448,7 +447,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     expect(relay).toBeDefined();
 
     const res = await fetch(
-      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      `${hubB.baseUrl}/v1/federation/relay/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
       {
         method: "POST",
         headers: {
@@ -482,14 +481,12 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
       method: "PUT",
       headers: {
         Authorization: `Bearer ${addTokenId(hubA.token)}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": hubA.spaceId,
+        "x-murrmure-name": target,
+        "x-murrmure-authorized-readers": hubB.spaceId,
       },
-      body: JSON.stringify({
-        space_id: hubA.spaceId,
-        name: target,
-        content_base64: Buffer.from(content, "utf8").toString("base64"),
-        authorized_readers: [hubB.spaceId],
-      }),
+      body: Buffer.from(content, "utf8"),
     });
     expect(put.status).toBe(201);
     const artifact = ((await put.json()) as { artifact: { transfer_id: string; digest: string; size_bytes: number } }).artifact;
@@ -511,7 +508,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
     (relay as { hub_token?: string }).hub_token = wrongToken;
 
     const res = await fetch(
-      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      `${hubB.baseUrl}/v1/federation/relay/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
       {
         method: "POST",
         headers: {
@@ -547,7 +544,7 @@ describe("federation/collection-relay — two-hub cross-hub artifact retrieval",
 
     const escapeStep = "../../../../../../murrmure_relay_escape";
     const res = await fetch(
-      `${hubB.baseUrl}/v1/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
+      `${hubB.baseUrl}/v1/federation/relay/spaces/${hubB.spaceId}/actions/consume_collection/invoke`,
       {
         method: "POST",
         headers: {

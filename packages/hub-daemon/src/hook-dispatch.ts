@@ -43,7 +43,7 @@ export async function dispatchHooksFromJournal(
   await dispatchHooksForEvent(hookDispatchDeps(ctx), event, {
     actor_id: input.actor_id,
     token_id: input.token_id,
-    capabilities: input.capabilities ?? ["flow:run", "action:invoke", "hub:admin"],
+    capabilities: input.capabilities ?? ["flow:run", "hub:admin"],
   });
 }
 

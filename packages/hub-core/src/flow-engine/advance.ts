@@ -1,7 +1,6 @@
 import type { FlowIr, RunStepMemo } from "@murrmure/contracts";
 import type { FlowStepDispatch } from "./types.js";
 import { planLinearSteps } from "./plan.js";
-import { buildCheckpointDispatch } from "./checkpoint-dispatch.js";
 import { resolveStepParams, resolveStepSpace } from "./templates.js";
 
 export function activeStepIndex(memos: RunStepMemo[], ir: FlowIr): number {
@@ -57,19 +56,4 @@ export function nextDispatchAfterComplete(
   const memo = memos.find((m) => m.step_id === step.id);
   if (memo && memo.status !== "pending") return null;
   return buildStepDispatch(ir, idx, execContext, originSpaceId);
-}
-
-export function nextCheckpointAfterComplete(
-  memos: RunStepMemo[],
-  ir: FlowIr,
-  execContext: Record<string, unknown>,
-) {
-  const idx = activeStepIndex(memos, ir);
-  if (idx >= planLinearSteps(ir).length) return null;
-  const plan = planLinearSteps(ir);
-  const step = plan[idx];
-  if (step?.kind !== "gate") return null;
-  const memo = memos.find((m) => m.step_id === step.id);
-  if (memo && memo.status !== "pending") return null;
-  return buildCheckpointDispatch(ir, idx, execContext);
 }

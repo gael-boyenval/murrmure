@@ -9,15 +9,15 @@ describe("notifications/routing", () => {
   test("routes to assignees first", () => {
     const recipients = resolveGateNotificationRecipients({
       assignees: ["actor_alice"],
-      grants: [{ grant_id: "g1", space_id: "demo", actor_id: "actor_bob", scopes: ["gate:resolve"], status: "active" }],
+      grants: [{ grant_id: "g1", space_id: "demo", actor_id: "actor_bob", scopes: ["flow:run"], status: "active" }],
     });
     expect(recipients).toEqual(["actor_alice"]);
   });
 
-  test("falls back to gate:resolve grant holders", () => {
+  test("falls back to flow:run grant holders", () => {
     const recipients = resolveGateNotificationRecipients({
       grants: [
-        { grant_id: "g1", space_id: "demo", actor_id: "actor_bob", scopes: ["gate:resolve"], status: "active" },
+        { grant_id: "g1", space_id: "demo", actor_id: "actor_bob", scopes: ["flow:run"], status: "active" },
         { grant_id: "g2", space_id: "demo", actor_id: "actor_carol", scopes: ["space:read"], status: "active" },
       ],
     });

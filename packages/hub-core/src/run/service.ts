@@ -660,7 +660,7 @@ export async function ensureSessionAndRun(
       flow_id: null,
       actor_id: input.actor_id,
       token_id: input.token_id,
-      capabilities: ["action:invoke"],
+      capabilities: ["flow:run"],
     });
     if ("error" in created) {
       return { error: created.error };

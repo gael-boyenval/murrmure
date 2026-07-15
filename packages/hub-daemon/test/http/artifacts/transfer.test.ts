@@ -125,17 +125,18 @@ describe("http/artifacts/transfer", () => {
     };
   }
 
-  test("register, materialize, and invoke with artifacts_in", async () => {
+  test("register, materialize via materialize route, and invoke route removed", async () => {
     const diff = "diff --git a/main.ts b/main.ts";
     const put = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        space_id: spaceA,
-        name: "openapi.diff",
-        content_base64: Buffer.from(diff, "utf-8").toString("base64"),
-        authorized_readers: [spaceB],
-      }),
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": "openapi.diff",
+        "x-murrmure-authorized-readers": spaceB,
+      },
+      body: Buffer.from(diff, "utf-8"),
     });
     expect(put.status).toBe(201);
     const { artifact } = await put.json();
@@ -148,39 +149,41 @@ describe("http/artifacts/transfer", () => {
         artifacts_in: [artifact.transfer_id],
       }),
     });
-    expect(invoke.status).toBe(200);
-    const body = await invoke.json();
-    expect(body.dispatch.status).toBe("completed");
-    expect(body.body?.ok).toBe(true);
-    expect(body.body?.content).toBe(diff);
+    expect(invoke.status).toBe(404);
+
+    const materialize = await fetch(`${baseUrl}/v1/artifacts/${artifact.transfer_id}/materialize`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ space_id: spaceB }),
+    });
+    expect(materialize.status).toBe(200);
 
     const inbox = inboxFilePath(projectB, artifact.transfer_id, "openapi.diff");
     expect(existsSync(inbox)).toBe(true);
     expect(readFileSync(inbox, "utf-8")).toBe(diff);
   });
 
-  test("rejects invoke params over 64 KiB inline cap", async () => {
+  test("action invoke route is removed — inline cap unreachable via invoke (404)", async () => {
     const oversized = "x".repeat(70_000);
     const invoke = await fetch(`${baseUrl}/v1/spaces/${spaceB}/actions/consume_diff/invoke`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ params: { blob: oversized } }),
     });
-    expect(invoke.status).toBe(413);
-    const body = await invoke.json();
-    expect(body.code).toBe("INLINE_PAYLOAD_EXCEEDED");
+    expect(invoke.status).toBe(404);
   });
 
   test("digest mismatch on materialize fails closed", async () => {
     const put = await fetch(`${baseUrl}/v1/artifacts`, {
       method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({
-        space_id: spaceA,
-        name: "tamper.diff",
-        content_base64: Buffer.from("original", "utf-8").toString("base64"),
-        authorized_readers: [spaceB],
-      }),
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": "tamper.diff",
+        "x-murrmure-authorized-readers": spaceB,
+      },
+      body: Buffer.from("original", "utf-8"),
     });
     const { artifact } = await put.json();
 

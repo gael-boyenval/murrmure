@@ -128,7 +128,7 @@ function defaultAdvanceDeps(
       resolveFlowAuth: async () => ({
         actor_id: input.actor_id,
         token_id: input.token_id,
-        capabilities: ["flow:run", "action:invoke"],
+        capabilities: ["flow:run"],
       }),
       dispatchSteps: deps.dispatchSteps,
     }
@@ -681,7 +681,7 @@ async function completeRunIfFinished(
         resolveFlowAuth: async () => ({
           actor_id: input.actor_id,
           token_id: input.token_id,
-          capabilities: ["flow:run", "action:invoke"],
+          capabilities: ["flow:run"],
         }),
         dispatchSteps: async () => undefined,
       },

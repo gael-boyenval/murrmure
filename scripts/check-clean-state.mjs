@@ -30,10 +30,23 @@ const PRODUCTION_FORBIDDEN = [
   { label: "removed HANDLER_MISSING diagnostic", pattern: /HANDLER_MISSING/ },
   { label: "removed FlowCheckpointStepSchema", pattern: /FlowCheckpointStepSchema/ },
   { label: "removed murrmure_invoke_action MCP tool", pattern: /murrmure_invoke_action/ },
+  { label: "removed action:invoke capability/route", pattern: /action:invoke/ },
+  { label: "removed gate:resolve capability", pattern: /gate:resolve/ },
+  { label: "removed isDeclarativeCheckpointStep", pattern: /isDeclarativeCheckpointStep/ },
   {
     label: "removed grant/agent/onboard command vocabulary",
     pattern: /\bgrant (?:mint|use)\b|\bagent (?:connect|activate)\b|\bspace onboard\b/,
   },
+];
+// content_base64 is forbidden in the artifact PUT path only (decision 4). The
+// step-work upload command schema (commands/index.ts) is out of scope here.
+const ARTIFACT_PUT_SCHEMA_FILES = [
+  "packages/contracts/src/entities/artifact-record.ts",
+  "packages/hub-daemon/src/routes/artifacts/index.ts",
+  "packages/hub-daemon/src/artifact-service.ts",
+];
+const ARTIFACT_PUT_FORBIDDEN = [
+  { label: "removed artifact content_base64 in PUT schema/path", pattern: /content_base64/ },
 ];
 const REMOVED_COMMAND_PATTERN =
   /mrmr (?:space )?grant (?:mint|use)|mrmr agent (?:connect|activate)|mrmr space onboard/;
@@ -91,6 +104,10 @@ scan(
     ...PRODUCTION_EXTRA_FILES.map((path) => join(REPO_ROOT, path)),
   ],
   PRODUCTION_FORBIDDEN,
+);
+scan(
+  ARTIFACT_PUT_SCHEMA_FILES.map((path) => join(REPO_ROOT, path)),
+  ARTIFACT_PUT_FORBIDDEN,
 );
 scan(
   [

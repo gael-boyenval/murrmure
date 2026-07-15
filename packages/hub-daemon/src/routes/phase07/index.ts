@@ -6,7 +6,7 @@ import {
   listGatesForRun,
   presentGateForActor,
   resolveCheckpointViewRef,
-  resolveGateV2,
+  resolveGate,
   getUserMe,
   patchUserMe,
   queryJournal,
@@ -86,8 +86,8 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-    if (!hasCapability(effective, "gate:resolve")) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "gate:resolve required" }, 403);
+    if (!hasCapability(effective, "flow:run")) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
     const body = await c.req.json().catch(() => ({}));
@@ -97,7 +97,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         : body.disposition === "continue"
           ? "continue"
           : undefined;
-    const result = await resolveGateV2(deps(), {
+    const result = await resolveGate(deps(), {
       gate_id,
       disposition,
       output:
@@ -109,7 +109,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
       token_id: auth.token_id,
       resume_data: body.resume_data,
       form_values: body.form_values ?? body.form,
-      can_resolve: hasCapability(effective, "gate:resolve"),
+      can_resolve: hasCapability(effective, "flow:run"),
       capabilities: effective,
     });
 
@@ -173,8 +173,8 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-    if (!hasCapability(effective, ["flow:run", "action:invoke", "hub:admin"])) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run or action:invoke required" }, 403);
+    if (!hasCapability(effective, ["flow:run", "hub:admin"])) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
     const body = await c.req.json();

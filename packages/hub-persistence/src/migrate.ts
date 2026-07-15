@@ -460,9 +460,10 @@ export function ensureBootstrapToken(db: Database.Database, token: string, actor
     "space:enter",
     "flow:read",
     "flow:run",
-    "action:invoke",
-    "gate:resolve",
+    "event:emit",
+    "step:resolve",
     "journal:read",
+    "executor:poll",
   ];
   const scopes = JSON.stringify(capabilities);
   const capabilitiesJson = JSON.stringify(capabilities);

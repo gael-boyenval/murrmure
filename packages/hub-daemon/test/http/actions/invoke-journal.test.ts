@@ -98,31 +98,16 @@ describe("http/actions/invoke-journal", () => {
     "Content-Type": "application/json",
   });
 
-  test("invoke persists dispatched and completed journal events", async () => {
+  test("action invoke route is removed (404)", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/daily_checkin/invoke`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({ params: { task: "test" } }),
     });
-    expect(res.status).toBe(200);
-
-    const eventsRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/events?from_seq=0`, {
-      headers: auth(),
-    });
-    expect(eventsRes.status).toBe(200);
-    const { events } = (await eventsRes.json()) as { events: Array<{ type: string; payload: Record<string, unknown> }> };
-
-    const dispatched = events.find((e) => e.type === JOURNAL_EVENT_TYPES.ACTION_DISPATCHED);
-    const completed = events.find((e) => e.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED);
-
-    expect(dispatched).toBeDefined();
-    expect(dispatched!.payload.action_name).toBe("daily_checkin");
-    expect(completed).toBeDefined();
-    expect(completed!.payload.action_name).toBe("daily_checkin");
-    expect(completed!.payload.result).toMatchObject({ task: "done" });
+    expect(res.status).toBe(404);
   });
 
-  test("unavailable invoke persists executor_unavailable journal event", async () => {
+  test("action invoke route is removed for unavailable executors too (404)", async () => {
     const unavailSpace = await fetch(`${baseUrl}/v1/spaces`, {
       method: "POST",
       headers: auth(),
@@ -160,27 +145,11 @@ describe("http/actions/invoke-journal", () => {
       }),
     });
 
-    const beforeRes = await fetch(`${baseUrl}/v1/spaces/${unavailSpaceId}/events?from_seq=0`, {
-      headers: auth(),
-    });
-    const beforeCount = ((await beforeRes.json()) as { events: unknown[] }).events.length;
-
     const invokeRes = await fetch(`${baseUrl}/v1/spaces/${unavailSpaceId}/actions/review_url/invoke`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({ params: { url: "https://example.com" } }),
     });
-    expect(invokeRes.status).toBe(503);
-
-    const afterRes = await fetch(`${baseUrl}/v1/spaces/${unavailSpaceId}/events?from_seq=0`, {
-      headers: auth(),
-    });
-    const afterEvents = ((await afterRes.json()) as { events: Array<{ type: string; payload: Record<string, unknown> }> })
-      .events;
-    expect(afterEvents.length).toBeGreaterThan(beforeCount);
-
-    const unavailable = afterEvents.find((e) => e.type === JOURNAL_EVENT_TYPES.ACTION_EXECUTOR_UNAVAILABLE);
-    expect(unavailable).toBeDefined();
-    expect(unavailable!.payload.action_name).toBe("review_url");
+    expect(invokeRes.status).toBe(404);
   });
 });

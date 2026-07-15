@@ -132,11 +132,8 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    if (
-      !hasCapability(effective, "flow:run") &&
-      !hasCapability(effective, "action:invoke")
-    ) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run or action:invoke required" }, 403);
+    if (!hasCapability(effective, "flow:run")) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
     const body = await c.req.json();
@@ -287,7 +284,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    const scopeCheck = requireCapability(auth, "gate:resolve", effective);
+    const scopeCheck = requireCapability(auth, "flow:run", effective);
     if (scopeCheck) return scopeCheck;
 
     const body = await c.req.json().catch(() => ({}));
@@ -550,7 +547,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    const scopeCheck = requireCapability(auth, "gate:resolve", effective);
+    const scopeCheck = requireCapability(auth, "flow:run", effective);
     if (scopeCheck) return scopeCheck;
 
     const body = await c.req.json().catch(() => ({}));

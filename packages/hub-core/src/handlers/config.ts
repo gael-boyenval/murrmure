@@ -9,13 +9,7 @@ import type { FederationRegistryDeps } from "../federation/registry.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 
 const GRANT_TEMPLATES: Record<string, Capability[]> = {
-  worker: [
-    "space:read",
-    "journal:read",
-    "flow:run",
-    "action:invoke",
-    "space:write",
-  ],
+  worker: ["space:read", "journal:read", "flow:run", "space:write"],
   admin: ["hub:admin", "space:read", "space:enter", "space:write", "flow:read"],
 };
 const TUTORIAL_BUILDER_PROFILE = "tutorial-builder/v1";

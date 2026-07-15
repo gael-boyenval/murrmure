@@ -485,27 +485,6 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json({ hooks });
   });
 
-  app.post("/v1/spaces/:space_id/actions/:action_name/invoke", async (c) => {
-    const space_id = c.req.param("space_id");
-    const action_name = c.req.param("action_name");
-    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
-    if (auth instanceof Response) return auth;
-    const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-    const capCheck = requireCapability(auth, "action:invoke", effective);
-    if (capCheck) return capCheck;
-
-    const body = await c.req.json().catch(() => ({}));
-    const result = await ctx.invokeService.invokeAction({
-      space_id,
-      action_name,
-      body,
-      idempotency_header: c.req.header("Idempotency-Key") ?? undefined,
-      actor_id: auth.actor_id,
-      token_id: auth.token_id,
-    });
-    return c.json(result.body, result.http);
-  });
-
   app.get("/v1/spaces/:space_id/index/flows", async (c) => {
     const space_id = c.req.param("space_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);

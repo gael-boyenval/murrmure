@@ -110,7 +110,7 @@ describe("flow-engine/advance-runner (step contracts)", () => {
         resolveFlowAuth: async () => ({
           actor_id: "actor_a",
           token_id: "tok_a",
-          capabilities: ["flow:run", "action:invoke"],
+          capabilities: ["flow:run"],
         }),
         dispatchSteps,
       },

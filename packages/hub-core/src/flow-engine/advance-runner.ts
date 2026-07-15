@@ -13,15 +13,10 @@ import {
   siblingLaneSteps,
 } from "./matrix.js";
 import { allSiblingsTerminal, joinParallelStepStatus } from "./join.js";
-import { activeStepIndex, buildStepDispatch, nextCheckpointAfterComplete, nextDispatchAfterComplete } from "./advance.js";
+import { activeStepIndex, buildStepDispatch, nextDispatchAfterComplete } from "./advance.js";
 import { planLaneDispatches } from "./graph.js";
 import { executeStartFlowStep, maybeCompleteFlowCallParent } from "./start-flow.js";
 import type { FlowStepDispatch } from "./types.js";
-import {
-  executeCheckpointDispatch,
-  tryDispatchPendingCheckpoint,
-  type CheckpointRunnerDeps,
-} from "./checkpoint-runner.js";
 import { flowUsesStepContracts } from "./step-catalog.js";
 import { bootstrapStepContractFlow, maybeAdvanceStepContractFlow } from "./step-resolve.js";
 
@@ -198,24 +193,6 @@ async function handleSiblingLaneComplete(
       return;
     }
 
-    const checkpoint = nextCheckpointAfterComplete(parentMemos, ctx.ir, parent.exec_context);
-    if (checkpoint) {
-      await executeCheckpointDispatch(
-        { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-        {
-          dispatch: checkpoint,
-          ir: ctx.ir,
-          run_id: `run_${parentBare}`,
-          session_id: ctx.sessionId,
-          space_id: ctx.spaceId,
-          exec_context: parent.exec_context,
-          actor_id: ctx.actor_id,
-          token_id: ctx.token_id,
-        },
-      );
-      return;
-    }
-
     terminateRunExecutors({
       run_id: `run_${parentBare}`,
       executorPollStore: deps.executorPollStore,
@@ -320,25 +297,6 @@ async function tryExpandMatrixOrAdvance(
       actor_id: ctx.auth.actor_id,
       token_id: ctx.auth.token_id,
     });
-    return;
-  }
-
-  const checkpoint = nextCheckpointAfterComplete(freshMemos, ctx.ir, ctx.run.exec_context);
-  if (checkpoint && ctx.spaceId) {
-    const { executeCheckpointDispatch } = await import("./checkpoint-runner.js");
-    await executeCheckpointDispatch(
-      { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-      {
-        dispatch: checkpoint,
-        ir: ctx.ir,
-        run_id: `run_${ctx.runBare}`,
-        session_id: ctx.sessionId,
-        space_id: ctx.spaceId,
-        exec_context: ctx.run.exec_context,
-        actor_id: ctx.auth.actor_id,
-        token_id: ctx.auth.token_id,
-      },
-    );
     return;
   }
 
@@ -492,18 +450,4 @@ export async function bootstrapInitialFlowStep(
     run,
   });
   if (startedStartFlow) return;
-
-  const checkpointDispatched = await tryDispatchPendingCheckpoint(
-    { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-    {
-      run_id: `run_${runBare}`,
-      session_id: sessionId,
-      space_id: spaceId,
-      ir: entry.ir,
-      exec_context: run.exec_context,
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-    },
-  );
-  if (checkpointDispatched) return;
 }

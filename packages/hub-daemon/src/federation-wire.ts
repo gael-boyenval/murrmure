@@ -68,7 +68,7 @@ export async function relayRemoteInvoke(input: {
   if (input.authToken) headers.Authorization = `Bearer ${input.authToken}`;
 
   return fetch(
-    `${base}/v1/spaces/${spaceId}/actions/${encodeURIComponent(input.action_name)}/invoke`,
+    `${base}/v1/federation/relay/spaces/${spaceId}/actions/${encodeURIComponent(input.action_name)}/invoke`,
     {
       method: "POST",
       headers,

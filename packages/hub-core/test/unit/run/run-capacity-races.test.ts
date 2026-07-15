@@ -245,7 +245,7 @@ describe("run-capacity atomic races via startFlowRun", () => {
       flow_id: null,
       actor_id: "actor_alice",
       token_id: "tok_1",
-      capabilities: ["action:invoke"],
+      capabilities: ["flow:run"],
     }).then((result) => {
       settled = true;
       return result;
@@ -265,7 +265,7 @@ describe("run-capacity atomic races via startFlowRun", () => {
       flow_id: null,
       actor_id: "actor_alice",
       token_id: "tok_1",
-      capabilities: ["action:invoke"],
+      capabilities: ["flow:run"],
     });
     expect("run" in r2).toBe(true);
   });

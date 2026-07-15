@@ -39,8 +39,8 @@ export async function makeHub() {
     "space:enter",
     "flow:read",
     "flow:run",
-    "action:invoke",
-    "gate:resolve",
+    "event:emit",
+    "step:resolve",
     "journal:read",
   ];
   await murrmurePersistence.insertToken(
