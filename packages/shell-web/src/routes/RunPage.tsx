@@ -1,21 +1,16 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
 import { StepExecutorOutputPanel } from "../components/StepExecutorOutputPanel.js";
-import { ResizableSplitPane } from "../components/ResizableSplitPane.js";
 import { DismissRunButton } from "../components/DismissRunButton.js";
+import { SharedFlowPage } from "../components/SharedFlowPage.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { activeRunRefetchInterval } from "../lib/invalidate-run-queries.js";
 import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { useRunStepInspector } from "../hooks/useRunStepInspector.js";
-import { Button, Badge } from "@murrmure/shell-ui";
-
-const RunFlowchartView = lazy(() =>
-  import("../components/RunFlowchartView.js").then((m) => ({ default: m.RunFlowchartView })),
-);
+import { Button } from "@murrmure/shell-ui";
 
 export function RunPage() {
   const { runId } = useParams();
@@ -89,62 +84,46 @@ export function RunPage() {
   }
 
   return (
-    <AppShell>
-      {showCanvas && operatorMode ? (
+    <SharedFlowPage
+      topBanner={showCanvas && operatorMode ? (
         <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2">
           <Link to={`/runs/${runId}`} className="text-sm text-primary underline">
             Back to checkpoint view
           </Link>
         </div>
       ) : null}
-      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-        <div className="shrink-0">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">Run</h1>
-            {runId ? (
-              <DismissRunButton
-                runId={runId}
-                spaceId={run?.space_id}
-                lifecycle={run?.lifecycle}
-                onDismissed={async () => {
-                  await queryClient.invalidateQueries({ queryKey: ["run", runId] });
-                  if (run?.space_id) {
-                    navigate(`/spaces/${run.space_id}`);
-                  }
-                }}
-              />
-            ) : null}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <p className="font-mono text-sm text-muted-foreground">{runId}</p>
-            {run?.lifecycle ? <Badge variant="outline">{run.lifecycle}</Badge> : null}
-            {run?.session_id ? (
-              <Link to={`/sessions/${run.session_id}`} className="text-sm text-primary underline">
-                View session
-              </Link>
-            ) : null}
-          </div>
+      title={graphQuery.data?.flow_name ?? "Run"}
+      subtitle={runId}
+      status={run?.lifecycle}
+      graph={graphQuery.data}
+      graphFallback={run ? <JournalWaterfallView run={run} /> : null}
+      execContext={run?.exec_context as Record<string, unknown> | undefined}
+      selectedRunId={selectedLaneId ?? runId}
+      selectedStepId={selectedStepId}
+      onSelectLane={setSelectedLaneId}
+      onSelectStep={setSelectedStepId}
+      actions={
+        <div className="flex items-center gap-2">
+          {run?.session_id ? (
+            <Link to={`/sessions/${run.session_id}`} className="text-sm text-primary underline">
+              View session
+            </Link>
+          ) : null}
+          {runId ? (
+            <DismissRunButton
+              runId={runId}
+              spaceId={run?.space_id}
+              lifecycle={run?.lifecycle}
+              onDismissed={async () => {
+                await queryClient.invalidateQueries({ queryKey: ["run", runId] });
+                if (run?.space_id) navigate(`/spaces/${run.space_id}`);
+              }}
+            />
+          ) : null}
         </div>
-
-        <ResizableSplitPane
-          primary={
-            graphQuery.data ? (
-              <Suspense fallback={<p className="text-sm text-muted-foreground">Loading flowchart…</p>}>
-                <RunFlowchartView
-                  graph={graphQuery.data}
-                  execContext={run?.exec_context as Record<string, unknown> | undefined}
-                  selectedRunId={selectedLaneId ?? runId}
-                  selectedStepId={selectedStepId}
-                  onSelectLane={setSelectedLaneId}
-                  onSelectStep={setSelectedStepId}
-                />
-              </Suspense>
-            ) : run ? (
-              <JournalWaterfallView run={run} />
-            ) : null
-          }
-          secondary={
-            <>
+      }
+      secondary={
+        <>
               {run ? (
                 <StepExecutorOutputPanel
                   className="min-h-0 flex-1"
@@ -180,11 +159,9 @@ export function RunPage() {
                   Retry
                 </Button>
               ) : null}
-            </>
-          }
-        />
-      </div>
-    </AppShell>
+        </>
+      }
+    />
   );
 }
 

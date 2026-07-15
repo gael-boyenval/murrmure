@@ -1,4 +1,10 @@
-import type { Capability, FlowIndexEntry, Session } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  type Capability,
+  type FlowIndexEntry,
+  type HandlerSpec,
+  type Session,
+} from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { createRun, createSession, type SessionRunDeps } from "../run/service.js";
@@ -10,6 +16,7 @@ import {
   type FlowStartError,
 } from "./start.js";
 import type { FlowStepDispatch } from "./types.js";
+import { buildSafeResolverMap } from "./step-view-ref.js";
 
 export interface FlowRunServiceDeps extends SessionRunDeps {
   studio: StudioPersistencePort;
@@ -111,6 +118,21 @@ export async function startFlowRun(
       return { ok: false, error: prepared };
     }
     const plan = prepared;
+
+    const handlers = (await deps.studio.listIndexedHooks(input.space_id))
+      .map((raw) => HandlerSpecSchema.safeParse(raw))
+      .filter((result): result is { success: true; data: HandlerSpec } => result.success)
+      .map((result) => result.data);
+    execContext._flow_snapshot = {
+      version: 1,
+      origin_space_id: entry.origin_space_id,
+      flow_id: entry.flow_id,
+      flow_digest: entry.digest,
+      flow_name: entry.name,
+      ir: entry.ir,
+      step_contract_catalog: entry.step_contract_catalog,
+      resolvers: buildSafeResolverMap(entry.step_contract_catalog, entry.name, handlers),
+    };
 
     if (runKey) {
       const existing = await deps.studio.findRunByFlowKey(entry.flow_id, runKey);

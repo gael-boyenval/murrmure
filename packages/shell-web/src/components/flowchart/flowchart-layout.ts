@@ -144,7 +144,12 @@ export function buildFlowEdges(
     const isLoop = edge.id.includes(":loop");
     const nested = isNestedSiblingEdge(sourceNode, targetNode);
     const targetStatus = targetNode?.status;
-    const stroke = isLoop ? "#d97706" : "#71717a";
+    const stroke = isLoop ? "#d97706" : edge.tone === "failure" ? "#7f1d1d" : "#71717a";
+    const common = {
+      label: edge.label,
+      labelStyle: { fill: edge.tone === "failure" ? "#f87171" : "#a1a1aa", fontSize: 10 },
+      labelBgStyle: { fill: "#09090b", fillOpacity: 0.9 },
+    };
 
     if (isLoop) {
       return {
@@ -157,6 +162,7 @@ export function buildFlowEdges(
         pathOptions: { borderRadius: 0, offset: GROUP_PAD_BOTTOM + 8, stepPosition: 0.5 },
         style: { stroke, strokeWidth: 1.5, strokeDasharray: "5 4" },
         animated: targetStatus === "working",
+        ...common,
       };
     }
 
@@ -171,6 +177,7 @@ export function buildFlowEdges(
         pathOptions: { borderRadius: 0, offset: 14, stepPosition: 0.5 },
         style: { stroke, strokeWidth: 1.5 },
         animated: targetStatus === "working",
+        ...common,
       };
     }
 
@@ -184,6 +191,7 @@ export function buildFlowEdges(
       pathOptions: { borderRadius: 0, offset: 22, stepPosition: 0.5 },
       style: { stroke, strokeWidth: 1.5 },
       animated: targetStatus === "working",
+      ...common,
     };
   });
 }

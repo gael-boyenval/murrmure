@@ -84,6 +84,7 @@ export function ResizableSplitPane({
         aria-label="Resize panels"
         className={cn(
           "relative z-10 shrink-0 touch-none select-none",
+          "hidden md:block",
           dragging ? "cursor-col-resize" : "cursor-col-resize",
         )}
         style={{ width: HANDLE_WIDTH }}
@@ -130,7 +131,7 @@ export function ResizableSplitPane({
       </div>
 
       <div
-        className="flex min-h-0 shrink-0 flex-col gap-3 overflow-hidden"
+        className="hidden min-h-0 shrink-0 flex-col gap-3 overflow-hidden md:flex"
         style={{ width: secondaryWidth }}
       >
         {secondary}

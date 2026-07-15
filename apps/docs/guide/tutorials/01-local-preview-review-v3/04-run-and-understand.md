@@ -31,12 +31,19 @@ Keep that path handy — you will use it again in [Part 5](./05-extend-flow-and-
 In **Murrmure Desktop**:
 
 1. Click your **space** in the sidebar (`my-first-space`)
-2. Find flow **`my-dev-flow`**
-3. Click **Run**
+2. In the single **Flows** card, click **`my-dev-flow`**
+3. Confirm its applied flowchart shows rectangular `intake`, a decision for
+   `continue` / `cancel`, and one shared failure terminal
+4. Select `intake`; the side panel (drawer on a narrow window) shows both branch
+   schemas, the `spec` artifact constraints, routes, and current
+   `intake_view` resolver identity
+5. Click **Run** in the flow-page header
 
 The hub creates a **session** (`ses_…`) and a **run** (`run_…`). The engine
 opens generic step **`intake`**. Its `open_steps[]` projection identifies the
 space-owned `view_resolver`, so Desktop loads **spec-intake** in the main canvas.
+The operator flow page keeps the same graph, selection, and metadata interaction
+when you return to it; only live status is added.
 
 ```text
 flow.run.started
@@ -134,6 +141,12 @@ Open the **successful** run in Desktop (flowchart / journal) or ask your agent:
 
 > Call `murrmure_get_run` for this run and summarize step statuses.
 
+The historical flowchart shows the digest and safe resolver configuration
+recorded for that run. A later successful apply may change the current flow
+preview, but it does not rewrite this history. From the space home,
+**Recent completed** shows at most 20 runs in its own scroller; use
+**View all runs** for the complete list.
+
 | Term | What you just saw |
 |------|-------------------|
 | **Session** | Container for the run's journal |
@@ -163,7 +176,7 @@ Full troubleshooting table: [Part 9 of the original tutorial](../01-local-previe
 
 ## Checkpoint
 
-- [ ] Started **my-dev-flow** from Desktop (space → flow → **Run**)
+- [ ] Opened **my-dev-flow**, inspected `intake` contracts/resolver, then used the header **Run**
 - [ ] First run: **Cancel** → run shows **failed**
 - [ ] Second run: attached **`~/Documents/spec.md`** → **Submit** → run **succeeded**
 - [ ] `spec.md` visible under `.mrmr/…/runs/…/steps/intake/spec/`

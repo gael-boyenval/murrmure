@@ -112,7 +112,6 @@ export function prepareFlowStart(
 }
 
 export function sanitizeFlowPreview(entry: FlowIndexEntry) {
-  const ir = entry.ir;
   return {
     flow_id: entry.flow_id,
     name: entry.name,
@@ -123,14 +122,5 @@ export function sanitizeFlowPreview(entry: FlowIndexEntry) {
       events: entry.triggers.events,
       schedule: entry.triggers.schedule ?? null,
     },
-    steps: (ir?.steps ?? []).map((s) => ({
-      id: s.id,
-      kind: s.kind,
-      invoke: s.invoke
-        ? { space: s.invoke.space, action: s.invoke.action }
-        : undefined,
-      gate: s.gate ? { form: s.gate.form } : undefined,
-      start_flow: s.start_flow ? { flow_id: s.start_flow.flow_id } : undefined,
-    })),
   };
 }

@@ -158,10 +158,16 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | Capability | Effect |
 |------------|--------|
 | `flow:run` | Execute flows |
-| `flow:read` | Preview graph — no Run button |
+| `flow:read` | Applied/live/history graph contracts + safe resolver identity — no Run without `flow:run` |
 | `step:resolve` | Resolve open steps (required to call `murrmure_resolve_step`) |
 
 Mint: `mrmr grant mint --capabilities flow:run,flow:read,step:resolve`.
+
+Desktop uses one digest-aware flow page for the current applied preview, live
+run, and history. The Hub normalizes default branches and matches handlers; UI
+clients must not compile defaults or join handler configuration. Historical
+graphs retain the flow digest and sanitized handler config digest pinned at
+admission.
 
 ## Manifest rules
 

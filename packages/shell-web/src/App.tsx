@@ -5,6 +5,7 @@ import { isBundledShell, getStorageItem } from "./hooks.js";
 import { ConnectPage } from "./routes/ConnectPage.js";
 import { SpacesNewPage } from "./routes/SpacesNewPage.js";
 import { SpaceHomePage } from "./routes/SpaceHomePage.js";
+import { SpaceRunsPage } from "./routes/SpaceRunsPage.js";
 import { FlowPreviewPage } from "./routes/FlowPreviewPage.js";
 import { NotificationsPage } from "./routes/NotificationsPage.js";
 import { LogsExplorerPage } from "./routes/LogsExplorerPage.js";
@@ -75,6 +76,7 @@ export function App() {
       />
       <Route path="/spaces/new" element={<SpacesNewPage />} />
       <Route path="/spaces/:spaceId" element={<SpaceHomePage />} />
+      <Route path="/spaces/:spaceId/runs" element={<SpaceRunsPage />} />
       <Route path="/spaces/:spaceId/flows/:flowId" element={<FlowPreviewPage />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/logs" element={<LogsExplorerPage />} />

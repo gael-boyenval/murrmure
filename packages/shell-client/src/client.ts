@@ -61,6 +61,16 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) throw new Error(`spaces.home failed: ${res.status}`);
         return res.json() as Promise<import("./types.js").SpaceHomePayload>;
       },
+      async runs(space_id) {
+        const res = await fetch(`${base}/v1/spaces/${encodeURIComponent(space_id)}/runs`, {
+          headers: authHeaders(token),
+        });
+        if (!res.ok) throw new Error(`spaces.runs failed: ${res.status}`);
+        return res.json() as Promise<{
+          space_id: string;
+          runs: import("./types.js").SpaceHomeRunRow[];
+        }>;
+      },
       async flowPreview(space_id, flow_id) {
         const res = await fetch(
           `${base}/v1/spaces/${encodeURIComponent(space_id)}/flows/${encodeURIComponent(flow_id)}/preview`,

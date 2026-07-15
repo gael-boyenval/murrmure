@@ -27,6 +27,8 @@ function FlowRow({
     manual: boolean;
     can_run: boolean;
     can_preview: boolean;
+    authored_here: boolean;
+    origin_space_id: string;
   };
   spaceId: string;
   onRun: () => void;
@@ -37,7 +39,7 @@ function FlowRow({
       <div className="min-w-0">
         {flow.can_preview ? (
           <Link
-            to={`/spaces/${spaceId}/flows/${flow.flow_id}`}
+            to={`/spaces/${spaceId}/flows/${flow.flow_id}?origin_space_id=${encodeURIComponent(flow.origin_space_id)}`}
             className="font-medium hover:underline"
           >
             {flow.name}
@@ -46,6 +48,11 @@ function FlowRow({
           <span className="font-medium">{flow.name}</span>
         )}
         <p className="truncate font-mono text-xs text-muted-foreground">{flow.flow_id}</p>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {flow.authored_here ? <Badge variant="outline">Authored here</Badge> : null}
+          {flow.can_run && flow.manual ? <Badge variant="outline">Runnable</Badge> : null}
+          {flow.can_preview && !flow.can_run ? <Badge variant="outline">Preview only</Badge> : null}
+        </div>
       </div>
       {flow.can_run && flow.manual ? (
         <Button size="sm" onClick={onRun} disabled={running}>
@@ -115,18 +122,30 @@ export function SpaceHomePage() {
   });
 
   const runMutation = useMutation({
-    mutationFn: ({ flow_id, input }: { flow_id: string; input: Record<string, unknown> }) =>
-      client!.spaces.runFlow(flow_id, { space_id: spaceId, input }),
+    mutationFn: ({
+      flow_id,
+      origin_space_id,
+      input,
+    }: {
+      flow_id: string;
+      origin_space_id: string;
+      input: Record<string, unknown>;
+    }) =>
+      client!.spaces.runFlow(flow_id, { space_id: origin_space_id, input }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["space-home", spaceId] });
       navigate(`/sessions/${data.session.session_id}`);
     },
   });
 
-  type SpaceHomeFlowRow = NonNullable<typeof homeQuery.data>["your_flows"][number];
+  type SpaceHomeFlowRow = NonNullable<typeof homeQuery.data>["flows"][number];
 
   const handleRun = (flow: SpaceHomeFlowRow) => {
-    runMutation.mutate({ flow_id: flow.flow_id, input: {} });
+    runMutation.mutate({
+      flow_id: flow.flow_id,
+      origin_space_id: flow.origin_space_id,
+      input: {},
+    });
   };
 
   useEffect(() => {
@@ -189,14 +208,14 @@ export function SpaceHomePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Your flows</CardTitle>
-            <CardDescription>Flows authored in this space</CardDescription>
+            <CardTitle className="text-base">Flows</CardTitle>
+            <CardDescription>Authorized flows available in this space</CardDescription>
           </CardHeader>
           <CardContent>
-            {home?.your_flows.length ? (
-              home.your_flows.map((flow) => (
+            {home?.flows.length ? (
+              home.flows.map((flow) => (
                 <FlowRow
-                  key={flow.flow_id}
+                  key={`${flow.origin_space_id}:${flow.flow_id}`}
                   flow={flow}
                   spaceId={spaceId!}
                   onRun={() => handleRun(flow)}
@@ -211,27 +230,6 @@ export function SpaceHomePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Available to run</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {home?.available_to_run.length ? (
-              home.available_to_run.map((flow) => (
-                <FlowRow
-                  key={flow.flow_id}
-                  flow={flow}
-                  spaceId={spaceId!}
-                  onRun={() => handleRun(flow)}
-                  running={runMutation.isPending}
-                />
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No runnable flows</p>
-            )}
-          </CardContent>
-        </Card>
-
         {home && home.receiving_from.length > 0 && (
           <Card>
             <CardHeader>
@@ -241,7 +239,7 @@ export function SpaceHomePage() {
             <CardContent>
               {home.receiving_from.map((flow) => (
                 <FlowRow
-                  key={flow.flow_id}
+                  key={`${flow.origin_space_id}:${flow.flow_id}`}
                   flow={flow}
                   spaceId={spaceId!}
                   onRun={() => handleRun(flow)}
@@ -258,10 +256,21 @@ export function SpaceHomePage() {
           </CardHeader>
           <CardContent>
             {home?.recent_completed.length ? (
-              home.recent_completed.map((run) => <RunRow key={run.run_id} run={run} />)
+              <div
+                className="max-h-80 overflow-y-auto pr-1"
+                aria-label="Recent completed runs"
+              >
+                {home.recent_completed.map((run) => <RunRow key={run.run_id} run={run} />)}
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">No recent runs</p>
             )}
+            <Link
+              to={`/spaces/${spaceId}/runs`}
+              className="mt-3 inline-block text-sm text-primary hover:underline"
+            >
+              View all runs
+            </Link>
           </CardContent>
         </Card>
       </div>

@@ -50,6 +50,7 @@ export function toRunDto(row: {
   started_at: string;
   ended_at?: string;
 }): Run {
+  const { _flow_snapshot: _privateFlowSnapshot, ...publicExecContext } = row.exec_context;
   return {
     run_id: prefixed("run", row.run_id) as Run["run_id"],
     session_id: prefixed("ses", row.session_id) as Run["session_id"],
@@ -61,7 +62,7 @@ export function toRunDto(row: {
     flow_id: row.flow_id ?? null,
     flow_digest: row.flow_digest,
     lifecycle: row.lifecycle,
-    exec_context: row.exec_context,
+    exec_context: publicExecContext,
     reference_run_ids: row.reference_run_ids.map(
       (id) => prefixed("run", stripPrefixed(id)) as Run["reference_run_ids"][number],
     ),

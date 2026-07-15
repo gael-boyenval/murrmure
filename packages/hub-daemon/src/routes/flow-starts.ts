@@ -1,10 +1,18 @@
 import type { Hono } from "hono";
 import {
+  buildRunGraph,
+  buildSafeResolverMap,
   buildSpaceHome,
+  buildSpaceRunHistory,
+  canExecuteFlow,
   sanitizeFlowPreview,
   startFlowRun,
   canReadFlow,
 } from "@murrmure/hub-core";
+import {
+  HandlerSpecSchema,
+  type HandlerSpec,
+} from "@murrmure/contracts";
 import type { DaemonContext } from "../context.js";
 import { requireToken, type TokenContext } from "../auth.js";
 import { requireCapability, resolveTokenCapabilities } from "./config/scopes.js";
@@ -135,6 +143,19 @@ export function mountFlowStartRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json(home);
   });
 
+  app.get("/v1/spaces/:space_id/runs", async (c) => {
+    const space_id = c.req.param("space_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
+    const capCheck = requireCapability(auth, "space:read", effective);
+    if (capCheck) return capCheck;
+    return c.json({
+      space_id: prefixedSpaceId(bareSpaceId(space_id)),
+      runs: await buildSpaceRunHistory(murrmurePersistence, space_id),
+    });
+  });
+
   app.get("/v1/spaces/:space_id/flows/:flow_id/preview", async (c) => {
     const space_id = c.req.param("space_id");
     const flow_id = c.req.param("flow_id");
@@ -148,7 +169,32 @@ export function mountFlowStartRoutes(app: Hono, ctx: DaemonContext): void {
     const entry = await murrmurePersistence.getFlowIndexEntry(flow_id, bareSpaceId(space_id));
     if (!entry) return c.json({ code: "flow_not_found", message: "Flow not indexed" }, 404);
 
-    return c.json(sanitizeFlowPreview(entry));
+    const handlers = (await murrmurePersistence.listIndexedHooks(bareSpaceId(space_id)))
+      .map((raw) => HandlerSpecSchema.safeParse(raw))
+      .filter((result): result is { success: true; data: HandlerSpec } => result.success)
+      .map((result) => result.data);
+    const resolvers = buildSafeResolverMap(entry.step_contract_catalog, entry.name, handlers);
+    const graph = buildRunGraph({
+      run_id: `preview:${entry.flow_id}`,
+      flow_id: entry.flow_id,
+      flow_digest: entry.digest,
+      origin_space_id: entry.origin_space_id,
+      flow_name: entry.name,
+      mode: "preview",
+      ir: entry.ir,
+      step_contract_catalog: entry.step_contract_catalog,
+      step_memos: [],
+      resolvers,
+    });
+
+    return c.json({
+      version: 2,
+      ...sanitizeFlowPreview(entry),
+      origin_space_id: entry.origin_space_id,
+      can_run: canExecuteFlow(effective, auth.flow_acl, entry.flow_id),
+      manual: entry.triggers.manual === true,
+      graph,
+    });
   });
 }
 

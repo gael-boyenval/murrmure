@@ -11,6 +11,7 @@ export type FlowStepNodeData = {
   selected?: boolean;
   highlighted?: boolean;
   compact?: boolean;
+  onActivate?: () => void;
 };
 
 const statusTone: Record<string, string> = {
@@ -40,12 +41,20 @@ function StatusPill({ status }: { status: string }) {
 export function FlowchartStepNode({ data }: NodeProps<FlowStepNode>) {
   return (
     <div
+      role={data.onActivate ? "button" : undefined}
+      tabIndex={data.onActivate ? 0 : undefined}
+      aria-label={data.onActivate ? `Inspect step ${data.title}` : undefined}
       className={cn(
         "relative box-border flex h-full w-full flex-col rounded-lg border-2 bg-zinc-950 px-3 py-2.5 text-xs shadow-sm",
         data.selected && "ring-1 ring-blue-400/80",
         data.highlighted && !data.selected && "bg-blue-950/20",
       )}
       style={{ borderColor: data.selected ? "#3b82f6" : data.borderColor }}
+      onKeyDown={(event) => {
+        if (!data.onActivate || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        data.onActivate();
+      }}
     >
       <Handle type="target" position={Position.Top} id="top" className="flowchart-handle flowchart-handle-top" />
       <Handle type="source" position={Position.Bottom} id="bottom" className="flowchart-handle flowchart-handle-bottom" />

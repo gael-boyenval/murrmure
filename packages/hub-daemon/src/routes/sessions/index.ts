@@ -5,10 +5,12 @@ import {
   JOURNAL_EVENT_TYPES,
   FLOW_CONCURRENCY_LIMIT,
   type Capability,
+  type FlowIr,
   type FlowIndexEntry,
   type HandlerComplete,
   type HandlerSpec,
   type Session,
+  type StepContractCatalog,
   type ViewManifest,
 } from "@murrmure/contracts";
 import {
@@ -35,8 +37,10 @@ import {
   matchStepOpenedHandlers,
   maybeAutoResolveExecutorStepAfterAction,
   buildOpenStepProjections,
+  canReadFlow,
   defaultExecutorTimeoutScheduler,
   failRunWithNotification,
+  type RunGraphResolver,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -435,6 +439,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
         space_id: row.space_id ? prefixedSpaceId(row.space_id) : undefined,
         handlers: handlerSpecs,
         views: viewRows,
+        exec_context: row.exec_context,
       },
     );
 
@@ -451,17 +456,51 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const run_id = c.req.param("run_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireCapability(auth, "space:read", await caps(ctx, auth));
-    if (scopeCheck) return scopeCheck;
+    const effective = await caps(ctx, auth);
+    if (!canReadFlow(effective)) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:read required" }, 403);
+    }
 
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id.startsWith("ins_") ? run_id.slice(4) : run_id;
     const row = await murrmurePersistence.getRun(bare);
     if (!row) return c.json({ code: "run_not_found", message: "Run not found" }, 404);
+    if (
+      auth.space_id !== "bootstrap" &&
+      !hasCapability(effective, "hub:admin") &&
+      row.space_id &&
+      bareSpaceId(auth.space_id) !== bareSpaceId(row.space_id)
+    ) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "Run belongs to another space" }, 403);
+    }
 
     const steps = await murrmurePersistence.listRunStepMemos(`run_${bare}`);
     const entry = row.flow_id ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id) : null;
+    const rawSnapshot = row.exec_context._flow_snapshot;
+    const snapshot =
+      rawSnapshot && typeof rawSnapshot === "object"
+        ? (rawSnapshot as {
+            version?: number;
+            origin_space_id?: string;
+            flow_id?: string;
+            flow_digest?: string;
+            flow_name?: string;
+            ir?: FlowIr;
+            step_contract_catalog?: StepContractCatalog;
+            resolvers?: Record<string, RunGraphResolver | null>;
+          })
+        : undefined;
+    const pinnedSnapshot =
+      snapshot?.version === 1 &&
+      snapshot.flow_id === row.flow_id &&
+      snapshot.flow_digest === row.flow_digest
+        ? snapshot
+        : undefined;
+    const currentMatchesRun = Boolean(entry && entry.digest === row.flow_digest);
 
-    let ir = entry?.ir;
+    let ir = pinnedSnapshot?.ir ?? (currentMatchesRun ? entry?.ir : undefined);
+    const stepContractCatalog =
+      pinnedSnapshot?.step_contract_catalog ??
+      (currentMatchesRun ? flowStepContractCatalog(entry) : null);
     let pendingFlowId: string | undefined;
     if (!ir && row.exec_context._orchestration_pending) {
       const pendingGate = (await murrmurePersistence.listGatesByRun(bare)).find(
@@ -485,15 +524,22 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
         exec_context: r.exec_context,
       }));
 
-    const { buildRunGraph, flowStepContractCatalog } = await import("@murrmure/hub-core");
+    const { buildRunGraph } = await import("@murrmure/hub-core");
     const graph = buildRunGraph({
       run_id: `run_${bare}`,
       flow_id: row.flow_id ?? pendingFlowId,
       flow_digest: row.flow_digest ?? ir?.digest,
+      origin_space_id: pinnedSnapshot?.origin_space_id ?? (currentMatchesRun ? entry?.origin_space_id : undefined),
+      flow_name: pinnedSnapshot?.flow_name ?? (currentMatchesRun ? entry?.name : undefined),
+      mode:
+        row.lifecycle === "working" || row.lifecycle === "input-required"
+          ? "live"
+          : "history",
       ir,
-      step_contract_catalog: flowStepContractCatalog(entry),
+      step_contract_catalog: stepContractCatalog,
       step_memos: steps,
       siblings,
+      resolvers: pinnedSnapshot?.resolvers,
     });
 
     return c.json(graph);

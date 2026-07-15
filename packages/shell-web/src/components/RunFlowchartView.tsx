@@ -5,6 +5,7 @@ import type { RunGraphPayload, RunGraphNode } from "@murrmure/shell-client";
 import { cn } from "@murrmure/shell-ui";
 import { FlowchartStepNode } from "./flowchart/FlowchartStepNode.js";
 import { FlowchartGroupNode, type FlowGroupNodeData } from "./flowchart/FlowchartGroupNode.js";
+import { FlowchartDecisionNode } from "./flowchart/FlowchartDecisionNode.js";
 import {
   CHILD_NODE_W,
   FLOW_CENTER_X,
@@ -40,13 +41,16 @@ const statusColor = (status?: string) => {
 const nodeTypes = {
   flowStep: FlowchartStepNode,
   flowGroup: FlowchartGroupNode,
+  flowDecision: FlowchartDecisionNode,
 };
 
 function nodeKindFlags(n: RunGraphNode) {
   const isLane = n.kind === "lane";
   const isChildRun = n.kind === "child_run";
-  const isStep = !isLane && !isChildRun;
-  return { isLane, isChildRun, isStep };
+  const isDecision = n.kind === "decision";
+  const isFailureTerminal = n.kind === "failure_terminal";
+  const isStep = !isLane && !isChildRun && !isDecision && !isFailureTerminal;
+  return { isLane, isChildRun, isDecision, isFailureTerminal, isStep };
 }
 
 function stepNodeData(input: {
@@ -59,6 +63,7 @@ function stepNodeData(input: {
   selected?: boolean;
   highlighted?: boolean;
   compact?: boolean;
+  onActivate?: () => void;
 }) {
   return {
     title: input.title,
@@ -70,6 +75,7 @@ function stepNodeData(input: {
     selected: input.selected,
     highlighted: input.highlighted,
     compact: input.compact,
+    onActivate: input.onActivate,
   };
 }
 
@@ -118,7 +124,7 @@ export const RunFlowchartView = memo(function RunFlowchartView({
     for (const n of graph.nodes) {
       if (n.parent_step_id) continue;
 
-      const { isLane, isChildRun, isStep } = nodeKindFlags(n);
+      const { isLane, isChildRun, isDecision, isFailureTerminal, isStep } = nodeKindFlags(n);
       const lane = isLane ? graph.lanes.find((l) => l.run_id === n.run_id) : undefined;
       const border = isLane ? laneColor(lane?.lifecycle) : statusColor(n.status);
       const memo = memos.get(n.step_id);
@@ -126,6 +132,21 @@ export const RunFlowchartView = memo(function RunFlowchartView({
       const runHighlighted = Boolean(selectedRunId && n.run_id === selectedRunId);
 
       const children = childrenByParent.get(n.step_id) ?? [];
+      if (isDecision) {
+        flowNodes.push({
+          id: n.id,
+          type: "flowDecision",
+          data: { label: "Outcome" },
+          position: { x: FLOW_CENTER_X + (TOP_LEVEL_NODE_W - 96) / 2, y },
+          style: { width: 96, height: 96 },
+          draggable: false,
+          sourcePosition: Position.Bottom,
+          targetPosition: Position.Top,
+        });
+        y += 96 + TOP_LEVEL_GAP_Y;
+        continue;
+      }
+
       if (children.length > 0) {
         const groupId = `group:${n.step_id}`;
         const childLayouts = children.map((child) => {
@@ -140,6 +161,7 @@ export const RunFlowchartView = memo(function RunFlowchartView({
             borderColor: statusColor(child.status),
             selected: selectedStepId === child.step_id,
             compact: true,
+            onActivate: onSelectStep ? () => onSelectStep(child.step_id) : undefined,
           });
           return {
             child,
@@ -198,14 +220,15 @@ export const RunFlowchartView = memo(function RunFlowchartView({
           : loopStepTitle(n.step_id, loopStepIds, n.status, execContext);
       const metaLines = stepMetaLines(n, memo, lane?.label);
       const data = stepNodeData({
-        title,
+        title: isFailureTerminal ? "Run failed" : title,
         subtitle: isLane || isChildRun ? n.step_id : shortStepLabel(n.step_id) !== title ? n.step_id : undefined,
         status: isLane ? lane?.lifecycle : n.status,
-        kind: kindLabel(n.kind),
+        kind: isFailureTerminal ? "shared failure terminal" : kindLabel(n.kind),
         metaLines,
-        borderColor: border,
+        borderColor: isFailureTerminal ? "#7f1d1d" : border,
         selected: stepSelected,
         highlighted: runHighlighted,
+        onActivate: isStep && onSelectStep ? () => onSelectStep(n.step_id) : undefined,
       });
       const nodeHeight = estimateStepNodeHeight(data);
 
@@ -213,7 +236,7 @@ export const RunFlowchartView = memo(function RunFlowchartView({
         id: n.id,
         type: "flowStep",
         data,
-        position: { x: FLOW_CENTER_X, y },
+        position: { x: isFailureTerminal ? FLOW_CENTER_X + TOP_LEVEL_NODE_W + 120 : FLOW_CENTER_X, y },
         style: { width: TOP_LEVEL_NODE_W, height: nodeHeight },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top,
@@ -223,7 +246,24 @@ export const RunFlowchartView = memo(function RunFlowchartView({
     }
 
     return { nodes: flowNodes, edges: buildFlowEdges(graph, idRemap) };
-  }, [graph, execContext, selectedRunId, selectedStepId]);
+  }, [graph, execContext, selectedRunId, selectedStepId, onSelectStep]);
+
+  const selectNode = (node: Node) => {
+    if (node.id.startsWith("group:")) {
+      const stepId = (node.data as FlowGroupNodeData).stepId;
+      if (stepId && onSelectStep) onSelectStep(stepId);
+      return;
+    }
+    const graphNode = graph.nodes.find((candidate) => candidate.id === node.id);
+    if (!graphNode) return;
+    if (graphNode.run_id && onSelectLane && (graphNode.kind === "lane" || graphNode.kind === "child_run")) {
+      onSelectLane(graphNode.run_id);
+      return;
+    }
+    if (graphNode.kind === "step_contract" && onSelectStep) {
+      onSelectStep(graphNode.step_id);
+    }
+  };
 
   return (
     <div className={cn("min-h-0 w-full flex-1 rounded-md border border-border", className)}>
@@ -237,22 +277,7 @@ export const RunFlowchartView = memo(function RunFlowchartView({
         nodesConnectable={false}
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}
-        onNodeClick={(_, node) => {
-          if (node.id.startsWith("group:")) {
-            const stepId = (node.data as FlowGroupNodeData).stepId;
-            if (stepId && onSelectStep) onSelectStep(stepId);
-            return;
-          }
-          const graphNode = graph.nodes.find((n) => n.id === node.id);
-          if (!graphNode) return;
-          if (graphNode.run_id && onSelectLane && (graphNode.kind === "lane" || graphNode.kind === "child_run")) {
-            onSelectLane(graphNode.run_id);
-            return;
-          }
-          if (graphNode.kind !== "lane" && graphNode.kind !== "child_run" && onSelectStep) {
-            onSelectStep(graphNode.step_id);
-          }
-        }}
+        onNodeClick={(_, node) => selectNode(node)}
       >
         <Background gap={20} size={1} color="#27272a" />
       </ReactFlow>

@@ -78,6 +78,28 @@ Open steps surface in run detail as `open_steps[]` (`resolver: null` when no
 handler is bound). The shell renders them; it does not synthesize fallback
 controls for unbound steps.
 
+## Inspect and run the flow
+
+After `mrmr space apply`, open the space's single **Flows** card and select the
+flow. The detail page is the same flowchart surface used while the run is live
+and when you revisit its history:
+
+- the header shows **Run** only for a manual flow your connection may start;
+- select a rectangular step to inspect normalized branches, payload schemas,
+  artifact constraints, routes, and its safe resolver identity in the side
+  panel (a drawer on narrow screens);
+- custom outcomes fan out through a decision diamond; ordinary
+  `completed` / `failed` branches stay compact and failure routes meet one
+  shared failure terminal;
+- after start, the page keeps the same graph and interaction model while live
+  status appears;
+- an old run remains pinned to the flow digest and resolver configuration that
+  actually executed, even after a later apply changes the current preview.
+
+Resolver metadata never includes commands, prompts, host paths, parameters,
+environment, or secrets. A **No resolver bound** step remains open for an
+authorized protocol client; Desktop does not invent a fallback form.
+
 ## Related
 
 - [Tutorial 1a: first flow](./tutorials/01-local-preview-review-v3/) — **start here (6 parts)**

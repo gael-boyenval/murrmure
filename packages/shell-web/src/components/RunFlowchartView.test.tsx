@@ -163,4 +163,23 @@ describe("RunFlowchartView nested steps", () => {
     fireEvent.click(screen.getByTestId("rf__node-group:build"));
     expect(onSelectStep).toHaveBeenCalledWith("build");
   });
+
+  test("selects a step from the keyboard", () => {
+    const keyboardGraph: RunGraphPayload = {
+      run_id: "preview:flw_keyboard",
+      flow_id: "flw_keyboard",
+      nodes: [{ id: "step:intake", step_id: "intake", kind: "step_contract" }],
+      edges: [],
+      lanes: [],
+      step_memos: [],
+    };
+    const onSelectStep = vi.fn();
+    render(<RunFlowchartView graph={keyboardGraph} onSelectStep={onSelectStep} />);
+    const nodeButton = screen
+      .getByTestId("rf__node-step:intake")
+      .querySelector('[role="button"]');
+    expect(nodeButton).toBeTruthy();
+    fireEvent.keyDown(nodeButton!, { key: "Enter" });
+    expect(onSelectStep).toHaveBeenCalledWith("intake");
+  });
 });

@@ -11,11 +11,14 @@ import type {
 export const availableToRun: SpaceHomeFlowRow[] = [
   {
     flow_id: "flw_ops_digest",
+    origin_space_id: "spc_ops",
     name: "Ops daily digest",
     digest: "sha256:ops001",
     can_run: true,
     can_preview: true,
     manual: true,
+    authored_here: false,
+    triggers: { manual: true },
   },
 ];
 
@@ -23,38 +26,50 @@ export const availableToRun: SpaceHomeFlowRow[] = [
 export const receivingFrom: SpaceHomeFlowRow[] = [
   {
     flow_id: "flw_platform_orchestrator",
+    origin_space_id: "spc_platform",
     name: "Platform orchestrator",
     digest: "sha256:plat001",
     can_run: false,
     can_preview: true,
     manual: false,
+    authored_here: false,
+    triggers: {},
   },
 ];
 
 export const demoFlows: SpaceHomeFlowRow[] = [
   {
     flow_id: "flw_review_loop",
+    origin_space_id: "spc_demo",
     name: "Review loop",
     digest: "sha256:abc123",
     can_run: true,
     can_preview: true,
     manual: true,
+    authored_here: true,
+    triggers: { manual: true },
   },
   {
     flow_id: "flw_feature_spec",
+    origin_space_id: "spc_demo",
     name: "Feature spec",
     digest: "sha256:def456",
     can_run: true,
     can_preview: true,
     manual: true,
+    authored_here: true,
+    triggers: { manual: true },
   },
   {
     flow_id: "flw_orchestrator",
+    origin_space_id: "spc_demo",
     name: "Multi-agent orchestrator",
     digest: "sha256:ghi789",
     can_run: false,
     can_preview: true,
     manual: false,
+    authored_here: true,
+    triggers: {},
   },
 ];
 
@@ -75,16 +90,14 @@ export const activeRuns: SpaceHomeRunRow[] = [
   },
 ];
 
-export const completedRuns: SpaceHomeRunRow[] = [
-  {
-    run_id: "run_prev01",
-    session_id: "ses_prev01",
-    lifecycle: "completed",
-    started_at: "2026-06-30T14:00:00Z",
-    ended_at: "2026-06-30T14:22:00Z",
-    title: "Feature spec draft",
-  },
-];
+export const completedRuns: SpaceHomeRunRow[] = Array.from({ length: 20 }, (_, index) => ({
+  run_id: `run_prev${String(index + 1).padStart(2, "0")}`,
+  session_id: `ses_prev${String(index + 1).padStart(2, "0")}`,
+  lifecycle: index % 5 === 0 ? "failed" : "completed",
+  started_at: `2026-06-${String(30 - Math.floor(index / 4)).padStart(2, "0")}T14:00:00Z`,
+  ended_at: `2026-06-${String(30 - Math.floor(index / 4)).padStart(2, "0")}T14:22:00Z`,
+  title: `Feature spec run ${index + 1}`,
+}));
 
 export const attentionItems: SpaceHomeAttentionRow[] = [
   {

@@ -20,7 +20,7 @@ installation or `mrmr space apply`.
 | `murrmure_get_run` | `space:read` | Step memo + journal replay |
 | `murrmure_get_run_context` | `space:read` | Run + active step-contract context |
 | **`murrmure_list_step_contracts`** | **`space:read`** | `{ run_id }` → active slice + `graph_digest` |
-| `murrmure_get_run_graph` | `flow:read` | Preview graph |
+| `murrmure_get_run_graph` | `flow:read` | Digest-pinned live/history graph with authorized contracts and safe resolver identity |
 | `murrmure_attach_orchestration` | `flow:run` | Ephemeral session graph attach |
 | `murrmure_cancel_run` | `flow:run` | Terminal runs reject restart |
 

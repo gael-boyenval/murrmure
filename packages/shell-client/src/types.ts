@@ -133,11 +133,13 @@ export interface FlowStartConditions {
 
 export interface SpaceHomeFlowRow {
   flow_id: string;
+  origin_space_id: string;
   name: string;
   digest: string;
   can_run: boolean;
   can_preview: boolean;
   manual: boolean;
+  authored_here: boolean;
   triggers: FlowStartConditions;
 }
 
@@ -219,11 +221,11 @@ export interface SpaceHomeEmittableEventRow {
 }
 
 export interface SpaceHomePayload {
+  version: 2;
   space_id: string;
   needs_attention: SpaceHomeAttentionRow[];
   active_runs: SpaceHomeRunRow[];
-  your_flows: SpaceHomeFlowRow[];
-  available_to_run: SpaceHomeFlowRow[];
+  flows: SpaceHomeFlowRow[];
   receiving_from: SpaceHomeFlowRow[];
   recent_completed: SpaceHomeRunRow[];
   index: SpaceHomeIndexSection;
@@ -231,11 +233,15 @@ export interface SpaceHomePayload {
 }
 
 export interface FlowPreviewPayload {
+  version: 2;
   flow_id: string;
+  origin_space_id: string;
   name: string;
   digest: string;
+  can_run: boolean;
+  manual: boolean;
   triggers: FlowStartConditions;
-  steps: Array<{ id: string; kind: string; invoke?: { space: string; action: string }; gate?: { form?: string } }>;
+  graph: RunGraphPayload;
 }
 
 export interface RunGraphLane {
@@ -255,16 +261,61 @@ export interface RunGraphNode {
   federated?: boolean;
   remote_label?: string;
   parent_step_id?: string;
+  metadata?: RunGraphStepMetadata;
+}
+
+export interface RunGraphResolver {
+  handler_id: string;
+  type: string;
+  view_id?: string;
+  config_digest: string;
+}
+
+export interface RunGraphBranchMetadata {
+  branch: string;
+  schema_ref?: string;
+  schema?: Record<string, unknown>;
+  payload_required: string[];
+  artifact_required: string[];
+  artifact_slots: Record<string, Record<string, unknown>>;
+  routes: Array<{
+    engine?: "open" | "advance" | "fail_run" | "resume";
+    step_id?: string;
+  }>;
+}
+
+export interface RunGraphStepMetadata {
+  description?: string;
+  branches: RunGraphBranchMetadata[];
+  resolver: RunGraphResolver | null;
+  resolver_source: "current" | "dispatch";
 }
 
 export interface RunGraphPayload {
   run_id: string;
   flow_id?: string | null;
   flow_digest?: string;
+  origin_space_id?: string;
+  flow_name?: string;
+  mode?: "preview" | "live" | "history";
   nodes: RunGraphNode[];
-  edges: Array<{ id: string; source: string; target: string }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    tone?: "default" | "failure";
+    route_kind?: "open" | "advance" | "fail_run" | "resume";
+  }>;
   lanes: RunGraphLane[];
-  step_memos: Array<{ step_id: string; status: string }>;
+  step_memos: Array<{
+    step_id: string;
+    status: string;
+    started_at?: string;
+    completed_at?: string;
+    error_code?: string;
+    executor_type?: string;
+  }>;
 }
 
 export interface RunDetailPayload {
@@ -323,6 +374,7 @@ export interface ShellClient {
   spaces: {
     list(): Promise<SpaceSummary[]>;
     home(space_id: string): Promise<SpaceHomePayload>;
+    runs(space_id: string): Promise<{ space_id: string; runs: SpaceHomeRunRow[] }>;
     flowPreview(space_id: string, flow_id: string): Promise<FlowPreviewPayload>;
     runFlow(flow_id: string, body: { space_id?: string; input?: Record<string, unknown> }): Promise<{
       session: { session_id: string; title: string };

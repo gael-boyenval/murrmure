@@ -118,6 +118,10 @@ name: my-first-space
 ## Step 4 — Check Desktop
 
 Click your space in the sidebar. You should see the space home. Nothing to run yet — Part 2 adds the workflow.
+When flows exist, this page has one **Flows** card: an authored flow you may
+also run appears once, with **Authored here** and **Runnable** badges. The
+**Recent completed** card stays a fixed height after 20 items and
+**View all runs** opens the complete history.
 
 ```bash
 mrmr space status

@@ -1,5 +1,26 @@
 # Changelog
 
+## Tutorial v3 Task 12 — one truthful flow page (2026-07-15)
+
+### Added
+
+- Space home now exposes one canonically deduplicated **Flows** list and a
+  fixed-height, 20-run **Recent completed** scroller with full run history.
+- Applied preview, live runs, and history share one flowchart page, selection
+  model, and responsive contract/resolver inspector. Manual authorized flows
+  start from the page header without changing the page experience.
+- Server-owned graph projection renders normalized branch routes, custom
+  decision fan-out, and one shared failure terminal. Resolver identity is
+  sanitized, and runs pin their flow/catalog plus handler config digests so a
+  later apply cannot rewrite historical rendering.
+
+### Breaking
+
+- Space-home payload v2 replaces overlapping `your_flows` and
+  `available_to_run` arrays with canonical `flows`.
+- Flow preview payload v2 carries the authorized graph and server-computed
+  `can_run`; clients no longer infer contracts or handler bindings.
+
 ## Tutorial v3 Task 07 — connected agent build assignments (2026-07-15)
 
 ### Added

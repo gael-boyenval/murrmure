@@ -8,6 +8,8 @@ import type {
 import { parseHandlerStepBinding } from "@murrmure/contracts";
 import { catalogEntryForStep } from "./step-catalog.js";
 import { buildHandlerIndex, matchStepOpenedHandlers } from "../index/parse-handlers.js";
+import { computeContentDigest } from "../index/digest.js";
+import type { RunGraphResolver } from "./graph.js";
 
 /** Persisted view row projected from the space index. */
 export interface ProjectedViewRow {
@@ -24,6 +26,36 @@ export interface OpenStepProjectionContext {
   handlers?: HandlerSpec[];
   /** Applied space views (parsed). */
   views?: ProjectedViewRow[];
+  exec_context?: Record<string, unknown>;
+}
+
+/**
+ * Build the only resolver identity safe to pin on a run or expose in a graph.
+ * The digest covers the complete applied handler configuration while the
+ * projection deliberately excludes command, prompt, cwd, params and secrets.
+ */
+export function buildSafeResolverMap(
+  catalog: StepContractCatalog | null | undefined,
+  flowName: string | undefined,
+  handlers: HandlerSpec[],
+): Record<string, RunGraphResolver | null> {
+  if (!catalog || !flowName) return {};
+  const index = buildHandlerIndex({ version: 1, run_policies: [], handlers });
+  const result: Record<string, RunGraphResolver | null> = {};
+  for (const entry of catalog.entries) {
+    const handler = matchStepOpenedHandlers(index, `${flowName}.${entry.step_id}`)[0];
+    if (!handler) {
+      result[entry.step_id] = null;
+      continue;
+    }
+    result[entry.step_id] = {
+      handler_id: handler.id,
+      type: handler.type,
+      ...(handler.type === "view_resolver" ? { view_id: handler.view } : {}),
+      config_digest: computeContentDigest(handler),
+    };
+  }
+  return result;
 }
 
 /**
