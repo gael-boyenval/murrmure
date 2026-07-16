@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { GateForm, GateItem } from "@murrmure/shell-client";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@murrmure/shell-ui";
 
-export interface GateResolvePanelProps {
+export interface ProtocolGateFormProps {
   gate: GateItem;
   onSubmit: (values: { decision: "approved" | "rejected"; form_values: Record<string, unknown> }) => Promise<void>;
   submitting?: boolean;
@@ -18,7 +18,7 @@ function defaultForm(): GateForm {
   };
 }
 
-export function GateResolvePanel({ gate, onSubmit, submitting }: GateResolvePanelProps) {
+export function ProtocolGateForm({ gate, onSubmit, submitting }: ProtocolGateFormProps) {
   const form = gate.form ?? defaultForm();
   const [values, setValues] = useState<Record<string, string>>({});
 

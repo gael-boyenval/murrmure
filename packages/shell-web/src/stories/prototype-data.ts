@@ -342,7 +342,7 @@ export const flowPreviewMeta = {
     "Research and draft in Demo space, human review gate, then federated publish to Ops.",
   start: {
     manual: true,
-    requires_view: "review-params",
+    view_binding: "review-params",
   },
 } as const;
 

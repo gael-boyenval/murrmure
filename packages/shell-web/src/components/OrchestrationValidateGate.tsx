@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo } from "react";
 import type { GateItem, RunGraphPayload } from "@murrmure/shell-client";
-import { GateResolvePanel } from "./GateResolvePanel.js";
+import { ProtocolGateForm } from "./ProtocolGateForm.js";
 import { Card, CardContent, CardHeader, CardTitle } from "@murrmure/shell-ui";
 
 const RunFlowchartView = lazy(() =>
@@ -81,7 +81,7 @@ export function OrchestrationValidateGate({ gate, graph, onSubmit, submitting }:
         </CardContent>
       </Card>
 
-      <GateResolvePanel gate={gate} onSubmit={onSubmit} submitting={submitting} />
+      <ProtocolGateForm gate={gate} onSubmit={onSubmit} submitting={submitting} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { GateItem, RunGraphPayload } from "@murrmure/shell-client";
-import { GateResolvePanel } from "./GateResolvePanel.js";
+import { ProtocolGateForm } from "./ProtocolGateForm.js";
 import { OrchestrationValidateGate } from "./OrchestrationValidateGate.js";
 
 export interface GatePanelProps {
@@ -15,5 +15,5 @@ export function GatePanel({ gate, graph, onSubmit, submitting }: GatePanelProps)
       <OrchestrationValidateGate gate={gate} graph={graph} onSubmit={onSubmit} submitting={submitting} />
     );
   }
-  return <GateResolvePanel gate={gate} onSubmit={onSubmit} submitting={submitting} />;
+  return <ProtocolGateForm gate={gate} onSubmit={onSubmit} submitting={submitting} />;
 }

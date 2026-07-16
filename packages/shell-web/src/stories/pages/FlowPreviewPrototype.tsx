@@ -22,8 +22,8 @@ export function FlowPreviewPrototype() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{flowPreviewMeta.spaceName}</Badge>
             <Badge variant="outline">{startModeLabel(start)}</Badge>
-            {start.requires_view ? (
-              <Badge variant="secondary">requires_view: {start.requires_view}</Badge>
+            {start.view_binding ? (
+              <Badge variant="secondary">View binding: {start.view_binding}</Badge>
             ) : null}
           </div>
         </div>

@@ -32,6 +32,6 @@ describe("SpacesNewPage", () => {
     expect(screen.getByText(/mrmr space init/)).toBeTruthy();
     expect(screen.getByText(/mrmr space link --create/)).toBeTruthy();
     expect(screen.getByText(/mrmr space apply/)).toBeTruthy();
-    expect(screen.queryByText(/mrmr grant mint/)).toBeNull();
+    expect(screen.queryByText(/mrmr connection create/)).toBeNull();
   });
 });
