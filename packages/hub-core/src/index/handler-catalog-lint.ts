@@ -6,6 +6,7 @@ import { buildHandlerIndex } from "./parse-handlers.js";
 export interface HandlerCatalogLintWarning {
   code:
     | "HANDLER_ORPHAN_KEY"
+    | "HANDLER_KEY_CONFLICT"
     | "HANDLER_COMPLETE_CLI_NO_RESOLVE"
     | "HANDLER_COMPLETE_AUTO_NESTED";
   message: string;
@@ -56,7 +57,18 @@ export function lintHandlerCatalogCoverage(input: {
 }): HandlerCatalogLintWarning[] {
   const warnings: HandlerCatalogLintWarning[] = [];
   const known = collectCatalogKeys(input.flows);
-  buildHandlerIndex(input.handlers); // exercise index construction for parity
+  const index = buildHandlerIndex(input.handlers);
+
+  // At most one step.opened handler may claim a given alias.
+  for (const [alias, handlers] of Object.entries(index.step_opened_by_alias)) {
+    if (handlers.length < 2) continue;
+    warnings.push({
+      code: "HANDLER_KEY_CONFLICT",
+      contract_key: alias,
+      handler_id: handlers.map((handler) => handler.id).join(", "),
+      message: `Multiple handlers claim step.opened::${alias}: ${handlers.map((handler) => handler.id).join(", ")}`,
+    });
+  }
 
   for (const handler of input.handlers.handlers) {
     // `contract_keys` is prompt scope only: each entry must be a known catalog

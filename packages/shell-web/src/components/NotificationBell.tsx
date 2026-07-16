@@ -14,14 +14,21 @@ export function NotificationBell() {
   });
 
   const count = query.data?.pending_count ?? 0;
+  const linkLabel = count > 0 ? `Needs you, ${count} pending` : "Needs you";
+  const liveText = count > 0 ? `${count} pending` : "No pending notifications";
 
   return (
-    <Button variant="outline" size="sm" asChild>
-      <Link to="/notifications" className="gap-2">
-        <Bell className="h-4 w-4" />
-        Needs you
-        {count > 0 ? <Badge variant="default">{count}</Badge> : null}
-      </Link>
-    </Button>
+    <>
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveText}
+      </span>
+      <Button variant="outline" size="sm" asChild>
+        <Link to="/notifications" className="gap-2" aria-label={linkLabel}>
+          <Bell className="h-4 w-4" aria-hidden />
+          Needs you
+          {count > 0 ? <Badge variant="default">{count}</Badge> : null}
+        </Link>
+      </Button>
+    </>
   );
 }

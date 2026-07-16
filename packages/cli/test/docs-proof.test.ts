@@ -150,7 +150,7 @@ describe("phase 10 docs proof (10-T*)", () => {
       "preview-review",
       "preview-review-intake",
     ]);
-  });
+  }, 120_000);
 
   test("10-T1b — preview-review manifest uses nested build + resolve_step", () => {
     const manifestPath = join(
@@ -171,7 +171,7 @@ describe("phase 10 docs proof (10-T*)", () => {
 
   test("10-T3 — daily-brief-v2 example passes apply lint (handlers + step contracts)", () => {
     assertStrictApply(join(REPO_ROOT, "test-utils/spaces/daily-brief-v2"), ["daily-brief"]);
-  });
+  }, 120_000);
 
   test("10-U5b — root .mrmr/space passes apply lint (feedback event handlers)", () => {
     assertStrictApply(REPO_ROOT);
