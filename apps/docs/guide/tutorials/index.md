@@ -14,7 +14,7 @@ Follow each part in order — build every file yourself from the steps and snipp
 
 **Tutorial 1a** is the only active introductory path. It covers the clean protocol end to end: launch Desktop, create a space, write a flow manifest, build a custom intake view, run and read the journal, then extend the graph with shell + agent handlers and clean up with a commit.
 
-The earlier v2 tutorials (1b full preview-review, 2 multi-agent brief, 3 daily-brief trigger) described the removed v2 runtime (`action:invoke`, `gate:resolve`, checkpoint gates, base64 artifact upload) and were retired in the Task 15 cutover. They are preserved as a non-normative audit trail at [archives/superseded/tutorials/](../../../../studio-specs/archives/superseded/tutorials/) — do not follow them.
+The earlier v2 tutorials (1b full preview-review, 2 multi-agent brief, 3 daily-brief trigger) described the removed v2 runtime (`action:invoke`, `gate:resolve`, checkpoint gates, base64 artifact upload) and were retired in the Task 15 cutover. They are preserved as a non-normative audit trail at [`studio-specs/archives/superseded/tutorials/`](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/archives/superseded/tutorials/README.md) — do not follow them.
 
 ## Before you start
 
