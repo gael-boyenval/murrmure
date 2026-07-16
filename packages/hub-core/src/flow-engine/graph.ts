@@ -226,6 +226,11 @@ function buildStepContractRunGraph(input: {
       branch.routes.some((route) => route.engine === "fail_run"),
     ),
   );
+  const hasSuccessRoute = catalog.entries.some((entry) =>
+    Object.values(entry.branches).some((branch) =>
+      branch.routes.some((route) => route.engine === "advance" && !route.step_id),
+    ),
+  );
 
   const metadataFor = (step: (typeof catalog.entries)[number]): RunGraphStepMetadata => ({
     description: step.description,
@@ -260,8 +265,17 @@ function buildStepContractRunGraph(input: {
         id: `decision:${step.step_id}`,
         step_id: step.step_id,
         kind: "decision",
+        parent_step_id: step.parent_id ?? undefined,
       });
     }
+  }
+
+  if (hasSuccessRoute) {
+    nodes.push({
+      id: "terminal:succeeded",
+      step_id: "run.succeeded",
+      kind: "success_terminal",
+    });
   }
 
   if (hasFailureRoute) {
@@ -275,6 +289,7 @@ function buildStepContractRunGraph(input: {
   const targetForRoute = (route: StepCatalogRoute): string | undefined => {
     if (route.engine === "fail_run") return "terminal:failed";
     if (route.step_id && entriesById.has(route.step_id)) return `step:${route.step_id}`;
+    if (route.engine === "advance" && !route.step_id) return "terminal:succeeded";
     return undefined;
   };
 
@@ -304,8 +319,7 @@ function buildStepContractRunGraph(input: {
           ...(!isPlainDefault || branchName !== "completed" ? { label: branchName } : {}),
           ...(failure ? { tone: "failure" as const } : {}),
           ...(route.engine ? { route_kind: route.engine } : {}),
-        });
-      }
+        });      }
     }
   }
 

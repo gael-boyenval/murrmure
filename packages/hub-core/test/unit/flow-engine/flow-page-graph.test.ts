@@ -64,10 +64,13 @@ describe("truthful flow-page graph projection", () => {
     expect(graph.nodes.filter((node) => node.kind === "decision").map((node) => node.step_id)).toEqual([
       "intake",
     ]);
+    expect(graph.nodes.find((node) => node.kind === "decision")?.parent_step_id).toBeUndefined();
     expect(graph.nodes.filter((node) => node.kind === "failure_terminal")).toHaveLength(1);
+    expect(graph.nodes.filter((node) => node.kind === "success_terminal")).toHaveLength(1);
     expect(graph.edges.filter((edge) => edge.tone === "failure").every(
       (edge) => edge.target === "terminal:failed",
     )).toBe(true);
+    expect(graph.edges.some((edge) => edge.target === "terminal:succeeded")).toBe(true);
     expect(graph.nodes.find((node) => node.step_id === "build")?.kind).toBe("step_contract");
   });
 

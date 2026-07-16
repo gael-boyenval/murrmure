@@ -1,5 +1,6 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { cn } from "@murrmure/shell-ui";
+import { BOTTOM_SOURCE_HANDLES, bottomHandleLeftPercent } from "./flowchart-layout.js";
 
 export type FlowStepNodeData = {
   title: string;
@@ -45,11 +46,11 @@ export function FlowchartStepNode({ data }: NodeProps<FlowStepNode>) {
       tabIndex={data.onActivate ? 0 : undefined}
       aria-label={data.onActivate ? `Inspect step ${data.title}` : undefined}
       className={cn(
-        "relative box-border flex h-full w-full flex-col rounded-lg border-2 bg-zinc-950 px-3 py-2.5 text-xs shadow-sm",
-        data.selected && "ring-1 ring-blue-400/80",
-        data.highlighted && !data.selected && "bg-blue-950/20",
+        "relative box-border flex h-full w-full flex-col rounded-md border bg-zinc-950/95 px-2.5 py-2 text-xs",
+        data.selected && "border-blue-500 ring-1 ring-blue-500/50",
+        data.highlighted && !data.selected && "bg-blue-950/25",
       )}
-      style={{ borderColor: data.selected ? "#3b82f6" : data.borderColor }}
+      style={{ borderColor: data.selected ? undefined : data.borderColor }}
       onKeyDown={(event) => {
         if (!data.onActivate || (event.key !== "Enter" && event.key !== " ")) return;
         event.preventDefault();
@@ -57,7 +58,16 @@ export function FlowchartStepNode({ data }: NodeProps<FlowStepNode>) {
       }}
     >
       <Handle type="target" position={Position.Top} id="top" className="flowchart-handle flowchart-handle-top" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="flowchart-handle flowchart-handle-bottom" />
+      {Array.from({ length: BOTTOM_SOURCE_HANDLES }, (_, index) => (
+        <Handle
+          key={index}
+          type="source"
+          position={Position.Bottom}
+          id={`bottom-${index}`}
+          className="flowchart-handle flowchart-handle-bottom-slot"
+          style={{ left: `${bottomHandleLeftPercent(index)}%` }}
+        />
+      ))}
       <Handle type="source" position={Position.Right} id="right" className="flowchart-handle flowchart-handle-right" />
       <Handle type="target" position={Position.Left} id="left" className="flowchart-handle flowchart-handle-left" />
 

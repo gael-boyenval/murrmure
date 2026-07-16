@@ -1,17 +1,24 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { BOTTOM_SOURCE_HANDLES, bottomHandleLeftPercent } from "./flowchart-layout.js";
 
-type FlowDecisionNode = Node<{ label: string }, "flowDecision">;
+type FlowDecisionNode = Node<Record<string, never>, "flowDecision">;
 
-export function FlowchartDecisionNode({ data }: NodeProps<FlowDecisionNode>) {
+/** Compact outcome diamond — multiple bottom exits so branch lines do not share a path. */
+export function FlowchartDecisionNode(_props: NodeProps<FlowDecisionNode>) {
   return (
-    <div className="relative flex size-24 rotate-45 items-center justify-center border-2 border-zinc-500 bg-zinc-950">
-      <Handle type="target" position={Position.Top} id="top" className="flowchart-handle" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="flowchart-handle" />
-      <Handle type="source" position={Position.Right} id="right" className="flowchart-handle" />
-      <Handle type="target" position={Position.Left} id="left" className="flowchart-handle" />
-      <span className="-rotate-45 text-center text-[10px] font-medium text-zinc-300">
-        {data.label}
-      </span>
+    <div className="relative flex h-full w-full items-center justify-center">
+      <div className="absolute inset-[18%] rotate-45 border border-zinc-400/80 bg-zinc-900 shadow-[0_0_0_1px_rgba(0,0,0,0.4)]" />
+      <Handle type="target" position={Position.Top} id="top" className="flowchart-handle flowchart-handle-top" />
+      {Array.from({ length: BOTTOM_SOURCE_HANDLES }, (_, index) => (
+        <Handle
+          key={index}
+          type="source"
+          position={Position.Bottom}
+          id={`bottom-${index}`}
+          className="flowchart-handle flowchart-handle-bottom-slot"
+          style={{ left: `${bottomHandleLeftPercent(index)}%` }}
+        />
+      ))}
     </div>
   );
 }
