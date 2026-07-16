@@ -151,8 +151,8 @@ describe("golden JSON: linear create + transition", () => {
   });
 });
 
-describe("checkpoint happy path", () => {
-  test("pending then resolved with checkpoint.resolved", async () => {
+describe("checkpoint pending creation", () => {
+  test("transition with checkpoint quorum pauses aggregate (pending, no state change)", async () => {
     const artifact = loadRule("with-checkpoint.json");
     const { kernel: k, persistence: p, digest: d } = makeKernel(artifact);
 
@@ -172,6 +172,12 @@ describe("checkpoint happy path", () => {
       expected_revision: 0,
     });
 
+    // The kernel retains checkpoint *creation*: a transition whose rule declares a
+    // checkpoint quorum pauses the aggregate (CHECKPOINT_PENDING, 202 Accepted) with
+    // no state change. The hub no longer bridges a gate.resolve into a kernel
+    // Removed kernel checkpoint-resolve command — advancing the checkpoint is owned by the
+    // orchestration gate service on the gates table, so the kernel records only the
+    // pending checkpoint and never a checkpoint.resolved event here.
     expect(submit.http_semantic).toBe(HTTP_SEMANTIC.ACCEPTED);
     expect(submit.code).toBe(DENIAL_CODES.CHECKPOINT_PENDING);
 
@@ -179,20 +185,9 @@ describe("checkpoint happy path", () => {
     expect(snapPending?.state).toBe("draft");
     expect(snapPending?.revision).toBe(0);
 
-    const resolve = await k.execute({
-      kind: "checkpoint.resolve",
-      provenance: { scope_id: "scp_test", actor_id: "actor_human", credential_id: "c", command_id: "cp3", actor_kind: "human" },
-      checkpoint_id: submit.body.checkpoint_id as string,
-      decision: "approved",
-    });
-
-    expect(resolve.outcome).toBe("success");
-    const snap = await k.getAggregate(aggId);
-    expect(snap?.state).toBe("awaiting_approval");
-    expect(snap?.revision).toBe(1);
-
     const journal = await p.tailJournal(0);
-    expect(journal.some((e) => e.type === "checkpoint.resolved")).toBe(true);
+    expect(journal.some((e) => e.type === "checkpoint.created")).toBe(true);
+    expect(journal.some((e) => e.type === "checkpoint.resolved")).toBe(false);
   });
 });
 

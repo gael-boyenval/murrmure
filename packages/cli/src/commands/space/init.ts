@@ -5,6 +5,7 @@ import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { scaffoldMurrmureDir } from "../../lib/space-scaffold.js";
 import { installMurrmureSkill } from "../../skill/install.js";
+import { resolveSpaceIdentity } from "../../wizard/space-naming.js";
 
 async function maybeInstallSkill(
   target: string,
@@ -35,16 +36,48 @@ async function maybeInstallSkill(
   return { installed: true, path: result.path, version: result.version };
 }
 
+async function resolveWithExamples(options: {
+  withExamples: boolean;
+  noExamples: boolean;
+}): Promise<boolean> {
+  if (options.noExamples) {
+    return false;
+  }
+  if (options.withExamples) {
+    return true;
+  }
+  if (!isJsonMode() && process.stdin.isTTY) {
+    const answer = await p.confirm({
+      message: "Include example flow and starter files?",
+      initialValue: false,
+    });
+    if (p.isCancel(answer)) {
+      p.cancel("Scaffold cancelled");
+      return false;
+    }
+    return Boolean(answer);
+  }
+  return false;
+}
+
 export const spaceInitCommand = defineCommand({
   meta: {
     name: "init",
-    description: "Scaffold murrmure/ space directory in the current folder (Requires: none)",
+    description: "Scaffold .mrmr/ space directory in the current folder (Requires: none)",
   },
   args: {
     ...globalArgs,
     path: {
       type: "string",
       description: "Target directory (default: .)",
+    },
+    name: {
+      type: "string",
+      description: "Display name (default: target folder name)",
+    },
+    slug: {
+      type: "string",
+      description: "Space slug (default: normalized display name)",
     },
     "with-skill": {
       type: "boolean",
@@ -56,26 +89,51 @@ export const spaceInitCommand = defineCommand({
       description: "Skip skill install prompt",
       default: false,
     },
+    "with-examples": {
+      type: "boolean",
+      description: "Scaffold example flow and starter README without prompting",
+      default: false,
+    },
+    "no-examples": {
+      type: "boolean",
+      description: "Skip example flow (empty handlers only)",
+      default: false,
+    },
   },
   async run({ args }) {
     const flags = parseGlobalFlags(args);
     const target = resolve(typeof args.path === "string" && args.path ? args.path : process.cwd());
     const withSkill = Boolean(args["with-skill"]);
     const noSkill = Boolean(args["no-skill"]);
-
+    const withExamples = Boolean(args["with-examples"]);
+    const noExamples = Boolean(args["no-examples"]);
     if (withSkill && noSkill) {
       printErr("USAGE", "Pass only one of --with-skill or --no-skill");
     }
+    if (withExamples && noExamples) {
+      printErr("USAGE", "Pass only one of --with-examples or --no-examples");
+    }
 
     try {
-      const { created, filledEmptyMurrmure } = scaffoldMurrmureDir(target);
+      const identity = resolveSpaceIdentity(target, {
+        name: typeof args.name === "string" ? args.name : undefined,
+        slug: typeof args.slug === "string" ? args.slug : undefined,
+      });
+      const includeExamples = await resolveWithExamples({ withExamples, noExamples });
+      const { created, filledEmptyMurrmure } = scaffoldMurrmureDir(target, {
+        withExamples: includeExamples,
+        ...identity,
+      });
       const skill = await maybeInstallSkill(target, { withSkill, noSkill });
 
       if (isJsonMode() || flags.json) {
         printOk({
           created,
-          murrmure_root: `${target}/murrmure`,
+          murrmure_root: `${target}/.mrmr`,
           filled_empty_murrmure: filledEmptyMurrmure,
+          with_examples: includeExamples,
+          name: identity.name,
+          slug: identity.slug,
           skill_installed: skill.installed,
           skill_path: skill.path,
           skill_version: skill.version,
@@ -84,11 +142,13 @@ export const spaceInitCommand = defineCommand({
       }
 
       const verb = filledEmptyMurrmure ? "Scaffolded empty" : "Created";
-      printOk({}, `✓ ${verb} murrmure/ (${created.length} files)`);
+      printOk({}, `✓ ${verb} .mrmr/ (${created.length} files)`);
       if (skill.installed) {
         cliConsola.success(`Installed murrmure skill to ${skill.path} (v${skill.version})`);
       }
-      console.log("Next: edit murrmure/actions.yaml, then run `mrmr space link --path . --create`");
+      console.log(
+        "Next: run `mrmr space link --path . --create`, then `mrmr space apply`.",
+      );
     } catch (error) {
       printErr("SCAFFOLD_FAILED", error instanceof Error ? error.message : "Scaffold failed");
     }

@@ -97,16 +97,12 @@ describe("http/actions/invoke-shell", () => {
     "Content-Type": "application/json",
   });
 
-  test("shell invoke completes synchronously", async () => {
+  test("action invoke route is removed (404)", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/daily_checkin/invoke`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({ params: { task: "test" } }),
     });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.dispatch.status).toBe("completed");
-    expect(body.body).toEqual({ task: "done" });
-    expect(body.dispatch.step_id).toBe("action:daily_checkin");
+    expect(res.status).toBe(404);
   });
 });

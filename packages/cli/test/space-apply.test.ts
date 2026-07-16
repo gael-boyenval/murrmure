@@ -9,8 +9,8 @@ import { clearAuthContextCache } from "../src/lib/auth-context.js";
 import {
   lintSpaceApplyBundle,
   strictLintFailures,
-  type SpaceApplyBundle,
 } from "@murrmure/hub-core";
+import type { SpaceApplyBundle } from "@murrmure/contracts";
 
 const FIXTURES = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -34,20 +34,53 @@ describe("space apply integration", () => {
     process.env.MURRMURE_HUB_TOKEN = "tok_admin";
     clearAuthContextCache();
     projectDir = mkdtempSync(join(tmpdir(), "cli-space-apply-"));
-    const root = join(projectDir, "murrmure");
+    const root = join(projectDir, ".mrmr");
+    mkdirSync(join(root, "space"), { recursive: true });
     mkdirSync(join(root, "flows", "demo"), { recursive: true });
     writeFileSync(
-      join(root, "actions.yaml"),
+      join(root, "space", "actions.yaml"),
       "version: 1\nactions:\n  hello:\n    executor: shell\n",
     );
     writeFileSync(
       join(root, "flows", "demo", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: demo\nstart:\n  manual: true\nsteps:\n  - id: hello\n    invoke:\n      space: spc_demo\n      action: hello\n",
+      [
+        "apiVersion: murrmure.flow/v1",
+        "name: demo",
+        "triggers:",
+        "  manual: true",
+        "steps:",
+        "  - id: hello",
+        "    description: Run hello via handler.",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        route: { run: completed }",
+        "      failed:",
+        "        schema: { type: object }",
+        "        route: { run: failed }",
+      ].join("\n"),
     );
-    mkdirSync(join(projectDir, ".murrmure"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".murrmure", "link.json"),
-      JSON.stringify({ space_id: "spc_demo", path: projectDir, host: "local" }),
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [demo.hello]",
+        "    on: step.opened::demo.hello",
+        "    type: shell_spawn",
+        "    complete: explicit",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "link:",
+        "  space_id: spc_demo",
+        "  host: local",
+      ].join("\n"),
     );
   });
 
@@ -66,16 +99,18 @@ describe("space apply integration", () => {
   });
 
   test("readSpaceApplyBundle clears absent yaml sections with empty files", () => {
-    unlinkSync(join(projectDir, "murrmure", "actions.yaml"));
+    unlinkSync(join(projectDir, ".mrmr", "space", "actions.yaml"));
+    unlinkSync(join(projectDir, ".mrmr", "space", "handlers.yaml"));
     const bundle = readSpaceApplyBundle(projectDir);
     expect(bundle.actions?.file.actions).toEqual({});
     expect(bundle.executors?.file.executors).toEqual({});
     expect(bundle.hooks?.file.hooks).toEqual({});
+    expect(bundle.handlers?.file.handlers).toEqual([]);
   });
 
   test("readSpaceApplyBundle loads hooks from triggers.yaml alias", () => {
     writeFileSync(
-      join(projectDir, "murrmure", "triggers.yaml"),
+      join(projectDir, ".mrmr", "space", "triggers.yaml"),
       "version: 1\nhooks:\n  on_event:\n    on:\n      event:\n        type: mrmr.spec.published\n    do:\n      - invoke:\n          action: hello\n",
     );
     const bundle = readSpaceApplyBundle(projectDir);
@@ -84,11 +119,11 @@ describe("space apply integration", () => {
 
   test("readSpaceApplyBundle prefers hooks.yaml over triggers.yaml", () => {
     writeFileSync(
-      join(projectDir, "murrmure", "hooks.yaml"),
+      join(projectDir, ".mrmr", "space", "hooks.yaml"),
       "version: 1\nhooks:\n  canonical:\n    on:\n      event:\n        type: mrmr.canonical\n    do:\n      - invoke:\n          action: hello\n",
     );
     writeFileSync(
-      join(projectDir, "murrmure", "triggers.yaml"),
+      join(projectDir, ".mrmr", "space", "triggers.yaml"),
       "version: 1\nhooks:\n  alias_only:\n    on:\n      event:\n        type: mrmr.alias\n    do:\n      - invoke:\n          action: hello\n",
     );
     const bundle = readSpaceApplyBundle(projectDir);
@@ -97,11 +132,11 @@ describe("space apply integration", () => {
   });
 
   test("readSpaceApplyBundle derives unique flow ids from manifest path", () => {
-    const root = join(projectDir, "murrmure", "flows");
+    const root = join(projectDir, ".mrmr", "flows");
     mkdirSync(join(root, "other"), { recursive: true });
     writeFileSync(
       join(root, "other", "flow.manifest.yaml"),
-      "apiVersion: murrmure.flow/v1\nname: demo\nstart:\n  manual: true\nsteps: []\n",
+      "apiVersion: murrmure.flow/v1\nname: demo\ntriggers:\n  manual: true\nsteps: []\n",
     );
     const bundle = readSpaceApplyBundle(projectDir);
     const ids = (bundle.flows ?? []).map((f) => f.flow_id);
@@ -147,17 +182,6 @@ describe("space apply integration", () => {
     );
   });
 
-  test("gate-only fixture warns pre phase 03", () => {
-    const { bundle, expect: fx } = loadFixture("unsupported-step-kind.json");
-    const warnings = lintSpaceApplyBundle(bundle);
-    for (const row of fx.warnings_contain as Array<{ code: string; step_id?: string }>) {
-      expect(
-        warnings.some((w) => w.code === row.code && (!row.step_id || w.step_id === row.step_id)),
-      ).toBe(true);
-    }
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
-  });
-
   test("checkpoint-on-resolve-missing fixture warns; strict fails", () => {
     const { bundle, expect: fx } = loadFixture("checkpoint-on-resolve-missing.json");
     const warnings = lintSpaceApplyBundle(bundle);
@@ -169,12 +193,12 @@ describe("space apply integration", () => {
     expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
   });
 
-  test("checkpoint view dist missing fails under strict", async () => {
-    const root = join(projectDir, "murrmure");
+  test("strict apply passes for valid step contract with handler coverage", async () => {
+    const root = join(projectDir, ".mrmr");
     mkdirSync(join(root, "flows", "review"), { recursive: true });
     mkdirSync(join(root, "views", "my-view"), { recursive: true });
     writeFileSync(
-      join(root, "executors.yaml"),
+      join(root, "space", "executors.yaml"),
       "executors:\n  shell:\n    binding:\n      type: shell_spawn\n      executor_id: shell\n",
     );
     writeFileSync(
@@ -186,35 +210,53 @@ describe("space apply integration", () => {
       [
         "apiVersion: murrmure.flow/v1",
         "name: review",
-        "start:",
+        "triggers:",
         "  manual: true",
         "steps:",
         "  - id: intake",
-        "    checkpoint:",
-        "      view: my-view",
-        "      on_resolve:",
-        "        default:",
-        "          goto: done",
-        "        cancel:",
-        "          fail: true",
+        "    description: Human intake via view.",
+        "    branches:",
+        "      continue:",
+        "        schema: { type: object }",
+        "        route: { step: done }",
+        "      cancel:",
+        "        schema: { type: object }",
+        "        route: { run: failed }",
         "  - id: done",
-        "    invoke:",
-        "      space: spc_demo",
-        "      action: hello",
+        "    description: Agent done.",
+        "    branches:",
+        "      completed:",
+        "        schema: { type: object }",
+        "        route: { run: completed }",
+        "      failed:",
+        "        schema: { type: object }",
+        "        route: { run: failed }",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(root, "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: hello",
+        "    contract_keys: [demo.hello]",
+        "    on: step.opened::demo.hello",
+        "    type: shell_spawn",
+        "    complete: explicit",
+        "  - id: done",
+        "    contract_keys: [review.done]",
+        "    on: step.opened::review.done",
+        "    type: shell_spawn",
+        "    complete: explicit",
       ].join("\n"),
     );
 
     const bundle = readSpaceApplyBundle(projectDir);
     const warnings = lintSpaceApplyBundle(bundle);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(
-      true,
-    );
+    expect(warnings.some((w) => w.code === "STEP_UNCOVERED" || w.code === "HANDLER_ORPHAN_KEY")).toBe(false);
+    expect(strictLintFailures(warnings).length).toBe(0);
 
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
-      throw new Error(`exit:${code ?? 0}`);
-    }) as typeof process.exit);
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/v1/auth/whoami")) {
         return {
           ok: true,
@@ -226,19 +268,25 @@ describe("space apply integration", () => {
           }),
         };
       }
+      if (url.endsWith("/v1/spaces/spc_demo/apply") && init?.method === "POST") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ summary: { flows: 1, changed: 1 }, warnings: [] }),
+        };
+      }
       throw new Error(`unexpected fetch: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      (spaceApplyCommand as { run: (ctx: unknown) => Promise<void> }).run({
-        args: { path: projectDir, strict: true },
-        rawArgs: [],
-      }),
-    ).rejects.toThrow("exit:1");
+    await (spaceApplyCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: projectDir, strict: true },
+      rawArgs: [],
+    });
 
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(fetchMock).not.toHaveBeenCalled();
-    exitSpy.mockRestore();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8787/v1/spaces/spc_demo/apply",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

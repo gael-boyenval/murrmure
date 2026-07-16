@@ -34,7 +34,7 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
     };
 
     ctx.controlBus.registerPrincipal(principal);
-    ctx.mcpWakeDispatcher.connect(principal);
+    ctx.mcpSessionRegistry.connect(principal);
 
     const serverTools = (await ctx.mcpToolRegistry.listForToken(auth)).map((t) => t.name);
 

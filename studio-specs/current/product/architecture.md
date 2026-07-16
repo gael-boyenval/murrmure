@@ -45,11 +45,11 @@ OUTSIDE HUB (never stored):
 |-------|------|------------|
 | **Protocol kernel** | Run lifecycle, gate interrupt, hook dedup/delivery, journal append, idempotency | Prompts, flow graphs, UI, executor implementation |
 | **Flow engine** | Manifest compile, matrix planning, start conditions, invoke/`start_flow` dispatch | Business logic, agent config, view rendering |
-| **Space index** | Parse/index `murrmure/` files | Own agent content; interpret param semantics |
+| **Space index** | Parse/index `.mrmr/` files (`space/`, `flows/`, `views/`) | Own agent content; interpret param semantics |
 | **Session correlation** | Grouping, `subject` path, derived status from child runs | Step state machines (Runs own those) |
 | **Executor adapters** | Preflight, dispatch, completion reporting | LLM loops; silent queue-without-visibility |
 | **Shell** | Flowchart, gates, notifications, logs, CLI instruction pages | Author graphs; agent definitions |
-| **CLI** | `space link/apply`, grant mint, headless invoke | Replace hub enforcement |
+| **CLI** | `space link/apply`, connection create, headless invoke | Replace hub enforcement |
 
 **PR test:** *Is this protocol, flow, view rule, or space implementation?*
 
@@ -69,9 +69,10 @@ OUTSIDE HUB (never stored):
 Adapters & products:
   @murrmure/executors            ← ExecutorPort (shell_spawn, mcp_session, …)
   @murrmure/shell-client · shell-ui · shell-web
-  @murrmure/cli                  ← mrmr + MCP + bundled skill
+  @murrmure/cli                  ← mrmr + setup/grants + bundled skill
   @murrmure/view-sdk             ← custom view host + app mount helpers
-  apps/desktop                   ← Electrobun host
+  @murrmure/mcp-bridge           ← murrmure-mcp stdio bridge (bundled in apps/desktop)
+  apps/desktop                   ← Electrobun host (hub sidecar + shell + mcp-bridge)
 ```
 
 **Boundary CI:** `hub-core` must not import SQLite, `node:fs`, or HTTP frameworks. Daemon is composition + routes only.
@@ -83,8 +84,8 @@ Adapters & products:
 | Session | `packages/contracts/src/entities/session.ts` |
 | Run | `packages/contracts/src/entities/run.ts` |
 | Gate | `packages/contracts/src/entities/gate.ts` + `hub-core/gates/` |
-| Hook | `packages/contracts/src/entities/hook.ts` + `hub-core/hooks/` |
-| Action / Executor | `contracts/entities/action.ts`, `executor.ts` + `hub-core/index/` + `executors/` |
+| Hook / Handler | `contracts/entities/handler.ts` + `hub-core/hooks/` + `hub-core/index/parse-handlers.ts` |
+| Action / Executor *(legacy)* | `contracts/entities/action.ts`, `executor.ts` + `hub-core/index/` + `executors/` — superseded by handlers for default spaces |
 | Flow | `contracts/flow/*` + `hub-core/flow-engine/` |
 | Journal | `contracts/journal/cloudevents.ts` |
 | RunStepMemo | `contracts/entities/run-step-memo.ts` + `hub-core/projections/step-memo.ts` |
@@ -100,7 +101,7 @@ Architecture review items P1–P6, U1–U6, O1–O3, F1–F3 are normative in [s
 |------|------------------|
 | Parallel matrix | Eager sibling runs at step entry |
 | Headless step ids | `hook:{id}`, `action:{name}`, `orchestration:proposed` |
-| Views | `view_ref` on flow index; no hub view registry |
+| Views | Space-owned `view_resolver` in `handlers.yaml` + `.mrmr/views/`; no hub registry or flow-owned View identity |
 | Federation | Virtual `remote_hub` bindings, cross-hub artifacts |
 | Out-of-shell notify | Gate pending + run failed |
 | Flow-call | `start_flow` step + `flow_call` start condition |
@@ -112,7 +113,7 @@ Architecture review items P1–P6, U1–U6, O1–O3, F1–F3 are normative in [s
 | Anti-pattern | Guardrail |
 |--------------|-----------|
 | Fat daemon with domain logic | Move to `hub-core` |
-| Hub view registry | Views are clients; `view_ref` denormalized at apply |
+| Hub view registry | Views are clients; the shell reads the space's `view_resolver` projection on `open_steps[]` without apply-time flow denormalization |
 | Silent executor unavailable | ExecutorPort preflight + typed error |
 | Session owns step state | Runs + step memo own execution state |
 | Hub runs LLM loop | Out of scope |

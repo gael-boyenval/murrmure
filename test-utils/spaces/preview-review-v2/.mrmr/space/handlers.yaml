@@ -1,0 +1,104 @@
+version: 1
+
+x-agent-cmd: &agent_cmd cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output
+
+handlers:
+  - id: intake_view
+    on: step.opened::preview-review.intake
+    type: view_resolver
+    view: preview-review-intake
+
+  - id: feature_write_spec
+    contract_keys: [preview-review.write_spec]
+    on: step.opened::preview-review.write_spec
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_path: "{{murrmure.step.intake.artifact.spec.path}}"
+      spec_filename: "{{input.spec_filename}}"
+    prompt: |
+      Copy intake spec to `specs/current/{{spec_filename}}`.
+      Source: {{spec_path}}
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "write_spec", branch: "completed" })`
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: feature_build
+    contract_keys:
+      - preview-review.build
+      - preview-review.build.build-loop
+      - preview-review.build.review
+    on: step.opened::preview-review.build
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_filename: "{{input.spec_filename}}"
+      spec_path: "specs/current/{{input.spec_filename}}"
+    prompt: |
+      Follow `skills/feature-build/SKILL.md` (parent-owned build ⇄ review loop).
+
+      Spec: `{{spec_path}}` (repo copy — not intake temp file)
+      Dev server: `npm run dev` → http://localhost:3000
+
+      As parent `build`, open one declared child with murrmure_open_child_step.
+      On resumed return, inspect returned_child and either open the next child,
+      iterate build-loop after changes_required, fail, or resolve `build` with
+      murrmure_resolve_step.
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: feature_build_loop
+    contract_keys: [preview-review.build.build-loop, preview-review.build.review]
+    on: step.opened::preview-review.build.build-loop
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_filename: "{{input.spec_filename}}"
+      spec_path: "specs/current/{{input.spec_filename}}"
+    prompt: |
+      Implement or revise `{{spec_path}}`, start the preview, then resolve only
+      `build.build-loop` with `murrmure_resolve_step` and its current branch
+      contract. On a revision, inspect the prior review output in run context.
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: review_view
+    on: step.opened::preview-review.build.review
+    type: view_resolver
+    view: preview-review
+
+  - id: feature_archive
+    contract_keys: [preview-review.archive]
+    on: step.opened::preview-review.archive
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_filename: "{{input.spec_filename}}"
+    prompt: |
+      Move `specs/current/{{spec_filename}}` → `specs/archive/{{spec_filename}}`.
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "archive", branch: "completed", payload: { archived_path: "specs/archive/{{spec_filename}}" } })`
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000
+
+  - id: feature_commit
+    contract_keys: [preview-review.commit]
+    on: step.opened::preview-review.commit
+    type: shell_spawn
+    complete: explicit
+    params:
+      spec_filename: "{{input.spec_filename}}"
+    prompt: |
+      Git commit all changes for spec `{{spec_filename}}`.
+      Then: `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "commit", branch: "completed", payload: { commit_message: "…", description: "…" } })`
+    command: *agent_cmd
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 3600000

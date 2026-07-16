@@ -1,0 +1,47 @@
+apiVersion: murrmure.flow/v1
+name: api-contract-review
+description: >
+  Example flow that submits a bounded collection of OpenAPI fragment files as
+  one artifact slot and consumes them as a single verified directory locally —
+  or as ordered immutable references remotely. Demonstrates the multi-file
+  collection contract from Tutorial v3 Task 11.
+
+triggers:
+  manual: true
+
+steps:
+  - id: intake
+    description: Human attaches 1–4 ordered OpenAPI fragment files.
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [assets]
+        artifact_slots:
+          assets:
+            description: Ordered OpenAPI fragment files (one bounded collection).
+            media_types: [application/json, text/yaml]
+            extensions: [.json, .yaml, .yml]
+            min_files: 1
+            max_files: 4
+            max_bytes: 262144
+            max_total_bytes: 1048576
+        route: { step: review }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
+
+  - id: review
+    description: >
+      Consume the collection as one verified directory locally. A remote/
+      federated review space instead receives ordered immutable artifact
+      references (transfer ids) and materializes them in its own run tree.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [summary]
+          properties:
+            summary: { type: string }
+      failed:
+        schema: { type: object }

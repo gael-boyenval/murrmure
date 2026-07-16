@@ -9,6 +9,14 @@ export interface TokenContext {
   scopes: string[];
   harness_id?: string;
   flow_acl?: string[];
+  /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
+  scope_ref?: string;
+  /**
+   * Consumer space a federated resolve token is bound to. The producer bytes
+   * endpoint binds the artifact ACL principal to this instead of trusting an
+   * arbitrary `?space_id=` claim.
+   */
+  consumer_space_id?: string;
 }
 
 export function parseBearer(req: Request): string | undefined {
@@ -18,12 +26,32 @@ export function parseBearer(req: Request): string | undefined {
   return bare.startsWith("tok_") ? bare : addTokenId(bare);
 }
 
+/** Session cookie set by shell/Desktop — enables view iframe asset loads (no Bearer on navigation). */
+export function parseCookieToken(req: Request): string | undefined {
+  const header = req.headers.get("Cookie");
+  if (!header) return undefined;
+  const match = header.match(/(?:^|;\s*)murrmure_token=([^;]*)/);
+  const raw = match?.[1]?.trim();
+  if (!raw) return undefined;
+  try {
+    const value = decodeURIComponent(raw);
+    if (!value) return undefined;
+    return value.startsWith("tok_") ? value : addTokenId(value);
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseSessionToken(req: Request): string | undefined {
+  return parseBearer(req) ?? parseCookieToken(req);
+}
+
 export async function requireToken(
   studio: StudioPersistencePort,
   req: Request,
   pathSpaceId?: string,
 ): Promise<TokenContext | Response> {
-  const tokenId = parseBearer(req);
+  const tokenId = parseSessionToken(req);
   if (!tokenId) {
     return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
   }
@@ -31,6 +59,15 @@ export async function requireToken(
   const token = await studio.getToken(stripTokenId(tokenId));
   if (!token || token.status !== "active") {
     return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
+  }
+
+  // Ephemeral assignment credentials carry an expiry backstop; an expired
+  // active token is treated as denied (revocation handles the normal path).
+  if (token.expires_at) {
+    const expiry = Date.parse(token.expires_at);
+    if (Number.isFinite(expiry) && expiry <= Date.now()) {
+      return json403(MURRMURE_DENIAL_CODES.TOKEN_DENIED);
+    }
   }
 
   if (pathSpaceId) {
@@ -49,6 +86,8 @@ export async function requireToken(
     scopes: token.scopes,
     harness_id: token.harness_id,
     flow_acl: token.flow_acl,
+    scope_ref: token.scope_ref,
+    consumer_space_id: token.consumer_space_id,
   };
 }
 

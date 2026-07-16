@@ -107,7 +107,7 @@ describe("http/sessions/phase05-regressions", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "worker",
-        scopes: ["space:read", "flow:run", "action:invoke"],
+        scopes: ["space:read", "flow:run"],
       }),
     });
     workerToken = (await workerGrant.json()).token as string;
@@ -168,7 +168,7 @@ describe("http/sessions/phase05-regressions", () => {
     expect(res.status).toBe(404);
   });
 
-  test("GET run returns ins_ instance_id and headless journal replay", async () => {
+  test("GET run returns ins_ instance_id and action invoke route is removed", async () => {
     const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
       method: "POST",
       headers: bootstrapAuth(),
@@ -183,7 +183,7 @@ describe("http/sessions/phase05-regressions", () => {
     });
     const { run } = (await runRes.json()) as { run: { run_id: string } };
 
-    await fetch(`${baseUrl}/v1/spaces/${spaceA}/actions/ping/invoke`, {
+    const invokeRes = await fetch(`${baseUrl}/v1/spaces/${spaceA}/actions/ping/invoke`, {
       method: "POST",
       headers: bootstrapAuth(),
       body: JSON.stringify({
@@ -193,6 +193,7 @@ describe("http/sessions/phase05-regressions", () => {
         params: {},
       }),
     });
+    expect(invokeRes.status).toBe(404);
 
     const getRun = await fetch(`${baseUrl}/v1/runs/${run.run_id}`, {
       headers: bootstrapAuth(),
@@ -206,9 +207,6 @@ describe("http/sessions/phase05-regressions", () => {
 
     expect(body.instance_id).toMatch(/^ins_/);
     expect(body.instance_id).toBe(`ins_${body.run_id.slice(4)}`);
-    expect(body.journal_replay?.length).toBeGreaterThan(0);
-    const pingStep = body.journal_replay?.find((s) => s.step_id === "action:ping");
-    expect(pingStep).toBeDefined();
-    expect(pingStep!.status).toBe("completed");
+    expect(Array.isArray(body.journal_replay)).toBe(true);
   });
 });

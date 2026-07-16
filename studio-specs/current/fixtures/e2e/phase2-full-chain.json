@@ -1,11 +1,13 @@
 {
-  "description": "E2E — CR live apply → FS publish → TR wake → XS spec_summary → CL optional",
+  "description": "E2E (HISTORICAL — retired mcp_wake wire) — CR live apply → FS publish → TR wake → XS spec_summary → CL optional",
+  "status": "retired",
+  "note": "Removal record only (Task 15 Lane C). The mcp_wake wire is 404 and the spec-published-wake-dev template registration is rejected (422 TRIGGER_ACTION_RETIRED); mcp_wake_received no longer occurs. The active clean protocol: CR live apply → FS publish (spec.published) → on: event: handler in .mrmr/space/handlers.yaml → XS spec_summary → CL optional. Do not implement the register_trigger / mcp_wake_received steps as active behavior.",
   "journeys": ["c01-J20", "c01-J02", "c02-J14"],
   "steps": [
     { "action": "install_and_live_apply", "capability": "feature-spec", "phase": "CR0" },
-    { "action": "register_trigger", "template": "spec-published-wake-dev", "phase": "TR0" },
+    { "action": "register_trigger", "historical": true, "template": "spec-published-wake-dev", "phase": "TR0", "expect_now": "422 TRIGGER_ACTION_RETIRED (mcp_wake retired)" },
     { "action": "publish_spec", "phase": "FS0", "expect": "spec.published" },
-    { "action": "mcp_wake_received", "wake_label": "handle_spec_published", "expect_no": "body_ref" },
+    { "action": "mcp_wake_received", "historical": true, "wake_label": "handle_spec_published", "expect_no": "body_ref" },
     { "action": "query_ask", "query_type": "spec_summary@1", "phase": "XS0", "expect_no": "body_ref" },
     { "action": "promote_feature_spec", "to": "1.1.0", "phase": "CR2", "expect": "tools_changed" }
   ]

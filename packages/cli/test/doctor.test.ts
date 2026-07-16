@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -19,8 +19,17 @@ import { resolveAuthSource } from "../src/lib/auth-source.js";
 describe("resolveAuthSource", () => {
   const env = { ...process.env };
 
+  beforeEach(() => {
+    testHomeRef.value = mkdtempSync(join(tmpdir(), "murrmure-doctor-auth-source-"));
+    process.env = { ...env };
+  });
+
   afterEach(() => {
     process.env = { ...env };
+    if (testHomeRef.value) {
+      rmSync(testHomeRef.value, { recursive: true, force: true });
+      testHomeRef.value = "";
+    }
   });
 
   test("prefers flags over env", () => {
@@ -33,6 +42,21 @@ describe("resolveAuthSource", () => {
     process.env.MURRMURE_HUB_URL = "http://env.example";
     process.env.MURRMURE_HUB_TOKEN = "tok_env";
     expect(resolveAuthSource()).toBe("env");
+  });
+
+  test("detects active connection source when env is absent", () => {
+    const connectionsDir = join(testHomeRef.value, ".murrmure", "connections");
+    mkdirSync(connectionsDir, { recursive: true });
+    writeFileSync(
+      join(connectionsDir, "active.json"),
+      JSON.stringify({
+        hub_id: "http://127.0.0.1:8787",
+        connection_id: "con_local",
+        space_id: "spc_ui_sandbox",
+        profile: "tutorial-builder/v1",
+      }),
+    );
+    expect(resolveAuthSource()).toBe("active-connection");
   });
 });
 

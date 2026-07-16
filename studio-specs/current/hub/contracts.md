@@ -9,6 +9,15 @@ Every command carries: `space_id`, `instance_id?`, `actor_id`, `token_id`, `comm
 ## IDs
 
 Prefixed ULID: `spc_`, `ins_`, `tok_`, `grt_`, `evt_`, `chk_`, `trg_`, `hub_`, `qry_`, `act_`.
+Space IDs are opaque and immutable. A space's editable display name and slug
+must never be used to derive or replace its `spc_*` identity.
+
+## Clean storage
+
+Fresh Hub storage contains no spaces, contract refs, flow installs, or indexed
+flows. Startup, setup, and apply require no persisted bootstrap contract.
+Product schemas are compiled into binaries; persisted contracts enter only
+through explicit apply/install operations.
 
 ## Entity schemas (S0)
 
@@ -79,7 +88,9 @@ Types: `state` | `gate` | `event` | `contract` | `compound`.
 
 `schemaVersion: "2.0"` — states, transitions, gates, events.declarations, inbound_queries, outbound_queries, metadata_schema, mcp_tools_by_version.
 
-Fixture: [../fixtures/hub/linear-demo-v2.json](../fixtures/hub/linear-demo-v2.json).
+The non-shipped parse fixture
+[`test-utils/hub/contracts/linear-demo-v2.json`](../../../test-utils/hub/contracts/linear-demo-v2.json)
+is installed explicitly by tests that need it.
 
 ## Kernel bridge
 
@@ -101,7 +112,7 @@ Command mapping:
 |----------|--------|
 | `instance.create` | `aggregate.create` |
 | `state.transition` | `state.transition` |
-| `gate.resolve` | `checkpoint.resolve` |
+| `gate.resolve` | *(no kernel command — resolved by `gates/service` on the gates table; a kernel-checkpoint `gate_id` yields `gate_not_found`)* |
 | `event.append` | `event.append` |
 | `wait.register` | `wait.register` |
 | `wait.cancel` | `wait.cancel` |
@@ -113,15 +124,17 @@ Ports wired in `@murrmure/hub-core`: PolicyPort, RulesPort (v2 bridge), Conditio
 
 | Variable | Purpose |
 |----------|---------|
-| `MURRMURE_HUB_URL` | Hub base URL (CLI, MCP, shell) |
-| `MURRMURE_HUB_TOKEN` | Bearer token for agent/human |
-| `MURRMURE_SPACE_ID` | Default space (MCP tools — no space_id in tool args) |
+| `MURRMURE_HUB_URL` | Hub base URL (CLI and shell) |
+| hub bearer token | Explicit headless CI or short-lived handler token; local connections use the OS credential store |
+| `MURRMURE_SPACE_ID` | Optional CLI default `--space` fallback |
 | `MURRMURE_DEPLOY_TOKEN` | CI push attestation |
 | `MURRMURE_INSTALL_ID` | Worker spawn context |
 | `MURRMURE_PACKAGE_ID` | Legacy alias for flow id in worker env — prefer `MURRMURE_FLOW_ID` |
 | `MURRMURE_FLOW_ID` | Live flow id in worker subprocess |
 | `MURRMURE_VERSION` | Live semver in worker subprocess |
 | `MURRMURE_CONTRACT_REF_ID` | Pinned contract ref in worker |
+
+MCP config does not require `MURRMURE_SPACE_ID`; space identity is token-derived.
 
 No `STUDIO_*` legacy aliases in Murrmure v1.
 
@@ -131,8 +144,8 @@ No `STUDIO_*` legacy aliases in Murrmure v1.
 packages/hub-core/               @murrmure/hub-core
 packages/hub-persistence/        @murrmure/hub-persistence
 packages/hub-daemon/             @murrmure/hub-daemon
-packages/cli/                    @murrmure/cli (MCP + skill + flow build bundled)
-packages/flow-dev-kit/           @murrmure/flow-dev-kit
+packages/cli/                    @murrmure/cli (setup, grants, skill, flow tooling)
+packages/mcp-bridge/             @murrmure/mcp-bridge (murrmure-mcp stdio bridge; bundled in Murrmure Desktop)
 packages/skill/                  @murrmure/skill (private)
 packages/contracts/              @murrmure/contracts
 ```
@@ -152,5 +165,5 @@ Export pattern: `@murrmure/contracts/commands/*`, `/queries/*`, `/sse/*`, `/mcp/
 
 ## Related fixtures
 
-- [../fixtures/hub/linear-demo-v2.json](../fixtures/hub/linear-demo-v2.json) — contract v2 example
+- [`test-utils/hub/contracts/linear-demo-v2.json`](../../../test-utils/hub/contracts/linear-demo-v2.json) — non-shipped contract parse fixture
 - [../fixtures/kernel/](../fixtures/kernel/) — kernel golden rules and journal scenarios

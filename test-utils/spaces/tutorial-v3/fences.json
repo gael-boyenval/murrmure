@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "pages": [
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/index.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/03-build-intake-view.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/04-run-and-understand.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
+    "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md"
+  ],
+  "fences": [
+    {
+      "id": "part-1-empty-handlers",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md",
+      "part": 2,
+      "snippet": "part-1-empty-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-1-space",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space.md",
+      "part": 2,
+      "snippet": "part-1-space",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-2-flow",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow.md",
+      "part": 2,
+      "snippet": "part-2-flow",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-3-view-handler",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/03-build-intake-view.md",
+      "part": 3,
+      "snippet": "part-3-view-handler",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-3-app",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/03-build-intake-view.md",
+      "part": 3,
+      "snippet": "part-3-app",
+      "compare": "exact"
+    },
+    {
+      "id": "part-5-agent-protocol-prefix",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
+      "part": 5,
+      "snippet": "part-5-agent-protocol-prefix",
+      "compare": "exact"
+    },
+    {
+      "id": "part-5-flow",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
+      "part": 5,
+      "snippet": "part-5-flow",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-5-handlers",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
+      "part": 5,
+      "snippet": "part-5-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-6-flow",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
+      "part": 6,
+      "snippet": "part-6-flow",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-6-cleanup-script",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
+      "part": 6,
+      "file": ".mrmr/space/scripts/cleanup.mjs",
+      "compare": "exact"
+    },
+    {
+      "id": "part-6-cleanup-handler",
+      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
+      "part": 6,
+      "snippet": "part-6-cleanup-handler",
+      "compare": "yaml"
+    }
+  ]
+}

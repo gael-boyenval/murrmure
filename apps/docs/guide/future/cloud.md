@@ -18,7 +18,9 @@ This page exists so older docs and plans have a single place to point. Do not bu
 | **Murrmure Desktop** | [Desktop guide](../desktop) |
 | **CLI (`mrmr`)** | [CLI guide](../cli) |
 
-Install Desktop, use `mrmr grant mint` for agents, and `mrmr login` for CLI operators. Default hub URL: `http://127.0.0.1:8787`.
+Install Desktop, use `mrmr connection create` for local trust boundaries, and
+`mrmr login` for CLI operators. Default hub URL:
+`http://127.0.0.1:8787`.
 
 ## Next
 

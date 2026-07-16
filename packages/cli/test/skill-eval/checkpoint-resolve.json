@@ -1,12 +1,12 @@
 {
   "id": "checkpoint-resolve",
-  "prompt": "What JSON body resolves a checkpoint gate in v2?",
+  "prompt": "What JSON body approves or rejects an orchestration gate in the step-contract model, and what capability is required on the run?",
   "expected_keywords": [
     "disposition",
     "continue",
     "cancel",
     "output",
-    "on_resolve"
+    "flow:run"
   ],
   "advisory": true
 }

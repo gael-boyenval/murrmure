@@ -41,7 +41,7 @@ describe("federation/artifact", () => {
 
       expect("code" in result).toBe(false);
       if (!("code" in result)) {
-        expect(result.relative_path).toContain(".mrmr.temp/inbox");
+        expect(result.relative_path).toContain(".mrmr/dev/inbox");
       }
     } finally {
       rmSync(root, { recursive: true, force: true });

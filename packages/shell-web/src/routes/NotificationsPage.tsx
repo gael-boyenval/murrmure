@@ -1,16 +1,14 @@
-import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { GatePanel } from "../components/GatePanel.js";
-import { NotificationInboxItem } from "../components/NotificationInboxItem.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@murrmure/shell-ui";
+import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 
 export function NotificationsPage() {
   const client = useShellClient();
   const queryClient = useQueryClient();
-  const activeRowRef = useRef<HTMLDivElement>(null);
 
   const notificationsQuery = useQuery({
     queryKey: ["notifications", "pending"],
@@ -24,8 +22,30 @@ export function NotificationsPage() {
   });
 
   const notifications = notificationsQuery.data?.notifications ?? [];
+  const humanStepNotification = notifications.find(
+    (n) => n.kind === "human_step" && n.run_id && n.step_id,
+  );
+
+  const humanRunQuery = useQuery({
+    queryKey: ["run", humanStepNotification?.run_id],
+    queryFn: () => client!.runs.get(humanStepNotification!.run_id!),
+    enabled: Boolean(client && humanStepNotification?.run_id),
+  });
+
+  const humanCanvas = useStepCanvasBinding(
+    humanRunQuery.data && client && humanStepNotification
+      ? {
+          client,
+          run: humanRunQuery.data,
+          flow_id: humanRunQuery.data.flow_id ?? "flw_unknown",
+          space_id: humanRunQuery.data.space_id ?? humanStepNotification.space_id,
+          title: humanStepNotification.title,
+          closeHref: humanStepNotification.run_id ? `/runs/${humanStepNotification.run_id}` : undefined,
+        }
+      : null,
+  );
+
   const gateNotification = notifications.find((n) => n.kind === "gate" && n.gate_id);
-  const activeGateId = gateNotification?.gate_id;
 
   const gateQuery = useQuery({
     queryKey: ["gate", gateNotification?.gate_id],
@@ -54,12 +74,6 @@ export function NotificationsPage() {
     },
   });
 
-  useEffect(() => {
-    if (gateQuery.data) {
-      activeRowRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-    }
-  }, [gateQuery.data?.gate_id]);
-
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl space-y-6">
@@ -68,25 +82,17 @@ export function NotificationsPage() {
           <p className="text-sm text-muted-foreground">Actionable inbox — gates and failures.</p>
         </div>
 
+        {humanCanvas.showCanvas && humanCanvas.canvas ? humanCanvas.canvas : null}
+
         {gateQuery.data ? (
-          <div
-            id="notification-active-gate-panel"
-            aria-controls="notification-active-gate-row"
-            className="relative rounded-md ring-1 ring-primary/30"
-          >
-            <div
-              className="pointer-events-none absolute -bottom-3 left-6 z-10 h-3 w-px bg-primary/40"
-              aria-hidden="true"
-            />
-            <GatePanel
-              gate={gateQuery.data}
-              graph={graphQuery.data}
-              submitting={resolve.isPending}
-              onSubmit={async (values) => {
-                await resolve.mutateAsync(values);
-              }}
-            />
-          </div>
+          <GatePanel
+            gate={gateQuery.data}
+            graph={graphQuery.data}
+            submitting={resolve.isPending}
+            onSubmit={async (values) => {
+              await resolve.mutateAsync(values);
+            }}
+          />
         ) : null}
 
         <Card>
@@ -99,23 +105,31 @@ export function NotificationsPage() {
               <p className="text-sm text-muted-foreground">Nothing needs you right now.</p>
             ) : (
               notifications.map((n) => (
-                <NotificationInboxItem
-                  key={n.notification_id}
-                  ref={n.gate_id === activeGateId ? activeRowRef : undefined}
-                  notification={n}
-                  activeGateId={activeGateId}
-                  onDismiss={() => dismiss.mutate(n.notification_id)}
-                  runLink={
-                    n.run_id ? (
+                <div key={n.notification_id} className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
+                  <div>
+                    <p className="text-sm font-medium">{n.title}</p>
+                    {n.summary ? <p className="text-xs text-muted-foreground">{n.summary}</p> : null}
+                    {n.run_id ? (
                       <Link
                         className="text-xs text-primary underline"
-                        to={`/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`}
+                        to={
+                          n.kind === "human_step" && n.session_id
+                            ? `/sessions/${n.session_id}`
+                            : `/runs/${n.run_id}${n.gate_id ? `?gate=${n.gate_id}` : ""}`
+                        }
                       >
-                        Open run
+                        Open {n.kind === "human_step" ? "view" : "run"}
                       </Link>
-                    ) : null
-                  }
-                />
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => dismiss.mutate(n.notification_id)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               ))
             )}
           </CardContent>

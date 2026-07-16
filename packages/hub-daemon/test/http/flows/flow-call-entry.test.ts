@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
+// flow_call-only entry policy: a flow_call-only flow rejects independent manual
+// start with MANUAL_START_DISABLED. This is the invoke-only *eligibility* gate
+// (Task 03 scope); the orchestration happy-path is covered separately.
 describe("http/flows/flow-call-entry", () => {
   let baseUrl: string;
   let cleanup: () => void;
@@ -67,8 +70,15 @@ describe("http/flows/flow-call-entry", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "callable",
-                start: { manual: false, flow_call: true },
-                steps: [{ id: "work", invoke: { space: "{{origin_space}}", action: "noop" } }],
+                triggers: { flow_call: true },
+                steps: [
+                  {
+                    id: "work",
+                    branches: {
+                      completed: { schema: { type: "object" }, route: { run: "completed" } },
+                    },
+                  },
+                ],
               },
             },
           ],

@@ -1,0 +1,69 @@
+{
+  "task": "14",
+  "tutorial_chapters": [1, 2, 3, 4, 5, 6],
+  "environment": {
+    "os": "macOS 14",
+    "arch": "arm64",
+    "node": "20.x",
+    "execution": "signed-release"
+  },
+  "product_build": {
+    "version": "0.0.0",
+    "commit": "0000000",
+    "artifact": "Murrmure-0.0.0-arm64.dmg"
+  },
+  "commands": [
+    {
+      "command": "mrmr setup",
+      "exit_code": 0,
+      "output_ref": "logs/setup.log"
+    },
+    {
+      "command": "mrmr space link",
+      "exit_code": 0,
+      "output_ref": "logs/space-link.log"
+    },
+    {
+      "command": "mrmr space apply --strict",
+      "exit_code": 0,
+      "output_ref": "logs/space-apply.log"
+    }
+  ],
+  "run_ids": [
+    "run_TEMPLATE_PARTS_1_6"
+  ],
+  "evidence": [
+    {
+      "kind": "screenshot",
+      "ref": "evidence/01-empty-launch.png",
+      "summary": "TEMPLATE — Part 1: packaged Desktop launches to an empty space list."
+    },
+    {
+      "kind": "check",
+      "ref": "evidence/notarization-gatekeeper.txt",
+      "summary": "TEMPLATE — signed-release: notarization and Gatekeeper pass on the signed app."
+    },
+    {
+      "kind": "check",
+      "ref": "evidence/keychain-locked-prompt.txt",
+      "summary": "TEMPLATE — signed-release: real Keychain available/locked/prompt behavior."
+    },
+    {
+      "kind": "screenshot",
+      "ref": "evidence/actual-upgrade.png",
+      "summary": "TEMPLATE — signed-release: actual Desktop upgrade/relocation discovery."
+    },
+    {
+      "kind": "journal",
+      "ref": "evidence/integration-reload.json",
+      "summary": "TEMPLATE — signed-release: real integration-context reload and verification."
+    },
+    {
+      "kind": "commit",
+      "ref": "HEAD",
+      "summary": "TEMPLATE — Part 6: audited Git commit from build output."
+    }
+  ],
+  "result": "passed",
+  "blockers": []
+}

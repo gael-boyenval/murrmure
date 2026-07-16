@@ -82,16 +82,12 @@ describe("http/actions/invoke-unavailable", () => {
     "Content-Type": "application/json",
   });
 
-  test("unreachable mcp_session returns EXECUTOR_UNAVAILABLE", async () => {
+  test("action invoke route is removed (404)", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/review_url/invoke`, {
       method: "POST",
       headers: auth(),
       body: JSON.stringify({ params: { url: "https://example.com" } }),
     });
-    expect(res.status).toBe(503);
-    const body = await res.json();
-    expect(body.dispatch.status).toBe("executor_unavailable");
-    expect(body.dispatch.error_code).toBe("EXECUTOR_UNAVAILABLE");
-    expect(body.dispatch.step_id).toBe("action:review_url");
+    expect(res.status).toBe(404);
   });
 });

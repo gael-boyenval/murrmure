@@ -30,10 +30,10 @@ async function openSpacesNewPage(hubUrl: string): Promise<void> {
   const openCmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
   try {
     await execFileAsync(openCmd, [url]);
-    p.log.info(`Opened ${url} — use the bootstrap token or run mrmr grant mint`);
+    p.log.info(`Opened ${url} — complete operator login before creating a local connection`);
   } catch {
     p.log.warn(
-      `Could not open browser — visit ${url} and use the bootstrap token or run mrmr grant mint`,
+      `Could not open browser — visit ${url} after completing operator login`,
     );
   }
 }
@@ -81,7 +81,7 @@ export const loginCommand = defineCommand({
     ...globalArgs,
     open: {
       type: "boolean",
-      description: "Open browser to /spaces/new (bootstrap or grant mint instructions)",
+      description: "Open browser to /spaces/new (operator login and space bootstrap)",
       default: false,
     },
   },

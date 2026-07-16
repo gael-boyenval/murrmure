@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { mapViewSubmitToGateResolve } from "./view-resolve-adapter.js";
+import { mapViewSubmitToGateResolve, mapViewSubmitToResolveStep } from "./view-resolve-adapter.js";
+
+describe("mapViewSubmitToResolveStep", () => {
+  it("maps intake submit to continue branch", () => {
+    expect(
+      mapViewSubmitToResolveStep({ reviewer: "a@b.c", spec_filename: "x.md" }, "submit"),
+    ).toEqual({
+      branch: "continue",
+      payload: { reviewer: "a@b.c", spec_filename: "x.md" },
+    });
+  });
+
+  it("maps review outcome to branch name", () => {
+    expect(mapViewSubmitToResolveStep({ outcome: "validated" }, "submit")).toEqual({
+      branch: "validated",
+      payload: {},
+    });
+  });
+});
 
 describe("mapViewSubmitToGateResolve", () => {
   it("maps view submit to continue + output", () => {

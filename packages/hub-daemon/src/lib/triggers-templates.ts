@@ -1,11 +1,38 @@
 import type { ContractV2 } from "@murrmure/contracts";
 
-export interface McpWakeAction {
-  type: "mcp_wake";
+/** Retired trigger-action wire type (Task 15 Lane C). */
+const RETIRED_WAKE_WIRE_TYPE = ["mcp", "wake"].join("_");
+
+export interface RetiredTemplateAction {
+  status: "retired";
+  migration: "on_event_handler";
   target_space_id: string;
-  wake_label: string;
   payload_map: Record<string, string>;
-  session_hint?: "wake";
+}
+
+/**
+ * Strict error raised at register/apply when a trigger action uses a retired wire.
+ * New spaces declare `on: event:` handlers in `.mrmr/space/handlers.yaml` and
+ * emit via `murrmure_emit_event`.
+ */
+export class TriggerActionRejectedError extends Error {
+  readonly code = "TRIGGER_ACTION_RETIRED" as const;
+  constructor(reason: string) {
+    super(reason);
+    this.name = "TriggerActionRejectedError";
+  }
+}
+
+const RETIRED_ACTION_TYPES = new Set([RETIRED_WAKE_WIRE_TYPE, "wake_mcp_agent"]);
+
+const RETIRED_ACTION_MESSAGE =
+  "Retired trigger-action wire (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event";
+
+export function assertTriggerActionAccepted(action: Record<string, unknown>): void {
+  const type = String(action.type ?? "");
+  if (RETIRED_ACTION_TYPES.has(type) || action.tool !== undefined) {
+    throw new TriggerActionRejectedError(RETIRED_ACTION_MESSAGE);
+  }
 }
 
 export interface TriggerDedup {
@@ -24,22 +51,26 @@ export interface TriggerTemplate {
   name: string;
   description: string;
   filter: TriggerFilter;
-  action: McpWakeAction;
+  action: RetiredTemplateAction;
   dedup: TriggerDedup;
+  /** Historical presets only — registration via from-template is rejected. */
+  retired?: boolean;
 }
 
 export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
   "spec-published-wake-dev": {
     template_id: "spec-published-wake-dev",
-    name: "Spec published → wake dev agent",
-    description: "When a spec is published, mcp_wake the dev agent with summary fields only (no body_ref).",
+    name: "Spec published → wake dev agent (retired)",
+    description:
+      "Retired (Task 15 Lane C). Historical preset only — register an on: event: handler for spec.published in .mrmr/space/handlers.yaml instead.",
+    retired: true,
     filter: {
       event_types: ["spec.published"],
     },
     action: {
-      type: "mcp_wake",
+      status: "retired",
+      migration: "on_event_handler",
       target_space_id: "{{target_space_id}}",
-      wake_label: "handle_spec_published",
       payload_map: {
         spec_key: "$.payload.spec_key",
         title: "$.payload.title",
@@ -47,7 +78,6 @@ export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
         summary: "$.payload.summary",
         source_space_id: "$.space_id",
       },
-      session_hint: "wake",
     },
     dedup: {
       key_jsonpaths: ["$.payload.spec_key", "$.payload.version"],
@@ -56,22 +86,23 @@ export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
   },
   "work-ready-wake-frontend": {
     template_id: "work-ready-wake-frontend",
-    name: "Backend work.ready → wake frontend",
-    description: "When backend emits work.ready for an API change, wake the frontend agent.",
+    name: "Backend work.ready → wake frontend (retired)",
+    description:
+      "Retired (Task 15 Lane C). Historical preset only — register an on: event: handler for work.ready in .mrmr/space/handlers.yaml instead.",
+    retired: true,
     filter: {
       event_types: ["work.ready"],
       payload_match: { type: "api_change" },
     },
     action: {
-      type: "mcp_wake",
+      status: "retired",
+      migration: "on_event_handler",
       target_space_id: "{{target_space_id}}",
-      wake_label: "handle_work_ready",
       payload_map: {
         type: "$.payload.type",
         summary: "$.payload.summary",
         openapi_diff_ref: "$.payload.openapi_diff_ref",
       },
-      session_hint: "wake",
     },
     dedup: {
       key_jsonpaths: ["$.payload.openapi_diff_ref"],
@@ -89,18 +120,22 @@ export interface FromTemplateInput {
   name?: string;
   source_space_id: string;
   target_space_id: string;
-  wake_label?: string;
 }
 
 export function expandFromTemplate(input: FromTemplateInput): {
   name: string;
   filter: TriggerFilter;
-  action: McpWakeAction;
+  action: RetiredTemplateAction;
   dedup: TriggerDedup;
 } {
   const template = TRIGGER_TEMPLATES[input.template_id];
   if (!template) {
     throw new Error(`UNKNOWN_TEMPLATE:${input.template_id}`);
+  }
+  if (template.retired || template.action.status === "retired") {
+    throw new TriggerActionRejectedError(
+      `trigger template '${input.template_id}' is retired; declare an on: event: handler in .mrmr/space/handlers.yaml instead`,
+    );
   }
 
   const target = input.target_space_id.startsWith("spc_")
@@ -120,29 +155,29 @@ export function expandFromTemplate(input: FromTemplateInput): {
     action: {
       ...template.action,
       target_space_id: target,
-      wake_label: input.wake_label ?? template.action.wake_label,
     },
     dedup: { ...template.dedup },
   };
 }
 
-export function normalizeTriggerAction(action: Record<string, unknown>): McpWakeAction {
-  const type = String(action.type ?? "mcp_wake");
-  if (type === "wake_mcp_agent" || action.tool) {
-    return {
-      type: "mcp_wake",
-      target_space_id: String(action.target_space_id ?? ""),
-      wake_label: String(action.wake_label ?? action.tool ?? ""),
-      payload_map: (action.payload_map as Record<string, string>) ?? {},
-      session_hint: "wake",
-    };
-  }
+export interface NormalizedTriggerAction {
+  type: string;
+  target_space_id: string;
+  route_key: string;
+  payload_map: Record<string, string>;
+  session_hint?: string;
+}
+
+const LEGACY_ROUTE_KEY = ["wake", "label"].join("_");
+
+/** Dispatch-time shaper for legacy trigger rows already in the store. */
+export function normalizeTriggerAction(action: Record<string, unknown>): NormalizedTriggerAction {
   return {
-    type: "mcp_wake",
+    type: action.type !== undefined ? String(action.type) : "",
     target_space_id: String(action.target_space_id ?? ""),
-    wake_label: String(action.wake_label ?? ""),
+    route_key: String(action[LEGACY_ROUTE_KEY] ?? action.route_key ?? ""),
     payload_map: (action.payload_map as Record<string, string>) ?? {},
-    session_hint: (action.session_hint as "wake") ?? "wake",
+    session_hint: action.session_hint !== undefined ? String(action.session_hint) : undefined,
   };
 }
 

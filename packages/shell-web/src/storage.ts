@@ -1,3 +1,5 @@
+import { syncAuthCookie } from "./auth-cookie.js";
+
 const LEGACY_KEYS: Record<string, string> = {
   murrmure_hub_url: "murrmure_hub_url",
   murrmure_token: "murrmure_token",
@@ -27,4 +29,7 @@ export function getStorageItem(key: string): string | null {
 export function setStorageItem(key: string, value: string): void {
   migrateLegacyStorage();
   localStorage.setItem(key, value);
+  if (key === LEGACY_KEYS.murrmure_token) {
+    syncAuthCookie(value);
+  }
 }

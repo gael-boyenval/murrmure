@@ -2,29 +2,31 @@
 topic: Studio product — bridge (HTTP, SSE, review, MCP)
 date: 2026-06-20
 status: active
-reference: agentStudio/kernelspecs/hub/studio-kernel-bridge.md
+reference: studio-specs/current/hub/contracts.md
 ---
 
 # Studio product bridge
 
-Maps product edges → hub-core. Read after hub [studio-kernel-bridge.md](https://github.com/n/a) (`agentStudio/kernelspecs/hub/studio-kernel-bridge.md`).
+Maps product edges → hub-core. Read after [hub/contracts.md](../hub/contracts.md).
 
 ## Space directory index (v2)
+
+Layout: `.mrmr/space/` (handlers, events), `.mrmr/flows/`, `.mrmr/views/`. Legacy `murrmure/` paths still apply for unmigrated repos.
 
 | HTTP | Purpose |
 |------|---------|
 | `POST /v1/spaces/{id}/link` | Register `{ host, path, primary }` binding |
-| `POST /v1/spaces/{id}/apply` | Re-index `murrmure/` bundle from CLI |
-| `GET /v1/spaces/{id}/actions` | Indexed actions registry |
-| `GET /v1/spaces/{id}/executors` | Indexed executors |
-| `GET /v1/spaces/{id}/hooks` | Indexed hooks |
-| `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes denormalized `view_ref`) |
+| `POST /v1/spaces/{id}/apply` | Re-index `.mrmr/` bundle from CLI |
 | `GET /v1/spaces/{id}/index/status` | Counts + digests for MCP `murrmure_space_status` |
+| `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes `step_contract_catalog`) |
+| `GET /v1/spaces/{id}/hooks` | Indexed handlers + legacy hooks (handlers stored in hooks index) |
+| `GET /v1/spaces/{id}/actions` | **Legacy** — indexed `actions.yaml` entries |
+| `GET /v1/spaces/{id}/executors` | **Legacy** — indexed `executors.yaml` |
 | `GET /v1/flows/{flow_id}` | Single flow index row |
 
-CLI: `mrmr space init` → `link` → `apply` → `status`. See `packages/cli/skill/reference/space-directory.md`.
+MCP: `murrmure_list_handlers` (filter handler rows from hooks index), `murrmure_space_health` (handler coverage warnings).
 
-MCP v2 stubs: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_grant_mint`.
+CLI: `mrmr space init` → `link` → `apply` → `status`. See `packages/cli/skill-developer/reference/space-directory.md` and [handlers.md](./handlers.md).
 
 ## Auth middleware (all routes)
 
@@ -53,7 +55,7 @@ Bootstrap token: `space_id: "bootstrap"` in policy — only for `POST /v1/spaces
 | `PATCH …/instances/{id}/metadata` | `instance.metadata.patch` | P-ADR-07 |
 | `POST …/transitions` | `state.transition` | `Idempotency-Key` → `command_id` |
 | `GET …/gates` | `query: gate.list` | |
-| `POST …/gates/{id}/resolve` | `gate.resolve` | |
+| `POST …/gates/{id}/resolve` | `gate.resolve` | **Orchestration approval only** — not flow step progression (use `POST …/runs/{id}/steps/{step_id}/resolve`) |
 | `POST …/events` | `event.append` | |
 | `GET …/events` | `query: event.tail` | `from_seq` query param |
 | `POST …/waits` | `wait.register` | |
@@ -83,9 +85,13 @@ Translation from journal fan-out:
 | Journal `type` | SSE `event` |
 |----------------|-------------|
 | `state.transition` | `journal.append` |
-| `checkpoint.pending` | `gate.pending` |
-| `checkpoint.resolved` | `gate.resolved` |
+| `checkpoint.created` | `gate.pending` |
 | `wait.matched` | `wait.resolved` |
+
+`gate.resolved` for orchestration gates is emitted directly by the gate service
+(`POST /v1/gates/:gate_id/resolve`), not from kernel checkpoint fan-out — the kernel no
+longer emits `checkpoint.resolved` (the `checkpoint.resolve` command was removed; see
+`studio-specs/current/kernel/spec.md` §5.5.1).
 
 Implement in `packages/studio-hub-daemon/src/sse.ts`. Reuse kernel fan-out notify hook.
 
@@ -114,7 +120,7 @@ Grants v2: [grants-migration.md](./grants-migration.md).
 | HTTP | Hub operations | Notes |
 |------|----------------|-------|
 | `POST /api/sessions` | `instance.create` + `state.transition(open_review)` optional | Returns `session_key` = `instance_id` |
-| `GET /api/sessions` | `query: instance.list` filtered by `contract_ref_id = cref_review_loop` | |
+| `GET /api/sessions` | `query: instance.list` filtered by review-loop contract pin | |
 | `GET /api/sessions/{key}` | `instance.get` → project SessionJson | |
 | `PATCH /api/sessions/{key}` | `instance.metadata.patch` | `{ target: { url } }`, `{ title }` |
 | `POST …/comments` | `instance.metadata.patch` on `metadata.review.threads` | |
@@ -154,7 +160,7 @@ Update capability bundle `contract/` schemas to match contract states (drop `col
 | Finish review (round 2) | `finish_review` | `changes_made` → `converged` |
 | Request production | `request_production` | `converged` → gate → `production_approved` |
 
-Contract fixture: `fixtures/hub/contracts/review-loop-v2.json`, pin id `cref_review_loop`.
+Contract fixture: `studio-specs/current/fixtures/product/hub/contracts/review-loop-v2.json` (review-loop contract pin).
 
 ### wait_for_review / review-cycle
 

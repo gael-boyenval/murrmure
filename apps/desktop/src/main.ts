@@ -6,13 +6,9 @@ import {
   subscribeDesktopOutOfShellNotifications,
   shellRouteFromMurrmureDeepLink,
 } from "./notifications.js";
-import {
-  bootstrapLaunchUrl,
-  connectDevHmrServices,
-  startHubSidecar,
-} from "./runner.js";
-import { isDesktopDevHmrMode } from "./paths.js";
+import { bootstrapLaunchUrl, connectDevHmrServices, startHubSidecar } from "./runner.js";
 import { createSessionInjectionScript } from "./session.js";
+import { isDesktopDevHmrMode } from "./paths.js";
 
 let mainWindow: BrowserWindow | null = null;
 let shutdownHub: (() => Promise<void>) | null = null;
@@ -29,7 +25,7 @@ async function safeShowMessageBox(options: Parameters<typeof Utils.showMessageBo
   }
 }
 
-function installMenus(hubUrl: string, dataDir: string): void {
+function installMenus(hubUrl: string, dataDir: string, mcpBridgeCommand?: string | null): void {
   installDesktopMenu(
     {
       setApplicationMenu: ApplicationMenu.setApplicationMenu,
@@ -48,7 +44,7 @@ function installMenus(hubUrl: string, dataDir: string): void {
         }
       },
     },
-    { hubUrl, dataDir },
+    { hubUrl, dataDir, mcpBridgeCommand },
   );
 }
 
@@ -59,16 +55,16 @@ function navigateShellRoute(route: string): void {
   mainWindow.webview.loadURL(target);
 }
 
-function createWindow(shellUrl: string, token: string, sessionHubUrl?: string): BrowserWindow {
+function createWindow(launchUrl: string, token: string, hubUrl: string): BrowserWindow {
   const window = new BrowserWindow({
     title: "Murrmure",
     frame: { x: 64, y: 64, width: 1400, height: 920 },
     renderer: "native",
     titleBarStyle: "default",
-    url: bootstrapLaunchUrl(shellUrl, token),
+    url: bootstrapLaunchUrl(launchUrl, token),
   });
 
-  const injectionScript = createSessionInjectionScript(token, sessionHubUrl ?? shellUrl);
+  const injectionScript = createSessionInjectionScript(token, hubUrl);
   let bootstrapped = false;
   window.webview.on("dom-ready", () => {
     if (bootstrapped) {
@@ -84,14 +80,10 @@ function createWindow(shellUrl: string, token: string, sessionHubUrl?: string): 
   return window;
 }
 
-export async function runDesktopApp(): Promise<void> {
-  const devHmr = isDesktopDevHmrMode();
-
+export async function bootstrapDesktopApp(): Promise<void> {
   if (app.isCarrotMode) {
     console.error(
-      devHmr
-        ? "Electrobun native APIs are unavailable in carrot mode. Run `pnpm desktop:dev:hmr` via `electrobun dev`."
-        : "Electrobun native APIs are unavailable. Use `pnpm desktop:dev:smoke` (system browser) or launch a built .app bundle.",
+      "Electrobun native APIs are unavailable. Use `pnpm desktop:dev` (system browser) or launch a built .app bundle.",
     );
     process.exit(1);
     return;
@@ -99,7 +91,9 @@ export async function runDesktopApp(): Promise<void> {
 
   let handle: Awaited<ReturnType<typeof startHubSidecar>>;
   try {
-    handle = devHmr ? await connectDevHmrServices() : await startHubSidecar({ mode: "prod" });
+    handle = isDesktopDevHmrMode()
+      ? await connectDevHmrServices()
+      : await startHubSidecar({ mode: "prod" });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("already running")) {
@@ -125,12 +119,9 @@ export async function runDesktopApp(): Promise<void> {
   process.once("SIGINT", handleTermination);
   process.once("SIGTERM", handleTermination);
 
-  installMenus(handle.paths.hubUrl, handle.paths.dataDir);
-  const shellUrl = devHmr ? (handle.paths.shellWebUrl ?? handle.paths.hubUrl) : handle.paths.hubUrl;
-  const sessionHubUrl = devHmr ? shellUrl : handle.paths.hubUrl;
-  mainWindow = createWindow(shellUrl, handle.token, sessionHubUrl);
-  mainWindow.activate();
-  mainWindow.show();
+  installMenus(handle.paths.hubUrl, handle.paths.dataDir, handle.paths.mcpBridgeEntry);
+  const launchUrl = handle.paths.shellWebUrl ?? handle.paths.hubUrl;
+  mainWindow = createWindow(launchUrl, handle.token, handle.paths.hubUrl);
 
   Electrobun.events.on("open-url", (event) => {
     const url = event.data.url;
@@ -141,17 +132,18 @@ export async function runDesktopApp(): Promise<void> {
   });
 
   try {
-    stopNotifications = await subscribeDesktopOutOfShellNotifications({
-      hubUrl: handle.paths.hubUrl,
-      token: handle.token,
-      currentActorId: handle.actorId,
-      isShellFocused: () => {
-        if (!mainWindow) return false;
-        return !mainWindow.isMinimized() && !mainWindow.hidden;
-      },
-      showNotification: (opts) => Utils.showNotification(opts),
-      navigateToDeepLink: (deepLink) => navigateShellRoute(shellRouteFromMurrmureDeepLink(deepLink)),
-    });
+    if (!isDesktopDevHmrMode()) {
+      stopNotifications = await subscribeDesktopOutOfShellNotifications({
+        hubUrl: handle.paths.hubUrl,
+        token: handle.token,
+        isShellFocused: () => {
+          if (!mainWindow) return false;
+          return !mainWindow.isMinimized() && !mainWindow.hidden;
+        },
+        showNotification: (opts) => Utils.showNotification(opts),
+        navigateToDeepLink: (deepLink) => navigateShellRoute(shellRouteFromMurrmureDeepLink(deepLink)),
+      });
+    }
   } catch (error) {
     console.warn(
       "Out-of-shell SSE notifications unavailable; desktop will continue without them.",
@@ -165,25 +157,5 @@ export async function runDesktopApp(): Promise<void> {
   });
 }
 
-export function bootstrapDesktopApp(): void {
-  void runDesktopApp().catch(async (error) => {
-    await shutdownHub?.();
-    await reportStartupFailure("Unable to start Murrmure desktop.", {
-      cause: error,
-      showDialog: async ({ title, message, detail }) => {
-        await safeShowMessageBox({
-          type: "error",
-          title,
-          message,
-          detail,
-          buttons: ["Quit"],
-        });
-      },
-    });
-    process.exit(1);
-  });
-}
-
-if (import.meta.main) {
-  bootstrapDesktopApp();
-}
+/** @deprecated Use bootstrapDesktopApp — kept for tests. */
+export const runDesktopApp = bootstrapDesktopApp;

@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
-import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
+import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow } from "./port.js";
 
@@ -217,14 +218,17 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       harness_id: row.harness_id ?? undefined,
       flow_acl: parseFlowAclJson(row),
       status: row.status as TokenRow["status"],
+      expires_at: row.expires_at ?? undefined,
+      scope_ref: row.scope_ref ?? undefined,
+      consumer_space_id: row.consumer_space_id ?? undefined,
     };
   }
 
   async insertToken(row: TokenRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, flow_acl_json, capabilities_json, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tokens (token_id, actor_id, space_id, scopes_json, harness_id, flow_acl_json, capabilities_json, status, created_at, expires_at, scope_ref, consumer_space_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.token_id,
@@ -236,17 +240,27 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         row.capabilities ? JSON.stringify(row.capabilities) : null,
         row.status,
         created_at,
+        row.expires_at ?? null,
+        row.scope_ref ?? null,
+        row.consumer_space_id ?? null,
       );
+  }
+
+  async revokeToken(token_id: string): Promise<void> {
+    this.db
+      .prepare("UPDATE tokens SET status = 'revoked' WHERE token_id = ?")
+      .run(token_id);
   }
 
   async insertGrant(row: GrantRow, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO grants (grant_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, flow_acl_json, expires_at, capabilities_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO grants (grant_id, token_id, space_id, actor_id, scopes_json, status, created_at, last_activity_at, label, harness, flow_acl_json, expires_at, capabilities_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.grant_id,
+        row.token_id ?? null,
         row.space_id,
         row.actor_id,
         JSON.stringify(row.scopes),
@@ -268,6 +282,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     if (!row) return null;
     return {
       grant_id: row.grant_id,
+      token_id: row.token_id ?? undefined,
       space_id: row.space_id,
       actor_id: row.actor_id,
       scopes: parseJson(row.scopes_json),
@@ -283,7 +298,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
 
   async listGrants(space_id: string): Promise<GrantRow[]> {
     const rows = this.db
-      .prepare("SELECT grant_id FROM grants WHERE space_id = ? AND status = 'active'")
+      .prepare("SELECT grant_id FROM grants WHERE space_id = ? ORDER BY created_at DESC")
       .all(space_id) as Array<{ grant_id: string }>;
     const out: GrantRow[] = [];
     for (const r of rows) {
@@ -711,11 +726,17 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const events = this.db
       .prepare("SELECT name AS key, digest, payload_json FROM space_events WHERE space_id = ?")
       .all(bare) as IndexedResourceRow[];
+    const views = this.db
+      .prepare("SELECT name AS key, digest, payload_json FROM space_views WHERE space_id = ?")
+      .all(bare) as IndexedResourceRow[];
+    const runPolicies = this.db
+      .prepare("SELECT flow_id AS key, flow_digest AS digest, payload_json FROM space_run_policies WHERE space_id = ?")
+      .all(bare) as IndexedResourceRow[];
     const flowRows = this.db
       .prepare("SELECT payload_json FROM flow_index WHERE origin_space_id = ?")
       .all(bare) as Array<{ payload_json: string }>;
     const flows = flowRows.map((row) => JSON.parse(row.payload_json) as SpaceIndexSnapshot["flows"][number]);
-    return { actions, executors, hooks, events, flows };
+    return { actions, executors, hooks, events, flows, views, run_policies: runPolicies };
   }
 
   async replaceSpaceIndex(space_id: string, snapshot: SpaceIndexSnapshot): Promise<void> {
@@ -725,6 +746,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       this.db.prepare("DELETE FROM space_executors WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_hooks WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM space_events WHERE space_id = ?").run(bare);
+      this.db.prepare("DELETE FROM space_views WHERE space_id = ?").run(bare);
+      this.db.prepare("DELETE FROM space_run_policies WHERE space_id = ?").run(bare);
       this.db.prepare("DELETE FROM flow_index WHERE origin_space_id = ?").run(bare);
 
       const insertAction = this.db.prepare(
@@ -755,8 +778,15 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         insertEvent.run(bare, row.key, row.digest, row.payload_json);
       }
 
+      const insertView = this.db.prepare(
+        "INSERT INTO space_views (space_id, name, digest, payload_json) VALUES (?, ?, ?, ?)",
+      );
+      for (const row of snapshot.views ?? []) {
+        insertView.run(bare, row.key, row.digest, row.payload_json);
+      }
+
       const insertFlow = this.db.prepare(
-        "INSERT INTO flow_index (flow_id, origin_space_id, digest, payload_json, view_ref_json) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO flow_index (flow_id, origin_space_id, digest, payload_json) VALUES (?, ?, ?, ?)",
       );
       for (const row of snapshot.flows) {
         insertFlow.run(
@@ -764,8 +794,14 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
           bare,
           row.digest,
           row.payload_json,
-          row.view_ref ? JSON.stringify(row.view_ref) : null,
         );
+      }
+
+      const insertRunPolicy = this.db.prepare(
+        "INSERT INTO space_run_policies (space_id, flow_id, flow_digest, payload_json) VALUES (?, ?, ?, ?)",
+      );
+      for (const row of snapshot.run_policies ?? []) {
+        insertRunPolicy.run(bare, row.key, row.digest, row.payload_json);
       }
     });
     tx();
@@ -803,12 +839,28 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     return rows.map((r) => JSON.parse(r.payload_json) as Record<string, unknown>);
   }
 
+  async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {
+    const bare = this.bareSpaceId(space_id);
+    const rows = this.db
+      .prepare("SELECT payload_json FROM space_views WHERE space_id = ? ORDER BY name")
+      .all(bare) as Array<{ payload_json: string }>;
+    return rows.map((r) => JSON.parse(r.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]> {
+    const bare = this.bareSpaceId(space_id);
+    const rows = this.db
+      .prepare("SELECT payload_json FROM space_run_policies WHERE space_id = ? ORDER BY flow_id")
+      .all(bare) as Array<{ payload_json: string }>;
+    return rows.map((r) => JSON.parse(r.payload_json) as ResolvedRunPolicy);
+  }
+
   async listFlowIndex(space_id: string): Promise<FlowIndexEntry[]> {
     const bare = this.bareSpaceId(space_id);
     const rows = this.db
       .prepare("SELECT payload_json FROM flow_index WHERE origin_space_id = ? ORDER BY flow_id")
       .all(bare) as Array<{ payload_json: string }>;
-    return rows.map((r) => JSON.parse(r.payload_json) as FlowIndexEntry);
+    return rows.map((r) => normalizeFlowIndexEntry(JSON.parse(r.payload_json) as FlowIndexEntry));
   }
 
   async getFlowIndexEntry(flow_id: string, origin_space_id?: string): Promise<FlowIndexEntry | null> {
@@ -820,7 +872,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
           .prepare("SELECT payload_json FROM flow_index WHERE flow_id = ? LIMIT 1")
           .get(flow_id) as { payload_json?: string } | undefined);
     if (!row?.payload_json) return null;
-    return JSON.parse(row.payload_json) as FlowIndexEntry;
+    return normalizeFlowIndexEntry(JSON.parse(row.payload_json) as FlowIndexEntry);
   }
 
   private rowToArtifact(row: Record<string, string | number>): ArtifactRow {
@@ -1136,6 +1188,58 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       );
   }
 
+  async transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean> {
+    const bareRun = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const readStatus = this.db.prepare(
+      "SELECT status FROM run_step_memo WHERE run_id = ? AND step_id = ?",
+    );
+    const upsert = this.db.prepare(
+      `INSERT INTO run_step_memo (run_id, step_id, status, idempotency_key, result_hash, started_at, completed_at, error_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(run_id, step_id) DO UPDATE SET
+         status = excluded.status,
+         idempotency_key = excluded.idempotency_key,
+         result_hash = excluded.result_hash,
+         started_at = excluded.started_at,
+         completed_at = excluded.completed_at,
+         error_code = excluded.error_code`,
+    );
+    const writeMemo = (memo: RunStepMemo) => upsert.run(
+      bareRun,
+      memo.step_id,
+      memo.status,
+      memo.idempotency_key ?? null,
+      memo.result_hash ?? null,
+      memo.started_at ?? null,
+      memo.completed_at ?? null,
+      memo.error_code ?? null,
+    );
+    const transition = this.db.transaction(() => {
+      const parent = readStatus.get(bareRun, input.parent_memo.step_id) as
+        | { status: string }
+        | undefined;
+      if (parent?.status !== "working") return false;
+      for (const childStepId of input.declared_child_step_ids) {
+        const child = readStatus.get(bareRun, childStepId) as { status: string } | undefined;
+        if (child?.status === "working") return false;
+      }
+      const updated = this.db
+        .prepare("UPDATE runs SET exec_context_json = ? WHERE run_id = ?")
+        .run(JSON.stringify(input.exec_context), bareRun);
+      if (updated.changes !== 1) return false;
+      writeMemo(input.parent_memo);
+      writeMemo(input.child_memo);
+      return true;
+    });
+    return transition();
+  }
+
   async listRunStepMemos(run_id: string): Promise<RunStepMemo[]> {
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
     const rows = this.db
@@ -1269,8 +1373,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
   async insertNotification(row: NotificationRow): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO notifications (notification_id, actor_id, kind, status, gate_id, run_id, session_id, space_id, space_hidden, title, summary, expires_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notifications (notification_id, actor_id, kind, status, gate_id, step_id, run_id, session_id, space_id, space_hidden, title, summary, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.notification_id,
@@ -1278,6 +1382,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         row.kind,
         row.status,
         row.gate_id ?? null,
+        row.step_id ?? null,
         row.run_id ?? null,
         row.session_id ?? null,
         row.space_id,
@@ -1307,6 +1412,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       kind: r.kind as NotificationRow["kind"],
       status: r.status as NotificationRow["status"],
       gate_id: r.gate_id ?? undefined,
+      step_id: r.step_id ?? undefined,
       run_id: r.run_id ?? undefined,
       session_id: r.session_id ?? undefined,
       space_id: r.space_id,
@@ -1326,6 +1432,15 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         `UPDATE notifications SET status = 'dismissed', dismissed_at = ? WHERE notification_id = ? AND actor_id = ?`,
       )
       .run(at, notification_id, actor_id);
+  }
+
+  async resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void> {
+    const bareRun = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
+    this.db
+      .prepare(
+        `UPDATE notifications SET status = 'resolved', resolved_at = ? WHERE run_id = ? AND step_id = ? AND status = 'pending'`,
+      )
+      .run(at, bareRun, step_id);
   }
 
   async resolveNotificationsForGate(gate_id: string, at: string): Promise<void> {

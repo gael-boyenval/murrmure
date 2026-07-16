@@ -1,9 +1,0 @@
-# Role: indexed invoke target for the hello step — merged into murrmure/actions.yaml on scaffold.
-version: 1
-actions:
-  "{{FLOW_ID}}_hello":
-    executor: shell
-    command: node murrmure/scripts/{{FLOW_ID}}-hello.mjs
-    cwd: "{{space_root}}"
-    delivery: fail_fast
-    timeout_ms: 30000

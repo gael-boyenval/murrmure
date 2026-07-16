@@ -1,5 +1,14 @@
 # @murrmure/view-sdk
 
+## Unreleased
+
+### Breaking Changes
+
+- `submitBranch` accepts `{ payload?, files? }` with browser `File`/`Blob`
+  values. Added normalized field errors, monotonic submission progress, and
+  in-flight cancellation. Removed the params-only/direct mutation submission
+  shape; production submission is trusted-host mediated.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -21,6 +21,10 @@ import { mountMurrmureRoutes } from "./routes/murrmure/shared-config.js";
 import { mountSpaceIndexRoutes } from "./routes/spaces/index.js";
 import { mountArtifactRoutes } from "./routes/artifacts/index.js";
 import { mountSessionRunRoutes } from "./routes/sessions/index.js";
+import { mountResolveStepRoutes } from "./routes/runs/resolve-step.js";
+import { mountOpenChildStepRoutes } from "./routes/runs/open-child-step.js";
+import { mountStepContractsRoutes } from "./routes/runs/step-contracts.js";
+import { mountStepWorkUploadRoutes } from "./routes/runs/step-work-upload.js";
 import { mountGrantV2Routes } from "./routes/grants/index.js";
 import { mountExecutorPollRoutes } from "./routes/executor/index.js";
 import { mountJournalRoutes } from "./routes/journal/index.js";
@@ -122,33 +126,6 @@ export function createHubApp(ctx: DaemonContext) {
 
     const gates = await handler.query("gate.list", { space_id, instance_id });
     return c.json({ gates });
-  });
-
-  app.post("/v1/spaces/:space_id/gates/:gate_id/resolve", async (c) => {
-    const space_id = c.req.param("space_id");
-    const gate_id = c.req.param("gate_id");
-    const body = await c.req.json();
-    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
-    if (auth instanceof Response) return auth;
-
-    const result = await handler.execute({
-      kind: "gate.resolve",
-      provenance: {
-        space_id,
-        instance_id: body.instance_id,
-        actor_id: body.actor_id ?? auth.actor_id,
-        token_id: auth.token_id,
-      },
-      gate_id,
-      decision: body.decision,
-    });
-
-    broadcastSse(ctx, {
-      event: "gate.resolved",
-      data: { gate_id, decision: body.decision },
-    });
-
-    return c.json(result.body, result.http_semantic as 200);
   });
 
   app.get("/v1/spaces/:space_id/events/emittable", async (c) => {
@@ -318,6 +295,10 @@ export function createHubApp(ctx: DaemonContext) {
   mountExecutorPollRoutes(app, ctx, ctx.executorPollStore);
   mountArtifactRoutes(app, ctx);
   mountSessionRunRoutes(app, ctx);
+  mountResolveStepRoutes(app, ctx);
+  mountOpenChildStepRoutes(app, ctx);
+  mountStepContractsRoutes(app, ctx);
+  mountStepWorkUploadRoutes(app, ctx);
   mountGrantV2Routes(app, ctx);
   mountJournalRoutes(app, ctx);
   mountGateRoutes(app, ctx);

@@ -57,36 +57,16 @@ export default defineConfig({
           items: [
             { text: "Overview", link: "/guide/tutorials/" },
             {
-              text: "1 — Local preview review",
-              link: "/guide/tutorials/01-local-preview-review/",
+              text: "1a — First flow (v3)",
+              link: "/guide/tutorials/01-local-preview-review-v3/",
               items: [
-                { text: "Overview", link: "/guide/tutorials/01-local-preview-review/" },
-                { text: "Scaffold flow", link: "/guide/tutorials/01-local-preview-review/01-scaffold-flow" },
-                { text: "Install and connect", link: "/guide/tutorials/01-local-preview-review/02-install-and-connect" },
-                { text: "Run feedback loop", link: "/guide/tutorials/01-local-preview-review/03-run-feedback-loop" },
-              ],
-            },
-            {
-              text: "2 — Multi-agent brief",
-              link: "/guide/tutorials/02-multi-agent-brief/",
-              items: [
-                { text: "Overview", link: "/guide/tutorials/02-multi-agent-brief/" },
-                { text: "Build flow", link: "/guide/tutorials/02-multi-agent-brief/01-build-orchestrator-flow" },
-                { text: "Admin setup", link: "/guide/tutorials/02-multi-agent-brief/02-admin-setup" },
-                { text: "Connect agents", link: "/guide/tutorials/02-multi-agent-brief/03-connect-agents" },
-                { text: "Run workflow", link: "/guide/tutorials/02-multi-agent-brief/04-run-workflow" },
-                { text: "Troubleshooting", link: "/guide/tutorials/02-multi-agent-brief/05-troubleshooting" },
-              ],
-            },
-            {
-              text: "3 — Daily brief trigger",
-              link: "/guide/tutorials/03-daily-brief-trigger/",
-              items: [
-                { text: "Overview", link: "/guide/tutorials/03-daily-brief-trigger/" },
-                { text: "Scaffold flow", link: "/guide/tutorials/03-daily-brief-trigger/01-scaffold-daily-brief" },
-                { text: "Push and trigger", link: "/guide/tutorials/03-daily-brief-trigger/02-push-and-trigger" },
-                { text: "Connect agent", link: "/guide/tutorials/03-daily-brief-trigger/03-connect-agent" },
-                { text: "Run and review", link: "/guide/tutorials/03-daily-brief-trigger/04-run-and-review" },
+                { text: "Overview", link: "/guide/tutorials/01-local-preview-review-v3/" },
+                { text: "1 — Launch & space", link: "/guide/tutorials/01-local-preview-review-v3/01-launch-and-create-space" },
+                { text: "2 — Minimal flow", link: "/guide/tutorials/01-local-preview-review-v3/02-build-minimal-flow" },
+                { text: "3 — Intake view", link: "/guide/tutorials/01-local-preview-review-v3/03-build-intake-view" },
+                { text: "4 — Run & understand", link: "/guide/tutorials/01-local-preview-review-v3/04-run-and-understand" },
+                { text: "5 — Copy & build", link: "/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers" },
+                { text: "6 — Cleanup", link: "/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit" },
               ],
             },
           ],
@@ -102,7 +82,8 @@ export default defineConfig({
         {
           text: "Flows",
           items: [
-            { text: "Tutorial (complete)", link: "/guide/flows-tutorial" },
+            { text: "Space index", link: "/guide/space-index" },
+            { text: "Space handlers", link: "/guide/space-handlers" },
             { text: "Overview", link: "/guide/creating-flows" },
             { text: "Agent skill", link: "/guide/agent-skill" },
             { text: "Admin commands (CLI)", link: "/guide/configuration" },

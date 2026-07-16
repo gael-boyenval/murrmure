@@ -6,11 +6,20 @@ import { emitFlowResult } from "../lib/flow-output.js";
 import {
   defaultInstallPath,
   installMurrmureSkill,
+  resolveSkillInstallVariant,
+  type SkillInstallVariant,
   readSkillVersion,
 } from "../skill/install.js";
 
 function requiresLine(scope: string): string {
   return `(Requires: ${scope})`;
+}
+
+function parseVariant(value: unknown): SkillInstallVariant | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const raw = String(value).trim();
+  if (raw === "agent" || raw === "developer" || raw === "all") return raw;
+  throw new Error(`Invalid --variant '${raw}'. Expected: agent, developer, all`);
 }
 
 export const skillInstallCommand = defineCommand({
@@ -24,17 +33,25 @@ export const skillInstallCommand = defineCommand({
       type: "string",
       description: "Target repo root (default: cwd)",
     },
+    variant: {
+      type: "string",
+      description: "Skill variant: agent | developer | all (default: archetype based)",
+    },
   },
   run({ args }) {
     parseGlobalFlags(args);
     const target = typeof args.dir === "string" ? resolve(args.dir) : process.cwd();
     try {
-      const result = installMurrmureSkill(target);
+      const variant = parseVariant(args.variant);
+      const result = installMurrmureSkill(target, { variant });
+      const resolved = resolveSkillInstallVariant(target, variant);
       emitFlowResult(
         {
           ...result,
           command: "install",
-          message: `Installed murrmure skill to ${result.path}`,
+          variant: resolved,
+          install_path: defaultInstallPath(target, "agent"),
+          message: `Installed murrmure ${resolved} skill variant`,
         },
         formatSkillHuman,
       );
@@ -59,17 +76,25 @@ export const skillUpdateCommand = defineCommand({
       type: "string",
       description: "Target repo root (default: cwd)",
     },
+    variant: {
+      type: "string",
+      description: "Skill variant: agent | developer | all (default: archetype based)",
+    },
   },
   run({ args }) {
     parseGlobalFlags(args);
     const target = typeof args.dir === "string" ? resolve(args.dir) : process.cwd();
     try {
-      const result = installMurrmureSkill(target);
+      const variant = parseVariant(args.variant);
+      const result = installMurrmureSkill(target, { variant });
+      const resolved = resolveSkillInstallVariant(target, variant);
       emitFlowResult(
         {
           ...result,
           command: "update",
-          message: `Updated murrmure skill to v${result.version}`,
+          variant: resolved,
+          install_path: defaultInstallPath(target, "agent"),
+          message: `Updated murrmure ${resolved} skill variant`,
         },
         formatSkillHuman,
       );
@@ -94,16 +119,31 @@ export const skillVersionCommand = defineCommand({
       type: "string",
       description: "Target repo root for install path hint (default: cwd)",
     },
+    variant: {
+      type: "string",
+      description: "Optional variant: agent | developer",
+    },
   },
   run({ args }) {
     parseGlobalFlags(args);
     const target = typeof args.dir === "string" ? resolve(args.dir) : process.cwd();
+    const variantRaw = args.variant;
+    if (variantRaw && variantRaw !== "agent" && variantRaw !== "developer") {
+      emitFlowResult({
+        ok: false,
+        code: "SKILL_VERSION_FAILED",
+        message: `Invalid --variant '${String(variantRaw)}'. Expected: agent or developer`,
+      });
+      return;
+    }
+    const variant = (variantRaw as "agent" | "developer" | undefined) ?? "agent";
     emitFlowResult(
       {
         ok: true,
         command: "version",
-        version: readSkillVersion(),
-        install_path: defaultInstallPath(target),
+        variant,
+        version: readSkillVersion(variant),
+        install_path: defaultInstallPath(target, variant),
       },
       formatSkillHuman,
     );

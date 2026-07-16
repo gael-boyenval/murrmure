@@ -1,5 +1,7 @@
 {
-  "description": "TR-min — spec.published wakes dev agent (summary fields only; no body_ref)",
+  "description": "TR-min (HISTORICAL — retired mcp_wake wire) — spec.published wakes dev agent (summary fields only; no body_ref)",
+  "status": "retired",
+  "note": "Removal record only (Task 15 Lane C). The POST /v1/mcp/wake wire is 404 (phase 16) and mcpWake(...) is not a runtime primitive; registration of this mcp_wake template is rejected (422 TRIGGER_ACTION_RETIRED). The active clean protocol reacts to spec.published with an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event (see hooks/spec-published-chain.json and hooks/dedup.test.ts). Do not implement the steps below as active behavior.",
   "spaces": {
     "specs": "spc_product_specs",
     "dev": "spc_dev_code"
@@ -13,15 +15,18 @@
   "steps": [
     {
       "action": "register_from_template",
-      "expect": { "trigger_id_prefix": "trg_" }
+      "historical": true,
+      "expect_now": "422 TRIGGER_ACTION_RETIRED (mcp_wake retired)"
     },
     {
       "action": "publish_spec",
+      "historical": true,
       "via": "feature-spec fixture happy-path",
       "expect": { "event_type": "spec.published" }
     },
     {
       "action": "mcp_wake_received",
+      "historical": true,
       "target_space": "spc_dev_code",
       "expect": {
         "wake_label": "handle_spec_published",
@@ -32,6 +37,7 @@
     },
     {
       "action": "delivery_log",
+      "historical": true,
       "expect": { "outcome": "success", "count": 1 }
     }
   ]

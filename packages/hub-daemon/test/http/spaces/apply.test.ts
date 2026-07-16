@@ -90,7 +90,7 @@ describe("http/spaces/apply", () => {
     expect(body.actions[0].name).toBe("hello");
   });
 
-  test("POST apply returns warnings[] for unsupported wait step", async () => {
+  test("POST apply accepts an unbound single-step flow (no unsupported wait step)", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
       method: "POST",
       headers: auth(),
@@ -99,20 +99,14 @@ describe("http/spaces/apply", () => {
           ...applyBundle,
           flows: [
             {
-              flow_id: "flw_wait_warn",
-              rel_path: "flows/wait/flow.manifest.yaml",
-              digest: "sha256:waitflow",
+              flow_id: "flw_unbound_single",
+              rel_path: "flows/unbound/flow.manifest.yaml",
+              digest: "sha256:unboundflow",
               manifest: {
                 apiVersion: "murrmure.flow/v1",
-                name: "wait-warn",
-                start: { manual: true },
-                steps: [{ id: "hold" }],
-              },
-              raw: {
-                apiVersion: "murrmure.flow/v1",
-                name: "wait-warn",
-                start: { manual: true },
-                steps: [{ id: "hold" }],
+                name: "unbound-single",
+                triggers: { manual: true },
+                steps: [{ id: "hold", description: "hold" }],
               },
             },
           ],
@@ -122,13 +116,7 @@ describe("http/spaces/apply", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Array.isArray(body.warnings)).toBe(true);
-    expect(body.warnings.some((w: { code: string }) => w.code === "UNSUPPORTED_STEP_KIND")).toBe(true);
-    expect(body.warnings[0]).toMatchObject({
-      flow_id: "flw_wait_warn",
-      step_id: expect.any(String),
-      code: expect.any(String),
-      message: expect.any(String),
-    });
+    expect(body.warnings.some((w: { code: string }) => w.code === "UNSUPPORTED_STEP_KIND")).toBe(false);
   });
 
   test("second apply is idempotent", async () => {
@@ -209,7 +197,7 @@ describe("http/spaces/apply", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "bad",
-                start: { manual: true },
+                triggers: { manual: true },
                 steps: [{ id: "x", script: "echo nope" }],
               },
             },
@@ -275,7 +263,7 @@ describe("http/spaces/apply", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "cross",
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -323,7 +311,7 @@ describe("http/spaces/apply", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name,
-            start: { manual: true },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -369,7 +357,7 @@ describe("http/spaces/apply", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "a",
-                start: { manual: true },
+                triggers: { manual: true },
                 steps: [],
               },
             },
@@ -380,7 +368,7 @@ describe("http/spaces/apply", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "b",
-                start: { manual: true },
+                triggers: { manual: true },
                 steps: [],
               },
             },
@@ -466,5 +454,124 @@ describe("http/spaces/apply", () => {
       body: JSON.stringify({ bundle: applyBundle }),
     });
     expect(allowed.status).toBe(200);
+  });
+
+  test("apply persists step_contract_catalog on v2-shaped flow", async () => {
+    const v2Manifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "step-contract-demo",
+      triggers: { manual: true },
+      steps: [
+        {
+          id: "intake",
+          description: "intake",
+          branches: {
+            continue: { schema: { type: "object" }, route: { step: "work" } },
+            cancel: { schema: { type: "object" }, route: { run: "failed" } },
+          },
+        },
+        { id: "work", description: "work" },
+      ],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_step_contract",
+              rel_path: "flows/step-contract/flow.manifest.yaml",
+              digest: "sha256:stepcontract1",
+              manifest: v2Manifest,
+              raw: v2Manifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status?.digests?.flows?.[0]?.step_contract_catalog_digest).toMatch(/^sha256:/);
+    expect(body.status?.digests?.flows?.[0]?.step_contract_step_count).toBe(2);
+
+    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_step_contract`, { headers: auth() });
+    expect(flowRes.status).toBe(200);
+    const flow = await flowRes.json();
+    expect(flow.step_contract_catalog?.step_ids).toEqual(["intake", "work"]);
+    expect(flow.step_contract_catalog?.digest).toMatch(/^sha256:/);
+  });
+
+  test("apply rejects invoke/checkpoint manifest at parse (VS-8)", async () => {
+    const legacyManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "legacy-flow",
+      triggers: { manual: true },
+      steps: [
+        { id: "write", invoke: { space: "spc_x", action: "hello" } },
+        {
+          id: "review",
+          checkpoint: {
+            view: "review-view",
+            on_resolve: { default: { goto: "write" }, cancel: { fail: true } },
+          },
+        },
+      ],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_legacy_warn",
+              rel_path: "flows/legacy/flow.manifest.yaml",
+              digest: "sha256:legacyflow",
+              manifest: legacyManifest,
+              raw: legacyManifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("LEGACY_STEP_KIND");
+  });
+
+  test("apply rejects explicit branches: {} at parse (no persist, no warning)", async () => {
+    const emptyBranchesManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "empty-branches",
+      triggers: { manual: true },
+      steps: [{ id: "intake", description: "intake", branches: {} }],
+    };
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          flows: [
+            {
+              flow_id: "flw_empty_branches",
+              rel_path: "flows/empty-branches/flow.manifest.yaml",
+              digest: "sha256:emptybranches",
+              manifest: emptyBranchesManifest,
+              raw: emptyBranchesManifest,
+            },
+          ],
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("EMPTY_BRANCHES");
+    // Not persisted: the flow is absent from the index.
+    const flowRes = await fetch(`${baseUrl}/v1/flows/flw_empty_branches`, { headers: auth() });
+    expect(flowRes.status).toBe(404);
   });
 });

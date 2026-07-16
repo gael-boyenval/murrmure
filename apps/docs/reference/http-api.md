@@ -16,7 +16,9 @@ Murrmure exposes a REST API at your **hub URL** (default `http://127.0.0.1:8787`
 Authorization: Bearer tok_<your_grant_token>
 ```
 
-Tokens come from **`mrmr grant mint`** (preferred) or the hub bootstrap token on first-run Desktop. There is no Configure UI for grant management.
+Local tools obtain tokens indirectly through `mrmr connection create`; the
+credential is stored in the OS store and is not printed. Direct bearer handling
+is reserved for protocol integrators, bootstrap, and explicit headless CI.
 
 | Token source | When |
 |--------------|------|
@@ -36,13 +38,17 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `POST` | `/v1/sessions` | Create session |
 | `GET` | `/v1/sessions/{id}` | Get session |
 | `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
+| `GET` | `/v1/runs/{id}/step-contracts` | `space:read` | Active step-contract slice + `graph_digest` |
+| `POST` | `/v1/runs/{id}/steps/{step_id}/resolve` | `step:resolve` | Resolve selected branch `{ branch, payload?, upload_intent_id?, artifacts_out?, idempotency_key? }` |
+| `POST` | `/v1/runs/{id}/steps/{step_id}/upload-intents` | `step:resolve` | Pre-authorize ordered artifact metadata and reserve quota |
+| `PUT` | `/v1/upload-intents/{intent_id}/files/{index}` | `step:resolve` | Transfer one raw file declared by the intent |
+| `DELETE` | `/v1/upload-intents/{intent_id}` | `step:resolve` | Cancel an uncommitted upload and release bytes/quota |
 | `GET` | `/v1/runs/{id}/graph` | Run flowchart graph (manifest overlay + step memo) |
 | `POST` | `/v1/runs/{id}/cancel` | Cancel run |
 | `POST` | `/v1/runs/{id}/retry` | Retry failed run from step |
-| `GET` | `/v1/runs/{id}/gates` | Gates for a run |
+| `GET` | `/v1/runs/{id}/gates` | Orchestration gates for a run |
 | `GET` | `/v1/runs/wait?run_id=` | Long-poll until run terminal |
-| `GET` | `/v1/spaces/{id}/gates` | Pending gates (space-scoped, legacy) |
-| `POST` | `/v1/gates/{id}/resolve` | Resolve gate (v2 global) |
+| `POST` | `/v1/gates/{id}/resolve` | Resolve orchestration gate (`flow:run`, space-bound) |
 | `GET` | `/v1/gates/wait?run_id=` | Long-poll pending gates |
 | `GET` | `/v1/spaces/{id}/events` | Event tail |
 | `GET` | `/v1/spaces/{id}/events/subscribe` | SSE (legacy space events) |
@@ -53,6 +59,11 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 :::
 
 Mutating requests: optional `Idempotency-Key` header.
+
+Branch-contract failures are `400 CONTRACT_VALIDATION_FAILED` with
+`errors: [{ source, path, rule, message }]`; `path` is an RFC 6901 JSON Pointer.
+The Hub does not return content, credentials, validator internals, schema paths,
+or host paths. The JSON/base64 `/work/upload` route is removed.
 
 Path `space_id` must match token scope (unless admin bootstrap on self-hosted).
 
@@ -67,7 +78,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
 | `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `murrmure/` bundle |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle |
 | `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
 
 ::: warning Retired routes
@@ -86,10 +97,10 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `POST` | `/v1/spaces/{id}/grants/{id}/revoke` | `space:admin` | Revoke grant |
 | `POST` | `/v1/spaces/{id}/grants/{id}/rotate` | `space:admin` | Rotate grant |
 | `GET` | `/v1/spaces/{id}/triggers` | `space:read` | List triggers |
-| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (custom filter/action) |
+| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (retired trigger-action types rejected — 422) |
 | `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live flow contracts |
-| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Bundled trigger templates |
-| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (`spec-published-wake-dev`, …) |
+| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Historical retired presets (listed only) |
+| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (retired presets rejected — 422) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger:register` | Synthetic event → delivery (debug) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/disable` | `trigger:register` | Disable trigger |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/replay` | `space:admin` | Replay a past delivery |
@@ -97,7 +108,7 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `GET` | `/v1/ops/grants/export` | `space:admin` | Hub-wide grant export |
 | `GET` | `/v1/ops/federation/status` | `space:admin` | Relay status |
 
-`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Use **`mrmr space update --query-policy`** or the API — there is no Configure UI.
+`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Use **`mrmr space update --query-policy`** or the API — the retired configure shell is gone.
 
 ## Cross-space queries (`/v1/spaces/{id}/queries/*`)
 
@@ -137,7 +148,7 @@ Used by the hub daemon MCP integration (and `@murrmure/cli` when pointed at a se
 | `POST` | `/v1/mcp/tools/call?space_id=` | per-tool scope + ACL | Invoke a tool by name |
 
 ::: warning Retired
-`POST /v1/mcp/wake` returns **404** (phase 16). Downstream work uses **`murrmure_invoke_action`** and indexed hooks/triggers instead.
+The legacy wake HTTP route returns **404** (phase 16). Downstream work uses event reactions (`on: event:` in `.mrmr/space/handlers.yaml`), **`murrmure_emit_event`** (`event:emit` capability), and flow triggers — not public action-invoke wires (removed, Task 15 Lane A).
 :::
 
 
@@ -183,28 +194,28 @@ Shell UI: open checkpoint **views** in **ViewCanvasHost** at `/sessions/:session
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `POST` | `/v1/sessions` | `flow:run` or `action:invoke` | Create session `{ title, subject?, space_id? }` |
+| `POST` | `/v1/sessions` | `flow:run` | Create session `{ title, subject?, space_id? }` |
 | `GET` | `/v1/sessions` | `space:read` or `journal:read` | List sessions (`?status=`, `?space_id=`) |
 | `GET` | `/v1/sessions/{id}` | `space:read` | Session detail + derived status |
 | `GET` | `/v1/sessions/{id}/runs` | `space:read` | Runs in session |
-| `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` dispatches indexed flow |
-| `POST` | `/v1/sessions/{id}/cancel` | `gate:resolve` | Cancel all active runs in session |
+| `POST` | `/v1/sessions/{id}/runs` | `flow:run` | Create run; optional `flow_id` must exist in the target space index, dispatches that flow, and pins its indexed `flow_digest` (caller-supplied digests are ignored) |
+| `POST` | `/v1/sessions/{id}/cancel` | `flow:run` | Cancel all active runs in session |
 | `POST` | `/v1/sessions/{id}/orchestration/attach` | `flow:run` | Agent-push `murrmure.flow.attach/v1`; creates orchestration gate |
 
 MCP equivalents: `murrmure_create_session`, `murrmure_list_sessions`, `murrmure_get_session`, `murrmure_create_run`, `murrmure_get_run`, `murrmure_get_run_graph`, `murrmure_attach_orchestration`, `murrmure_cancel_run`.
 
 ## Platform v2 — Gates
 
+Orchestration approval gates only — flow steps advance through `step:resolve`, not gates.
+
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
-| `GET` | `/v1/runs/{id}/gates` | `space:read` | List gates for run (actor-presented) |
-| `POST` | `/v1/runs/{id}/gates` | `flow:run` or `action:invoke` | Create pending gate on run |
-| `POST` | `/v1/gates/{id}/resolve` | `gate:resolve` | Approve/reject `{ decision, resume_data?, form_values? }` |
+| `GET` | `/v1/runs/{id}/gates` | `space:read` | List orchestration gates for run (actor-presented) |
+| `POST` | `/v1/runs/{id}/gates` | `flow:run` | Create pending orchestration gate on run |
+| `POST` | `/v1/gates/{id}/resolve` | `flow:run` | Approve/reject `{ decision, resume_data?, form_values? }` |
 | `GET` | `/v1/gates/wait` | `space:read` | Long-poll `?run_id=` or `?session_id=` (`timeout_ms` max 120s) |
 
-Legacy space-scoped resolve: `POST /v1/spaces/{id}/gates/{gate}/resolve` (prefer global v2 path).
-
-MCP: `murrmure_wait_for_gate`, `murrmure_resolve_gate`.
+Gate resolve is space-bound: a `flow:run` token may only resolve a gate in its own space; bootstrap and `hub:admin` tokens may resolve cross-space. Flow step completion uses **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — not gate routes.
 
 ## Platform v2 — Notifications & profile
 
@@ -232,22 +243,25 @@ SSE events include: `journal.append`, `gate.pending`, `gate.resolved`, `notifica
 
 ## Space index {#space-index}
 
-Indexed from local `murrmure/` via apply. See [Space index guide](../guide/space-index).
+Indexed from local `.mrmr/` via apply. See [Space index guide](../guide/space-index).
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
 | `POST` | `/v1/spaces/{id}/link` | `space:write` | Local binding `{ host, path, primary }` |
 | `POST` | `/v1/spaces/{id}/link/remote` | `space:write` | Remote hub binding `{ peer_hub_id, remote_space_id }` |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index apply bundle (flows, actions, executors, hooks) |
-| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Digests, counts, bindings |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index apply bundle (flows, handlers, views) |
+| `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Digests, counts, bindings, handler coverage |
 | `GET` | `/v1/spaces/{id}/index/flows` | `space:read` | Indexed flow entries |
 | `GET` | `/v1/flows/{flow_id}` | `space:read` | Single flow index entry |
 | `GET` | `/v1/spaces/{id}/actions` | `space:read` | Indexed actions |
 | `GET` | `/v1/spaces/{id}/executors` | `space:read` | Indexed executors |
 | `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed hooks |
-| `POST` | `/v1/spaces/{id}/actions/{name}/invoke` | `action:invoke` | Invoke action (supports `Idempotency-Key`) |
 
-MCP: `murrmure_apply_space`, `murrmure_space_status`, `murrmure_invoke_action`.
+::: warning Retired
+The retired public action-invoke HTTP surface and removed public invoke MCP tool return **404 / not-registered** (Task 15 Lane A). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay invoke endpoint (`flow:run`-gated).
+:::
+
+MCP: `murrmure_apply_space`, `murrmure_space_status`.
 
 ## Flow starts & space home
 
@@ -296,7 +310,7 @@ CLI: `mrmr federation peer add --id hub_b --url http://…`, `mrmr federation st
 
 ## Views {#views}
 
-Static assets for custom flow start UI (`murrmure/views/`).
+Static assets for space-owned custom checkpoint views (`.mrmr/views/{view_id}/dist/`). Production Views are locally built and shell-hosted; the route serves them from the linked space root.
 
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|

@@ -8,21 +8,20 @@ import {
 
 describe("unit/grants/migrate", () => {
   test("scopes pass through as capabilities when recognized", () => {
-    const caps = resolveEffectiveCapabilities({ scopes: ["flow:run", "action:invoke"] });
+    const caps = resolveEffectiveCapabilities({ scopes: ["flow:run", "event:emit"] });
     expect(caps).toContain("flow:run");
-    expect(caps).toContain("action:invoke");
+    expect(caps).toContain("event:emit");
   });
 
   test("legacy v1 scope names map to v2 capabilities", () => {
-    expect(resolveEffectiveCapabilities({ scopes: ["state:transition"] })).toEqual([
-      "flow:run",
-      "action:invoke",
-    ]);
+    expect(resolveEffectiveCapabilities({ scopes: ["state:transition"] })).toEqual(["flow:run"]);
     expect(resolveEffectiveCapabilities({ scopes: ["flow:install"] })).toEqual([
       "space:write",
       "flow:read",
     ]);
     expect(resolveEffectiveCapabilities({ scopes: ["event:read"] })).toEqual(["journal:read"]);
+    expect(resolveEffectiveCapabilities({ scopes: ["event:emit"] })).toEqual(["event:emit"]);
+    expect(resolveEffectiveCapabilities({ scopes: ["federation:emit"] })).toEqual(["event:emit"]);
   });
 
   test("space:admin expands to admin capability bundle", () => {
@@ -48,8 +47,8 @@ describe("unit/grants/migrate", () => {
     expect(canStartFlow(mapV1ScopesToCapabilities(["state:transition"]))).toBe(true);
   });
 
-  test("conformance: gate:resolve required to resolve gate", () => {
+  test("conformance: flow:run required to resolve gate / cancel run", () => {
     expect(canResolveGate(["space:read"])).toBe(false);
-    expect(canResolveGate(["gate:resolve"])).toBe(true);
+    expect(canResolveGate(["flow:run"])).toBe(true);
   });
 });

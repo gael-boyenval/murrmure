@@ -1,53 +1,48 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppShell } from "../layout/AppShell.js";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
+import { StepExecutorOutputPanel } from "../components/StepExecutorOutputPanel.js";
+import { DismissRunButton } from "../components/DismissRunButton.js";
 import { GatePanel } from "../components/GatePanel.js";
-import { ViewCanvasHost } from "../components/ViewCanvasHost.js";
-import {
-  SessionLaneDetailPanel,
-  type SessionLaneDetail,
-} from "../components/SessionLaneDetailPanel.js";
-import { displaySessionStatus, SessionStatusBadge } from "../components/session-status-badge.js";
+import { SharedFlowPage } from "../components/SharedFlowPage.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
-import { buildViewAppContext } from "../lib/view-app-context.js";
-import { mapViewSubmitToGateResolve } from "../lib/view-resolve-adapter.js";
-import { getHubBaseUrl, getShellToken } from "../hooks.js";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@murrmure/shell-ui";
-
-const RunFlowchartView = lazy(() =>
-  import("../components/RunFlowchartView.js").then((m) => ({ default: m.RunFlowchartView })),
-);
-
-function failedStepFromJournal(
-  journal?: Array<{ step_id: string; status: string }>,
-): string | undefined {
-  if (!journal?.length) return undefined;
-  const failed = [...journal].reverse().find((e) => e.status === "failed");
-  return failed?.step_id ?? journal[journal.length - 1]?.step_id;
-}
+import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
+import { useRunStepInspector } from "../hooks/useRunStepInspector.js";
+import { activeRunRefetchInterval } from "../lib/invalidate-run-queries.js";
+import { Button } from "@murrmure/shell-ui";
 
 export function SessionPage() {
   const { sessionId } = useParams();
   const [searchParams] = useSearchParams();
-  const forceAdmin = searchParams.get("admin") === "1";
+  const operatorMode = searchParams.get("operator") === "1";
   const client = useShellClient();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
-  const [retryLoading, setRetryLoading] = useState(false);
-  const [resolveLoading, setResolveLoading] = useState(false);
-
-  const sessionQuery = useQuery({
-    queryKey: ["session", sessionId],
-    queryFn: () => client!.sessions.get(sessionId!),
-    enabled: Boolean(client && sessionId),
-  });
 
   const runsQuery = useQuery({
     queryKey: ["session-runs", sessionId],
     queryFn: () => client!.sessions.listRuns(sessionId!),
     enabled: Boolean(client && sessionId),
+    refetchInterval: (query) =>
+      activeRunRefetchInterval(
+        query.state.data?.runs.some((r) => r.lifecycle === "working" || r.lifecycle === "input-required")
+          ? "working"
+          : undefined,
+      ),
+  });
+
+  const sessionQuery = useQuery({
+    queryKey: ["session", sessionId],
+    queryFn: () => client!.sessions.get(sessionId!),
+    enabled: Boolean(client && sessionId),
+    refetchInterval: () =>
+      activeRunRefetchInterval(
+        runsQuery.data?.runs.some((r) => r.lifecycle === "working" || r.lifecycle === "input-required")
+          ? "working"
+          : undefined,
+      ),
   });
 
   const focusRunId = selectedRunId ?? runsQuery.data?.runs[0]?.run_id;
@@ -56,249 +51,140 @@ export function SessionPage() {
     queryKey: ["run", focusRunId],
     queryFn: () => client!.runs.get(focusRunId!),
     enabled: Boolean(client && focusRunId),
+    refetchInterval: (query) => activeRunRefetchInterval(query.state.data?.lifecycle),
   });
 
   const graphQuery = useQuery({
     queryKey: ["run-graph", focusRunId],
     queryFn: () => client!.runs.graph(focusRunId!),
     enabled: Boolean(client && focusRunId),
+    refetchInterval: () => activeRunRefetchInterval(runQuery.data?.lifecycle),
   });
 
   const gatesQuery = useQuery({
     queryKey: ["gates", focusRunId],
     queryFn: () => client!.gates.listForRun(focusRunId!),
     enabled: Boolean(client && focusRunId),
+    refetchInterval: () => activeRunRefetchInterval(runQuery.data?.lifecycle),
   });
 
   const session = sessionQuery.data;
   const runs = runsQuery.data?.runs ?? [];
   const focusedRun = runs.find((r) => r.run_id === focusRunId);
-  const pendingGate = gatesQuery.data?.find((g) => g.status === "pending");
-  const graph = graphQuery.data;
-  const checkpointCanvas = Boolean(pendingGate?.view_ref && runQuery.data?.flow_id && !forceAdmin);
-
-  const laneDetail = useMemo((): SessionLaneDetail | undefined => {
-    if (!focusRunId) return undefined;
-    const graphLane = graph?.lanes.find((l) => l.run_id === focusRunId);
-    const journal = runQuery.data?.journal_replay;
-    const failedStep = failedStepFromJournal(journal);
-    return {
-      run_id: focusRunId,
-      lifecycle: graphLane?.lifecycle ?? focusedRun?.lifecycle ?? "unknown",
-      label: graphLane?.label,
-      last_step: failedStep,
-      error_summary:
-        (graphLane?.lifecycle === "failed" || focusedRun?.lifecycle === "failed") && failedStep
-          ? `${failedStep} failed`
-          : undefined,
-    };
-  }, [focusRunId, graph, focusedRun, runQuery.data]);
-
-  const displayStatus = displaySessionStatus(
-    session?.status,
-    runs.map((r) => r.lifecycle),
+  const run = runQuery.data;
+  const orchestrationGate = gatesQuery.data?.find(
+    (g) => g.status === "pending" && g.step_id.startsWith("orchestration:"),
   );
 
-  const canRetry =
-    focusedRun?.lifecycle === "failed" || focusedRun?.lifecycle === "cancelled";
-  const logsHref = `/logs?session=${sessionId ?? ""}${focusRunId ? `&run=${focusRunId}` : ""}`;
-
-  const pendingGateId = pendingGate?.gate_id;
-
-  const handleCheckpointSubmit = useCallback(
-    async (params: Record<string, unknown>) => {
-      if (!pendingGateId || !client) return;
-      setResolveLoading(true);
-      try {
-        await client.gates.resolve(
-          pendingGateId,
-          mapViewSubmitToGateResolve(params, "submit"),
-        );
-        await queryClient.refetchQueries({ queryKey: ["gates", focusRunId] });
-        await queryClient.refetchQueries({ queryKey: ["run-graph", focusRunId] });
-        await queryClient.refetchQueries({ queryKey: ["run", focusRunId] });
-        await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
-      } finally {
-        setResolveLoading(false);
-      }
-    },
-    [pendingGateId, client, queryClient, focusRunId, sessionId],
+  const bindingInput = useMemo(
+    () =>
+      run && client && sessionId
+        ? {
+            client,
+            run,
+            flow_id: run.flow_id ?? graphQuery.data?.flow_id ?? "flw_unknown",
+            space_id: run.space_id ?? "",
+            title: session?.title ?? run.open_steps?.[0]?.step_id ?? "Session",
+            adminHref: `/sessions/${sessionId}?operator=1`,
+            closeHref: `/sessions/${sessionId}`,
+          }
+        : null,
+    [client, run, graphQuery.data?.flow_id, session?.title, sessionId],
   );
 
-  const handleCheckpointCancel = useCallback(async () => {
-    if (!pendingGateId || !client) return;
-    setResolveLoading(true);
-    try {
-      await client.gates.resolve(pendingGateId, mapViewSubmitToGateResolve({}, "cancel"));
-      await queryClient.refetchQueries({ queryKey: ["gates", focusRunId] });
-      await queryClient.refetchQueries({ queryKey: ["run-graph", focusRunId] });
-      await queryClient.refetchQueries({ queryKey: ["run", focusRunId] });
-    } finally {
-      setResolveLoading(false);
-    }
-  }, [pendingGateId, client, queryClient, focusRunId]);
+  const { showCanvas, canvas } = useStepCanvasBinding(bindingInput);
 
-  const checkpointViewContext = useMemo(() => {
-    if (!pendingGate || !runQuery.data) return undefined;
-    const resolvedSpaceId =
-      runQuery.data.space_id ??
-      pendingGate.view_ref?.origin_space_id ??
-      "spc_local";
-    return buildViewAppContext({
-      flow_id: runQuery.data.flow_id ?? graph?.flow_id ?? "flw_unknown",
-      space_id: resolvedSpaceId,
-      hub_base_url: getHubBaseUrl(),
-      token: getShellToken(),
-      session_id: sessionId,
-      run_id: focusRunId,
-      gate: pendingGate,
-      exec_context: runQuery.data.exec_context,
-    });
-  }, [
-    pendingGate?.gate_id,
-    pendingGate?.step_id,
-    pendingGate?.payload_ref,
-    pendingGate?.form,
-    pendingGate?.view_ref?.view_id,
-    pendingGate?.view_ref?.origin_space_id,
-    pendingGate?.view_ref?.entry_url,
-    runQuery.data?.flow_id,
-    runQuery.data?.space_id,
-    runQuery.data?.exec_context,
-    graph?.flow_id,
+  const graphStepIds =
+    graphQuery.data?.step_memos?.map((m) => m.step_id) ?? graphQuery.data?.nodes?.map((n) => n.step_id);
+  const pollWhileActive =
+    run?.lifecycle === "working" || run?.lifecycle === "input-required" || focusedRun?.lifecycle === "working";
+  const { selectedStepId, setSelectedStepId, journalEntries } = useRunStepInspector({
+    run,
     sessionId,
-    focusRunId,
-  ]);
+    graphStepIds,
+    pollWhileActive,
+  });
 
-  if (checkpointCanvas && pendingGate && runQuery.data && checkpointViewContext) {
-    return (
-      <AppShell canvasMode>
-        <ViewCanvasHost
-          title={session?.title ?? "Session"}
-          viewRef={pendingGate.view_ref}
-          context={checkpointViewContext}
-          onSubmit={handleCheckpointSubmit}
-          onCancel={handleCheckpointCancel}
-          submitting={resolveLoading}
-          adminHref={`/sessions/${sessionId}?admin=1`}
-        />
-      </AppShell>
-    );
+  if (showCanvas && canvas && !operatorMode) {
+    return canvas;
   }
 
   return (
-    <AppShell>
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 lg:flex-row">
-        <div className="min-w-0 flex-1 space-y-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{session?.title ?? "Session"}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="font-mono text-sm text-muted-foreground">{sessionId}</p>
-              {session?.status ? <SessionStatusBadge status={displayStatus} /> : null}
-            </div>
-          </div>
-
-          {graph ? (
-            <Suspense fallback={<p className="text-sm text-muted-foreground">Loading flowchart…</p>}>
-              <RunFlowchartView
-                graph={graph}
-                selectedRunId={focusRunId}
-                onSelectLane={setSelectedRunId}
-              />
-            </Suspense>
-          ) : runQuery.data ? (
-            <JournalWaterfallView
-              run={runQuery.data}
-              isLive={runQuery.data.lifecycle === "working"}
-              retryLoading={retryLoading}
-              retryingStepId={retryLoading ? laneDetail?.last_step : undefined}
-              onRetry={
-                canRetry
-                  ? async (_stepId) => {
-                      if (!focusRunId) return;
-                      setRetryLoading(true);
-                      try {
-                        const result = await client!.runs.retry(focusRunId);
-                        setSelectedRunId(result.run.run_id);
-                        await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
-                      } finally {
-                        setRetryLoading(false);
-                      }
-                    }
-                  : undefined
-              }
-            />
-          ) : null}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Runs</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {runs.map((run) => (
-                <button
-                  key={run.run_id}
-                  type="button"
-                  className={`block w-full rounded-md border px-3 py-2 text-left ${
-                    run.run_id === focusRunId ? "border-primary bg-muted/40" : "border-border"
-                  }`}
-                  onClick={() => setSelectedRunId(run.run_id)}
-                >
-                  <span className="font-mono">{run.run_id}</span>
-                  <Badge className="ml-2" variant="outline">
-                    {run.lifecycle}
-                  </Badge>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
+    <SharedFlowPage
+      topBanner={showCanvas && operatorMode ? (
+        <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2">
+          <Link to={`/sessions/${sessionId}`} className="text-sm text-primary underline">
+            Back to checkpoint view
+          </Link>
         </div>
-
-        <div className="w-full shrink-0 space-y-4 lg:w-96">
-          <SessionLaneDetailPanel
-            lane={laneDetail}
-            retryLoading={retryLoading}
-            onRetry={
-              canRetry
-                ? async () => {
-                    if (!focusRunId) return;
-                    setRetryLoading(true);
-                    try {
-                      const result = await client!.runs.retry(focusRunId);
-                      setSelectedRunId(result.run.run_id);
-                      await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
-                    } finally {
-                      setRetryLoading(false);
-                    }
-                  }
-                : undefined
-            }
+      ) : null}
+      title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
+      subtitle={sessionId}
+      status={session?.status}
+      graph={graphQuery.data}
+      graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
+      execContext={run?.exec_context as Record<string, unknown> | undefined}
+      selectedRunId={focusRunId}
+      selectedStepId={selectedStepId}
+      onSelectLane={setSelectedRunId}
+      onSelectStep={setSelectedStepId}
+      actions={
+        focusRunId ? (
+          <DismissRunButton
+            runId={focusRunId}
+            spaceId={run?.space_id}
+            lifecycle={run?.lifecycle ?? focusedRun?.lifecycle}
+            onDismissed={async () => {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["run", focusRunId] }),
+                queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] }),
+                queryClient.invalidateQueries({ queryKey: ["session", sessionId] }),
+              ]);
+              if (run?.space_id) navigate(`/spaces/${run.space_id}`);
+            }}
           />
+        ) : null
+      }
+      secondary={
+        <>
+              {run && focusRunId ? (
+                <StepExecutorOutputPanel
+                  className="min-h-0 flex-1"
+                  run={run}
+                  stepId={selectedStepId}
+                  journalEntries={journalEntries}
+                  graphStepIds={graphStepIds}
+                  onSelectStep={setSelectedStepId}
+                />
+              ) : null}
 
-          {pendingGate ? (
-            <GatePanel
-              gate={pendingGate}
-              graph={graph}
-              onSubmit={async (values) => {
-                await client!.gates.resolve(pendingGate.gate_id, values);
-                await gatesQuery.refetch();
-                await graphQuery.refetch();
-              }}
-            />
-          ) : null}
+              {orchestrationGate ? (
+                <GatePanel
+                  gate={orchestrationGate}
+                  graph={graphQuery.data}
+                  onSubmit={async (values) => {
+                    await client!.gates.resolve(orchestrationGate.gate_id, values);
+                    await gatesQuery.refetch();
+                    await graphQuery.refetch();
+                  }}
+                />
+              ) : null}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Session logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Link to={logsHref} className="text-sm text-primary underline">
-                {canRetry ? "View error in log explorer" : "Open in log explorer"}
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </AppShell>
+              {focusedRun?.lifecycle === "failed" || focusedRun?.lifecycle === "cancelled" ? (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    if (!focusRunId) return;
+                    const result = await client!.runs.retry(focusRunId);
+                    setSelectedRunId(result.run.run_id);
+                    await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
+                  }}
+                >
+                  Retry failed lane
+                </Button>
+              ) : null}
+        </>
+      }
+    />
   );
 }

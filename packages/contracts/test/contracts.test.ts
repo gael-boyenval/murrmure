@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
+import { loadHubContractFixture } from "../../../test-utils/hub/contracts.js";
 import {
   ArtifactV1Schema,
   ContractV2Schema,
@@ -25,8 +23,6 @@ import {
   JOURNAL_EVENT_TYPES,
 } from "../src/index.js";
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__dir, "../../../fixtures/hub");
 const ULID = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
 describe("ids/prefixed", () => {
@@ -50,9 +46,7 @@ describe("ids/prefixed", () => {
 
 describe("contract-v2", () => {
   test("parses linear-demo-v2 fixture", () => {
-    const raw = JSON.parse(
-      readFileSync(join(FIXTURES, "contracts/linear-demo-v2.json"), "utf-8"),
-    );
+    const raw = loadHubContractFixture("linear-demo-v2");
     const parsed = ContractV2Schema.parse(raw);
     expect(parsed.schemaVersion).toBe("2.0");
     expect(parsed.transitions[0]?.gate?.mode).toBe("any");
@@ -210,11 +204,13 @@ describe("rev-1 entity schemas", () => {
     const manifest = {
       apiVersion: "murrmure.flow/v1" as const,
       name: "feature-delivery",
-      start: { manual: true },
+      triggers: { manual: true },
       steps: [
         {
           id: "research",
-          invoke: { space: `spc_${ULID}`, action: "overnight_research" },
+          branches: {
+            completed: { schema: { type: "object" } },
+          },
         },
       ],
     };
@@ -227,7 +223,7 @@ describe("rev-1 entity schemas", () => {
       origin_space_id: `spc_${ULID}`,
       digest: "sha256:manifest",
       name: "feature-delivery",
-      start: { manual: true },
+      triggers: { manual: true },
       step_spaces: [`spc_${ULID}`],
       grants_required: ["flow:run" as const],
     };
@@ -262,8 +258,15 @@ describe("rev-1 entity schemas", () => {
       manifest: {
         apiVersion: "murrmure.flow/v1" as const,
         name: "agent-proposed",
-        start: { manual: true },
-        steps: [{ id: "step1", invoke: { space: `spc_${ULID}`, action: "plan" } }],
+        triggers: { manual: true },
+        steps: [
+          {
+            id: "step1",
+            branches: {
+              completed: { schema: { type: "object" } },
+            },
+          },
+        ],
       },
     };
     expect(FlowAttachPayloadSchema.parse(attach)).toEqual(attach);

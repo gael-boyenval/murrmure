@@ -62,7 +62,7 @@ function RunRow({ title, runId, lifecycle }: { title: string; runId: string; lif
 
 export type SpaceHomePrototypeState = "empty" | "active" | "attention";
 
-function AttentionRow({ title, kind }: { title: string; kind: "gate" | "run_failed" }) {
+function AttentionRow({ title, kind }: { title: string; kind: "gate" | "run_failed" | "human_step" }) {
   return (
     <div className="flex items-start justify-between gap-2 border-b border-amber-900/40 py-2 last:border-0">
       <p className="text-sm hover:underline">{title}</p>
@@ -128,34 +128,14 @@ export function SpaceHomePrototype({ state }: { state: SpaceHomePrototypeState }
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Your flows</CardTitle>
-            <CardDescription>Flows authored in this space</CardDescription>
+            <CardTitle className="text-base">Flows</CardTitle>
+            <CardDescription>Authorized flows available in this space</CardDescription>
           </CardHeader>
           <CardContent>
             {isEmpty ? (
               <EmptyFlowsHint />
             ) : (
-              demoFlows.map((flow) => (
-                <FlowRow
-                  key={flow.flow_id}
-                  name={flow.name}
-                  flowId={flow.flow_id}
-                  action={flowAction(flow)}
-                />
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Available to run</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isEmpty ? (
-              <p className="text-sm text-muted-foreground">No runnable flows</p>
-            ) : (
-              availableToRun.map((flow) => (
+              [...demoFlows, ...availableToRun].map((flow) => (
                 <FlowRow
                   key={flow.flow_id}
                   name={flow.name}
@@ -194,10 +174,13 @@ export function SpaceHomePrototype({ state }: { state: SpaceHomePrototypeState }
             {isEmpty ? (
               <p className="text-sm text-muted-foreground">No recent runs</p>
             ) : (
-              completedRuns.map((run) => (
-                <RunRow key={run.run_id} title={run.title ?? run.run_id} runId={run.run_id} lifecycle={run.lifecycle} />
-              ))
+              <div className="scrollbar-subtle max-h-80 overflow-y-auto">
+                {completedRuns.map((run) => (
+                  <RunRow key={run.run_id} title={run.title ?? run.run_id} runId={run.run_id} lifecycle={run.lifecycle} />
+                ))}
+              </div>
             )}
+            <Button variant="outline" size="sm" className="mt-3">View all runs</Button>
           </CardContent>
         </Card>
       </div>

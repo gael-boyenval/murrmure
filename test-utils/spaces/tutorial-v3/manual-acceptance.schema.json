@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://murrmure.dev/schemas/tutorial-v3-manual-acceptance.json",
+  "title": "Tutorial v3 manual acceptance record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task",
+    "tutorial_chapters",
+    "environment",
+    "product_build",
+    "commands",
+    "run_ids",
+    "evidence",
+    "result",
+    "blockers"
+  ],
+  "properties": {
+    "task": {
+      "type": "string",
+      "pattern": "^(00|0[1-9]|1[0-5])$"
+    },
+    "tutorial_chapters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 6
+      },
+      "uniqueItems": true
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "node", "execution"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1 },
+        "arch": { "type": "string", "minLength": 1 },
+        "node": { "type": "string", "minLength": 1 },
+        "execution": {
+          "enum": ["source", "packaged-desktop", "signed-release"]
+        }
+      }
+    },
+    "product_build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "commit"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "minLength": 7 },
+        "artifact": { "type": "string", "minLength": 1 }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "exit_code"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "exit_code": { "type": "integer" },
+          "output_ref": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "run_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^run_" },
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": {
+            "enum": ["log", "screenshot", "journal", "artifact", "commit", "check"]
+          },
+          "ref": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string" }
+        }
+      }
+    },
+    "result": {
+      "enum": ["passed", "failed", "blocked"]
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

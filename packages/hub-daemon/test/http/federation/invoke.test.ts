@@ -168,7 +168,7 @@ describe("federation/invoke", () => {
     hubB?.cleanup?.();
   });
 
-  test("remote invoke happy path relays to peer hub", async () => {
+  test("action invoke route is removed — remote relay not reachable via public route (404)", async () => {
     const virtualSpaceId = (hubA as typeof hubA & { virtualSpaceId: string }).virtualSpaceId;
     const res = await fetch(`${hubA.baseUrl}/v1/spaces/${virtualSpaceId}/actions/echo/invoke`, {
       method: "POST",
@@ -179,8 +179,6 @@ describe("federation/invoke", () => {
       body: JSON.stringify({ params: { message: "hello-federation" } }),
     });
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(["dispatched", "completed"]).toContain(body.dispatch.status);
+    expect(res.status).toBe(404);
   });
 });

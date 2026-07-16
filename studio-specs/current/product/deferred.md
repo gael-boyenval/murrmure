@@ -6,7 +6,7 @@
 
 Items here are **deliberate non-goals or future slices**, not bugs. For **known gaps** (manifest features that compile but the engine does not dispatch yet), see the [active plan](../../plans/product/plan/index.md) and [known-gaps](../../../apps/docs/guide/known-gaps.md).
 
-> **North star:** nothing below defers **custom views as the primary human interface**. `gate.requires_view` + **ViewCanvasHost** are required — [plan phase 06](../../plans/product/plan/06-gate-requires-view.md). Deferred here = hub registry infrastructure and admin-shell polish only.
+> **North star:** nothing below defers **custom views as the primary human interface**. Views bound through the space (`handlers.yaml` + `.mrmr/views/`) and rendered in **ViewCanvasHost** are required — [plan phase 06](../../plans/product/plan/06-gate-requires-view.md). Deferred here = hub registry infrastructure and admin-shell polish only.
 
 ---
 
@@ -25,19 +25,13 @@ Items here are **deliberate non-goals or future slices**, not bugs. For **known 
 
 | Item | Rationale |
 |------|-----------|
-| Hub view registry / view entity | Views stay clients; `view_ref` on flow index only. View canvas ships in plan phase 06 — not deferred |
+| Hub view registry / view entity | Views stay clients; bound by the space (`handlers.yaml` `view_resolver` + `.mrmr/views/`), with no hub registry or flow-owned View identity. View canvas ships in plan phase 06 — not deferred |
 | Flow marketplace | Not v2 scope |
 | Gate delegation UI | Not v2 scope |
 | Cron / schedule trigger **UI** | Hub scheduler runs; no separate schedule editor |
 | Contract graph editor | Not v2 scope |
 | OAuth / multi-tenant IdP | Local-first grants only |
 | Admin-shell UI polish backlog (Storybook critique) | Shell is admin/operator chrome — lower priority than view canvas |
-
----
-
-## FDK / worker runtime
-
-**Deleted in phase 09** — not deferred. Worker pool, evolution HTTP, FDK CLI, and `@murrmure/flow-kit` are removed. Finished product = `murrmure/` space directory + `mrmr space apply` only. See [09-fdk-deletion](../../plans/product/plan/09-fdk-deletion.md).
 
 ---
 

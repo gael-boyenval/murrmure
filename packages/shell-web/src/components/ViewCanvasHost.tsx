@@ -1,18 +1,28 @@
-import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { TriangleAlert } from "lucide-react";
-import type { ViewAppContext } from "@murrmure/view-sdk";
-import { ViewHostFrame, resolveViewEntryUrl } from "@murrmure/view-sdk";
+import type {
+  ViewAppContext,
+  ViewBranchSubmitInput,
+  ViewContractError,
+  ViewSubmissionState,
+} from "@murrmure/view-sdk";
+import {
+  ViewHostFrame,
+  resolveViewEntryUrl,
+  validateHostBranchResolve,
+  viewSubmitFileName,
+} from "@murrmure/view-sdk";
 import { Badge, Button, cn } from "@murrmure/shell-ui";
 import type { ViewRefLike } from "../lib/view-app-context.js";
-import { ReviewParamsView } from "./ReviewParamsView.js";
-import { ViewParamForm } from "./ViewParamForm.js";
-import { defaultRunParamsForm } from "@murrmure/view-sdk";
+import { DataTableView } from "./DataTableView.js";
 
 export interface ViewCanvasFixtureTab {
   name: string;
   context: ViewAppContext;
 }
+
+type Ack = { ok: true } | { ok: false; error: ViewContractError };
 
 export interface ViewCanvasHostProps {
   /** Session or workflow title — primary human label (decision 07). */
@@ -20,8 +30,20 @@ export interface ViewCanvasHostProps {
   viewRef?: ViewRefLike;
   iframeSrc?: string;
   context: ViewAppContext;
-  onSubmit: (params: Record<string, unknown>) => void;
-  onCancel?: () => void;
+  /** Host-mediated v3 submit. Resolves the branch + params through the hub. */
+  onSubmitBranch: (
+    branch: string,
+    input: ViewBranchSubmitInput,
+    submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+  ) => Promise<Ack>;
+  onCancelSubmission?: (submission_id: string) => Promise<void> | void;
+  onOpenChild?: (
+    child_step_id: string,
+    idempotency_key: string,
+  ) => Promise<Ack>;
+  /** Host-mediated v3 cancel. */
+  onCancel?: () => Promise<Ack>;
+  onResolved?: () => void;
   submitting?: boolean;
   /** Dev-only fixture tabs (decision 02). */
   devMode?: boolean;
@@ -31,48 +53,35 @@ export interface ViewCanvasHostProps {
   /** Link back to operator session view when in production checkpoint mode. */
   adminHref?: string;
   adminLabel?: string;
+  /** Link to space home for navigation out of full-screen checkpoint. */
+  homeHref?: string;
+  homeLabel?: string;
 }
 
-const BUILTIN_ROUTES: Record<
-  string,
-  ComponentType<{
-    onSubmit: (p: Record<string, unknown>) => void;
-    onCancel?: () => void;
-    submitting?: boolean;
-  }>
-> = {
-  "murrmure/review-params": ReviewParamsView,
-};
-
-function ViewCanvasFallbackBanner() {
-  return (
-    <div
-      role="alert"
-      className="mx-auto flex max-w-lg gap-2 rounded-md border border-amber-800/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-200"
-    >
-      <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-      <p>Custom view unavailable — using built-in fallback form (admin path only).</p>
-    </div>
-  );
-}
-
+/**
+ * Hardened host for a locally built custom View. No built-in fallback form is
+ * rendered: when no View is projected the shell stays observability-only and
+ * this host is not mounted. Dev mode logs non-mutating intents and acks ok.
+ */
 export function ViewCanvasHost({
   title,
   viewRef,
   iframeSrc: iframeSrcProp,
   context,
-  onSubmit,
+  onSubmitBranch,
   onCancel,
-  submitting,
+  onCancelSubmission,
+  onOpenChild,
+  onResolved,
   devMode,
   fixtureTabs,
   activeFixture,
   onFixtureChange,
   adminHref,
   adminLabel = "Operator view",
+  homeHref,
+  homeLabel = "Space home",
 }: ViewCanvasHostProps) {
-  const shellRoute = viewRef?.shell_route;
-  const BuiltinView = shellRoute ? BUILTIN_ROUTES[shellRoute] : undefined;
   const iframeSrc =
     iframeSrcProp ??
     (viewRef?.entry_url && viewRef.origin_space_id
@@ -83,33 +92,57 @@ export function ViewCanvasHost({
         })
       : undefined);
 
-  const [devSubmitLog, setDevSubmitLog] = useState<string | null>(null);
+  const [devLog, setDevLog] = useState<string | null>(null);
+  const [devPayload, setDevPayload] = useState<Record<string, unknown> | null>(null);
 
-  const handleSubmit = useCallback(
-    (params: Record<string, unknown>) => {
+  const handleSubmitBranch = useCallback(
+    async (
+      branch: string,
+      input: ViewBranchSubmitInput,
+      submission: { submission_id: string; report: (state: ViewSubmissionState) => void },
+    ): Promise<Ack> => {
+      const validation = validateHostBranchResolve(context, branch, input);
+      if (validation) return { ok: false, error: validation };
       if (devMode) {
-        const line = `[dev] submit ${JSON.stringify(params)}`;
-        setDevSubmitLog(line);
-        console.info(line);
-        return;
+        const branchContract = context.step?.branches.find((candidate) => candidate.branch === branch)!;
+        const files = Object.fromEntries(
+          Object.entries(input.files ?? {}).map(([slot, value]) => [
+            slot,
+            (Array.isArray(value) ? value : [value]).map((file, index) => ({
+              name: viewSubmitFileName(branchContract, slot, file, index),
+              media_type: file.type,
+              size_bytes: file.size,
+            })),
+          ]),
+        );
+        const totalBytes = Object.values(files).flat().reduce((sum, file) => sum + file.size_bytes, 0);
+        submission.report({ status: "validating", uploadedBytes: 0, totalBytes });
+        setDevLog("[dev] submit_branch");
+        setDevPayload({ branch, payload: input.payload ?? {}, files, mutating: false });
+        submission.report({ status: "succeeded", uploadedBytes: totalBytes, totalBytes });
+        console.info("[dev] submit_branch", branch, { payload: input.payload ?? {}, files, mutating: false });
+        return { ok: true };
       }
-      onSubmit(params);
+      return onSubmitBranch(branch, input, submission);
     },
-    [devMode, onSubmit],
+    [context, devMode, onSubmitBranch],
   );
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async (): Promise<Ack> => {
     if (devMode) {
-      const line = "[dev] cancel";
-      setDevSubmitLog(line);
-      console.info(line);
-      return;
+      setDevLog("[dev] cancel");
+      setDevPayload(null);
+      console.info("[dev] cancel");
+      return { ok: true };
     }
-    onCancel?.();
+    return onCancel ? onCancel() : { ok: true };
   }, [devMode, onCancel]);
 
   useEffect(() => {
-    if (!devMode) setDevSubmitLog(null);
+    if (!devMode) {
+      setDevLog(null);
+      setDevPayload(null);
+    }
   }, [activeFixture, devMode]);
 
   return (
@@ -120,17 +153,28 @@ export function ViewCanvasHost({
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-          {context.gate?.step_id ? (
+          {context.step?.step_id ? (
+            <p className="truncate text-sm text-muted-foreground">{context.step.step_id}</p>
+          ) : context.gate?.step_id ? (
             <p className="truncate text-sm text-muted-foreground">{context.gate.step_id}</p>
           ) : null}
         </div>
         {devMode ? (
           <Badge variant="outline">Dev</Badge>
-        ) : adminHref ? (
-          <Button variant="outline" size="sm" asChild>
-            <Link to={adminHref}>{adminLabel}</Link>
-          </Button>
-        ) : null}
+        ) : (
+          <div className="flex shrink-0 items-center gap-2">
+            {homeHref ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={homeHref}>{homeLabel}</Link>
+              </Button>
+            ) : null}
+            {adminHref ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={adminHref}>{adminLabel}</Link>
+              </Button>
+            ) : null}
+          </div>
+        )}
       </header>
 
       {devMode && fixtureTabs && fixtureTabs.length > 0 ? (
@@ -157,40 +201,42 @@ export function ViewCanvasHost({
       ) : null}
 
       <div className="relative min-h-0 flex-1 w-full">
-        {BuiltinView ? (
-          <div className="mx-auto max-w-lg p-6">
-            <BuiltinView onSubmit={handleSubmit} onCancel={handleCancel} submitting={submitting} />
-          </div>
-        ) : iframeSrc ? (
+        {iframeSrc ? (
           <ViewHostFrame
             src={iframeSrc}
             context={context}
-            onSubmit={handleSubmit}
+            onSubmitBranch={handleSubmitBranch}
+            onCancelSubmission={onCancelSubmission}
+            onOpenChild={onOpenChild}
             onCancel={handleCancel}
+            onResolved={onResolved}
             className="absolute inset-0 h-full w-full border-0 bg-background"
           />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-            <ViewCanvasFallbackBanner />
-            <div className="w-full max-w-lg">
-              <ViewParamForm
-                form={defaultRunParamsForm()}
-                onSubmit={handleSubmit}
-                onCancel={handleCancel}
-                submitting={submitting}
-              />
-            </div>
+          // Observability-only empty state. No fallback form is synthesized;
+          // unbound steps never reach this host (shouldShowStepCanvas gates it).
+          <div
+            data-testid="view-canvas-observability"
+            className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground"
+          >
+            <TriangleAlert className="size-5 text-muted-foreground" aria-hidden />
+            <p>No custom view is bound to this step. The shell is observability-only.</p>
           </div>
         )}
       </div>
 
-      {devMode && devSubmitLog ? (
-        <p
+      {devMode && devLog ? (
+        <div
           data-testid="view-canvas-dev-log"
-          className="shrink-0 border-t border-border px-4 py-2 font-mono text-xs text-muted-foreground"
+          className="shrink-0 border-t border-border px-4 py-2 text-xs text-muted-foreground"
         >
-          {devSubmitLog}
-        </p>
+          <p className="mb-1 font-mono">{devLog}</p>
+          {devPayload ? (
+            <DataTableView value={devPayload} />
+          ) : (
+            <span className="font-mono">{devLog}</span>
+          )}
+        </div>
       ) : null}
     </div>
   );

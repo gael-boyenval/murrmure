@@ -1,0 +1,10 @@
+apiVersion: murrmure.flow/v1
+name: minimal-flow
+description: Smallest strict-apply space — one step + handler
+
+triggers:
+  manual: true
+
+steps:
+  - id: hello
+    description: Echo greeting via handler.

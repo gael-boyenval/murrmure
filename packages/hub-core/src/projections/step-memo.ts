@@ -1,7 +1,15 @@
 import type { RunStepMemo, RunStepStatus } from "@murrmure/contracts";
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 
-export function stepStatusFromJournalType(type: string): RunStepStatus | null {
+const TERMINAL_STEP_STATUSES: RunStepStatus[] = ["completed", "failed"];
+
+export function isTerminalStepStatus(status: RunStepStatus): boolean {
+  return TERMINAL_STEP_STATUSES.includes(status);
+}
+
+export function stepStatusFromJournalType(
+  type: string,
+): RunStepStatus | null {
   switch (type) {
     case JOURNAL_EVENT_TYPES.ACTION_DISPATCHED:
       return "working";
@@ -11,6 +19,10 @@ export function stepStatusFromJournalType(type: string): RunStepStatus | null {
     case JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT:
     case JOURNAL_EVENT_TYPES.ACTION_EXECUTOR_UNAVAILABLE:
       return "failed";
+    case JOURNAL_EVENT_TYPES.STEP_OPENED:
+      return "working";
+    case JOURNAL_EVENT_TYPES.STEP_RESOLVED:
+      return "completed";
     default:
       return null;
   }
@@ -37,6 +49,10 @@ export function applyStepMemoFromJournal(
     step_id: input.step_id,
     status: "pending",
   };
+
+  if (isTerminalStepStatus(base.status) && nextStatus !== base.status) {
+    return base;
+  }
 
   const memo: RunStepMemo = {
     ...base,

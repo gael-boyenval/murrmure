@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { withShellWebProviders } from "./with-providers.js";
 import { SpaceHomePrototype } from "./pages/SpaceHomePrototype.js";
-import { SpaceHomeWithDrawerPrototype } from "./pages/SpaceHomeWithDrawerPrototype.js";
 import { RunPagePrototype } from "./pages/RunPagePrototype.js";
 import { SessionPagePrototype } from "./pages/SessionPagePrototype.js";
 import { NotificationsPrototype } from "./pages/NotificationsPrototype.js";
@@ -32,11 +31,6 @@ export const SpaceHomeActive: Story = {
 export const SpaceHomeNeedsAttention: Story = {
   name: "Space home — needs attention",
   render: () => <SpaceHomePrototype state="attention" />,
-};
-
-export const SpaceHomeRunDrawer: Story = {
-  name: "Space home — run drawer open",
-  render: () => <SpaceHomeWithDrawerPrototype />,
 };
 
 export const RunWorking: Story = {

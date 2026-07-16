@@ -10,7 +10,7 @@ describe("space view init scaffold", () => {
 
   beforeEach(() => {
     targetDir = mkdtempSync(join(tmpdir(), "cli-space-view-init-"));
-    mkdirSync(join(targetDir, "murrmure"), { recursive: true });
+    mkdirSync(join(targetDir, ".mrmr"), { recursive: true });
   });
 
   afterEach(() => {
@@ -18,10 +18,10 @@ describe("space view init scaffold", () => {
   });
 
   test("creates Vite+React view tree with fixtures", () => {
-    const created = scaffoldViewPackage(join(targetDir, "murrmure"), "preview-review");
+    const created = scaffoldViewPackage(join(targetDir, ".mrmr"), "preview-review");
     expect(created.length).toBeGreaterThan(5);
 
-    const viewDir = join(targetDir, "murrmure", "views", "preview-review");
+    const viewDir = join(targetDir, ".mrmr", "views", "preview-review");
     expect(existsSync(join(viewDir, "package.json"))).toBe(true);
     expect(existsSync(join(viewDir, "src", "App.tsx"))).toBe(true);
     expect(existsSync(join(viewDir, "src", "main.tsx"))).toBe(true);
@@ -33,7 +33,7 @@ describe("space view init scaffold", () => {
   });
 
   test("rejects path traversal in view id", () => {
-    const murrmureRoot = join(targetDir, "murrmure");
+    const murrmureRoot = join(targetDir, ".mrmr");
     expect(() => scaffoldViewPackage(murrmureRoot, "../escape")).toThrow(/Invalid view id/);
     expect(() => scaffoldViewPackage(murrmureRoot, "foo/bar")).toThrow(/Invalid view id/);
     expect(() => assertSafeViewId("/etc/passwd")).toThrow(/Invalid view id/);
@@ -46,7 +46,7 @@ describe("space view init scaffold", () => {
       rawArgs: [],
     });
 
-    const viewDir = join(targetDir, "murrmure", "views", "my-view");
+    const viewDir = join(targetDir, ".mrmr", "views", "my-view");
     expect(existsSync(join(viewDir, "package.json"))).toBe(true);
     expect(existsSync(join(viewDir, "src", "App.tsx"))).toBe(true);
   });

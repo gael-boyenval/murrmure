@@ -1,0 +1,12 @@
+version: 1
+
+handlers:
+  - id: hello_hello
+    contract_keys: [hello.hello]
+    on: step.opened::hello.hello
+    type: shell_spawn
+    complete: auto
+    command: node .mrmr/space/scripts/hello-hello.mjs
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000

@@ -4,6 +4,7 @@ import {
   buildEmittableEventsCatalog,
   validateEmitPayload,
 } from "@murrmure/hub-core";
+import { HandlerSpecSchema } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
@@ -46,6 +47,34 @@ export function registerPlatformMcpHandlers(
     };
   });
 
+  registry.registerHandler("murrmure_space_health", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const snapshot = await studio.getSpaceIndexSnapshot(bare);
+    const bindings = await studio.getSpaceBindings(bare);
+    const hooks = await studio.listIndexedHooks(bare);
+    const handlers = hooks
+      .map((row) => HandlerSpecSchema.safeParse(row))
+      .filter((parsed): parsed is { success: true; data: import("@murrmure/contracts").HandlerSpec } => parsed.success)
+      .map((parsed) => parsed.data);
+    const index = buildIndexStatus(snapshot);
+    const warnings: string[] = [];
+    if (index.counts.flows === 0) warnings.push("No indexed flows");
+    if (handlers.length === 0) warnings.push("No indexed handlers");
+
+    return {
+      space_id: prefixedSpaceId(bare),
+      index,
+      handlers: {
+        count: handlers.length,
+        contract_key_count: handlers.reduce((count, handler) => count + (handler.contract_keys?.length ?? 0), 0),
+      },
+      bindings,
+      healthy: warnings.length === 0,
+      warnings,
+    };
+  });
+
   registry.registerHandler("murrmure_apply_space", async (args, ctx) => {
     const spaceId = resolveTargetSpaceId(ctx, config, args.space_id);
     const res = await fetch(`${hubUrl()}/v1/spaces/${prefixedSpaceId(bareSpaceId(spaceId))}/apply`, {
@@ -71,7 +100,7 @@ export function registerPlatformMcpHandlers(
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
       throw new Error(
-        typeof data.message === "string" ? data.message : `Grant mint failed (${res.status})`,
+        typeof data.message === "string" ? data.message : `Connection grant creation failed (${res.status})`,
       );
     }
     return data;
@@ -80,6 +109,26 @@ export function registerPlatformMcpHandlers(
   registry.registerHandler("murrmure_list_emittable_events", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     return buildEmittableEventsCatalog(studio, bareSpaceId(spaceId));
+  });
+
+  registry.registerHandler("murrmure_list_handlers", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const rows = await studio.listIndexedHooks(bare);
+    const handlers: Array<{ id: string; contract_keys: string[]; type: string }> = [];
+    for (const row of rows) {
+      const parsed = HandlerSpecSchema.safeParse(row);
+      if (!parsed.success) continue;
+      handlers.push({
+        id: parsed.data.id,
+        contract_keys: parsed.data.contract_keys ?? [],
+        type: parsed.data.type,
+      });
+    }
+    return {
+      space_id: prefixedSpaceId(bare),
+      handlers,
+    };
   });
 
   registry.registerHandler("murrmure_emit_event", async (args, authCtx) => {
@@ -124,40 +173,56 @@ export function registerPlatformMcpHandlers(
     return { ...data, source, repo: payload.repo };
   });
 
-  registry.registerHandler("murrmure_invoke_action", async (args, authCtx) => {
-    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
-    const actionName = String(args.action_name ?? args.name ?? "");
-    if (!actionName) {
-      throw new Error("action_name is required");
+  registry.registerHandler("murrmure_resolve_step", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? "");
+    const step_id = String(args.step_id ?? "");
+    const branch = String(args.branch ?? "");
+    if (!run_id || !step_id || !branch) {
+      throw new Error("run_id, step_id, and branch are required");
     }
 
     const res = await fetch(
-      `${hubUrl()}/v1/spaces/${prefixedSpaceId(bareSpaceId(spaceId))}/actions/${encodeURIComponent(actionName)}/invoke`,
+      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(step_id)}/resolve`,
       {
         method: "POST",
         headers: mcpHeaders(authCtx),
         body: JSON.stringify({
-          session_id: args.session_id,
-          run_id: args.run_id,
-          step_id: args.step_id,
-          params: args.params ?? {},
-          expect: args.expect,
-          artifacts_in: args.artifacts_in,
-          delivery: args.delivery,
+          branch,
+          payload: args.payload ?? {},
+          artifacts_out: args.artifacts_out,
+          upload_intent_id: args.upload_intent_id,
+          idempotency_key: args.idempotency_key,
         }),
       },
     );
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      throw new Error(
-        typeof data.message === "string"
-          ? data.message
-          : typeof (data.dispatch as { detail?: string } | undefined)?.detail === "string"
-            ? (data.dispatch as { detail: string }).detail
-            : `Invoke failed (${res.status})`,
-      );
+      throw new Error(JSON.stringify({
+        code: typeof data.code === "string" ? data.code : "RESOLVE_FAILED",
+        message: typeof data.message === "string" ? data.message : `Resolve step failed (${res.status})`,
+        ...(Array.isArray(data.errors) ? { errors: data.errors } : {}),
+      }));
     }
     return data;
+  });
+
+  registry.registerHandler("murrmure_open_child_step", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? "");
+    const parent_step_id = String(args.parent_step_id ?? "");
+    const child_step_id = String(args.child_step_id ?? "");
+    const idempotency_key = String(args.idempotency_key ?? "");
+    if (!run_id || !parent_step_id || !child_step_id || !idempotency_key) {
+      throw new Error("run_id, parent_step_id, child_step_id, and idempotency_key are required");
+    }
+    const res = await fetch(
+      `${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/steps/${encodeURIComponent(parent_step_id)}/children/open`,
+      {
+        method: "POST",
+        headers: mcpHeaders(authCtx),
+        body: JSON.stringify({ child_step_id, idempotency_key }),
+      },
+    );
+    return assertHttpOk(res, "Open child step");
   });
 
   registry.registerHandler("murrmure_create_session", async (args, authCtx) => {
@@ -212,12 +277,47 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Get run");
   });
 
+  registry.registerHandler("murrmure_get_run_context", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? args.instance_id ?? "");
+    if (!run_id) throw new Error("run_id is required");
+
+    const runRes = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}`, {
+      headers: mcpHeaders(authCtx),
+    });
+    const run = await assertHttpOk(runRes, "Get run context");
+
+    const contractsRes = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/step-contracts`, {
+      headers: mcpHeaders(authCtx),
+    });
+    let step_contracts: Record<string, unknown> | null = null;
+    if (contractsRes.ok) {
+      step_contracts = await parseHttpJson(contractsRes);
+    } else if (contractsRes.status !== 404 && contractsRes.status !== 409) {
+      const body = await parseHttpJson(contractsRes);
+      throw httpProxyError(contractsRes, body, "Get run context contracts");
+    }
+
+    return {
+      run,
+      step_contracts,
+    };
+  });
+
   registry.registerHandler("murrmure_get_run_graph", async (args, authCtx) => {
     const run_id = String(args.run_id ?? args.instance_id ?? "");
     const res = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/graph`, {
       headers: mcpHeaders(authCtx),
     });
     return assertHttpOk(res, "Get run graph");
+  });
+
+  registry.registerHandler("murrmure_list_step_contracts", async (args, authCtx) => {
+    const run_id = String(args.run_id ?? args.instance_id ?? "");
+    if (!run_id) throw new Error("run_id is required");
+    const res = await fetch(`${hubUrl()}/v1/runs/${encodeURIComponent(run_id)}/step-contracts`, {
+      headers: mcpHeaders(authCtx),
+    });
+    return assertHttpOk(res, "List step contracts");
   });
 
   registry.registerHandler("murrmure_attach_orchestration", async (args, authCtx) => {
@@ -250,33 +350,6 @@ export function registerPlatformMcpHandlers(
       body: JSON.stringify({ space_id: args.space_id }),
     });
     return assertHttpOk(res, "Cancel run");
-  });
-
-  registry.registerHandler("murrmure_wait_for_gate", async (args, authCtx) => {
-    const params = new URLSearchParams();
-    if (args.run_id) params.set("run_id", String(args.run_id));
-    if (args.session_id) params.set("session_id", String(args.session_id));
-    if (args.timeout_ms) params.set("timeout_ms", String(args.timeout_ms));
-    const res = await fetch(`${hubUrl()}/v1/gates/wait?${params}`, { headers: mcpHeaders(authCtx) });
-    return assertHttpOk(res, "Wait for gate");
-  });
-
-  registry.registerHandler("murrmure_resolve_gate", async (args, authCtx) => {
-    const gate_id = String(args.gate_id ?? "");
-    const res = await fetch(`${hubUrl()}/v1/gates/${encodeURIComponent(gate_id)}/resolve`, {
-      method: "POST",
-      headers: mcpHeaders(authCtx),
-      body: JSON.stringify({
-        decision: args.decision ?? "approved",
-        form_values: args.form_values,
-        resume_data: args.resume_data,
-      }),
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      throw new Error(typeof data.message === "string" ? data.message : `Resolve gate failed (${res.status})`);
-    }
-    return data;
   });
 
   registry.registerHandler("murrmure_wait_for_run", async (args, authCtx) => {

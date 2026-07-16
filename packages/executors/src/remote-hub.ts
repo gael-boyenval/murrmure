@@ -5,8 +5,29 @@ import type {
   InvokeRequest,
   ReachabilityResult,
 } from "@murrmure/runtime-contracts";
+import { buildRemoteStepContractRelay } from "@murrmure/hub-core";
 
 const RETRY_BACKOFF_MS = [0, 1000, 3000];
+
+/**
+ * Drop producer-local inbox paths from `params.artifacts[]` before relaying
+ * across a federation boundary. The remote consumer materializes artifacts
+ * from the relayed ordered references / `artifacts_in` transfer ids, not from
+ * the producer's `local_path`. Other params are passed through untouched.
+ */
+function sanitizeInvokeParamsForRemote(params: Record<string, unknown>): Record<string, unknown> {
+  const artifacts = params.artifacts;
+  if (!Array.isArray(artifacts)) return params;
+  const sanitizedArtifacts = artifacts
+    .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+    .map((entry) => {
+      if (!("local_path" in entry)) return entry;
+      const rest: Record<string, unknown> = { ...entry };
+      delete rest.local_path;
+      return rest;
+    });
+  return { ...params, artifacts: sanitizedArtifacts };
+}
 
 export interface RemoteHubRelayInput {
   remote_hub_id: string;
@@ -57,11 +78,25 @@ export function createRemoteHubExecutor(deps: RemoteHubDeps): ExecutorPort {
         session_id: invoke.session_id,
         run_id: invoke.run_id,
         step_id,
-        params: invoke.params ?? {},
+        params: sanitizeInvokeParamsForRemote(invoke.params ?? {}),
         expect: invoke.expect,
         artifacts_in: invoke.artifacts_in,
         delivery: invoke.delivery,
       };
+      if (context.exec_input) {
+        body.exec_input = context.exec_input;
+      }
+      // Relay a sanitized, reference-only step contract so a remote/federated
+      // consumer receives ordered artifact references (transfer_id / digest /
+      // name / size_bytes) and the sanitized slice — never the producer's
+      // `contract_path`, `workdir`, `prompt_bindings`, run-scratch paths, or
+      // local `.path` / `.directory` artifact tokens.
+      const stepContractRelay = context.step_contract
+        ? buildRemoteStepContractRelay(context.step_contract)
+        : undefined;
+      if (stepContractRelay) {
+        body.step_contract = stepContractRelay;
+      }
 
       let lastDetail = "Remote hub unreachable";
 

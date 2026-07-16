@@ -16,6 +16,9 @@ export interface SpaceApplyBundle {
   actions?: { digest: string; file: Record<string, unknown> };
   executors?: { digest: string; file: Record<string, unknown> };
   hooks?: { digest: string; file: Record<string, unknown> };
+  handlers?: { digest: string; file: Record<string, unknown> };
+  events?: { digest: string; file: Record<string, unknown> };
+  bindings?: { digest: string; file: Record<string, unknown> };
   flows?: Array<{ digest?: string; manifest?: unknown; file?: Record<string, unknown> }>;
   views?: Array<{ digest?: string; manifest?: unknown; file?: Record<string, unknown> }>;
 }

@@ -1,4 +1,5 @@
-import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
+import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
@@ -106,6 +107,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     this.tokens.set(row.token_id, row);
   }
 
+  async revokeToken(token_id: string): Promise<void> {
+    const token = this.tokens.get(token_id);
+    if (token) this.tokens.set(token_id, { ...token, status: "revoked" });
+  }
+
   async insertGrant(row: GrantRow, _created_at: string): Promise<void> {
     this.grants.set(row.grant_id, row);
   }
@@ -115,7 +121,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   }
 
   async listGrants(space_id: string): Promise<GrantRow[]> {
-    return [...this.grants.values()].filter((g) => g.space_id === space_id && g.status === "active");
+    return [...this.grants.values()].filter((g) => g.space_id === space_id);
   }
 
   async listAllGrants(): Promise<GrantRow[]> {
@@ -343,6 +349,8 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
         hooks: [],
         events: [],
         flows: [],
+        views: [],
+        run_policies: [],
       }
     );
   }
@@ -357,7 +365,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
       }
     }
     for (const flow of snapshot.flows) {
-      this.flowIndexById.set(this.flowIndexKey(flow.origin_space_id, flow.flow_id), flow);
+      const { payload_json: _payload, ...entry } = flow;
+      this.flowIndexById.set(
+        this.flowIndexKey(flow.origin_space_id, flow.flow_id),
+        normalizeFlowIndexEntry(entry),
+      );
     }
   }
 
@@ -381,11 +393,21 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     return (snapshot.events ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
   }
 
+  async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {
+    const snapshot = await this.getSpaceIndexSnapshot(space_id);
+    return (snapshot.views ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]> {
+    const snapshot = await this.getSpaceIndexSnapshot(space_id);
+    return (snapshot.run_policies ?? []).map((row) => JSON.parse(row.payload_json) as ResolvedRunPolicy);
+  }
+
   async listFlowIndex(space_id: string): Promise<FlowIndexEntry[]> {
     const snapshot = await this.getSpaceIndexSnapshot(space_id);
     return snapshot.flows.map((row) => {
       const { payload_json: _payload, ...entry } = row;
-      return entry;
+      return normalizeFlowIndexEntry(entry);
     });
   }
 
@@ -555,6 +577,28 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     this.stepMemos.set(`${bareRun}:${memo.step_id}`, memo);
   }
 
+  async transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean> {
+    const bareRun = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const parent = this.stepMemos.get(`${bareRun}:${input.parent_memo.step_id}`);
+    if (parent?.status !== "working") return false;
+    const childActive = input.declared_child_step_ids.some(
+      (stepId) => this.stepMemos.get(`${bareRun}:${stepId}`)?.status === "working",
+    );
+    if (childActive) return false;
+    const run = this.runs.get(bareRun);
+    if (!run) return false;
+    this.runs.set(bareRun, { ...run, exec_context: input.exec_context });
+    this.stepMemos.set(`${bareRun}:${input.parent_memo.step_id}`, input.parent_memo);
+    this.stepMemos.set(`${bareRun}:${input.child_memo.step_id}`, input.child_memo);
+    return true;
+  }
+
   async listRunStepMemos(run_id: string): Promise<RunStepMemo[]> {
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
     return [...this.stepMemos.values()].filter((m) => m.run_id === `run_${bare}` || m.run_id.endsWith(bare));
@@ -638,6 +682,15 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     const n = this.notifications.get(notification_id);
     if (n && n.actor_id === actor_id) {
       this.notifications.set(notification_id, { ...n, status: "dismissed", dismissed_at: at });
+    }
+  }
+
+  async resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void> {
+    const bareRun = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
+    for (const [id, n] of this.notifications) {
+      if (n.run_id === bareRun && n.step_id === step_id && n.status === "pending") {
+        this.notifications.set(id, { ...n, status: "resolved", resolved_at: at });
+      }
     }
   }
 

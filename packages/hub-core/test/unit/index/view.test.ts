@@ -24,7 +24,7 @@ describe("index/view", () => {
     expect(result.ok).toBe(false);
   });
 
-  test("buildFlowIndexEntries denormalizes view_ref from requires_view", () => {
+  test("buildFlowIndexEntries uses triggers and carries no flow-level view_ref", () => {
     const bundle: SpaceApplyBundle = {
       flows: [
         {
@@ -34,7 +34,7 @@ describe("index/view", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "review",
-            start: { manual: true, requires_view: "review-params" },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -55,15 +55,11 @@ describe("index/view", () => {
     };
 
     const entries = buildFlowIndexEntries(bundle, "spc_demo");
-    expect(entries[0]?.view_ref).toEqual({
-      view_id: "review-params",
-      origin_space_id: "spc_demo",
-      shell_route: "murrmure/review-params",
-      params_schema: "schemas/params.json",
-    });
+    expect(entries[0]?.triggers).toEqual({ manual: true });
+    expect(entries[0]).not.toHaveProperty("view_ref");
   });
 
-  test("buildFlowIndexEntries omits view_ref when view bundle missing", () => {
+  test("buildFlowIndexEntries carries no flow-level view_ref when no views are bound", () => {
     const bundle: SpaceApplyBundle = {
       flows: [
         {
@@ -73,7 +69,7 @@ describe("index/view", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "review",
-            start: { manual: true, requires_view: "review-params" },
+            triggers: { manual: true },
             steps: [],
           },
         },
@@ -82,6 +78,6 @@ describe("index/view", () => {
     };
 
     const entries = buildFlowIndexEntries(bundle, "spc_demo");
-    expect(entries[0]?.view_ref).toBeUndefined();
+    expect(entries[0]).not.toHaveProperty("view_ref");
   });
 });

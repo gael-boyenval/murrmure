@@ -1,50 +1,52 @@
-import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@murrmure/shell-ui";
-import { AppShell } from "../layout/AppShell.js";
+import { useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button } from "@murrmure/shell-ui";
+import { SharedFlowPage } from "../components/SharedFlowPage.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 
 export function FlowPreviewPage() {
   const { spaceId, flowId } = useParams();
+  const [searchParams] = useSearchParams();
+  const originSpaceId = searchParams.get("origin_space_id") ?? spaceId;
   const client = useShellClient();
+  const navigate = useNavigate();
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>();
 
   const previewQuery = useQuery({
-    queryKey: ["flow-preview", spaceId, flowId],
-    queryFn: () => client!.spaces.flowPreview(spaceId!, flowId!),
-    enabled: Boolean(client && spaceId && flowId),
+    queryKey: ["flow-preview", originSpaceId, flowId],
+    queryFn: () => client!.spaces.flowPreview(originSpaceId!, flowId!),
+    enabled: Boolean(client && originSpaceId && flowId),
   });
 
   const preview = previewQuery.data;
+  const runMutation = useMutation({
+    mutationFn: () => client!.spaces.runFlow(flowId!, { space_id: originSpaceId, input: {} }),
+    onSuccess: (result) => navigate(`/sessions/${result.session.session_id}`),
+  });
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Link to={`/spaces/${spaceId}`} className="text-sm text-muted-foreground hover:underline">
-          ← Back to space
-        </Link>
-        <h1 className="text-2xl font-semibold">{preview?.name ?? flowId}</h1>
-        <p className="font-mono text-xs text-muted-foreground">{preview?.digest}</p>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Steps</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {preview?.steps.map((step, i) => (
-              <div key={step.id} className="flex items-center gap-2 border-b border-border py-2 last:border-0">
-                <span className="text-muted-foreground">{i + 1}.</span>
-                <Badge variant="outline">{step.kind}</Badge>
-                <span className="font-mono text-sm">{step.id}</span>
-                {step.invoke && (
-                  <span className="text-xs text-muted-foreground">
-                    {step.invoke.action} @ {step.invoke.space}
-                  </span>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    </AppShell>
+    <SharedFlowPage
+      title={preview?.name ?? flowId ?? "Flow"}
+      subtitle={preview?.digest}
+      status="Applied preview"
+      backHref={`/spaces/${spaceId}`}
+      backLabel="Back to space"
+      graph={preview?.graph}
+      graphFallback={
+        <p className="text-sm text-muted-foreground">
+          {previewQuery.isError ? "Flow preview is unavailable." : "Loading flowchart…"}
+        </p>
+      }
+      selectedStepId={selectedStepId}
+      onSelectStep={setSelectedStepId}
+      actions={
+        preview?.manual && preview.can_run ? (
+          <Button onClick={() => runMutation.mutate()} disabled={runMutation.isPending}>
+            {runMutation.isPending ? "Starting…" : "Run"}
+          </Button>
+        ) : null
+      }
+    />
   );
 }

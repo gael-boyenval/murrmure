@@ -1,20 +1,87 @@
 ---
-description: Murrmure product north star — agentic OS; custom views are the product; shell is admin
+description: Murrmure product north star — event-based orchestration; portable flows/views; space-owned execution; observability
 alwaysApply: true
 ---
 
 # Murrmure product north star
 
-**Normative:** [studio-specs/current/product/philosophy.md](../../studio-specs/current/product/philosophy.md) § North star
+**Normative:** [studio-specs/current/product/philosophy.md](../../studio-specs/current/product/philosophy.md)
 
-Murrmure is an **agentic operating system** — not a generic admin dashboard with optional UI.
+Murrmure helps **humans, teams, and agents collaborate** on real work. It is a coordination protocol — unopinionated about how users implement, opinionated about where responsibilities belong.
 
-## Non-negotiable
+---
 
-1. **Custom views are the product.** Authors build full UI in `murrmure/views/`; humans work inside **ViewCanvasHost** (full primary-region canvas).
-2. **Hiding generic shell chrome in favor of custom views is success**, not an edge case.
-3. **Shell chrome** (space home, flowchart, notifications, gate inbox) = **admin/operator mode** — observe, debug, manage grants — not what workflow authors ship to end users.
-4. **Never** ship narrow drawers (`ViewDrawer` / side sheet) or built-in gate forms as the **primary** human path when a view is specified or expected.
-5. Protocol (sessions, runs, gates, invoke, hooks) = OS kernel. Views = human-facing OS shell.
+## 1. Purpose
 
-When designing features, docs, or plans: if it centers built-in shell UI over custom views, **stop and fix the design**.
+1. Murrmure exists so people and agents can **hand off work, share state, and stay aligned** across boundaries.
+2. It is a **coordination layer**, not a replacement for how teams think, code, organize repos, or run agents.
+3. It stays **unopinionated about implementation** — prompts, tools, models, business logic, and local setup belong to users and spaces.
+4. Success means **work gets done and understood**, not that logic accumulates inside Murrmure.
+
+---
+
+## 2. What Murrmure is (and is not)
+
+1. Murrmure is an **event-based orchestration kernel** — sessions, journal events, authorization, gates, artifacts, and audit.
+2. It is **not a programming language**, workflow runtime, or agent framework.
+3. It is **not the product UI** — it provides operator surfaces, but the human experience is authored separately.
+4. It **does not define agents** — harness, task, and context are user-owned; Murrmure remains harness- and model-agnostic.
+
+---
+
+## 3. Event-based orchestration
+
+1. **The core is event-driven** — work advances through journal events (steps opening and resolving, gates, invokes, external signals), not synchronous call chains inside Murrmure.
+2. **Flows and invocations are flexible entry points** — the same orchestration may be started, advanced, or observed from many clients and contexts.
+3. **Any authorized client may participate** — e.g. trigger from one harness on one machine, execute on another, react to CI or webhooks elsewhere; Murrmure correlates via session and journal.
+4. **Triggers are first-class** — manual, scheduled, protocol events, and external events (such as pull-request completion) can start or extend work without a single fixed runtime entrypoint.
+5. **Orchestration composes asynchronous handoffs** — agents, humans, scripts, and remote spaces join mid-flight; the protocol records and routes; spaces own what each handoff executes.
+
+---
+
+## 4. Portability and federation
+
+1. **Flows and views are portable assets** — reusable across spaces, repos, machines, and teams without per-target forks.
+2. **Protocol contracts describe work**, not local execution — orchestration declares what must happen; spaces decide how.
+3. **The same flow may run in different spaces** with different execution policies; binding is explicit, not baked into the flow.
+4. **Design for cross-repo, cross-machine, cross-team from day one** — incomplete features must not justify architectural choices that block federation later.
+
+---
+
+## 5. Ownership boundaries
+
+1. **Murrmure owns the wire** — delivery, deduplication, authorization, journaling, gate lifecycle, artifact manifests, audit.
+2. **Flows own orchestration shape** — steps, branches, relationships, and expected outcomes at the protocol level.
+3. **Views own human presentation** — how people see and act on protocol state.
+4. **Spaces own execution** — what runs when work is requested, how agents are invoked, how completion is signaled, what “done” means in domain terms.
+5. **Decision test:** *protocol, orchestration, presentation, or implementation?* — only the matching layer may own it.
+
+---
+
+## 6. Human experience
+
+1. **Custom views are the primary human interface** for workflow authors and their users.
+2. **A view taking over the UI is success** — not an advanced mode or edge case.
+3. **Built-in shell UI is operator mode** — observe runs, debug, manage access, resolve gates when no custom view is active.
+4. **Presentation and orchestration stay separate** — views read protocol state; they must not become a second workflow engine.
+
+---
+
+## 7. Observability
+
+1. **Observability is a core product promise** — participants must see what is running, what failed, and what needs human input.
+2. **Sessions are the unit of shared truth** — one run of work, possibly spanning spaces and machines, correlatable by all clients.
+3. **Live progress and historical audit serve different needs** — neither should pretend to be the other.
+4. **Any authorized client can observe the same journal** — one truth, many lenses.
+
+---
+
+## 8. Design discipline
+
+1. **Do not embed space-specific execution into portable flow definitions.**
+2. **Do not grow Murrmure into a business-logic or agent-runtime platform.**
+3. **Do not hard-require UI to be bundled with orchestration** — authors may ship together; runtime must not force it.
+4. **Do not optimize for single-repo or single-machine convenience at the cost of cross-team protocol.**
+5. **Do not treat one example workflow as the product definition.**
+6. **Do not assume a single client, machine, or trigger path** — if only one entrypoint works, the event model is incomplete.
+7. When a design centers built-in shell UI over custom views, or hub logic over space execution — **stop and fix it.**

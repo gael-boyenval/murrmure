@@ -1,0 +1,4 @@
+apiVersion: murrmure.view/v1
+id: daily-brief
+entry: ./dist/index.html
+params_schema: schemas/params.json

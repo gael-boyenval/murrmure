@@ -3,8 +3,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AuthOverrides } from "../auth.js";
 import { readCredentials } from "./auth-store.js";
+import { readActiveConnection } from "./connection-store.js";
 
-export type AuthSource = "flags" | "env" | "credentials" | "shared.json";
+export type AuthSource = "flags" | "env" | "active-connection" | "credentials" | "shared.json";
 
 function envAuthPresent(): boolean {
   const hubUrl = process.env.MURRMURE_HUB_URL;
@@ -17,6 +18,10 @@ function envAuthPresent(): boolean {
 
 function credentialsAuthPresent(): boolean {
   return readCredentials() !== null;
+}
+
+function activeConnectionAuthPresent(): boolean {
+  return readActiveConnection() !== null;
 }
 
 function sharedJsonAuthPresent(): boolean {
@@ -36,6 +41,7 @@ function sharedJsonAuthPresent(): boolean {
 export function resolveAuthSource(overrides?: AuthOverrides): AuthSource | null {
   if (overrides?.hubUrl || overrides?.token) return "flags";
   if (envAuthPresent()) return "env";
+  if (activeConnectionAuthPresent()) return "active-connection";
   if (credentialsAuthPresent()) return "credentials";
   if (sharedJsonAuthPresent()) return "shared.json";
   return null;

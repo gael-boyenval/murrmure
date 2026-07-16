@@ -1,6 +1,14 @@
-# Grants migration — v1 scopes → rev-1 capabilities
+# Connection authorization bridge — internal grants → public connections
 
-Murrmure v2 replaces the v1 **PLATFORM_SCOPES** ladder with a single **capability** model (rev-1 §9.1). During the shim period (phases 05–15), hub accepts both v1 scope tokens and v2 capability grants.
+Hub persistence and wire compatibility may retain grant rows, but the public
+local lifecycle is **connection**. A connection is authorization for one
+machine/trust boundary, not an agent entity.
+
+The default profile `tutorial-builder/v1` is fixed to `space:read`,
+`flow:read`, `flow:run`, and `step:resolve`. `event:emit` and `journal:read`
+are not defaults. The removed `action:invoke` / `gate:resolve` capabilities and
+their MCP paths (removed public invoke MCP tool, gate tools) are absent — action
+execution is internal dispatch only and gate approval uses `flow:run`.
 
 ## Mapping table
 
@@ -9,15 +17,23 @@ Murrmure v2 replaces the v1 **PLATFORM_SCOPES** ladder with a single **capabilit
 | `space:read` | `space:read` |
 | `space:enter` | `space:enter` |
 | `space:admin` | `hub:admin`, `space:read`, `space:write`, `space:enter` |
-| `state:transition` | `flow:run`, `action:invoke` |
+| `state:transition` | `flow:run` |
 | `event:read` | `journal:read` |
-| `event:emit` | `action:invoke` |
+| `event:emit` | `event:emit` |
 | `flow:install` | `space:write`, `flow:read` |
 | `trigger:register` | `space:write` |
 | `blob:read` | `space:read` |
 | `blob:write` | `space:write` |
 
-Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `action:invoke`, `gate:resolve`, `journal:read`, `executor:poll`, `hub:admin`.
+Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `executor:poll`, `hub:admin`.
+
+## MCP tool ↔ capability
+
+| MCP tool | Required capability / v1 scope |
+|----------|-------------------------------|
+| `murrmure_resolve_step` | `step:resolve` |
+| `murrmure_emit_event` | `event:emit` (v1 `event:emit` scope) |
+| `murrmure_create_run` | `flow:run` |
 
 ## API
 
@@ -31,14 +47,25 @@ Space-scoped routes remain: `POST /v1/spaces/{id}/grants` (phase 02).
 
 ## Conformance rules
 
-- Grant without `flow:run` **cannot** start a flow run.
-- Grant without `gate:resolve` **cannot** resolve gates or cancel runs.
+- Grant without `flow:run` **cannot** start a flow run, resolve orchestration gates, or cancel runs.
+- Grant without `step:resolve` **cannot** resolve flow steps (`murrmure_resolve_step`, `mrmr step resolve`).
+- v1 `event:emit` scope satisfies `murrmure_emit_event` catalog visibility (effective `event:emit`).
 - `flow_acl` (package ids) still restricts MCP tool catalog for installed flows.
 
-## CLI
+## Public CLI and local storage
 
 ```bash
-mrmr grant mint --space spc_… --label agent --capabilities flow:run,action:invoke,journal:read
+mrmr connection create --space spc_…
+mrmr connection activate con_… --space spc_…
 ```
 
-Implementation: `packages/studio-hub-core/src/grants/migrate.ts`.
+Creation auto-activates. Legacy grant lifecycle commands, legacy agent pairing commands, and the dedicated onboard command have no aliases. Local credentials exist
+only in the OS store keyed by Hub + connection ID. Generated descriptors,
+activation state, files, logs, arguments, and normal environment guidance carry
+IDs only.
+
+Setup connections are space-wide. Advanced `--flow-acl` accepts only canonical
+flow identities already applied to the target space; unknown/future aliases are
+rejected.
+
+Implementation: `packages/hub-core/src/grants/migrate.ts`.

@@ -4,6 +4,7 @@ import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId } from "../bridge/ids.js";
 import { createRun, type SessionRunDeps } from "../run/service.js";
+import { terminateRunExecutors } from "../invoke/run-executor-cancel.js";
 import { refreshSessionStatus } from "../session/index.js";
 import {
   isMatrixSiblingRun,
@@ -12,15 +13,12 @@ import {
   siblingLaneSteps,
 } from "./matrix.js";
 import { allSiblingsTerminal, joinParallelStepStatus } from "./join.js";
-import { activeStepIndex, buildStepDispatch, nextCheckpointAfterComplete, nextDispatchAfterComplete } from "./advance.js";
+import { activeStepIndex, buildStepDispatch, nextDispatchAfterComplete } from "./advance.js";
 import { planLaneDispatches } from "./graph.js";
 import { executeStartFlowStep, maybeCompleteFlowCallParent } from "./start-flow.js";
 import type { FlowStepDispatch } from "./types.js";
-import {
-  executeCheckpointDispatch,
-  tryDispatchPendingCheckpoint,
-  type CheckpointRunnerDeps,
-} from "./checkpoint-runner.js";
+import { flowUsesStepContracts } from "./step-catalog.js";
+import { bootstrapStepContractFlow, maybeAdvanceStepContractFlow } from "./step-resolve.js";
 
 export interface FlowAdvanceAuth {
   actor_id: string;
@@ -63,6 +61,11 @@ export async function maybeAdvanceFlow(
 
   const entry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
   if (!entry?.ir) return;
+
+  if (flowUsesStepContracts(entry)) {
+    await maybeAdvanceStepContractFlow(deps, input);
+    return;
+  }
 
   const memos = await deps.studio.listRunStepMemos(`run_${runBare}`);
   const stepMemo = memos.find((m) => m.step_id === input.step_id);
@@ -144,6 +147,11 @@ async function handleSiblingLaneComplete(
 
   const ts = deps.clock.nowIso();
   const failed = ctx.memos.some((m) => m.status === "failed");
+  terminateRunExecutors({
+    run_id: `run_${ctx.runBare}`,
+    executorPollStore: deps.executorPollStore,
+    reason: failed ? "run failed" : "run completed",
+  });
   await deps.studio.updateRunLifecycle(ctx.runBare, failed ? "failed" : "completed", ts);
   await refreshSessionStatus(deps.studio, ctx.run.session_id);
 
@@ -185,24 +193,11 @@ async function handleSiblingLaneComplete(
       return;
     }
 
-    const checkpoint = nextCheckpointAfterComplete(parentMemos, ctx.ir, parent.exec_context);
-    if (checkpoint) {
-      await executeCheckpointDispatch(
-        { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-        {
-          dispatch: checkpoint,
-          ir: ctx.ir,
-          run_id: `run_${parentBare}`,
-          session_id: ctx.sessionId,
-          space_id: ctx.spaceId,
-          exec_context: parent.exec_context,
-          actor_id: ctx.actor_id,
-          token_id: ctx.token_id,
-        },
-      );
-      return;
-    }
-
+    terminateRunExecutors({
+      run_id: `run_${parentBare}`,
+      executorPollStore: deps.executorPollStore,
+      reason: "run completed",
+    });
     await deps.studio.updateRunLifecycle(parentBare, "completed", ts);
     await refreshSessionStatus(deps.studio, parent.session_id);
   }
@@ -305,25 +300,6 @@ async function tryExpandMatrixOrAdvance(
     return;
   }
 
-  const checkpoint = nextCheckpointAfterComplete(freshMemos, ctx.ir, ctx.run.exec_context);
-  if (checkpoint && ctx.spaceId) {
-    const { executeCheckpointDispatch } = await import("./checkpoint-runner.js");
-    await executeCheckpointDispatch(
-      { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-      {
-        dispatch: checkpoint,
-        ir: ctx.ir,
-        run_id: `run_${ctx.runBare}`,
-        session_id: ctx.sessionId,
-        space_id: ctx.spaceId,
-        exec_context: ctx.run.exec_context,
-        actor_id: ctx.auth.actor_id,
-        token_id: ctx.auth.token_id,
-      },
-    );
-    return;
-  }
-
   const complete = ctx.ir.steps.every((s) => {
     if (s.kind === "parallel") {
       const memo = freshMemos.find((m) => m.step_id === s.id);
@@ -336,6 +312,11 @@ async function tryExpandMatrixOrAdvance(
     return true;
   });
   if (complete) {
+    terminateRunExecutors({
+      run_id: `run_${ctx.runBare}`,
+      executorPollStore: deps.executorPollStore,
+      reason: "run completed",
+    });
     await deps.studio.updateRunLifecycle(ctx.runBare, "completed", ts);
     if (ctx.spaceId) {
       await deps.handler.appendSpaceJournal({
@@ -435,6 +416,30 @@ export async function bootstrapInitialFlowStep(
   const auth = await deps.resolveFlowAuth(run);
   const sessionId = `ses_${run.session_id}`;
 
+  if (flowUsesStepContracts(entry)) {
+    await bootstrapStepContractFlow(deps, {
+      run_id: `run_${runBare}`,
+      session_id: sessionId,
+      space_id: spaceId,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      journal: {
+        append: async (event) => {
+          await deps.handler.appendSpaceJournal({
+            type: event.type,
+            space_id: event.space_id,
+            session_id: event.session_id,
+            run_id: event.run_id,
+            actor_id: event.actor_id,
+            token_id: event.token_id,
+            data: { ...event.data, step_id: event.step_id },
+          });
+        },
+      },
+    });
+    return;
+  }
+
   const startedStartFlow = await tryStartFlowStepIfPending(deps, {
     runBare,
     memos,
@@ -445,18 +450,4 @@ export async function bootstrapInitialFlowStep(
     run,
   });
   if (startedStartFlow) return;
-
-  const checkpointDispatched = await tryDispatchPendingCheckpoint(
-    { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-    {
-      run_id: `run_${runBare}`,
-      session_id: sessionId,
-      space_id: spaceId,
-      ir: entry.ir,
-      exec_context: run.exec_context,
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-    },
-  );
-  if (checkpointDispatched) return;
 }

@@ -24,8 +24,8 @@ Everything is recorded. Every comment, handoff, and approval lands in an append-
 | You are… | What you install | How you work |
 |----------|------------------|--------------|
 | **Desktop user** (reviewer, lead, admin UI) | [Murrmure Desktop](./desktop) | Observer shell inside Desktop — review, comment, approve gates |
-| **CLI operator** | `@murrmure/cli` (`mrmr`) | Terminal — `mrmr space`, `mrmr grant mint`, flow apply, CI scripts |
-| **Agent (MCP)** | `@murrmure/cli` (MCP binary) | Scoped grant from `mrmr grant mint` — agent calls Murrmure tools from the IDE |
+| **CLI operator** | `@murrmure/cli` (`mrmr`) | Terminal — `mrmr space`, `mrmr connection`, flow apply, CI scripts |
+| **Participant (MCP)** | bundled `murrmure-mcp` | Scoped connection from `mrmr connection create` — any authorized tool calls Murrmure from its context |
 
 You **don't clone a git repository** to use Murrmure — install Desktop and the CLI. You **don't use curl** for everyday work — people use Desktop, operators use `mrmr`, agents use MCP.
 
@@ -33,11 +33,11 @@ You **don't clone a git repository** to use Murrmure — install Desktop and the
 
 1. Install **Murrmure Desktop** — bootstrap auth is automatic; you land on `/spaces/new`.
 2. Use **`mrmr space link`** / **`mrmr space apply`** to set up spaces and flows (or follow the quick start).
-3. Mint agent grants with **`mrmr grant mint`** and paste MCP config into your coding agent.
+3. Create one local connection with **`mrmr connection create`**, select contexts, reload, and verify.
 4. People work in **Desktop** — preview, comment, Finish a review, approve a gate.
 5. Agents connect via **MCP** — open sessions, draft specs, wait for human handoff.
 
-**Want custom workflows?** See the [Flows tutorial](./flows-tutorial) — author indexed flows in `murrmure/` with **`mrmr space apply`**. Checkpoint UI uses **ViewCanvasHost** and `@murrmure/view-sdk`.
+**Want custom workflows?** See [Creating flows](./creating-flows) and [Space handlers](./space-handlers) — author indexed flows in `.mrmr/` with **`mrmr space apply`**. Checkpoint UI uses **ViewCanvasHost** and `@murrmure/view-sdk`.
 
 ## A typical review afternoon
 
@@ -62,9 +62,7 @@ See [Multi-agent feature spec](./multi-agent-feature-spec) for the full orchestr
 - [How it fits together](./how-it-fits-together) — components and how they connect
 - [Quick start](./quick-start) — your first review in five minutes
 - **Tutorials** — build custom flows from scratch:
-  - [Local preview review](./tutorials/01-local-preview-review/) — one agent, localhost feedback loop
-  - [Multi-agent brief](./tutorials/02-multi-agent-brief/) — three agents + trigger
-  - [Daily brief trigger](./tutorials/03-daily-brief-trigger/) — button wakes an agent
+  - [First flow (v3) — start here](./tutorials/01-local-preview-review-v3/) — Desktop + space, flow, view, runs, build, cleanup (6 parts)
 - [Shell UI routes](./shell-routes) — observer screens inside Desktop
 - [Connect your agent](./agents-mcp)
 - [CLI](./cli)

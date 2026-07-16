@@ -23,7 +23,7 @@ async function resolveFlowRunAuth(
         scopes: token.scopes,
         capabilities: token.capabilities,
       })
-    : ["hub:admin", "flow:run", "action:invoke"];
+    : ["hub:admin", "flow:run"];
   return {
     actor_id,
     token_id,
@@ -39,6 +39,8 @@ function flowAdvanceDeps(ctx: DaemonContext): FlowAdvanceDeps {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    executorPollStore: ctx.executorPollStore,
+    guard: ctx.spaceRunGuard,
     resolveFlowAuth: (run) => resolveFlowRunAuth(ctx, run),
     dispatchSteps: async (input) => {
       await dispatchFlowSteps(ctx.invokeService, input);

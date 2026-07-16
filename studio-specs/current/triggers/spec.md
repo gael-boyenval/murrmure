@@ -1,29 +1,31 @@
 # Studio triggers & hooks
 
-Contract-aware trigger registration, templates, and **mcp_wake without human prompt**. Builds on [config/spec.md](../config/spec.md) trigger form and hub async dispatcher.
+Event-driven trigger registration, templates, and reactions **without a human prompt**. Builds on [config/spec.md](../config/spec.md) trigger form and hub async dispatcher.
 
-**v2 hooks (normative path):** Space reactions live in `murrmure/hooks.yaml` (alias: `triggers.yaml`). Indexed on `mrmr space apply`. Implementation: `studio-hub-core/src/hooks/` — matcher + dispatch with mandatory Session + Run + `mrmr.hook.delivered`.
+**Normative path (post-cutover):** Space reactions live in `.mrmr/space/handlers.yaml` alongside step lifecycle handlers, declared with `on: event: { type, source? }` and empty or auxiliary `contract_keys`. Indexed on `mrmr space apply`. Implementation: `studio-hub-core/src/hooks/` — matcher + dispatch with mandatory Session + Run + `mrmr.hook.delivered`. See [bridges/triggers.md](../bridges/triggers.md) and [bridges/handlers.md](../bridges/handlers.md).
 
 ```yaml
-# murrmure/hooks.yaml
+# .mrmr/space/handlers.yaml
 version: 1
-hooks:
-  on-spec-published:
+handlers:
+  - id: on-spec-published
+    contract_keys: []
     on:
       event:
         type: mrmr.spec.published
         source: "/spaces/spc_backend"
-    do:
-      - ensure_session: { title: "Backend → frontend chain" }
-      - invoke: { action: wake_review, params: { ref: "{{event.data.artifact_ref}}" } }
-      - start_flow: { flow_id: flw_cross_review, input: { diff_ref: "{{event.data.artifact_ref}}" } }
+    type: shell_spawn
+    complete: auto
+    command: mrmr flow run cross-review --input '{"ref": "{{event.data.artifact_ref}}"}'
 ```
+
+**Emission & downstream:** agents with the `event:emit` capability call **`murrmure_emit_event`**; emittable types are gated at apply time by `.mrmr/space/events.yaml`. Downstream work starts via **flow triggers** (`mrmr flow run`) or the event handlers above — the clean protocol. Public action-invoke wires are removed (Task 15 Lane A).
+
+**Legacy trigger templates:** retired. Historical removal records live in [../../archives/triggers-legacy-wake-wire.md](../../archives/triggers-legacy-wake-wire.md). New spaces declare `on: event:` handlers only; legacy hook indexes (alias: `triggers.yaml`) no longer index.
 
 **Hook delivery invariant:** every delivery → Session + Run + journal `mrmr.hook.delivered`. Headless step id: `hook:{hook_id}`.
 
 **Dedup chain (§4.5):** `dedup_key = hash(source, event.id, hook_id)` propagates to run `exec_context.idempotency_key`. Redelivered events skip duplicate runs.
-
-Legacy DB triggers (`TriggerDispatcher`) remain for template-based mcp_wake; journal fanout invokes both paths post-commit.
 
 **Prerequisites:** config CS2, feature-spec FS0, flow-runtime CR1.
 
@@ -32,7 +34,7 @@ Legacy DB triggers (`TriggerDispatcher`) remain for template-based mcp_wake; jou
 | Shipped CS2 | Gap |
 |-------------|-----|
 | Free-text event type filter | Admins pick wrong event name |
-| Manual mcp_wake JSON | Error-prone |
+| Manual event reaction authoring | Error-prone |
 | Agent must poll or wait for human | spec.published should auto-start dev agent |
 
 ## Scope
@@ -40,9 +42,7 @@ Legacy DB triggers (`TriggerDispatcher`) remain for template-based mcp_wake; jou
 ### In
 
 - Event catalog — union of `events.declarations` from live capability contracts
-- Templates — parameterized trigger presets
-- Template `spec-published-wake-dev` — canonical J02-style spec workflow
-- Trigger builder UI — extends configure `/triggers/new`
+- Event-handler reactions in `.mrmr/space/handlers.yaml` (`on: event:`)
 - Delivery deep link — log row → spec instance / review session
 - Dedup presets per template
 
@@ -51,24 +51,9 @@ Legacy DB triggers (`TriggerDispatcher`) remain for template-based mcp_wake; jou
 - Cron scheduler UI
 - Citizen integrator marketplace
 - Parallel fan-out override (hub default sequential per partition)
+- Retired wake-wire trigger actions (see archive)
 
-## Canonical trigger action schema
-
-All triggers use **`action.type: "mcp_wake"`** with:
-
-```typescript
-interface McpWakeAction {
-  type: "mcp_wake";
-  target_space_id: string;
-  wake_label: string;           // canonical — routing metadata, not catalog tool name
-  payload_map: Record<string, string>;  // JSONPath → payload field
-  session_hint?: "wake";
-}
-```
-
-**Legacy aliases (read only, normalize on register):** `wake_mcp_agent`, `tool` → map to `mcp_wake` + `wake_label`.
-
-**Dedup block (canonical):**
+## Dedup block (canonical)
 
 ```typescript
 interface TriggerDedup {
@@ -79,69 +64,19 @@ interface TriggerDedup {
 
 **Dedup drop reason (canonical enum):** `duplicate_business_key` | `duplicate_event_id` | `disabled` | `policy_denied`
 
-**Registration:** requires scope `trigger:register`. Handler `wake_label` values must be on space **allow-list** (configurable per space; default: template presets only). Registration appends audit row.
-
-## Template: `spec-published-wake-dev`
-
-**When:** `spec.published` in source space (Specs).
-
-**Action:** `mcp_wake`
-
-```json
-{
-  "type": "mcp_wake",
-  "target_space_id": "spc_dev_code",
-  "wake_label": "handle_spec_published",
-  "payload_map": {
-    "spec_key": "$.payload.spec_key",
-    "title": "$.payload.title",
-    "version": "$.payload.version",
-    "summary": "$.payload.summary",
-    "source_space_id": "$.space_id"
-  }
-}
-```
-
-**Do not include `body_ref` in wake payload** — cross-space minimum disclosure (c02-J14). Woken agent fetches detail via `query_ask` / `spec_summary@1` on source space.
-
-**Dedup default:** `{ "key_jsonpaths": ["$.payload.spec_key", "$.payload.version"], "window_seconds": 86400 }`
-
-Republish same version → dedup drop. Republish v2 → new delivery.
-
-**Partition:** `space_id:instance_id` from source event.
-
-## Template: `work-ready-wake-frontend`
-
-**When:** `work.ready` in `backend-api`, filter `payload.type == "api_change"`.
-
-```json
-{
-  "type": "mcp_wake",
-  "target_space_id": "spc_ui_sandbox",
-  "wake_label": "handle_work_ready",
-  "payload_map": {
-    "type": "$.payload.type",
-    "summary": "$.payload.summary",
-    "openapi_diff_ref": "$.payload.openapi_diff_ref"
-  }
-}
-```
-
-**Dedup default:** `{ "key_jsonpaths": ["$.payload.openapi_diff_ref"], "window_seconds": 86400 }`
-
-Agent uses `blob_read` or `query_ask` for diff ref — not inline megabyte payload (c01-J02).
+**Registration:** required scope `trigger:register`. The clean protocol gates emittable event types in `.mrmr/space/events.yaml` at apply time. Retired trigger-action types are rejected with `422 TRIGGER_ACTION_RETIRED`.
 
 ## Delivery failure (hub ADR-14)
 
-When mcp_wake delivery fails (no session, harness mismatch, dispatch error): append `integration_failure` event + delivery log row `outcome: failed`. Not optional — platform default unless trigger opts out.
+Handler delivery (`on: event:`) fails → `integration_failure` event + delivery log `outcome: failed` unless the handler opts out.
 
 ## HTTP routes
 
 | Method | Path | Handler |
 |--------|------|---------|
 | GET | `/v1/spaces/{id}/triggers/event-catalog` | Rebuild from MountRegistry + contract loader |
-| GET | `/v1/spaces/{id}/triggers/templates` | Static template defs |
-| POST | `/v1/spaces/{id}/triggers/from-template` | Expand → `trigger.register` |
+| GET | `/v1/spaces/{id}/triggers/templates` | Historical retired presets (list only) |
+| POST | `/v1/spaces/{id}/triggers/from-template` | Expand → `trigger.register` (retired presets rejected) |
 | POST | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger.replay` last matching or synthetic |
 
 Config trigger CRUD routes unchanged — see [config/spec.md](../config/spec.md).
@@ -170,25 +105,13 @@ Config trigger CRUD routes unchanged — see [config/spec.md](../config/spec.md)
 
 Rebuilt on `capability.live_applied`.
 
-## mcp_wake dispatch
-
-> **v2 migration (phase 03):** Hub routes `POST /v1/mcp/wake` through action invoke (`wake_label` → action name). Silent `mcp.wake_pending` is no longer the default — unreachable executors return `EXECUTOR_UNAVAILABLE` unless the indexed action sets `delivery: queue_until_executor`. See [bridges/action-invoke.md](../bridges/action-invoke.md).
-
-```typescript
-const payload = applyJsonPathMap(sourceEvent.payload, action.payload_map);
-await mcpWake({ target_space_id, wake_label, payload, session_hint: "wake" });
-```
-
-**session_hint wake (v1):** prefer connected MCP session on target space; else enqueue + `control.wake_pending`.  
-**v2 default:** invoke preflight — fail fast when no MCP session unless queue mode opted in.
-
 ## Trigger builder UI
 
 | Step | UI |
-|------|-----|
-| 1 | Pick template or custom |
+|------|----|
+| 1 | Pick event handler pattern |
 | 2 | Select source space + event from catalog |
-| 3 | Target space + wake label |
+| 3 | Target handler (`on: event:`) + flow start |
 | 4 | Dedup preset (editable) |
 | 5 | Test fire (replay last matching event) |
 
@@ -196,16 +119,14 @@ Components: `TriggerTemplatePicker`, `EventCatalogSelect`, `TriggerTestFireButto
 
 ## Acceptance — TR-min
 
-Fixtures: [../fixtures/triggers/spec-published-wake-dev.json](../fixtures/triggers/spec-published-wake-dev.json)
+Post-cutover, trigger acceptance is the clean protocol: an `on: event:` handler in `.mrmr/space/handlers.yaml` reacts to an emitted event and starts downstream work via a flow trigger (`mrmr flow run`).
 
-1. Register spec-published-wake-dev via template
-2. Publish spec → exactly one mcp_wake delivery
-3. Duplicate publish same spec_key **and version** → dedup drop in delivery log (`duplicate_business_key`)
+1. Apply a space with an `on: event:` handler bound to `spec.published` (emittable via `.mrmr/space/events.yaml`)
+2. Emit `spec.published` via `murrmure_emit_event` → exactly one handler delivery (Session + Run + journal `mrmr.handler.delivered`)
+3. Duplicate emit same business key **and version** within the dedup window → dedup drop in delivery log (`duplicate_business_key`)
 
 ## Acceptance — TR-full
 
-Fixtures: [../fixtures/triggers/dedup-spec-publish.json](../fixtures/triggers/dedup-spec-publish.json)
-
-4. Event catalog lists spec.published after feature-spec live apply
-5. Test fire replays without re-emitting source event
-6. Wake fails → integration_failure event + delivery log failed
+4. Event catalog lists `spec.published` after feature-spec live apply
+5. Test fire replays the handler without re-emitting the source event
+6. Handler delivery fails → `integration_failure` event + delivery log `outcome: failed`

@@ -8,21 +8,41 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 
 | Code / symptom | Fix |
 |----------------|-----|
-| Invalid token / 403 | `mrmr grant revoke` + `mrmr grant mint`; check `MURRMURE_SPACE_ID` |
-| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; grant needs `flow:run` / correct capabilities |
+| Revoked connection / 401 / 403 | `mrmr connection rotate con_… --space spc_…`, reinstall contexts, reload |
+| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; connection needs `tutorial-builder/v1` or explicit advanced capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
-| Checkpoint shows shell form not view | Rebuild view `dist/`; strict apply |
-| `wait_for_gate` times out | Human must resolve checkpoint in **ViewCanvasHost** |
-| Trigger did not wake agent | Confirm `hooks.yaml` + apply; check delivery log |
+| Checkpoint shows no view (observability-only) | Rebuild view `dist/`; strict-apply so the `view_resolver` binds the step |
+| `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |
+| `CONTRACT_VALIDATION_FAILED` on submit | Read each `{ source, path, rule }`; payload fields and selected-branch file slots are validated independently |
+| `ARTIFACT_QUOTA_EXCEEDED` | Reduce file/count/total size; fixed ceilings are 25 MiB/file, 50 MiB/resolution, 250 MiB/run, 2 GiB/space |
+| Upload cancelled or expired | The step remains open; reselect files and submit again. Uncommitted uploads expire after one idle hour |
+| Handler not dispatched | Check the `on::key` binding (`on: step.opened::{flow}.{step}`) in `handlers.yaml`; `mrmr space doctor` |
+| `contract_key` mismatch | `contract_keys` is prompt-scope only; binding uses `on::key` — align the alias with the StepContractCatalog step id |
+| Missing `handlers.yaml` entry | Add handler for dispatched step; re-apply |
+| Trigger did not wake agent | Confirm event handler in `handlers.yaml` + apply; check delivery log |
 | Cross-space `QUERY_POLICY_DENIED` | Fix inbound allowlist on target space |
+| `FLOW_CONCURRENCY_LIMIT` (409) | The flow already has `max_concurrent_runs` non-terminal runs in this space. Wait for an active run to terminate (or cancel it), then retry — the retry performs a fresh admission check. The denial lists the active blocking run IDs. |
+| `SPACE_HAS_ACTIVE_RUNS` (409) on `mrmr space apply` | An apply cannot swap a space's configuration while a non-terminal run depends on it. Wait for all runs to terminate (or cancel them), then re-apply; the prior index is preserved. No partial replacement is visible. |
+| `RUN_POLICY_UNKNOWN_FLOW` / `RUN_POLICY_AMBIGUOUS_FLOW` / `RUN_POLICY_DUPLICATE` (apply) | A `run_policies.flow` alias does not match exactly one applied flow name. Fix the alias in `handlers.yaml` to match the applied flow's `name`, then re-apply. |
+| `HANDLER_BINDING_VALUE_MISSING` (before spawn) | A placeholder in `command` has no binding or is null. Bind the value (or fix the token) and re-apply; a missing artifact slot means the producer step did not submit it. |
+| `HANDLER_PLACEHOLDER_QUOTED` / `HANDLER_PLACEHOLDER_EMBEDDED` / `HANDLER_UNKNOWN_PLACEHOLDER` (before spawn) | A placeholder must be one complete unquoted argument. Remove author quotes (`'{{x}}'`), split embedded forms (`--flag={{x}}` → `--flag {{x}}`), and confirm the token key exists. |
+| `ARTIFACT_DIGEST_MISMATCH` / `ARTIFACT_PATH_TRAVERSAL` / `ARTIFACT_SOURCE_NOT_FOUND` / `ARTIFACT_SOURCE_NOT_FILE` / `ARTIFACT_COPY_FAILED` (before spawn) | The producer artifact changed after submission, the source is missing/not a regular file/is a symlink, or the source escapes the run scratch tree. Re-submit the artifact on the producer step; the consumer copy is digest-verified and symlink-hardened. |
+| `TOKEN_STEP_SCOPE_MISMATCH` / `TOKEN_RUN_SCOPE_MISMATCH` (403) on `mrmr step resolve` or an upload intent | The dispatch token is not scoped to this run/step (or has expired/been revoked). The assignment boundary is enforced on every `step:resolve` endpoint — resolve, upload-intent creation, file transfer, and abandon — so a handler token cannot act for another run, step, or space. Re-dispatch the step; the token is run/step/handler-scoped and revoked when the step/run ends or the hub shuts down. |
+| `scope_enforcement_failure` (403) on an upload intent | A handler token minted for one space was used against a run in another space. Re-dispatch the step in its own space; grant tokens carry only the space boundary. |
+| `ACTION_TIMED_OUT` | The command exceeded `timeout_ms`. Raise `timeout_ms` for slow scripts, or fix a hanging child — the runtime terminates the whole process group once (SIGTERM → 5s → SIGKILL) and shutdown awaits that escalation so no descendant outlives the hub. |
+| `SHELL_EXIT_NONZERO` | The script exited nonzero. Read `stderr` in the run journal; `/bin/sh -e -c` stops at the first failing command. |
 
 ## MCP tools not showing in Cursor
 
-1. Reload Cursor after pasting MCP config
-2. Confirm `murrmure` or `npx @murrmure/cli` is on PATH
-3. Env: **`MURRMURE_HUB_URL`**, **`MURRMURE_HUB_TOKEN`**, **`MURRMURE_SPACE_ID`**
-4. Check MCP logs in Cursor settings
-5. Run **`mrmr space doctor`** for drift hints
+1. Reload the selected integration context after `mrmr connection create`
+2. Confirm `~/.murrmure/bin/murrmure-mcp` exists and is executable
+3. Relaunch Desktop to refresh stale bundle discovery after a move or upgrade
+4. Unlock macOS Keychain if credential lookup is blocked
+5. Run **`mrmr space doctor`** to distinguish launcher, discovery, credential, revocation/association, and Hub failures
+
+Do not add `MURRMURE_HUB_TOKEN` to local MCP configuration. Local mode fails
+closed and reads the credential by Hub + connection ID from Keychain. Runtime
+environment injection is only for explicit headless CI mode.
 
 ## Desktop: can't see a space
 
@@ -38,15 +58,27 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 - Port in use — change `PORT` or close other Desktop instance
 - Lock held — one hub per `~/.murrmure` data dir
 
-## Agent workflow help
+## Earlier development state appears after the clean-state cutover
 
-Install the **murrmure** skill:
+There is intentionally no upgrade reader or seed migration. Quit Desktop and
+move the old local state aside once:
 
 ```bash
-mrmr skill install
+mv ~/.murrmure ~/.murrmure.pre-tutorial-v3-$(date +%Y%m%d-%H%M%S)
 ```
 
-Reload Cursor. Skill reference covers `space apply`, checkpoints, hooks — not worker install.
+Relaunch Desktop. The new data directory starts with zero spaces, persisted
+contracts, and flows. The backup remains available for manual inspection.
+
+## Agent workflow help
+
+Install the split runtime skills:
+
+```bash
+mrmr skill install --variant all
+```
+
+Worker-only spaces can install only `murrmure-agent` with `mrmr skill install --variant agent`.
 
 ## Still stuck?
 
@@ -56,4 +88,5 @@ Reload Cursor. Skill reference covers `space apply`, checkpoints, hooks — not 
 ## Related
 
 - [Known gaps](./known-gaps)
+- [Space handlers](./space-handlers)
 - [Connect your agent](./agents-mcp)

@@ -1,4 +1,10 @@
-import { InvokeBodySchema, assertInlinePayloadWithinLimit } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  InvokeBodySchema,
+  assertInlinePayloadWithinLimit,
+  type HandlerSpec,
+} from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import {
   orchestrateInvoke,
   resolveInvokeTarget,
@@ -8,18 +14,36 @@ import {
   failRunWithNotification,
   enqueueTaskOffer,
   DEFAULT_WORKER_TTL_MS,
+  registerShellProcessCancel,
+  buildFlowInvokeStepContract,
+  mergeDispatchAuditIntoRun,
+  appendShellStreamToRun,
+  mergeActionResultIntoRun,
+  registerResolveCredential,
+  revokeStepResolveCredentials,
+  resolveSpaceRoot,
+  reconstructStepContractFromRelay,
+  rebindRemoteMaterializedCopies,
+  materializeRemoteArtifactReferences,
+  loadRelayedArtifactBytes,
+  RelayedArtifactValidationError,
+  type RelayedArtifactRemoteResult,
+  ArtifactMaterializationError,
   type InvokeJournalWriter,
   type InvokeMemoStore,
   type QueuedInvokeItem,
 } from "@murrmure/hub-core";
 import type { InvokeRequest } from "@murrmure/runtime-contracts";
+import type { ExecutorBinding } from "@murrmure/runtime-contracts";
+import type { IndexedAction } from "@murrmure/contracts";
 import type { HubHandler } from "@murrmure/hub-core";
 import { createExecutorRegistry } from "@murrmure/executors";
+import type { ShellCompleteInput, ShellStreamChunk } from "@murrmure/executors";
 import { ulid } from "ulid";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { ControlBus, ControlPrincipal } from "./control-bus.js";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
-import type { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
+import type { McpSessionRegistry } from "./mcp-session-registry.js";
 import { broadcastSse } from "./context.js";
 import type { DaemonContext } from "./context.js";
 import type { ArtifactService } from "./artifact-service.js";
@@ -27,25 +51,49 @@ import { relayRemoteInvoke } from "./federation-wire.js";
 import type { FederationPort } from "@murrmure/hub-core";
 import { projectStepMemoFromJournal } from "./routes/sessions/index.js";
 
+/** Backstop TTL for an ephemeral resolve token when the action sets no timeout. */
+const DEFAULT_RESOLVE_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+/** Grace added past the action timeout so a handler can still resolve near the deadline. */
+const RESOLVE_TOKEN_GRACE_MS = 5 * 60 * 1000;
+
+function resolveTokenTtlMs(actionTimeoutMs?: number): number {
+  if (!actionTimeoutMs || actionTimeoutMs <= 0) return DEFAULT_RESOLVE_TOKEN_TTL_MS;
+  return actionTimeoutMs + RESOLVE_TOKEN_GRACE_MS;
+}
+
 export class InvokeService {
   private readonly memoStore = new Map<string, import("@murrmure/runtime-contracts").DispatchOutcome>();
   private readonly pendingInvokes = new Map<string, QueuedInvokeItem[]>();
   private readonly registry;
   private lastActor: { actor_id: string; token_id: string } | null = null;
+  private readonly shellStreamBroadcastAt = new Map<string, number>();
 
   constructor(
     private readonly studio: StudioPersistencePort,
     private readonly handler: HubHandler,
     private readonly controlBus: ControlBus,
-    private readonly mcpWake: McpWakeDispatcher,
+    private readonly mcpSessionRegistry: McpSessionRegistry,
     private readonly ctx: DaemonContext,
     private readonly artifacts: ArtifactService,
     private readonly federationPort: FederationPort,
   ) {
     const clock = { now: () => Date.now(), nowIso: () => new Date().toISOString() };
     this.registry = createExecutorRegistry({
+      shellSpawn: {
+        onProcessStart: ({ run_id, step_id, child }) => {
+          // Register the cancel handle and return its unregister so the
+          // executor can deregister on finish (once-only termination).
+          return registerShellProcessCancel(run_id, step_id, child);
+        },
+        onOutputChunk: (chunk) => {
+          void this.handleShellOutputChunk(chunk);
+        },
+        onShellComplete: (input) => {
+          void this.handleShellComplete(input);
+        },
+      },
       mcpSession: {
-        isReachable: (spaceId) => this.mcpWake.hasConnectedSession(spaceId),
+        isReachable: (spaceId) => this.mcpSessionRegistry.hasConnectedSession(spaceId),
         publish: (spaceId, message) => this.publishToSpace(spaceId, message),
       },
       queuePoll: {
@@ -105,7 +153,7 @@ export class InvokeService {
         },
       },
     });
-    this.mcpWake.onConnect((principal) => {
+    this.mcpSessionRegistry.onConnect((principal) => {
       void this.flushQueuedInvokes(principal.space_id);
     });
   }
@@ -115,7 +163,7 @@ export class InvokeService {
     message: { method: string; params: Record<string, unknown> },
   ): void {
     const bare = bareSpaceId(spaceId);
-    for (const principal of this.mcpWake.connectedPrincipals(bare)) {
+    for (const principal of this.mcpSessionRegistry.connectedPrincipals(bare)) {
       this.controlBus.publish(
         principal,
         message as Parameters<ControlBus["publish"]>[1],
@@ -131,52 +179,279 @@ export class InvokeService {
     return ((run.exec_context.input ?? {}) as Record<string, unknown>) ?? {};
   }
 
+  /**
+   * Fetch artifact bytes from the producer hub's
+   * `GET /v1/artifacts/:transfer_id/bytes` endpoint using the relayed
+   * `hub_token` / `hub_url`. The producer enforces ACL / expiry / digest; the
+   * returned status is mapped by `loadRelayedArtifactBytes` into a typed
+   * validation error (403 / 410 / 404 / 422) or a transient best-effort skip.
+   */
+  private async fetchRelayedArtifactBytes(input: {
+    hub_url: string;
+    hub_token?: string;
+    transfer_id: string;
+    requester_space_id: string;
+  }): Promise<RelayedArtifactRemoteResult> {
+    const base = input.hub_url.replace(/\/$/, "");
+    const url =
+      `${base}/v1/artifacts/${encodeURIComponent(input.transfer_id)}/bytes` +
+      `?space_id=${encodeURIComponent(input.requester_space_id)}`;
+    const headers: Record<string, string> = {};
+    if (input.hub_token) headers.Authorization = `Bearer ${input.hub_token}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 200) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const digest = res.headers.get("x-murrmure-digest") ?? undefined;
+      return { status: 200, bytes, digest };
+    }
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    return { status: res.status, message: body.message };
+  }
+
+  private async loadIndexedHandler(
+    space_id: string,
+    action_name: string,
+  ): Promise<HandlerSpec | undefined> {
+    const rows = await this.studio.listIndexedHooks(space_id);
+    for (const row of rows) {
+      const parsedHandler = HandlerSpecSchema.safeParse(row);
+      if (!parsedHandler.success) continue;
+      if (parsedHandler.data.id === action_name) {
+        return parsedHandler.data;
+      }
+    }
+    return undefined;
+  }
+
+  private async mintRunResolveToken(input: {
+    run_id: string;
+    space_id: string;
+    actor_id: string;
+    step_id: string;
+    /** Handler (action) identity the token is minted for. */
+    handler_id: string;
+    /** Assignment TTL backstop (ms); expiry is set to now + ttl. */
+    ttl_ms: number;
+    /**
+     * Consumer space to bind this federated resolve token to. Set for a
+     * `remote_hub` dispatch so the producer `GET .../bytes` endpoint binds the
+     * artifact ACL principal to the credential (parity with `artifacts_in`),
+     * instead of trusting an arbitrary `?space_id=` claim. Omitted for local
+     * dispatches (the handler resolves in the same space as the run).
+     */
+    consumer_space_id?: string;
+  }): Promise<string> {
+    const token_id = ulid();
+    const ts = new Date();
+    const expires_at = new Date(ts.getTime() + input.ttl_ms).toISOString();
+    await this.studio.insertToken(
+      {
+        token_id,
+        actor_id: input.actor_id,
+        space_id: bareSpaceId(input.space_id),
+        scopes: ["step:resolve"],
+        capabilities: ["step:resolve"],
+        harness_id: `run:${input.run_id}`,
+        // The assignment scope is space/run/step/handler. A step binds exactly
+        // one handler, so run:step implies the handler; the handler segment is
+        // carried so the token is bound to the specific handler dispatch and
+        // auditable, and route handlers verify the run:step prefix.
+        scope_ref: `${input.run_id}:${input.step_id}:${input.handler_id}`,
+        status: "active",
+        expires_at,
+        // Bind the federated resolve token to the consumer space so the producer
+        // bytes endpoint can authorize the cross-hub fetch against the
+        // credential rather than a caller-supplied `?space_id=`. The binding is
+        // persisted on the token row and enforced at the producer.
+        consumer_space_id: input.consumer_space_id
+          ? bareSpaceId(input.consumer_space_id)
+          : undefined,
+      },
+      ts.toISOString(),
+    );
+    return `tok_${token_id}`;
+  }
+
   private journalWriter(): InvokeJournalWriter {
     return {
       append: async (input) => {
-        const result = await this.handler.appendSpaceJournal({
-          type: input.type,
-          space_id: input.space_id,
-          session_id: input.session_id,
-          run_id: input.run_id,
-          actor_id: input.actor_id,
-          token_id: input.token_id,
-          data: {
-            ...input.data,
-            step_id: input.step_id,
-          },
-        });
-
-        await projectStepMemoFromJournal(this.ctx, {
-          run_id: input.run_id,
-          step_id: input.step_id,
-          type: input.type,
-          ts: new Date().toISOString(),
-          idempotency_key:
-            typeof input.data.idempotency_key === "string" ? input.data.idempotency_key : undefined,
-          error_code: typeof input.data.error_code === "string" ? input.data.error_code : undefined,
-          executor_type:
-            typeof input.data.executor_type === "string" ? input.data.executor_type : undefined,
-          result:
-            input.data.result && typeof input.data.result === "object"
-              ? (input.data.result as Record<string, unknown>)
-              : undefined,
-        });
-
-        broadcastSse(this.ctx, {
-          event: "journal.append",
-          data: {
-            type: input.type,
-            space_id: prefixedSpaceId(bareSpaceId(input.space_id)),
-            session_id: input.session_id,
-            run_id: input.run_id,
-            step_id: input.step_id,
-            seq: result.seq,
-            event_id: result.entry_id,
-          },
-        });
+        await this.appendJournalAndProject(input);
       },
     };
+  }
+
+  private async appendJournalAndProject(input: {
+    type: string;
+    space_id: string;
+    session_id?: string;
+    run_id?: string;
+    step_id?: string;
+    action_name?: string;
+    actor_id: string;
+    token_id: string;
+    data?: Record<string, unknown>;
+  }): Promise<void> {
+    const result = await this.handler.appendSpaceJournal({
+      type: input.type,
+      space_id: input.space_id,
+      session_id: input.session_id,
+      run_id: input.run_id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      data: {
+        ...input.data,
+        step_id: input.step_id,
+        ...(input.action_name ? { action_name: input.action_name } : {}),
+      },
+    });
+
+    await projectStepMemoFromJournal(this.ctx, {
+      run_id: input.run_id,
+      step_id: input.step_id,
+      type: input.type,
+      ts: new Date().toISOString(),
+      idempotency_key:
+        typeof input.data?.idempotency_key === "string" ? input.data.idempotency_key : undefined,
+      error_code: typeof input.data?.error_code === "string" ? input.data.error_code : undefined,
+      executor_type:
+        typeof input.data?.executor_type === "string" ? input.data.executor_type : undefined,
+      result:
+        input.data?.result && typeof input.data.result === "object"
+          ? (input.data.result as Record<string, unknown>)
+          : undefined,
+    });
+
+    broadcastSse(this.ctx, {
+      event: "journal.append",
+      data: {
+        type: input.type,
+        space_id: prefixedSpaceId(bareSpaceId(input.space_id)),
+        session_id: input.session_id,
+        run_id: input.run_id,
+        step_id: input.step_id,
+        seq: result.seq,
+        event_id: result.entry_id,
+      },
+    });
+  }
+
+  private async handleShellOutputChunk(chunk: ShellStreamChunk): Promise<void> {
+    if (!chunk.run_id) return;
+    await appendShellStreamToRun(this.studio, {
+      run_id: chunk.run_id,
+      step_id: chunk.step_id,
+      stream: chunk.stream,
+      chunk: chunk.chunk,
+    });
+
+    const key = `${chunk.run_id}:${chunk.step_id}`;
+    const now = Date.now();
+    const last = this.shellStreamBroadcastAt.get(key) ?? 0;
+    if (now - last < 200) return;
+    this.shellStreamBroadcastAt.set(key, now);
+
+    const bare = chunk.run_id.startsWith("run_") ? chunk.run_id.slice(4) : chunk.run_id;
+    const run = await this.studio.getRun(bare);
+    if (!run?.space_id) return;
+
+    broadcastSse(this.ctx, {
+      event: "journal.append",
+      data: {
+        type: "mrmr.action.output",
+        space_id: prefixedSpaceId(run.space_id),
+        session_id: run.session_id ? `ses_${run.session_id}` : undefined,
+        run_id: chunk.run_id.startsWith("run_") ? chunk.run_id : `run_${chunk.run_id}`,
+        step_id: chunk.step_id,
+      },
+    });
+  }
+
+  private async handleShellComplete(input: ShellCompleteInput): Promise<void> {
+    if (!input.run_id) return;
+    const bare = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+    const run = await this.studio.getRun(bare);
+    if (!run?.space_id) return;
+
+    // The handler process has terminated (completed or failed); its ephemeral
+    // resolve credential is revoked immediately so it cannot outlive the
+    // assignment. Run-terminal revocation is a separate safety net.
+    revokeStepResolveCredentials(input.run_id, input.step_id);
+
+    const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
+    const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
+    const actor_id = this.lastActor?.actor_id ?? "system_invoke";
+    const token_id = this.lastActor?.token_id ?? "system";
+    const outcome = input.outcome;
+
+    if (outcome.status === "completed") {
+      await this.appendJournalAndProject({
+        type: JOURNAL_EVENT_TYPES.ACTION_COMPLETED,
+        space_id,
+        session_id,
+        run_id: input.run_id,
+        step_id: input.step_id,
+        action_name: input.action_name,
+        actor_id,
+        token_id,
+        data: { result: outcome.result, action_name: input.action_name },
+      });
+      return;
+    }
+
+    if (outcome.status !== "failed") return;
+
+    const memos = await this.studio.listRunStepMemos(`run_${bare}`);
+    const memo = memos.find((m) => m.step_id === input.step_id);
+    if (memo?.status === "completed") {
+      if (outcome.result) {
+        await mergeActionResultIntoRun(this.studio, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "completed",
+          result: outcome.result,
+          completed_at: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+
+    const journalType =
+      outcome.error_code === "ACTION_TIMED_OUT"
+        ? JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
+        : JOURNAL_EVENT_TYPES.ACTION_FAILED;
+
+    await this.appendJournalAndProject({
+      type: journalType,
+      space_id,
+      session_id,
+      run_id: input.run_id,
+      step_id: input.step_id,
+      action_name: input.action_name,
+      actor_id,
+      token_id,
+      data: {
+        error_code: outcome.error_code,
+        detail: outcome.detail,
+        result: outcome.result,
+        action_name: input.action_name,
+      },
+    });
+
+    await failRunWithNotification(
+      {
+        studio: this.studio,
+        handler: this.handler,
+        ids: { ulid: () => ulid() },
+        clock: { nowIso: () => new Date().toISOString() },
+        executorPollStore: this.ctx.executorPollStore,
+      },
+      {
+        run_id: input.run_id,
+        actor_id,
+        token_id,
+        reason: outcome.error_code ?? "invoke_failed",
+      },
+    );
   }
 
   private memoPort(): InvokeMemoStore {
@@ -228,7 +503,17 @@ export class InvokeService {
             invokeQueue: this.invokeQueuePort(),
             clock: { nowIso: () => new Date().toISOString() },
           },
-          { skipMemoLookup: true },
+          {
+            skipMemoLookup: true,
+            onDispatchAudit: async ({ run_id, step_id, audit }) => {
+              await mergeDispatchAuditIntoRun(this.studio, {
+                run_id,
+                step_id,
+                audit,
+                dispatched_at: new Date().toISOString(),
+              });
+            },
+          },
         );
       }
     } catch {
@@ -290,14 +575,49 @@ export class InvokeService {
     const actions = await this.studio.listIndexedActions(bare);
     const executors = await this.studio.listIndexedExecutors(bare);
     const bindings = await this.studio.getSpaceBindings(bare);
+    const indexedHandler =
+      parsed.data.run_id && parsed.data.step_id
+        ? await this.loadIndexedHandler(bare, input.action_name)
+        : undefined;
 
-    const resolved = resolveInvokeTarget(
+    let resolved = resolveInvokeTarget(
       input.action_name,
       actions,
       executors,
       bindings,
       parsed.data.delivery,
     );
+    if ("code" in resolved && indexedHandler && indexedHandler.type !== "view_resolver") {
+      const action: IndexedAction = {
+        name: indexedHandler.id,
+        space_id: prefixedSpaceId(bare),
+        executor: `handler:${indexedHandler.id}`,
+        timeout_ms: indexedHandler.timeout_ms,
+        command: indexedHandler.command,
+        prompt: indexedHandler.prompt,
+        cwd: indexedHandler.cwd,
+        delivery: indexedHandler.delivery,
+      };
+      const params = indexedHandler.params ?? {};
+      let binding: ExecutorBinding;
+      if (indexedHandler.type === "remote_hub") {
+        binding = {
+          type: "remote_hub",
+          executor_id: action.executor,
+          remote_hub_id: String(params.remote_hub_id ?? ""),
+          remote_space_id:
+            typeof params.remote_space_id === "string" ? params.remote_space_id : undefined,
+        };
+      } else {
+        binding = { type: indexedHandler.type, executor_id: action.executor };
+      }
+      resolved = {
+        action,
+        binding,
+        space_root: resolveSpaceRoot(bindings),
+        delivery: indexedHandler.delivery ?? "fail_fast",
+      };
+    }
     if ("code" in resolved) {
       return { http: 404 as const, body: resolved };
     }
@@ -317,7 +637,17 @@ export class InvokeService {
     }
 
     let artifactParams: Record<string, unknown> | undefined;
-    if (parsed.data.artifacts_in?.length) {
+    // A relayed invoke (body carries a reference-only `step_contract` from a
+    // peer hub) carries producer transfer ids in `artifacts_in`; those are not
+    // registered in this hub's local artifact store. Resolving them here would
+    // reject the invoke with `ARTIFACT_NOT_FOUND` before the relay handling
+    // below can fetch + validate the ordered references. So for a relayed
+    // invoke, skip the destination-store resolution entirely — the relay block
+    // validates each reference against ACL / expiry / digest (parity with this
+    // path), fetching bytes from the producer hub via the relayed `hub_token` /
+    // `hub_url` when they are not already local, and leaves only transiently
+    // unavailable references for the handler to fetch.
+    if (parsed.data.artifacts_in?.length && !parsed.data.step_contract) {
       if (!resolved.space_root) {
         return {
           http: 422 as const,
@@ -382,6 +712,138 @@ export class InvokeService {
       idempotency_key: input.idempotency_header,
     };
 
+    if (run_id && parsed.data.step_id && resolved.space_root) {
+      const matchedHandler = indexedHandler ?? await this.loadIndexedHandler(bare, input.action_name);
+      const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
+      // For a `remote_hub` dispatch the resolve token is relayed to the consumer
+      // hub, which uses it to fetch artifact bytes from this (producer) hub.
+      // Bind the token to the consumer space so the producer bytes endpoint
+      // authorizes the cross-hub fetch against the credential (parity with the
+      // `artifacts_in` path) instead of trusting a caller-supplied `?space_id=`.
+      let consumerSpaceId: string | undefined;
+      if (matchedHandler && matchedHandler.type === "remote_hub") {
+        const remoteSpaceId = matchedHandler.params?.remote_space_id;
+        consumerSpaceId = typeof remoteSpaceId === "string" ? remoteSpaceId : undefined;
+      }
+      const resolveToken = await this.mintRunResolveToken({
+        run_id,
+        space_id: bare,
+        actor_id: input.actor_id,
+        step_id: parsed.data.step_id,
+        handler_id: input.action_name,
+        ttl_ms,
+        consumer_space_id: consumerSpaceId,
+      });
+      // Track the ephemeral credential so any terminal path can revoke it.
+      registerResolveCredential(run_id, parsed.data.step_id, resolveToken);
+      const stepContract = await buildFlowInvokeStepContract(this.studio, {
+        run_id,
+        step_id: parsed.data.step_id,
+        space_root: resolved.space_root,
+        contract_keys: matchedHandler?.contract_keys,
+        hub_token: resolveToken,
+        hub_url: `http://127.0.0.1:${this.ctx.config.port}`,
+        artifact_transport:
+          matchedHandler?.type === "remote_hub" ? "remote_reference" : "local_path",
+      });
+      if (stepContract) {
+        request.step_contract = stepContract;
+      }
+    }
+
+    // Remote/federated relay: when a peer hub relays a reference-only step
+    // contract (no local run exists on this hub for the relayed run_id, so
+    // `buildFlowInvokeStepContract` returned undefined above), reconstruct a
+    // local `InvokeStepContractContext` from the sanitized relay and carry the
+    // relayed run input. Then resolve + validate the ordered artifact
+    // references: each reference is first looked up in this hub's local artifact
+    // store (validated with `planMaterialize` — expiry / `authorized_readers`
+    // ACL / digest, parity with the `artifacts_in` path), and when not local it
+    // is fetched from the producer hub via the relayed `hub_token` / `hub_url`
+    // (`GET /v1/artifacts/:transfer_id/bytes`), which enforces the same ACL /
+    // expiry / digest checks on the producer side. Verified bytes are
+    // materialized into this space's consumer input tree and rebound into the
+    // reconstructed contract so `shell_spawn` binds `.path` / `.directory` to
+    // this space's own consumer copies. A definitive ACL / expiry / digest /
+    // not-found failure rejects the invoke with the same codes as `artifacts_in`
+    // (a caller-supplied `step_contract` may not bypass artifact authorization);
+    // a transiently unavailable reference (network error / 5xx) is left
+    // reference-only for the handler to fetch via `hub_token` / `hub_url`.
+    if (
+      parsed.data.step_contract &&
+      resolved.space_root &&
+      run_id &&
+      parsed.data.step_id &&
+      !request.step_contract
+    ) {
+      const relay = parsed.data.step_contract;
+      try {
+        let reconstructed = await reconstructStepContractFromRelay(relay, {
+          space_root: resolved.space_root,
+          run_id,
+          step_id: parsed.data.step_id,
+        });
+        if (parsed.data.exec_input) {
+          request.exec_input = parsed.data.exec_input;
+        }
+        if (relay.artifact_references?.length) {
+          const materialized = await materializeRemoteArtifactReferences({
+            space_root: resolved.space_root,
+            run_id,
+            consumer_step: parsed.data.step_id,
+            references: relay.artifact_references,
+            loadBytes: (transfer_id) =>
+              loadRelayedArtifactBytes({
+                transfer_id,
+                requester_space_id: prefixedSpaceId(bare),
+                requester_actor_id: input.actor_id,
+                loadLocal: (tid) => this.artifacts.loadArtifactForInvoke(tid),
+                fetchRemote: relay.hub_url
+                  ? (tid) =>
+                      this.fetchRelayedArtifactBytes({
+                        hub_url: relay.hub_url!,
+                        hub_token: relay.hub_token,
+                        transfer_id: tid,
+                        requester_space_id: prefixedSpaceId(bare),
+                      })
+                  : undefined,
+              }),
+          });
+          if (materialized.length) {
+            reconstructed = rebindRemoteMaterializedCopies({
+              stepContract: reconstructed,
+              space_root: resolved.space_root,
+              run_id,
+              materialized,
+            });
+          }
+        }
+        request.step_contract = reconstructed;
+      } catch (error) {
+        // A typed artifact validation failure (ACL / expiry / digest / not-found
+        // from the relayed reference) rejects the invoke with parity codes — a
+        // caller-supplied `step_contract` may not bypass `artifacts_in`
+        // authorization. A digest mismatch or a path-traversal segment
+        // (`consumer_step` / `slot` / `name` / `producer_step`) raised while
+        // validating/writing the consumer copy is likewise a definitive
+        // validation failure: a crafted relayed `step_id` may not write verified
+        // bytes outside the linked space root. Anything else (reconstruction /
+        // transport / copy I/O) is best-effort: drop the contract and let the
+        // handler run with params.
+        if (error instanceof RelayedArtifactValidationError) {
+          const status = error.code === "ARTIFACT_ACCESS_DENIED" ? 403 : 404;
+          return { http: status as 403 | 404, body: { code: error.code, message: error.message } };
+        }
+        if (
+          error instanceof ArtifactMaterializationError &&
+          (error.code === "ARTIFACT_DIGEST_MISMATCH" || error.code === "ARTIFACT_PATH_TRAVERSAL")
+        ) {
+          return { http: 404 as const, body: { code: error.code, message: error.message } };
+        }
+        request.step_contract = undefined;
+      }
+    }
+
     this.lastActor = { actor_id: input.actor_id, token_id: input.token_id };
 
     const response = await orchestrateInvoke(resolved, request, {
@@ -393,6 +855,15 @@ export class InvokeService {
       journal: this.journalWriter(),
       invokeQueue: this.invokeQueuePort(),
       clock: { nowIso: () => new Date().toISOString() },
+    }, {
+      onDispatchAudit: async ({ run_id, step_id, audit }) => {
+        await mergeDispatchAuditIntoRun(this.studio, {
+          run_id,
+          step_id,
+          audit,
+          dispatched_at: new Date().toISOString(),
+        });
+      },
     });
 
     if (response.dispatch.status === "failed" && run_id) {
@@ -402,12 +873,16 @@ export class InvokeService {
           handler: this.handler,
           ids: { ulid: () => ulid() },
           clock: { nowIso: () => new Date().toISOString() },
+          executorPollStore: this.ctx.executorPollStore,
         },
         {
           run_id,
           actor_id: input.actor_id,
           token_id: input.token_id,
-          reason: response.dispatch.error_code ?? "invoke_failed",
+          reason:
+            response.dispatch.error_code === "ACTION_TIMED_OUT"
+              ? "ACTION_TIMED_OUT"
+              : (response.dispatch.error_code ?? "invoke_failed"),
         },
       );
       broadcastSse(this.ctx, {
@@ -424,60 +899,6 @@ export class InvokeService {
           : 200;
 
     return { http: status as 200 | 422 | 503, body: response };
-  }
-
-  async invokeFromMcpWake(input: {
-    target_space_id: string;
-    wake_label: string;
-    payload: unknown;
-    actor_id: string;
-    token_id: string;
-  }) {
-    const result = await this.invokeAction({
-      space_id: input.target_space_id,
-      action_name: input.wake_label,
-      body: {
-        params: typeof input.payload === "object" && input.payload != null ? input.payload : { value: input.payload },
-      },
-      actor_id: input.actor_id,
-      token_id: input.token_id,
-    });
-
-    const body = result.body;
-    if (!body) {
-      return result.http >= 400
-        ? result
-        : { http: 500 as const, body: { code: "INTERNAL", message: "Empty invoke response" } };
-    }
-
-    if (result.http === 503 && "dispatch" in body && body.dispatch?.status === "executor_unavailable") {
-      return {
-        http: 503 as const,
-        body: {
-          code: "EXECUTOR_UNAVAILABLE",
-          message: body.dispatch.detail ?? "Executor is not reachable",
-          dispatch: body.dispatch,
-        },
-      };
-    }
-
-    if (result.http >= 400) {
-      return result;
-    }
-
-    if ("dispatch" in body && body.dispatch?.status === "executor_unavailable") {
-      return {
-        http: 503 as const,
-        body: {
-          code: "EXECUTOR_UNAVAILABLE",
-          message: body.dispatch.detail ?? "Executor is not reachable",
-          dispatch: body.dispatch,
-        },
-      };
-    }
-
-    const dispatch = "dispatch" in body ? body.dispatch : undefined;
-    return { http: 200 as const, body: { ok: true, dispatch } };
   }
 }
 

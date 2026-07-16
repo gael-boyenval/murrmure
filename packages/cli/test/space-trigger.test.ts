@@ -69,20 +69,26 @@ describe("space trigger register/list", () => {
     };
   }
 
-  test("register posts filter and action from flags", async () => {
+  test("register rejects retired mcp_wake action (strict)", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/v1/auth/whoami")) {
         return mockWhoami(["trigger:register", "space:read"]);
       }
       if (url.endsWith("/v1/spaces/spc_dev/triggers") && init?.method === "POST") {
         const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        // The CLI passes the caller's action through verbatim; the hub rejects
+        // retired mcp_wake actions at the register/apply boundary (Task 15 Lane C).
         expect(body.name).toBe("spec-published-wake");
         expect(body.filter).toEqual({ event_types: ["spec.published"], source_space_id: "spc_orchestrator" });
         expect(body.action).toEqual({ type: "mcp_wake", target_space_id: "spc_dev" });
         return {
-          ok: true,
-          status: 201,
-          json: async () => ({ trigger_id: "trg_abc", enabled: true }),
+          ok: false,
+          status: 422,
+          json: async () => ({
+            code: "TRIGGER_ACTION_RETIRED",
+            message:
+              "Retired trigger-action wire (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event",
+          }),
         };
       }
       throw new Error(`unexpected fetch: ${url}`);
@@ -90,29 +96,37 @@ describe("space trigger register/list", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const exit = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("EXIT");
+    }) as never);
 
-    await (triggerRegisterCommand as { run: (ctx: unknown) => Promise<void> }).run({
-      args: {
-        json: true,
-        space: "spc_dev",
-        name: "spec-published-wake",
-        filter: '{"event_types":["spec.published"],"source_space_id":"spc_orchestrator"}',
-        action: '{"type":"mcp_wake","target_space_id":"spc_dev"}',
-      },
-      rawArgs: [],
-    });
+    await expect(
+      (triggerRegisterCommand as { run: (ctx: unknown) => Promise<void> }).run({
+        args: {
+          json: true,
+          space: "spc_dev",
+          name: "spec-published-wake",
+          filter: '{"event_types":["spec.published"],"source_space_id":"spc_orchestrator"}',
+          action: '{"type":"mcp_wake","target_space_id":"spc_dev"}',
+        },
+        rawArgs: [],
+      }),
+    ).rejects.toThrow("EXIT");
 
+    expect(exit).toHaveBeenCalledWith(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8787/v1/spaces/spc_dev/triggers",
       expect.objectContaining({ method: "POST" }),
     );
 
-    const payload = JSON.parse(String(log.mock.calls[0]?.[0])) as {
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0])) as {
       ok: boolean;
-      trigger_id?: string;
+      code: string;
+      message: string;
     };
-    expect(payload.ok).toBe(true);
-    expect(payload.trigger_id).toBe("trg_abc");
+    expect(payload.ok).toBe(false);
+    expect(payload.code).toBe("TRIGGER_ACTION_RETIRED");
+    expect(payload.message).toContain("Retired trigger-action");
   });
 
   test("list calls GET /triggers", async () => {

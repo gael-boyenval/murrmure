@@ -23,7 +23,6 @@ Dynamic flow push, grant-scoped MCP catalog, and control bus. Extends [product/s
 - Handshake v2 — `murrmure/session.handshake`; mandatory pull reconciliation
 - Strict deserialize — per-flow Zod at MCP invoke
 - Rollback — unmount tools, push `tools_removed`
-- mcp_wake dispatch — wake_label routing, not catalog lookup
 
 ### Out
 
@@ -80,7 +79,7 @@ Failed mount rolls back registry row; install stays `promoted` not `live`.
 
 ### v2 flow index (space directory)
 
-Flows in `murrmure/flows/` are indexed via `POST /v1/spaces/{id}/apply` — not per-space FDK install. The hub compiles manifest → IR, stores digest, and pins `flow_digest` on each Run. See [bridges/flow-engine.md](../bridges/flow-engine.md).
+Flows in `.mrmr/flows/` are indexed via `POST /v1/spaces/{id}/apply`. The hub compiles manifest → IR, stores digest, and pins `flow_digest` on each Run. See [bridges/flow-engine.md](../bridges/flow-engine.md).
 
 Apply errors: `INSTALL_POLICY_VIOLATION`, `SCOPE_ENFORCEMENT_FAILURE`, `LIVE_APPLY_FAILED`.
 
@@ -147,7 +146,6 @@ Cross-surface enforcement: identical filter on `tools/list`, `tools/call`, `/v1/
 | `control.contract_updated` | `{ seq, space_id, flow_id, from_version, to_version, contract_ref_id }` |
 | `control.tools_changed` | `{ seq, space_id, added, removed, unchanged }` |
 | `control.handshake_ack` | `{ seq, server_contract_versions[], server_tools[] }` |
-| `control.wake_pending` | `{ seq, wake_label, payload }` |
 
 Client on `tools_changed` refreshes cache. Handshake sends `last_ack_seq`; server drains from `last_ack_seq + 1`.
 
@@ -164,22 +162,14 @@ Client on `tools_changed` refreshes cache. Handshake sends `last_ack_seq`; serve
 
 Pre-invoke on `tools/call`: verify tool ∈ catalog; strict Zod per flow leaf.
 
-## mcp_wake semantics
+## Retired wake-wire semantics
 
-**wake_label is routing metadata — NOT McpToolRegistry lookup.**
-
-```typescript
-await mcpWake({
-  target_space_id,
-  wake_label: "handle_spec_published",
-  payload,
-  session_hint: "wake",
-});
-```
-
-Delivery succeeds when target space has connected MCP session with `space:enter` or higher. If no session: enqueue on space-keyed pending wake queue; deliver on first connect; journal `mcp.wake_pending` (24h TTL purge).
-
-IDE harness decides auto-run, notification, or invoke granted tools.
+> **Removed (Task 15 Lane C).** Legacy wake-wire trigger dispatch is no longer part
+> of the protocol. The clean protocol uses **event handlers** (`.mrmr/space/handlers.yaml`
+> `on: event: { type, source? }`), **`murrmure_emit_event`** (`event:emit` capability),
+> and **flow start conditions** — see [product/spec.md §5.3](../product/spec.md#53-event-handlers)
+> and [triggers/spec.md](../triggers/spec.md). Historical removal records:
+> [../../archives/triggers-legacy-wake-wire.md](../../archives/triggers-legacy-wake-wire.md).
 
 ## Journal events (new)
 
@@ -189,7 +179,6 @@ IDE harness decides auto-run, notification, or invoke granted tools.
 | `flow.live_apply_failed` | Mount error |
 | `flow.unmounted` | Rollback/supersede |
 | `mcp.tools_changed` | Audit mirror |
-| `mcp.wake_delivered` | Wake payload delivered |
 
 ## Deserialize compatibility
 
@@ -230,4 +219,3 @@ Fixtures: [../fixtures/flow-runtime/](../fixtures/flow-runtime/)
 7. Two spaces same flow different versions — tools scoped per space
 8. Harness binding enforced (`cloud-worker` vs `cursor-local`)
 9. `/v1/mcp/catalog` matches stdio `tools/list`
-10. mcp_wake with label `handle_spec_published` succeeds without catalog tool

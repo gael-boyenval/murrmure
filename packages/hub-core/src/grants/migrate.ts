@@ -6,8 +6,8 @@ const VALID_CAPABILITIES: Capability[] = [
   "space:enter",
   "flow:read",
   "flow:run",
-  "action:invoke",
-  "gate:resolve",
+  "event:emit",
+  "step:resolve",
   "journal:read",
   "executor:poll",
   "hub:admin",
@@ -18,15 +18,15 @@ const V1_SCOPE_TO_CAPABILITIES: Record<string, Capability[]> = {
   "space:read": ["space:read"],
   "space:enter": ["space:enter"],
   "space:admin": ["hub:admin", "space:read", "space:write", "space:enter"],
-  "state:transition": ["flow:run", "action:invoke"],
+  "state:transition": ["flow:run"],
   "event:read": ["journal:read"],
-  "event:emit": ["action:invoke"],
+  "event:emit": ["event:emit"],
   "flow:install": ["space:write", "flow:read"],
   "flow:configure": ["space:write", "flow:read"],
   "trigger:register": ["space:write"],
   "blob:read": ["space:read"],
   "blob:write": ["space:write"],
-  "federation:emit": ["action:invoke"],
+  "federation:emit": ["event:emit"],
 };
 
 export function mapV1ScopesToCapabilities(scopes: string[]): Capability[] {
@@ -42,6 +42,34 @@ export function mapV1ScopesToCapabilities(scopes: string[]): Capability[] {
     }
   }
   return [...out];
+}
+
+/** Partition legacy grant `scopes[]` into recognized entries (valid v1 scopes
+ *  or current capabilities) and unknown/removed entries. Capabilities removed
+ *  in the step-contract cutover are no longer members of VALID_CAPABILITIES
+ *  and are not v1 scope keys, so they land in `invalid`; without this check
+ *  they could be persisted unchanged through the legacy `scopes` field,
+ *  bypassing the `capabilities[]` validation on the grant-mint routes
+ *  (`mapV1ScopesToCapabilities` silently drops unknown scopes, so the bad value
+ *  would otherwise survive in the stored `scopes` column). Callers must reject
+ *  `invalid` before persisting. */
+export function partitionScopes(scopes: unknown[]): {
+  valid: string[];
+  invalid: string[];
+} {
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  for (const scope of scopes) {
+    if (
+      typeof scope === "string" &&
+      (scope in V1_SCOPE_TO_CAPABILITIES || VALID_CAPABILITIES.includes(scope as Capability))
+    ) {
+      valid.push(scope);
+    } else {
+      invalid.push(typeof scope === "string" ? scope : String(scope));
+    }
+  }
+  return { valid, invalid };
 }
 
 export function resolveEffectiveCapabilities(input: {
@@ -68,7 +96,7 @@ export function canStartFlow(capabilities: Capability[]): boolean {
   return hasCapability(capabilities, "flow:run");
 }
 
-/** Conformance: grant without gate:resolve cannot resolve gate. */
+/** Conformance: gate approval / run cancel require flow:run on the run. */
 export function canResolveGate(capabilities: Capability[]): boolean {
-  return hasCapability(capabilities, "gate:resolve");
+  return hasCapability(capabilities, "flow:run");
 }

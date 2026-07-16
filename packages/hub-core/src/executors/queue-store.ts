@@ -36,6 +36,9 @@ export interface ExecutorPollStore {
     error_code?: string,
     detail?: string,
   ): QueuedTaskRecord | null;
+  listOfferedForRun(run_id: string): QueuedTaskRecord[];
+  cancelOfferedForRun(run_id: string, error_code?: string, detail?: string): QueuedTaskRecord[];
+  extendOfferedDeadlinesForRun(run_id: string, extend_ms: number, now?: number): number;
   listExecutorIds(): string[];
   pendingCount(executor_id: string): number;
 }
@@ -171,6 +174,38 @@ export function createInProcessExecutorPollStore(
       };
       tasks.set(task_id, updated);
       return updated;
+    },
+
+    listOfferedForRun(run_id) {
+      const normalized = run_id.startsWith("run_") ? run_id : `run_${run_id}`;
+      return [...tasks.values()].filter(
+        (row) => row.status === "offered" && row.offer.run_id === normalized,
+      );
+    },
+
+    cancelOfferedForRun(run_id, error_code = "RUN_FAILED", detail = "Run failed") {
+      const cancelled: QueuedTaskRecord[] = [];
+      for (const row of this.listOfferedForRun(run_id)) {
+        const updated = this.markFailed(row.task_id, error_code, detail);
+        if (updated) cancelled.push(updated);
+      }
+      return cancelled;
+    },
+
+    extendOfferedDeadlinesForRun(run_id, extend_ms, now = clock.now()) {
+      if (extend_ms <= 0) return 0;
+      let count = 0;
+      for (const row of this.listOfferedForRun(run_id)) {
+        const current = Date.parse(row.offer.deadline_at);
+        if (!Number.isFinite(current)) continue;
+        row.offer = {
+          ...row.offer,
+          deadline_at: new Date(current + extend_ms).toISOString(),
+        };
+        tasks.set(row.task_id, row);
+        count += 1;
+      }
+      return count;
     },
 
     listExecutorIds() {

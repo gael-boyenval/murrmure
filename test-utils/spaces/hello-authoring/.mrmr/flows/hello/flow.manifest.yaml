@@ -1,0 +1,11 @@
+# Role: flows tutorial — minimal handler-backed indexed flow.
+apiVersion: murrmure.flow/v1
+name: hello
+description: Hello handler — single step
+
+triggers:
+  manual: true
+
+steps:
+  - id: hello
+    description: Run hello script via handler.

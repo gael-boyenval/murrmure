@@ -7,10 +7,20 @@ import { requireScope } from "../config/scopes.js";
 import {
   expandFromTemplate,
   listTemplates,
-  normalizeTriggerAction,
   normalizeTriggerDedup,
+  TriggerActionRejectedError,
+  assertTriggerActionAccepted,
 } from "../../lib/triggers-templates.js";
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
+
+export { TriggerActionRejectedError } from "../../lib/triggers-templates.js";
+
+function isRetiredActionError(e: unknown): boolean {
+  return (
+    e instanceof TriggerActionRejectedError ||
+    (e instanceof Error && (e as { code?: string }).code === "TRIGGER_ACTION_RETIRED")
+  );
+}
 
 export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, handler, triggerDispatcher } = ctx;
@@ -54,16 +64,38 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
 
-    const expanded = expandFromTemplate({
-      template_id: String(body.template_id ?? ""),
-      name: body.name as string | undefined,
-      source_space_id: String(body.source_space_id ?? ""),
-      target_space_id: String(body.target_space_id ?? space_id),
-      wake_label: body.wake_label as string | undefined,
-    });
+    let expanded;
+    try {
+      expanded = expandFromTemplate({
+        template_id: String(body.template_id ?? ""),
+        name: body.name as string | undefined,
+        source_space_id: String(body.source_space_id ?? ""),
+        target_space_id: String(body.target_space_id ?? space_id),
+      });
+    } catch (e) {
+      if (isRetiredActionError(e)) {
+        return c.json(
+          { code: "TRIGGER_ACTION_RETIRED", message: e instanceof Error ? e.message : "trigger action retired" },
+          422,
+        );
+      }
+      const message = e instanceof Error ? e.message : "from-template failed";
+      const status = message.startsWith("UNKNOWN_TEMPLATE:") ? 404 : 422;
+      return c.json({ code: status === 404 ? "UNKNOWN_TEMPLATE" : "FROM_TEMPLATE_FAILED", message }, status);
+    }
 
-    const trigger = await handler.config.registerTrigger(space_id, expanded);
-    return c.json(trigger, 201);
+    try {
+      const trigger = await handler.config.registerTrigger(space_id, expanded);
+      return c.json(trigger, 201);
+    } catch (e) {
+      if (isRetiredActionError(e)) {
+        return c.json(
+          { code: "TRIGGER_ACTION_RETIRED", message: e instanceof Error ? e.message : "trigger action retired" },
+          422,
+        );
+      }
+      throw e;
+    }
   });
 
   app.post("/v1/spaces/:space_id/triggers/:trigger_id/test-fire", async (c) => {
@@ -93,7 +125,9 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
 }
 
 export function normalizeTriggerBody(body: Record<string, unknown>): Record<string, unknown> {
-  const action = normalizeTriggerAction((body.action as Record<string, unknown>) ?? {});
+  const action = (body.action as Record<string, unknown>) ?? {};
+  // Reject retired trigger actions at the custom register boundary (strict).
+  assertTriggerActionAccepted(action);
   const dedup = normalizeTriggerDedup(body.dedup as Record<string, unknown> | undefined);
   return {
     ...body,

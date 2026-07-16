@@ -12,7 +12,7 @@
 | [execution/](./execution/) | Execution plans: `cdk-master-plan.md` (former CDK `plan.md`), `react-dev-kit-sim-plan.md` (former `14-react-dev-kit-and-sim-plan.md`). |
 | [reviews/](./reviews/) | Multi-agent reviews: `REVIEW-2026-06-20.md`, `build-capability-REVIEW-2026-06-20.md`. |
 | [plans/](./plans/) | Executed product plans: `cli-dx-v1.md`, `npm-publish-v1.md`, `murrmure-desktop-v1.md`; v2 rev-1 drafts in [plans/product/](./plans/product/). |
-| [superseded/](./superseded/) | Replaced designs: `bundled-catalog-migration.md` (the bundled catalog → CDK push migration, now superseded by the CDK-only model). |
+| [superseded/](./superseded/) | Replaced designs: `bundled-catalog-migration.md` (the bundled catalog → CDK push migration, now superseded by the CDK-only model); `tutorials/` (v2 tutorials `01-local-preview-review`, `02-multi-agent-brief`, `03-daily-brief-trigger`, superseded by Tutorial v3 `1a` — Task 15 Lane C). |
 
 ## Successors
 
@@ -25,6 +25,7 @@
 | `execution/cdk-master-plan.md` | [current/build-capability/](../current/build-capability/) |
 | `superseded/bundled-catalog-migration.md` | [build-capability/README.md](../current/build-capability/README.md) (CDK + space index) |
 | `superseded/config-shell-v1.md` | Retired Configure UI spec |
+| `superseded/tutorials/01-local-preview-review/` · `02-multi-agent-brief/` · `03-daily-brief-trigger/` | [Tutorial v3 `1a`](../../apps/docs/guide/tutorials/01-local-preview-review-v3/) — `apps/docs/guide/tutorials/01-local-preview-review-v3/` (clean protocol; v2 runtime removed in Task 15 Lane A) |
 | `plans/murrmure-desktop-v1.md` | [current/desktop/spec.md](../current/desktop/spec.md) |
 | `archives/plans/product/space-flow-protocol-v2.spec-rev-1.md` | [current/product/spec.md](../current/product/spec.md) |
 | `archives/plans/product/space-flow-protocol-v2.architecture.md` | [current/product/architecture.md](../current/product/architecture.md) |

@@ -1,6 +1,6 @@
 # Admin commands (CLI)
 
-Team setup and administration happen through the **`mrmr` CLI**. There is no Configure UI — use these commands from a terminal while Murrmure Desktop (or your hub) is running.
+Team setup and administration happen through the **`mrmr` CLI**. The retired configure shell is gone — use these commands from a terminal while Murrmure Desktop (or your hub) is running.
 
 Requires a token with **`space:admin`** scope. Desktop bootstrap token works for first-run setup; mint admin grants for ongoing ops.
 
@@ -12,8 +12,8 @@ Requires a token with **`space:admin`** scope. Desktop bootstrap token works for
 | Initialize workspace | `mrmr space init` |
 | Create hub space + link path | `mrmr space link --create` |
 | Apply space index | `mrmr space apply` |
-| Index a flow from `murrmure/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
-| Mint agent grant | `mrmr grant mint --space spc_… --label "…" --flow-acl review-loop` |
+| Index a flow from `.mrmr/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
+| Create local connection | `mrmr connection create --space spc_…` |
 
 See [Quick start](./quick-start) for the full first-review path.
 
@@ -27,16 +27,17 @@ mrmr space link --path . --space spc_my_space
 mrmr space update spc_… --install-policy authorized_agents
 mrmr space archive spc_…
 mrmr space status --space spc_…
+mrmr space doctor --strict
 ```
 
 | Field | Notes |
 |-------|-------|
-| Slug | Drives space id (`ui-sandbox` → `spc_ui_sandbox`) |
+| Slug | Editable URL-safe name; the Hub assigns a separate immutable `spc_*` ID |
 | Install policy | `human_only` \| `authorized_agents` \| `allow_list` |
 
 ## Flows
 
-**v2 indexed flows** live in `murrmure/flows/*/flow.manifest.yaml`:
+**v2 indexed flows** live in `.mrmr/flows/*/flow.manifest.yaml`:
 
 ```bash
 mrmr space apply --strict
@@ -44,29 +45,28 @@ mrmr space status
 mrmr flow run flw_flows_{name} --input '{}' --space spc_…
 ```
 
-Triggers and event hooks: edit **`murrmure/hooks.yaml`**, then re-apply.
+**Execution** lives in `.mrmr/space/handlers.yaml` — edit handlers, then re-apply. Event triggers use `on: event:` handlers or optional `mrmr space trigger register` templates.
 
-See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
+See [Space handlers](./space-handlers) and [Creating flows](./creating-flows).
 
-## Agent grants
+## Connections
 
 ```bash
-mrmr grant list --space spc_ui_sandbox
-mrmr grant mint --space spc_ui_sandbox \
-  --label "Dev Cursor — ui-sandbox worker" \
-  --harness cursor-local \
-  --flow-acl review-loop \
-  --expires-days 90
-mrmr grant revoke --space spc_ui_sandbox grt_…
+mrmr connection list --space spc_ui_sandbox
+mrmr connection create --space spc_ui_sandbox
+mrmr connection rotate con_… --space spc_ui_sandbox
+mrmr connection revoke con_… --space spc_ui_sandbox
 ```
 
 | Field | Notes |
 |-------|-------|
-| Label | Who this token is for |
-| Harness | `cursor-local`, `ci`, … |
-| `flow_acl` | Package ids the grant may use (e.g. `review-loop`) |
+| Label | Machine/trust boundary this connection represents |
+| Profile | `tutorial-builder/v1` is the exact default |
+| Capabilities | `space:read`, `flow:read`, `flow:run`, `step:resolve` |
 
-Copy the **one-time token** into MCP config (`MURRMURE_HUB_TOKEN`). Revoke immediately if a token leaks.
+Local credentials are written only to macOS Keychain. MCP config and activation
+state contain IDs only. Use a separate connection for another machine or CI
+boundary; rotate or revoke by `con_…` identity.
 
 ## Members
 
@@ -93,7 +93,7 @@ mrmr space trigger templates --space spc_dev
 mrmr space trigger event-catalog --space spc_dev
 ```
 
-Bundled templates: `spec-published-wake-dev`, `work-ready-wake-frontend`.
+Bundled templates complement event handlers in `handlers.yaml`. Prefer handlers for space-local event → agent dispatch.
 
 ## Hub operator commands
 

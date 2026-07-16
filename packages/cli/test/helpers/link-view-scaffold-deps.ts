@@ -1,9 +1,10 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../../..", import.meta.url)));
+const VIEW_SDK_DIR = join(REPO_ROOT, "packages/view-sdk");
 
 function linkDir(target: string, linkPath: string): void {
   mkdirSync(join(linkPath, ".."), { recursive: true });
@@ -15,12 +16,24 @@ export function linkViewScaffoldWorkspaceDeps(viewDir: string): void {
   const nodeModules = join(viewDir, "node_modules");
   mkdirSync(join(nodeModules, "@murrmure"), { recursive: true });
 
-  linkDir(join(REPO_ROOT, "packages/view-sdk"), join(nodeModules, "@murrmure/view-sdk"));
+  linkDir(VIEW_SDK_DIR, join(nodeModules, "@murrmure/view-sdk"));
   linkDir(join(REPO_ROOT, "packages/view-sdk/node_modules/react"), join(nodeModules, "react"));
   linkDir(
     join(REPO_ROOT, "packages/view-sdk/node_modules/react-dom"),
     join(nodeModules, "react-dom"),
   );
+}
+
+/** Point private @murrmure deps at the workspace so npm never hits the registry. */
+function pinWorkspaceViewSdk(viewDir: string): void {
+  const pkgPath = join(viewDir, "package.json");
+  if (!existsSync(pkgPath)) return;
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as {
+    dependencies?: Record<string, string>;
+  };
+  if (!pkg.dependencies?.["@murrmure/view-sdk"]) return;
+  pkg.dependencies["@murrmure/view-sdk"] = `file:${VIEW_SDK_DIR}`;
+  writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf-8");
 }
 
 /** Minimal dist for apply --strict when full npm build is skipped. */
@@ -32,6 +45,7 @@ export function writeMinimalViewDist(viewDir: string): void {
 
 /** Run npm install + build in a scaffolded view directory. */
 export function buildScaffoldedView(viewDir: string): void {
+  pinWorkspaceViewSdk(viewDir);
   linkViewScaffoldWorkspaceDeps(viewDir);
   execSync("npm install --no-fund --no-audit", {
     cwd: viewDir,

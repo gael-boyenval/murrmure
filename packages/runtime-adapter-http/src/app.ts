@@ -63,19 +63,6 @@ export function createHttpApp(deps: HttpAdapterDeps) {
     return resultToResponse(await deps.commands.execute(command));
   });
 
-  app.post("/v1/scopes/:scope_id/checkpoints/:id/resolve", async (c) => {
-    const scope_id = c.req.param("scope_id");
-    const body = await c.req.json();
-    const auth = bearerCredential(c.req.raw);
-    const command: KernelCommand = {
-      kind: "checkpoint.resolve",
-      provenance: { scope_id, ...auth, command_id: body.command_id, actor_kind: body.actor_kind },
-      checkpoint_id: c.req.param("id"),
-      decision: body.decision,
-    };
-    return resultToResponse(await deps.commands.execute(command));
-  });
-
   app.post("/v1/scopes/:scope_id/events", async (c) => {
     const scope_id = c.req.param("scope_id");
     const body = await c.req.json();

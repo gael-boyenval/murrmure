@@ -5,3 +5,6 @@ export * from "./memo-from-step.js";
 export * from "./preflight.js";
 export * from "./completion.js";
 export * from "./dispatch.js";
+export * from "./complete-dispatched.js";
+export * from "./run-executor-cancel.js";
+export * from "./run-resolve-credential-registry.js";

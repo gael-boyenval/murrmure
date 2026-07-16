@@ -2,28 +2,23 @@ import type { CommandResult } from "@murrmure/runtime-contracts";
 import { successResult, denialResult, HTTP_SEMANTIC } from "@murrmure/runtime-contracts";
 import type { Capability, FlowInstall, Member, StudioProvenance } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import { resolveEffectiveCapabilities } from "../grants/migrate.js";
-import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
+import { resolveEffectiveCapabilities, partitionScopes } from "../grants/migrate.js";
+import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
 import { computeFederationStatus } from "../federation/outbound-queue.js";
 import type { FederationRegistryDeps } from "../federation/registry.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 
-const PACKAGE_CATALOG: Record<string, { contract_ref_id: string; default_version: string }> = {
-  "review-loop": { contract_ref_id: "cref_review_loop", default_version: "2.0.0" },
-  "brand-check": { contract_ref_id: "cref_linear_demo", default_version: "1.0.0" },
-  "feature-spec": { contract_ref_id: "cref_feature_spec", default_version: "1.0.0" },
-};
-
 const GRANT_TEMPLATES: Record<string, Capability[]> = {
-  worker: [
-    "space:read",
-    "journal:read",
-    "flow:run",
-    "action:invoke",
-    "space:write",
-  ],
+  worker: ["space:read", "journal:read", "flow:run", "space:write"],
   admin: ["hub:admin", "space:read", "space:enter", "space:write", "flow:read"],
 };
+const TUTORIAL_BUILDER_PROFILE = "tutorial-builder/v1";
+const TUTORIAL_BUILDER_CAPABILITIES: Capability[] = [
+  "space:read",
+  "flow:read",
+  "flow:run",
+  "step:resolve",
+];
 
 export class ConfigHandler {
   constructor(
@@ -45,7 +40,7 @@ export class ConfigHandler {
       return denialResult("space_exists", { message: `Space slug '${cmd.slug}' already exists` }, HTTP_SEMANTIC.CONFLICT);
     }
 
-    const space_id = cmd.slug.replace(/-/g, "_");
+    const space_id = this.ids.ulid();
     const ts = this.clock.nowIso();
     await this.studio.insertSpace(
       {
@@ -227,28 +222,11 @@ export class ConfigHandler {
       });
     }
 
-    const catalog = PACKAGE_CATALOG[flowId];
-    if (!catalog) {
-      return denialResult("unknown_package", { message: `Unknown flow: ${flowId}` }, HTTP_SEMANTIC.NOT_FOUND);
-    }
-
-    const version = body.version ?? catalog.default_version;
-    const install_id = this.ids.ulid();
-    const targetState = (body.target_state ?? "draft") as FlowInstall["evolution_state"];
-    const evolution_state = targetState === "live" && version === catalog.default_version ? "live" : targetState;
-
-    const install: FlowInstall = {
-      install_id: `ins_${install_id}`,
-      space_id: addSpaceId(bare),
-      flow_id: flowId,
-      version,
-      contract_ref_id: catalog.contract_ref_id,
-      evolution_state,
-      config: body.config,
-    };
-
-    await this.studio.insertFlowInstall(install, this.clock.nowIso());
-    return successResult("capability_installed", install);
+    return denialResult(
+      "unknown_package",
+      { message: `Unknown flow: ${flowId}. Install requires an explicit bundle.` },
+      HTTP_SEMANTIC.NOT_FOUND,
+    );
   }
 
   async configureCapability(space_id: string, install_id: string, config: Record<string, unknown>) {
@@ -387,20 +365,70 @@ export class ConfigHandler {
       scopes?: string[];
       capabilities?: Capability[];
       template?: string;
+      profile?: string;
       flow_acl?: string[];
       expires_in_days?: number;
     },
     provenance: StudioProvenance,
   ): Promise<CommandResult> {
+    if (body.profile !== undefined && body.profile !== TUTORIAL_BUILDER_PROFILE) {
+      return denialResult(
+        "unknown_connection_profile",
+        { message: `Unknown connection profile: ${body.profile}` },
+        HTTP_SEMANTIC.BAD_REQUEST,
+      );
+    }
+    if (body.capabilities?.length) {
+      const { invalid } = partitionCapabilities(body.capabilities);
+      if (invalid.length > 0) {
+        return denialResult(
+          "unknown_capability",
+          {
+            message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
+            hint: { invalid_capabilities: invalid },
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
+    }
+    if (body.scopes?.length) {
+      const { invalid } = partitionScopes(body.scopes);
+      if (invalid.length > 0) {
+        return denialResult(
+          "unknown_scope",
+          {
+            message: `Unknown or removed scopes: ${invalid.join(", ")}`,
+            hint: { invalid_scopes: invalid },
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
+    }
+    if (body.flow_acl?.length) {
+      const installs = await this.studio.listFlowInstalls(stripSpaceId(space_id));
+      const canonicalFlowIds = new Set(installs.map((install) => install.flow_id));
+      const unknown = body.flow_acl.filter((flowId) => !canonicalFlowIds.has(flowId));
+      if (unknown.length > 0) {
+        return denialResult(
+          "unknown_flow_acl",
+          {
+            message:
+              `Flow ACL accepts only already-applied canonical flow ids; unknown: ${unknown.join(", ")}`,
+          },
+          HTTP_SEMANTIC.BAD_REQUEST,
+        );
+      }
+    }
     const grant_id = this.ids.ulid();
     const token_id = this.ids.ulid();
     const templateCaps = GRANT_TEMPLATES[body.template ?? "worker"] ?? GRANT_TEMPLATES.worker;
-    const capabilities =
-      body.capabilities ??
-      (body.scopes?.length
-        ? resolveEffectiveCapabilities({ scopes: body.scopes })
-        : templateCaps);
-    const scopes = body.scopes ?? capabilities;
+    const capabilities = body.profile
+      ? [...TUTORIAL_BUILDER_CAPABILITIES]
+      : body.capabilities ??
+        (body.scopes?.length
+          ? resolveEffectiveCapabilities({ scopes: body.scopes })
+          : templateCaps);
+    const scopes = body.profile ? [...capabilities] : body.scopes ?? capabilities;
     const ts = this.clock.nowIso();
     const expires_at = body.expires_in_days
       ? new Date(Date.now() + body.expires_in_days * 86400000).toISOString()
@@ -409,6 +437,7 @@ export class ConfigHandler {
     await this.studio.insertGrant(
       {
         grant_id,
+        token_id,
         space_id: stripSpaceId(space_id),
         actor_id: provenance.actor_id,
         label: body.label,
@@ -449,7 +478,11 @@ export class ConfigHandler {
 
   async revokeGrant(space_id: string, grant_id: string) {
     const bare = grant_id.startsWith("grt_") ? grant_id.slice(4) : grant_id;
+    const grant = await this.studio.getGrant(bare);
     await this.studio.revokeGrant(bare);
+    if (grant?.token_id) {
+      await this.studio.revokeToken?.(grant.token_id);
+    }
     return { grant_id, status: "revoked" };
   }
 
@@ -457,7 +490,7 @@ export class ConfigHandler {
     const bare = grant_id.startsWith("grt_") ? grant_id.slice(4) : grant_id;
     const grant = await this.studio.getGrant(bare);
     if (!grant) return null;
-    await this.studio.revokeGrant(bare);
+    await this.revokeGrant(space_id, grant_id);
     return this.mintGrant(
       space_id,
       {

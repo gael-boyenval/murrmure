@@ -15,3 +15,11 @@ export type {
   RemoteHubDeps,
   A2aDeps,
 } from "./registry.js";
+export type { ShellStreamChunk, ShellCompleteInput } from "./shell-spawn.js";
+export {
+  setMurrmureProtocolRenderer,
+  MURRMURE_TASK_BEGIN,
+  MURRMURE_TASK_END,
+  MURRMURE_PROTOCOL_BEGIN,
+  MURRMURE_PROTOCOL_END,
+} from "./invoke-shell-prompt.js";

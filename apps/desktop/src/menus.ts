@@ -1,4 +1,6 @@
 import type { ApplicationMenuItemConfig } from "electrobun";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 export interface DesktopMenuRuntime {
   setApplicationMenu(menu: Array<ApplicationMenuItemConfig>): void;
@@ -15,18 +17,26 @@ function getMenuAction(payload: unknown): string | null {
   return typeof candidate === "string" ? candidate : null;
 }
 
-export function buildMcpConfigSnippet(hubUrl: string): string {
+export function buildMcpConfigSnippet(options?: {
+  command?: string;
+  hubId?: string;
+  connectionId?: string;
+}): string {
   return JSON.stringify(
     {
       mcpServers: {
         murrmure: {
-          command: "murrmure",
-          args: ["mcp"],
-          env: {
-            MURRMURE_HUB_URL: hubUrl.replace(/\/$/, ""),
-            MURRMURE_HUB_TOKEN: "tok_<replace_with_grant_token>",
-            MURRMURE_SPACE_ID: "spc_<replace_with_space_id>",
-          },
+          command: options?.command ?? "murrmure-mcp",
+          ...(options?.hubId && options.connectionId
+            ? {
+                args: [
+                  "--hub",
+                  options.hubId,
+                  "--connection",
+                  options.connectionId,
+                ],
+              }
+            : {}),
         },
       },
     },
@@ -37,10 +47,8 @@ export function buildMcpConfigSnippet(hubUrl: string): string {
 
 export function installDesktopMenu(
   runtime: DesktopMenuRuntime,
-  options: { hubUrl: string; dataDir: string },
+  options: { hubUrl: string; dataDir: string; mcpBridgeCommand?: string | null },
 ): void {
-  const mcpSnippet = buildMcpConfigSnippet(options.hubUrl);
-
   runtime.setApplicationMenu([
     {
       label: "Murrmure",
@@ -70,7 +78,30 @@ export function installDesktopMenu(
       return;
     }
     if (action === "desktop.copyMcpConfig") {
-      runtime.clipboardWriteText(mcpSnippet);
+      const activePath = join(options.dataDir, "connections", "active.json");
+      if (!existsSync(activePath)) {
+        runtime.clipboardWriteText(
+          "Run `mrmr connection create --space <spc_…>` before copying MCP config.",
+        );
+        return;
+      }
+      try {
+        const active = JSON.parse(readFileSync(activePath, "utf8")) as {
+          hub_id?: string;
+          connection_id?: string;
+        };
+        runtime.clipboardWriteText(
+          buildMcpConfigSnippet({
+            command: options.mcpBridgeCommand ?? undefined,
+            hubId: active.hub_id,
+            connectionId: active.connection_id,
+          }),
+        );
+      } catch {
+        runtime.clipboardWriteText(
+          "Active connection state is invalid. Run `mrmr connection activate` and retry.",
+        );
+      }
       return;
     }
     if (action === "desktop.openDataDir") {

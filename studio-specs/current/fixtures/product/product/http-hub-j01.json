@@ -35,7 +35,7 @@
     },
     {
       "method": "POST",
-      "path": "/v1/spaces/{space_id}/gates/{gate_id}/resolve",
+      "path": "/v1/gates/{gate_id}/resolve",
       "body": { "decision": "approved", "instance_id": "{instance_id}", "actor_id": "actor_maya" },
       "expect_status": 200
     },

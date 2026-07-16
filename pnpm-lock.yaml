@@ -133,15 +133,6 @@ importers:
       '@clack/prompts':
         specifier: ^1.6.0
         version: 1.6.0
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.12.1
-        version: 1.29.0(zod@3.25.76)
-      '@murrmure/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@murrmure/hub-core':
-        specifier: workspace:*
-        version: link:../hub-core
       citty:
         specifier: ^0.2.2
         version: 0.2.2
@@ -158,6 +149,12 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@murrmure/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@murrmure/hub-core':
+        specifier: workspace:*
+        version: link:../hub-core
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
@@ -173,6 +170,12 @@ importers:
 
   packages/contracts:
     dependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
       ulid:
         specifier: ^2.3.0
         version: 2.4.0
@@ -182,6 +185,9 @@ importers:
 
   packages/executors:
     dependencies:
+      '@murrmure/hub-core':
+        specifier: workspace:*
+        version: link:../hub-core
       '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
@@ -189,9 +195,6 @@ importers:
       '@murrmure/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@murrmure/hub-core':
-        specifier: workspace:*
-        version: link:../hub-core
       tsx:
         specifier: ^4.19.3
         version: 4.22.4
@@ -226,6 +229,12 @@ importers:
       tsx:
         specifier: ^4.19.3
         version: 4.22.4
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@25.9.3)(jsdom@26.1.0)(lightningcss@1.32.0)
+      yaml:
+        specifier: ^2.7.0
+        version: 2.9.0
 
   packages/hub-daemon:
     dependencies:
@@ -291,6 +300,28 @@ importers:
       tsx:
         specifier: ^4.19.3
         version: 4.22.4
+
+  packages/mcp-bridge:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jsdom@26.1.0)(lightningcss@1.32.0)
 
   packages/runtime-adapter-http:
     dependencies:

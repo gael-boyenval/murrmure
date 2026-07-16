@@ -9,3 +9,60 @@
   --xy-controls-button-color: var(--color-foreground);
   --xy-controls-button-color-hover: var(--color-foreground);
 }
+
+/* Flowchart: invisible anchors — edges still attach, dots stay hidden */
+.react-flow__node-flowStep .flowchart-handle,
+.react-flow__node-flowGroup .flowchart-handle,
+.react-flow__node-flowDecision .flowchart-handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Let nested loop corridors draw under child steps without clipping. */
+.react-flow__node-flowGroup {
+  overflow: visible !important;
+}
+
+.react-flow__node-flowStep .flowchart-handle-top,
+.react-flow__node-flowGroup .flowchart-handle-top,
+.react-flow__node-flowDecision .flowchart-handle-top {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.react-flow__node-flowStep .flowchart-handle-bottom,
+.react-flow__node-flowGroup .flowchart-handle-bottom,
+.react-flow__node-flowDecision .flowchart-handle-bottom {
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 50%);
+}
+
+.react-flow__node-flowStep .flowchart-handle-bottom-slot,
+.react-flow__node-flowGroup .flowchart-handle-bottom-slot,
+.react-flow__node-flowDecision .flowchart-handle-bottom-slot {
+  bottom: 0;
+  top: auto;
+  transform: translate(-50%, 50%);
+}
+
+.react-flow__node-flowStep .flowchart-handle-left,
+.react-flow__node-flowDecision .flowchart-handle-left {
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.react-flow__node-flowStep .flowchart-handle-right,
+.react-flow__node-flowDecision .flowchart-handle-right {
+  right: 0;
+  top: 50%;
+  transform: translate(50%, -50%);
+}

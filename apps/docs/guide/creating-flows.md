@@ -1,63 +1,125 @@
 # Creating a flow
 
 ::: tip Start here
-**New workflows** use a **`murrmure/flows/`** manifest indexed with **`mrmr space apply`**.
+**New workflows** use a **`.mrmr/`** directory indexed with **`mrmr space apply`**.
 
-→ **[Preview-review tutorial](./tutorials/01-local-preview-review/)** — scaffold with `mrmr space flow init`, apply, run checkpoint loop in **ViewCanvasHost**.
+→ **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, intake flow, view, runs, command + agent handlers (6 parts).
 
-→ **[Known gaps](./known-gaps)** — deferred product surface (empty when v2 backlog ships).
+→ **[Known gaps](./known-gaps)** — deferred product surface.
 :::
 
-This page is a short index. The full walkthrough lives in the tutorial above.
+This page is a short index. Start with [Tutorial 1a](./tutorials/01-local-preview-review-v3/) — the canonical introductory walkthrough.
 
 ---
 
-## Quick path — v2 indexed flow
+## Authoring path (no shortcuts)
 
 ```bash
+mkdir -p ~/work/my-flow && cd ~/work/my-flow
 mrmr space init
-mrmr space flow init preview-review --template hello-gate
-cd murrmure/views/preview-review && npm install && npm run build
-cd ../preview-review-intake && npm install && npm run build
-mrmr space link --path . --space spc_ui_sandbox
+# remove flows/example — write your own under .mrmr/flows/{name}/
+# edit .mrmr/space/handlers.yaml + flow.manifest.yaml
+mrmr space view init my-view    # if you need checkpoint UI
+cd .mrmr/views/my-view && npm install && npm run build
+cd ../../..
+mrmr space link --path . --create
 mrmr space apply --strict
-mrmr space status    # confirm flows count updated
+mrmr connection create --space spc_…
 ```
 
-`hello-gate` scaffolds the [preview-review reference workflow](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md): intake checkpoint → build → review loop with `on_resolve` goto.
+See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path, or [Tutorial 1a — Part 2: build the flow manifest](./tutorials/01-local-preview-review-v3/02-build-minimal-flow) and [Part 5: extend flow and handlers](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers) for the worked walkthrough.
 
-For a single invoke step without views, use `--template hello-invoke` — see [`hello-authoring`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/hello-authoring).
+## Step contracts (v3, resolver-agnostic)
 
-Mint agent grants with **`--capabilities flow:run,flow:read`**. Run with **`mrmr flow run flw_flows_preview_review`** or Desktop **Run**.
+New flows use a **resolver-agnostic step shape**: `id`, optional `description`,
+optional `branches`, and optional nested `steps` — no `role`, `presentation`, or
+resolver modality. Start conditions live under **`triggers`** (the only
+start-condition field); the removed `start` and flow-level view binding fields are rejected.
 
-## Standalone view (add-on)
+- **Normative bridge:** [step-contract.md](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)
+- **Apply:** `mrmr space apply` compiles a **StepContractCatalog** and prints a digest; `--strict` rejects removed fields, legacy step kinds, and unknown `&#123;&#123;murrmure.*&#125;&#125;` template tokens.
+- **Runtime:** resolve via **`murrmure_resolve_step`** (MCP) or **`mrmr step resolve`** (shell). A step with no bound handler is open and externally resolvable (`resolver: null`). See [Space handlers](./space-handlers).
 
-```bash
-mrmr space view init my-view
-cd murrmure/views/my-view && npm install
-mrmr view dev my-view
+```yaml
+# excerpt — see the bridge for the full manifest and default-branch rules
+triggers:
+  manual: true
+steps:
+  - id: intake
+    description: Human attaches one spec markdown file.
+    branches:
+      continue:
+        schema: { type: object, required: [spec] }
+        artifact_slots:
+          spec: { max_bytes: 1048576 }
+        route: { run: completed }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
 ```
 
-Checkpoint steps with `view_ref` open in **ViewCanvasHost** — see [View SDK](../reference/view-sdk).
+A linear step needs only `id` (and optional `description`); omit `branches` to
+receive `completed` / `failed` defaults. Spaces bind Views and handlers through
+`.mrmr/space/handlers.yaml` via the **`on::key`** binding (`contract_keys` is
+prompt-scope only), not through the portable flow.
 
-## What you build (v2)
+### Nested build/review loops
+
+A parent with nested `steps` opens first and does not auto-start a child. Its
+resolver calls `murrmure_open_child_step` with live `run_id`,
+`parent_step_id`, one direct declared `child_step_id`, and a required unique
+`idempotency_key`. The call accepts no child input.
+
+The parent yields and its old assignment is revoked before child dispatch. A
+child branch with no `route` or `resume` returns to the immediate parent by
+default, including `failed`; immediate run failure requires
+`route: { run: failed }`. On return, the parent gets a fresh assignment with
+`reason: resumed` and canonical `returned_child` identity, branch, iteration,
+payload, and artifact references. It can open another child or resolve its own
+branch.
+
+## What you build (v3)
 
 | Piece | Location |
 |-------|----------|
-| Flow manifest | `murrmure/flows/{name}/flow.manifest.yaml` |
-| Actions | `murrmure/actions.yaml` |
-| Executors | `murrmure/executors.yaml` |
-| Build scripts | `murrmure/scripts/{name}-*.mjs` |
-| Checkpoint views | `murrmure/views/{id}/` (Vite+React + `view.manifest.yaml`) |
-| Hooks | `murrmure/hooks.yaml` |
+| Flow manifest | `.mrmr/flows/{name}/flow.manifest.yaml` (`triggers`, resolver-agnostic steps) |
+| Handlers | `.mrmr/space/handlers.yaml` (`on::key` binding, `shell_spawn`, …; `contract_keys` is prompt-scope) |
+| Views | `.mrmr/views/{id}/` (Vite+React + `view.manifest.yaml`), bound to steps via handlers |
+| Local dev outputs | `.mrmr/dev/` (contract-keys codegen, gitignored) |
 
----
+Open steps surface in run detail as `open_steps[]` (`resolver: null` when no
+handler is bound), with declared children and returned-child context when
+applicable. The shell renders them; it does not synthesize fallback controls for
+unbound steps.
+
+## Inspect and run the flow
+
+After `mrmr space apply`, open the space's single **Flows** card and select the
+flow. The detail page is the same flowchart surface used while the run is live
+and when you revisit its history:
+
+- the header shows **Run** only for a manual flow your connection may start;
+- select a rectangular step to inspect normalized branches, payload schemas,
+  artifact constraints, routes, and its safe resolver identity in the side
+  panel (a drawer on narrow screens);
+- custom outcomes fan out through a decision diamond; ordinary
+  `completed` / `failed` branches stay compact and failure routes meet one
+  shared failure terminal;
+- after start, the page keeps the same graph and interaction model while live
+  status appears;
+- an old run remains pinned to the flow digest and resolver configuration that
+  actually executed, even after a later apply changes the current preview.
+
+Resolver metadata never includes commands, prompts, host paths, parameters,
+environment, or secrets. A **No resolver bound** step remains open for an
+authorized protocol client; Desktop does not invent a fallback form.
 
 ## Related
 
-- [Tutorial: local preview-review](./tutorials/01-local-preview-review/) — **full guide**
-- [Flows tutorial](./flows-tutorial) — complete authoring reference
-- [Agent skill](./agent-skill) — Cursor skill install
-- [Admin commands (CLI)](./configuration) — hooks + apply
+- [Tutorial 1a: first flow](./tutorials/01-local-preview-review-v3/) — **start here (6 parts)**
+- [Space handlers & contract keys](./space-handlers) — execution authoring
+- [Space index](./space-index) — layout reference
+- [Agent skill](./agent-skill) — split Cursor skills
+- [Admin commands (CLI)](./configuration) — apply + grants
 - [CLI](./cli) — platform CLI
 - [HTTP API](../reference/http-api) — apply, runtime, gates

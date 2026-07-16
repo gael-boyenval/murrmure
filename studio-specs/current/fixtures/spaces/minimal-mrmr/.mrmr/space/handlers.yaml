@@ -1,0 +1,11 @@
+version: 1
+
+handlers:
+  - id: hello
+    on: step.opened::minimal-flow.hello
+    type: shell_spawn
+    complete: auto
+    command: echo '{"greeting":"hello"}'
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000

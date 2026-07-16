@@ -20,18 +20,25 @@ export function canExecuteFlow(
 }
 
 export function isManualStartAllowed(entry: FlowIndexEntry): boolean {
-  return entry.start.manual !== false;
+  return entry.triggers?.manual === true;
 }
 
+/**
+ * Whether the flow advertises `flow_call` as a start trigger. This is an
+ * advertisement/surfacing predicate only: authorized orchestration invocation
+ * (`flow_call` / `start_flow` from a parent run with `flow:run`) remains valid
+ * for *every* flow, including invoke-only `triggers: {}` flows, and is gated by
+ * authorization (`canExecuteFlow`), not by this flag.
+ */
 export function isFlowCallStartAllowed(entry: FlowIndexEntry): boolean {
-  return entry.start.flow_call === true;
+  return entry.triggers?.flow_call === true;
 }
 
 export function matchesFlowStartEvent(
   entry: FlowIndexEntry,
   event: { type: string; source?: string },
 ): boolean {
-  const events = entry.start.events ?? [];
+  const events = entry.triggers?.events ?? [];
   return events.some((spec: FlowStartEvent) => {
     if (spec.type !== event.type) return false;
     if (spec.source && event.source && spec.source !== event.source) return false;
@@ -44,7 +51,7 @@ export function buildRunKey(
   input: Record<string, unknown>,
   idempotencyHeader?: string,
 ): string | undefined {
-  if (entry.start.idempotency !== "run_key") return undefined;
+  if (entry.triggers?.idempotency !== "run_key") return undefined;
   if (idempotencyHeader) return idempotencyHeader;
   return `run_key:${entry.flow_id}:${JSON.stringify(input)}`;
 }
@@ -82,9 +89,10 @@ export function prepareFlowStart(
     return { code: "MANUAL_START_DISABLED", message: "Flow does not allow manual start" };
   }
 
-  if (input.mode === "flow_call" && !isFlowCallStartAllowed(entry)) {
-    return { code: "FLOW_CALL_DISABLED", message: "Flow does not allow flow_call invocation" };
-  }
+  // `flow_call` mode is authorized orchestration invocation (a parent run
+  // invoking a child via `start_flow`). It remains valid for invoke-only
+  // `triggers: {}` flows; authorization is enforced by `canExecuteFlow` below
+  // and by `canInvokeFlowCall` at the call site — not by `triggers.flow_call`.
 
   if (!canExecuteFlow(input.capabilities, input.flow_acl, entry.flow_id)) {
     return { code: "SCOPE_ENFORCEMENT_FAILURE", message: "Grant lacks flow:run for this flow" };
@@ -98,33 +106,22 @@ export function prepareFlowStart(
   }
 
   return {
-    flow_digest: entry.ir.digest,
+    flow_digest: entry.digest,
     dispatch,
   };
 }
 
 export function sanitizeFlowPreview(entry: FlowIndexEntry) {
-  const ir = entry.ir;
+  const triggers = entry.triggers ?? {};
   return {
     flow_id: entry.flow_id,
     name: entry.name,
     digest: entry.digest,
-    start: {
-      manual: entry.start.manual,
-      flow_call: entry.start.flow_call,
-      events: entry.start.events,
-      schedule: entry.start.schedule ?? null,
-      requires_view: entry.start.requires_view ?? null,
+    triggers: {
+      manual: triggers.manual,
+      flow_call: triggers.flow_call,
+      events: triggers.events,
+      schedule: triggers.schedule ?? null,
     },
-    steps: (ir?.steps ?? []).map((s) => ({
-      id: s.id,
-      kind: s.kind,
-      invoke: s.invoke
-        ? { space: s.invoke.space, action: s.invoke.action }
-        : undefined,
-      gate: s.gate ? { form: s.gate.form } : undefined,
-      start_flow: s.start_flow ? { flow_id: s.start_flow.flow_id } : undefined,
-    })),
-    view_ref: entry.view_ref,
   };
 }

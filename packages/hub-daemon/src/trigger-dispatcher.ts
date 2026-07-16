@@ -1,16 +1,14 @@
 import { ulid } from "ulid";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { addSpaceId } from "@murrmure/hub-core";
-import type { InvokeService } from "./invoke-service.js";
 import type { HubHandler } from "@murrmure/hub-core";
 import {
   normalizeTriggerAction,
   normalizeTriggerDedup,
-  type McpWakeAction,
+  type NormalizedTriggerAction,
   type TriggerDedup,
 } from "./lib/triggers-templates.js";
 import {
-  applyJsonPathMap,
   computeBusinessKey,
   payloadMatches,
   type SourceEvent,
@@ -29,8 +27,6 @@ export interface TriggerSpec {
 }
 
 export class TriggerDispatcher {
-  invokeService!: InvokeService;
-
   constructor(
     private readonly studio: StudioPersistencePort,
     private readonly handler: HubHandler,
@@ -109,43 +105,13 @@ export class TriggerDispatcher {
       }
     }
 
-    try {
-      const payload = applyJsonPathMap(source, action.payload_map);
-      if ("body_ref" in payload) {
-        delete payload.body_ref;
-      }
-
-      const wakeResult = await this.invokeService.invokeFromMcpWake({
-        target_space_id: action.target_space_id,
-        wake_label: action.wake_label,
-        payload,
-        actor_id: "system_trigger",
-        token_id: "system",
-      });
-
-      if (wakeResult.http >= 400) {
-        throw new Error(
-          typeof (wakeResult.body as { message?: string }).message === "string"
-            ? (wakeResult.body as { message: string }).message
-            : "invoke_failed",
-        );
-      }
-
-      await this.recordDelivery(
-        triggerSpaceId,
-        triggerId,
-        source.event_id,
-        "success",
-        undefined,
-        computeBusinessKey(source, dedup.key_jsonpaths),
-      );
-      return { outcome: "success" };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "wake_failed";
-      await this.recordDelivery(triggerSpaceId, triggerId, source.event_id, "failed", message);
-      await this.emitIntegrationFailure(action, source, message);
-      return { outcome: "failed", dedup_reason: message };
-    }
+    // Retired trigger-action wire: legacy rows fail-fast with a recorded failed
+    // delivery instead of dispatching. New spaces use on: event: handlers +
+    // murrmure_emit_event.
+    const reason = "trigger_action_retired";
+    await this.recordDelivery(triggerSpaceId, triggerId, source.event_id, "failed", reason);
+    await this.emitIntegrationFailure(action, source, reason);
+    return { outcome: "failed", dedup_reason: reason };
   }
 
   private async checkDedup(
@@ -187,7 +153,7 @@ export class TriggerDispatcher {
   }
 
   private async emitIntegrationFailure(
-    action: McpWakeAction,
+    action: NormalizedTriggerAction,
     source: SourceEvent,
     message: string,
   ): Promise<void> {
@@ -200,7 +166,7 @@ export class TriggerDispatcher {
       },
       event_type: "integration_failure",
       payload: {
-        wake_label: action.wake_label,
+        route_key: action.route_key,
         source_event_id: source.event_id,
         message,
       },

@@ -2,7 +2,7 @@
 
 Three folders on your machine. Three agents in three IDEs. One feature spec that crosses all of them — with **your approval** before dev writes anything.
 
-**Path:** indexed flows in `murrmure/` + **`mrmr space apply`**. **Tutorial:** [Multi-agent brief](./tutorials/02-multi-agent-brief/). **Example:** [`team-brief-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/team-brief-v2).
+**Path:** indexed flows in `.mrmr/` + **`mrmr space apply`**. **Tutorial:** [First flow (v3)](./tutorials/01-local-preview-review-v3/) — the multi-agent event-handler pattern uses `on: event:` bindings in `handlers.yaml` (see [Space handlers](./space-handlers)).
 
 **Desktop for humans (ViewCanvasHost at checkpoints). MCP for agents. CLI for admin.**
 
@@ -23,15 +23,22 @@ Flow:
 3. Orchestrator asks **Knowledge** and **Dev** (in parallel, via prompts + events).
 4. Orchestrator assembles the spec and pauses for **your approval**.
 5. You **Publish** in the spec canvas (or approve a gate).
-6. **`spec.published`** wakes the **Dev** agent (when a trigger is registered).
+6. **`spec.published`** triggers the **Dev** agent's `on: event:` handler (declared in `.mrmr/space/handlers.yaml`).
 7. **Dev** uses **`query_ask`** / **`get_spec`**, then writes `~/work/dev-project/specs/guest-checkout-v1.md`.
+
+For a same-run build/review loop, model the coordinator as an open parent step
+with declared children. The parent calls `murrmure_open_child_step`, yields while
+one child owns control, and receives canonical `returned_child` context in a
+fresh `resumed` assignment. Do not encode parent completion in the child and do
+not reuse the yielded assignment credential. Cross-space events remain the
+right boundary when participants are separate spaces or runs.
 
 ---
 
 ## Prerequisites
 
 1. [Murrmure Desktop](./desktop) running with local hub
-2. **CLI operator** — you run `mrmr space` / `mrmr grant mint`, not curl
+2. **CLI operator** — you run `mrmr space` / `mrmr connection`, not curl
 3. On each agent machine: `npm install -g @murrmure/cli`
 4. Three directories:
 
@@ -65,25 +72,23 @@ Record the space ids (`spc_orchestrator`, `spc_knowledge`, `spc_dev`) from comma
 cd ~/work/orchestrator
 mrmr space init
 mrmr space flow init feature-spec --template hello-gate
-# edit murrmure/flows/, views/, hooks.yaml
+# edit .mrmr/flows/, views/, space/handlers.yaml (event handler for spec.published)
 mrmr space link --path . --space spc_orchestrator
 mrmr space apply --strict
 ```
 
-Mint grants with **`--capabilities flow:run,flow:read,query:ask`** so agents can invoke indexed actions and cross-space queries.
+Create one connection per space/trust boundary. Configure cross-space query
+policy separately from the local connection profile.
 
-### 1.3 Mint agent grants
+### 1.3 Create connections
 
 ```bash
-mrmr grant mint --space spc_orchestrator --label "Orchestrator Cursor" \
-  --template worker --flow-acl feature-spec
-
-mrmr grant mint --space spc_knowledge --label "Knowledge Cursor" --template worker
-
-mrmr grant mint --space spc_dev --label "Dev Cursor" --template worker
+mrmr connection create --space spc_orchestrator --flow-acl feature-spec
+mrmr connection create --space spc_knowledge
+mrmr connection create --space spc_dev
 ```
 
-Copy each **one-time token** immediately.
+Each credential is stored in the OS credential store; no token is printed.
 
 **Cross-space reads (recommended):** allow the Dev space to query the Orchestrator space:
 
@@ -100,53 +105,48 @@ Optional: mint read grants on Knowledge/Dev spaces for the orchestrator machine 
 Do **not** give the orchestrator write access to foreign spaces. Cross-space coordination uses **events**, **`query_ask`**, and optional read grants — not shared write tokens.
 :::
 
-### 1.4 Register trigger (Dev space)
+### 1.4 React to spec.published with an event handler (Dev space)
 
-```bash
-mrmr space trigger register --space spc_dev \
-  --template spec-published-wake-dev \
-  --source-space spc_orchestrator
+The dev space reacts to `spec.published` with an **`on: event:` handler** in `.mrmr/space/handlers.yaml` — the clean protocol. Retired wake-wire trigger templates are historical only (Task 15 Lane C); there is no `spec-published-wake-dev` template to register.
+
+```yaml
+# ~/work/dev-project/.mrmr/space/handlers.yaml
+version: 1
+handlers:
+  - id: on_spec_published
+    contract_keys: []
+    on:
+      event:
+        type: spec.published
+        source: "/spaces/spc_orchestrator"
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      A spec was published in the orchestrator space. Use query_ask (spec_summary@1)
+      then get_spec if a read grant exists, and write specs/<slug>-v1.md locally.
+    command: cursor agent -p --force {{prompt}}
 ```
 
-After you **Publish**, the trigger routes through **action invoke**: the hub calls indexed action **`handle_spec_published`** on the dev space and the connected MCP session receives **`murrmure/control.invoke_action`** with mapped payload fields (no `body_ref`). The dev space must have that action indexed with a `cursor-mcp` executor (see `mrmr space apply`). Check delivery outcomes:
-
 ```bash
-mrmr space trigger deliveries --space spc_dev --limit 20
+cd ~/work/dev-project
+mrmr space apply --strict
 ```
 
-Each row has terminal `outcome`: `success`, `failed`, or `deduped` (not `pending` / `resolved` / `delivered`).
+After you **Publish**, the hub delivers `spec.published` to the dev-space handler (Session + Run + journal `mrmr.handler.delivered`); the dev Cursor window is woken via `shell_spawn` (replay on MCP reconnect if the session was offline). Observe handler delivery in Desktop **`/logs`** or the run view — there is no legacy wake-wire trigger delivery log.
 
 ---
 
 ## Part 2 — Connect each directory (MCP)
 
-Open each folder in **its own Cursor window**. Create `.cursor/mcp.json`:
+Open each folder in its own context. Install the matching connection descriptor
+created in Part 1; Desktop already bundles the bridge. To switch the active
+local connection:
 
-### `~/work/orchestrator/.cursor/mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "murrmure": {
-      "command": "murrmure",
-      "args": ["mcp"],
-      "env": {
-        "MURRMURE_HUB_URL": "http://127.0.0.1:8787",
-        "MURRMURE_HUB_TOKEN": "tok_ORCHESTRATOR_GRANT",
-        "MURRMURE_SPACE_ID": "spc_orchestrator"
-      }
-    }
-  }
-}
+```bash
+mrmr connection activate con_… --space spc_orchestrator
 ```
 
-Default hub URL with Desktop is `http://127.0.0.1:8787`. Add optional second MCP servers with read grants on Knowledge/Dev spaces if the orchestrator needs **`get_spec`** on those spaces.
-
-Dev agent only needs its own `mrmr` server on the Dev space — wakes and cross-space reads use **`query_ask`** when query policy allows.
-
-### `~/work/knowledge-base/` and `~/work/dev-project/`
-
-Same shape — one `mrmr` server each, with that folder's token and `MURRMURE_SPACE_ID`.
+Repeat per space (`spc_knowledge`, `spc_dev`) on the machine that stores those connections.
 
 Reload MCP in every window.
 
@@ -205,7 +205,7 @@ Journal emits **`spec.published`** with `body_ref` and `published_by`.
 
 ### 4.5 Dev: wake, fetch, write the file
 
-When the trigger is registered, the dev Cursor window receives **`murrmure/control.invoke_action`** with `action_name: handle_spec_published` after you publish (replay on MCP reconnect if the session was offline). Prompt:
+When the dev space's `on: event:` handler is registered, the dev Cursor window is woken after you publish (replay on MCP reconnect if the session was offline). Prompt:
 
 > You were woken for a published spec. Use **`query_ask`** with `target_space_id` set to the orchestrator space and `query_type: "spec_summary@1"`. If you need the full body, use **`get_spec`** with the `spec_key` from the wake payload. Write `specs/guest-checkout-v1.md` locally and commit.
 
@@ -241,7 +241,7 @@ sequenceDiagram
   Orch->>Orch: patch_spec_section merge
   User->>Shell: Publish
   Shell->>Shell: spec.published event
-  Shell->>Dev: mcp_wake (trigger)
+  Shell->>Dev: on: event: handler
   Dev->>Dev: query_ask spec_summary@1
   Dev->>Dev: get_spec, write specs/*.md
 ```
@@ -254,7 +254,7 @@ sequenceDiagram
 |------|--------|
 | Spec draft / publish | Desktop → space home → spec session |
 | Pending gate | Desktop → **Gates** or `/runs/:runId` |
-| Trigger deliveries | `mrmr space trigger deliveries --space spc_dev` |
+| Handler delivery | Desktop **`/logs`** or run view (journal `mrmr.handler.delivered`) |
 | Event journal | Desktop **`/logs`** (or `mrmr runtime audit export`) |
 | Agent-side tail | MCP handshake wake messages — optional CLI |
 
@@ -264,12 +264,12 @@ sequenceDiagram
 
 | Mistake | Fix |
 |---------|-----|
-| One token in all three IDEs | Three grants, three `MURRMURE_SPACE_ID` values |
-| MCP tools missing | **`mrmr space apply --strict`**; **`mrmr grant mint`** with `flow:run` / `query:ask`; reload MCP |
+| One token in all three IDEs | Use three grants (one token per agent window) |
+| MCP tools missing | **`mrmr space apply --strict`**; verify the active connection profile; reload MCP |
 | Orchestrator writes into dev repo | Dev agent writes locally after publish |
 | Skipping human publish | Agent reaches `draft`; you **Publish** in spec canvas |
-| Wrong space in MCP config | Match `MURRMURE_SPACE_ID` to grant's space |
-| Dev not woken after publish | Register **Spec published → wake dev** trigger; check `mrmr space trigger deliveries` |
+| Wrong space context | Activate the matching `con_…` for that space and reload |
+| Dev not woken after publish | Register an `on: event:` handler for `spec.published` in `.mrmr/space/handlers.yaml` (`mrmr space apply --strict`); check the run view / Desktop **`/logs`** |
 | `query_ask` returns `QUERY_POLICY_DENIED` | Add dev space id to orchestrator `query_policy.inbound_allowlist` |
 | Need full spec cross-space | Mint read grant on orchestrator space for dev agent, then **`get_spec`** |
 
@@ -279,9 +279,9 @@ sequenceDiagram
 
 - **`query_policy` editor** — set `inbound_allowlist` via `mrmr space update --query-policy` until a UI ships
 - **Section editing in spec canvas** — agents edit via MCP; humans publish, approve, and revise
-- **Custom trigger builder** — use templates, `mrmr space trigger register`, or raw API; no visual filter editor yet
+- **Custom trigger builder** — declare `on: event:` handlers in `.mrmr/space/handlers.yaml` (`mrmr space apply`); no visual filter editor yet
 
-These do not require curl for normal agent work — MCP and CLI trigger templates cover the multi-agent spec path.
+These do not require curl for normal agent work — `on: event:` handlers + `murrmure_emit_event` cover the multi-agent spec path.
 
 ---
 

@@ -115,8 +115,8 @@ function renderLegacySection(result: SpaceDoctorResult): void {
   }
 
   const lines: string[] = [
-    "This repo still uses @studio/capability (v1 FDK).",
-    "Murrmure v2 only picks up murrmure/flows/*/flow.manifest.yaml.",
+    "This repo still uses retired @studio/capability packages.",
+    "Murrmure only indexes .mrmr/flows/*/flow.manifest.yaml.",
   ];
 
   const manifests = legacyManifestPaths(result);
@@ -206,9 +206,7 @@ function renderMcpSection(result: SpaceDoctorResult): void {
       row("Config", colors.dim(configPath));
     }
     for (const server of result.mcp.servers) {
-      const env = server.env;
-      const spaceId = env.MURRMURE_SPACE_ID ?? colors.dim("missing");
-      row("Server", `${colors.cyan(server.name)} · space ${spaceId}`);
+      row("Server", colors.cyan(server.name));
     }
   } else {
     row("Config", statusWarn("missing .cursor/mcp.json"));

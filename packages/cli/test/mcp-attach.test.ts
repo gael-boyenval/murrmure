@@ -50,7 +50,7 @@ describe("mcp/murrmure_attach_orchestration", () => {
       }),
     });
 
-    token = ((await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: auth, body: JSON.stringify({ label: "mcp-agent", scopes: ["space:read", "flow:run", "action:invoke", "flow:read"] }) })).json()) as { token: string }).token;
+    token = ((await (await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, { method: "POST", headers: auth, body: JSON.stringify({ label: "mcp-agent", scopes: ["space:read", "flow:run", "flow:read"] }) })).json()) as { token: string }).token;
   });
 
   afterAll(() => cleanup?.());
@@ -85,8 +85,17 @@ describe("mcp/murrmure_attach_orchestration", () => {
           manifest: {
             apiVersion: "murrmure.flow/v1",
             name: "mcp-proposed",
-            start: { manual: true },
-            steps: [{ id: "step1", invoke: { space: "{{origin_space}}", action: "noop" } }],
+            triggers: { manual: true },
+            steps: [
+              {
+                id: "step1",
+                description: "Proposed step",
+                branches: {
+                  completed: { schema: { type: "object" }, route: { run: "completed" } },
+                  failed: { schema: { type: "object" }, route: { run: "failed" } },
+                },
+              },
+            ],
           },
         },
       }),

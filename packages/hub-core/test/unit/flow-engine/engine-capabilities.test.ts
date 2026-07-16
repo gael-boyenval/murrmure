@@ -1,23 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   lintSpaceApplyBundle,
   strictLintFailures,
   ENGINE_DISPATCH_KINDS,
 } from "../../../src/flow-engine/engine-capabilities.js";
 import type { FlowManifest, SpaceApplyBundle } from "@murrmure/contracts";
-
-const FIXTURES = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../../../../studio-specs/current/fixtures/space-apply",
-);
-
-function loadFixture(name: string): SpaceApplyBundle {
-  const raw = JSON.parse(readFileSync(join(FIXTURES, name), "utf-8")) as { bundle: SpaceApplyBundle };
-  return raw.bundle;
-}
 
 function minimalBundle(manifest: FlowManifest, views: SpaceApplyBundle["views"] = []): SpaceApplyBundle {
   return {
@@ -42,143 +29,95 @@ function minimalBundle(manifest: FlowManifest, views: SpaceApplyBundle["views"] 
   };
 }
 
+function linearManifest(): FlowManifest {
+  return {
+    apiVersion: "murrmure.flow/v1",
+    name: "linear",
+    triggers: { manual: true },
+    steps: [
+      {
+        id: "intake",
+        description: "intake",
+        branches: {
+          continue: { route: { step: "work" } },
+          cancel: { route: { run: "failed" } },
+        },
+      },
+      { id: "work", description: "work" },
+    ],
+  };
+}
+
 describe("flow-engine/engine-capabilities", () => {
-  test("ENGINE_DISPATCH_KINDS includes gate/checkpoint", () => {
+  test("ENGINE_DISPATCH_KINDS includes invoke/gate/step_contract", () => {
     expect(ENGINE_DISPATCH_KINDS).toContain("invoke");
     expect(ENGINE_DISPATCH_KINDS).toContain("gate");
-    expect(ENGINE_DISPATCH_KINDS).toContain("checkpoint");
+    expect(ENGINE_DISPATCH_KINDS).toContain("step_contract");
+    expect(ENGINE_DISPATCH_KINDS).not.toContain("checkpoint");
   });
 
-  test("unsupported-step-kind fixture", () => {
-    const warnings = lintSpaceApplyBundle(loadFixture("unsupported-step-kind.json"));
-    expect(warnings.some((w) => w.code === "UNSUPPORTED_STEP_KIND" && w.step_id === "hold")).toBe(true);
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
+  test("clean step-contract bundle lints with no warnings", () => {
+    const warnings = lintSpaceApplyBundle(minimalBundle(linearManifest()));
+    expect(warnings).toEqual([]);
+    expect(strictLintFailures(warnings)).toEqual([]);
   });
 
-  test("checkpoint-on-resolve-missing fixture", () => {
-    const warnings = lintSpaceApplyBundle(loadFixture("checkpoint-on-resolve-missing.json"));
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).length).toBeGreaterThan(0);
-  });
-
-  test("empty on_resolve.default/cancel objects fail strict lint", () => {
+  test("DEAD_STEP surfaces for an unreachable top-level step", () => {
+    // intake routes directly to `work`, skipping `orphan`; nothing routes to orphan.
     const manifest: FlowManifest = {
       apiVersion: "murrmure.flow/v1",
-      name: "empty-routes",
-      start: { manual: true },
+      name: "dead",
+      triggers: { manual: true },
+      steps: [
+        { id: "intake", description: "intake", branches: { continue: { route: { step: "work" } } } },
+        { id: "orphan", description: "orphan" },
+        { id: "work", description: "work" },
+      ],
+    };
+    const warnings = lintSpaceApplyBundle(minimalBundle(manifest));
+    expect(warnings.some((w) => w.code === "DEAD_STEP" && w.step_id === "orphan")).toBe(true);
+    expect(strictLintFailures(warnings).some((w) => w.code === "DEAD_STEP")).toBe(true);
+  });
+
+  test("EMPTY_BRANCHES surfaces for branches: {}", () => {
+    const manifest: FlowManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "empty-branches",
+      triggers: { manual: true },
+      steps: [{ id: "intake", description: "intake", branches: {} }],
+    };
+    const warnings = lintSpaceApplyBundle(minimalBundle(manifest));
+    expect(warnings.some((w) => w.code === "EMPTY_BRANCHES" && w.step_id === "intake")).toBe(true);
+  });
+
+  test("CUSTOM_BRANCH_REQUIRES_ROUTE surfaces for a custom top-level branch without route", () => {
+    const manifest: FlowManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "custom-no-route",
+      triggers: { manual: true },
       steps: [
         {
           id: "intake",
-          checkpoint: {
-            view: "my-view",
-            on_resolve: { default: {}, cancel: {} },
-          },
+          description: "intake",
+          branches: { retry: { schema: { type: "object" } } },
         },
-        { id: "build", invoke: { space: "spc_demo", action: "build" } },
+        { id: "work", description: "work" },
       ],
-    };
-    const warnings = lintSpaceApplyBundle(
-      minimalBundle(manifest, [
-        {
-          view_id: "my-view",
-          rel_path: "views/my-view/view.manifest.yaml",
-          digest: "sha256:view1",
-          manifest: { apiVersion: "murrmure.view/v1", id: "my-view", entry: "dist/index.html" },
-          build: { dist_present: true, entry_present: true },
-        },
-      ]),
-    );
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(true);
-    expect(warnings.some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING")).toBe(
-      true,
-    );
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING")).toBe(
-      true,
-    );
-  });
-
-  test("view without build metadata emits CHECKPOINT_VIEW_DIST_MISSING", () => {
-    const manifest: FlowManifest = {
-      apiVersion: "murrmure.flow/v1",
-      name: "no-build-meta",
-      start: { manual: true },
-      steps: [
-        {
-          id: "intake",
-          checkpoint: {
-            view: "my-view",
-            on_resolve: { default: { goto: "done" }, cancel: { fail: true } },
-          },
-        },
-        { id: "done", invoke: { space: "spc_demo", action: "build" } },
-      ],
-    };
-    const warnings = lintSpaceApplyBundle(
-      minimalBundle(manifest, [
-        {
-          view_id: "my-view",
-          rel_path: "views/my-view/view.manifest.yaml",
-          digest: "sha256:view1",
-          manifest: { apiVersion: "murrmure.view/v1", id: "my-view", entry: "dist/index.html" },
-        },
-      ]),
-    );
-    expect(warnings.some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "CHECKPOINT_VIEW_DIST_MISSING")).toBe(true);
-  });
-
-  test("loopback hint satisfied by on_resolve.default.goto", () => {
-    const manifest: FlowManifest = {
-      apiVersion: "murrmure.flow/v1",
-      name: "loopback-default",
-      start: { manual: true },
-      steps: [
-        { id: "build", invoke: { space: "spc_demo", action: "build" } },
-        {
-          id: "review",
-          checkpoint: {
-            view: "my-view",
-            on_resolve: {
-              default: { goto: "build" },
-              cancel: { fail: true },
-            },
-          },
-        },
-      ],
-    };
-    const warnings = lintSpaceApplyBundle(
-      minimalBundle(manifest, [
-        {
-          view_id: "my-view",
-          rel_path: "views/my-view/view.manifest.yaml",
-          digest: "sha256:view1",
-          manifest: { apiVersion: "murrmure.view/v1", id: "my-view", entry: "dist/index.html" },
-          build: { dist_present: true, entry_present: true },
-        },
-      ]),
-    );
-    expect(warnings.some((w) => w.code === "CHECKPOINT_LOOPBACK_HINT")).toBe(false);
-  });
-
-  test("triggers.requires_view emits LEGACY_START_REQUIRES_VIEW", () => {
-    const manifest: FlowManifest = {
-      apiVersion: "murrmure.flow/v1",
-      name: "legacy-triggers-view",
-      start: { manual: true },
-      triggers: { manual: true, requires_view: "intake-form" },
-      steps: [{ id: "hello", invoke: { space: "spc_demo", action: "build" } }],
     };
     const warnings = lintSpaceApplyBundle(minimalBundle(manifest));
     expect(
-      warnings.some(
-        (w) =>
-          w.code === "LEGACY_START_REQUIRES_VIEW" &&
-          w.message.includes("triggers.requires_view 'intake-form'"),
-      ),
+      warnings.some((w) => w.code === "CUSTOM_BRANCH_REQUIRES_ROUTE" && w.step_id === "intake"),
     ).toBe(true);
-    expect(strictLintFailures(warnings).some((w) => w.code === "LEGACY_START_REQUIRES_VIEW")).toBe(true);
+  });
+
+  test("unbound steps (no handlers, no executor) are valid and produce no warnings", () => {
+    const manifest: FlowManifest = {
+      apiVersion: "murrmure.flow/v1",
+      name: "unbound",
+      triggers: { manual: true },
+      steps: [{ id: "intake", description: "intake" }],
+    };
+    const warnings = lintSpaceApplyBundle(minimalBundle(manifest));
+    expect(warnings).toEqual([]);
   });
 });

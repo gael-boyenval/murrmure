@@ -1,92 +1,80 @@
 # Environment variables
 
-For **agent operators** and **CI**. Desktop users do not set these manually (bootstrap is automatic).
+Desktop users usually do not set env vars manually (bootstrap is automatic). This page is for CLI operators, MCP agent operators, handler shell spawns, and CI.
 
-## Local hub (Desktop default)
+## Local MCP connections
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MURRMURE_HUB_URL` | Yes | `http://127.0.0.1:8787` when using Murrmure Desktop |
-| `MURRMURE_HUB_TOKEN` | Yes | Grant token from `mrmr grant mint` (`tok_…`) |
-| `MURRMURE_SPACE_ID` | Yes (MCP) | Default space — tools do not take `space_id` as an argument |
+Local MCP config uses the stable launcher plus ID arguments:
 
-Grant **`flow_acl`** (JSON array on mint, e.g. `["review-loop","feature-spec"]`) is stored on the token and filters which domain MCP tools appear. Set via **`mrmr grant mint`** or the grants API.
+```text
+~/.murrmure/bin/murrmure-mcp --hub <hub-id> --connection <con-id>
+```
 
-Set via MCP config JSON or shell `export`. Prefer **`mrmr login`** for local CLI use.
+No environment variable carries a persistent local connection token. The bridge
+normally reads it from macOS Keychain. Inside a Hub-spawned handler,
+`MURRMURE_ASSIGNMENT_SCOPE` makes the same descriptor use the injected
+short-lived assignment token instead; outside assignments,
+`MURRMURE_HUB_TOKEN` is accepted only with explicit `--headless-ci` and must be
+injected at process runtime by the CI provider.
+
+## CLI / executor env
+
+These vars are used by CLI workflows and runtime subprocesses.
+
+| Variable | Used by | Description |
+|----------|---------|-------------|
+| `MURRMURE_HUB_URL` | CLI, `mrmr step resolve` | Hub base URL (`http://127.0.0.1:8787` with Desktop) |
+| `MURRMURE_HUB_TOKEN` | CLI | Bearer token override |
+| `MURRMURE_SPACE_ID` | CLI | Default space for commands that support implicit `--space` |
+| `MURRMURE_TOKEN` | CLI (legacy alias) | Legacy alias for `MURRMURE_HUB_TOKEN` |
+| `MURRMURE_DEPLOY_TOKEN` | CLI (legacy alias) | Legacy deploy alias |
 
 ## CLI login cache
 
-After `mrmr login`, credentials are stored in `~/.murrmure/credentials` (file mode `0600`). Override with env vars for CI.
-
-### Credentials file schema
-
-Path: `~/.murrmure/credentials`
+After `mrmr login`, credentials are stored in `~/.murrmure/credentials` (mode `0600`).
 
 ```json
 {
   "version": 1,
   "hubUrl": "http://127.0.0.1:8787",
-  "token": "tok_…",
+  "token": "tok_...",
   "defaultSpaceId": "spc_ui_sandbox",
   "savedAt": "2026-06-24T12:00:00.000Z"
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `version` | Schema version (currently `1`) |
-| `hubUrl` | Hub base URL (no trailing slash) |
-| `token` | Bearer grant token (`tok_…`) |
-| `defaultSpaceId` | Optional default space for `--space` resolution |
-| `savedAt` | ISO timestamp when credentials were saved |
+Auth resolution order:
 
-**Auth resolution order:** CLI flags (`--hub-url`, `--token`) → env vars → credentials file → `~/.murrmure/hubs/shared.json`
+`--hub-url/--token` flags → explicit headless env → active connection
+(`~/.murrmure/connections/active.json`) + OS credential store → operator
+credentials → discovery
 
-## Self-hosted hub (operators only)
+## `shell_spawn` child env (handlers + legacy actions)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_PATH` | `./data/murrmure.db` | SQLite path on hub machine |
-| `PORT` | `8787` | Hub listen port |
-| `MURRMURE_DATA_DIR` | `~/.murrmure` | Lock + discovery on hub host |
-| `MURRMURE_SHELL_STATIC_DIR` | unset | Absolute path to built shell `dist/`; hub serves SPA at `/` when set |
-| `MURRMURE_LISTEN_HOST` | `127.0.0.1` | HTTP bind hostname/interface used by hub daemon |
-| `MURRMURE_BUNDLE_ROOT` | unset | Seed-contract root used by hub startup (`<root>/hub/contracts`) for packaged deployments |
-| `MURRMURE_BOOTSTRAP_TOKEN` | `01JBOOTSTRAPTOKEN00000001` | Bootstrap token bare id seeded on hub startup (desktop dev only; external release needs per-install secret) |
-| `MURRMURE_EMBEDDED` | `0` | When `1`, signal handlers run graceful shutdown without calling `process.exit(0)` |
+When a handler or legacy action uses `shell_spawn`, hub injects:
 
-End users still use `MURRMURE_HUB_URL` pointing at your proxy, not these.
+| Variable | Description |
+|----------|-------------|
+| `MURRMURE_ACTION` | Handler or action id |
+| `MURRMURE_SPACE_ID` | Space id |
+| `MURRMURE_RUN_ID` | Run id |
+| `MURRMURE_SESSION_ID` | Session id |
+| `MURRMURE_STEP_ID` | Step id |
+| `MURRMURE_ASSIGNMENT_SCOPE` | Non-secret `{run_id}:{step_id}:{handler_id}` marker; makes the bundled MCP bridge bypass the persistent connection and use assignment authority |
+| `MURRMURE_INVOKE_PARAMS` | JSON resolved handler/action params |
+| `MURRMURE_PROMPT` | Resolved prompt template |
+| `MURRMURE_INPUT` | JSON `exec_context.input` from run start |
+| `MURRMURE_HUB_TOKEN` | Short-lived run/step/handler-scoped token (resolve capability only; expires and revoked on step/run terminal or shutdown; enforced on every `step:resolve` endpoint) |
+| `MURRMURE_HUB_URL` | Hub base URL (for `mrmr step resolve`) |
+| `MURRMURE_STEP_CONTRACT` | Active step contract JSON (when available) |
 
-## Harness
+Handler `command` / `prompt` templates may also resolve `&#123;&#123;space_root&#125;&#125;`, `&#123;&#123;run_id&#125;&#125;`, `&#123;&#123;input.*&#125;&#125;`, `&#123;&#123;steps.*&#125;&#125;`, and other `&#123;&#123;murrmure.*&#125;&#125;` tokens from the active catalog.
 
-Optional claim on agent grants: `cursor-local`, `ci`, `cloud-worker`. Tokens minted for one harness should not be reused in another.
-
-## Deprecated aliases
-
-The CLI `auth.ts` resolver still accepts these legacy names (prefer the canonical names above):
-
-| Deprecated | Canonical | Notes |
-|------------|-----------|-------|
-| `MURRMURE_TOKEN` | `MURRMURE_HUB_TOKEN` | CLI/MCP auth — prefer `MURRMURE_HUB_TOKEN` |
-| `MURRMURE_DEPLOY_TOKEN` | `MURRMURE_HUB_TOKEN` | Legacy deploy scripts |
-
-## `shell_spawn` child process (actions)
-
-When an action uses executor `shell_spawn`, the hub injects these into the child environment:
-
-| Variable | Shipped | Description |
-|----------|---------|-------------|
-| `MURRMURE_ACTION` | ✅ | Action name |
-| `MURRMURE_SPACE_ID` | ✅ | Space id |
-| `MURRMURE_RUN_ID` | ✅ | Run id |
-| `MURRMURE_SESSION_ID` | ✅ | Session id |
-| `MURRMURE_STEP_ID` | ✅ | Step id |
-| `MURRMURE_INVOKE_PARAMS` | ✅ | JSON resolved invoke params |
-| `MURRMURE_PROMPT` | ✅ | Resolved prompt text |
-| `MURRMURE_INPUT` | ✅ | JSON `exec_context.input` from the flow run |
+`mrmr step resolve` reads `MURRMURE_RUN_ID`, `MURRMURE_STEP_ID`, `MURRMURE_HUB_URL`, and `MURRMURE_HUB_TOKEN` from the shell environment.
 
 ## Security
 
-- Never commit `MURRMURE_HUB_TOKEN` to git
-- Revoke leaked tokens immediately with **`mrmr grant revoke`**
-- Browser session cookies are not valid API tokens
+- Never commit `MURRMURE_HUB_TOKEN` to git.
+- Revoke or rotate a compromised connection immediately with `mrmr connection revoke|rotate`.
+- Browser session cookies are not API tokens.
+- Dispatch-injected `MURRMURE_HUB_TOKEN` is run/step/handler-scoped and expires — do not reuse as a persistent connection. It is revoked when its step resolves, the run ends, or the hub shuts down, and the assignment boundary is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), so it cannot act for another run, step, or space.

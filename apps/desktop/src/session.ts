@@ -59,6 +59,7 @@ export function createSessionInjectionScript(token: string, hubUrl: string): str
   const hubUrl = ${serializedHubUrl};
   localStorage.setItem("murrmure_token", token);
   localStorage.setItem("murrmure_hub_url", hubUrl);
+  document.cookie = "murrmure_token=" + encodeURIComponent(token) + "; Path=/; SameSite=Lax";
   if (window.location.pathname === "/" || window.location.pathname === "/connect") {
     window.location.replace("/spaces/new");
   }

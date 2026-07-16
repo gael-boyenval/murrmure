@@ -25,12 +25,7 @@ import {
   foldJournalToSnapshot,
   successResult,
 } from "@murrmure/runtime-contracts";
-import {
-  addVote,
-  checkpointFromTransition,
-  isQuorumSatisfied,
-  shouldRejectImmediately,
-} from "../checkpoint/lifecycle.js";
+import { checkpointFromTransition } from "../checkpoint/lifecycle.js";
 import {
   applyTransition,
   findLegalTransitionsForActor,
@@ -112,9 +107,6 @@ export class RuntimeKernel implements QueryPort {
         break;
       case "state.transition":
         result = await this.handleTransition(command, p);
-        break;
-      case "checkpoint.resolve":
-        result = await this.handleCheckpointResolve(command, p);
         break;
       case "event.append":
         result = await this.handleEventAppend(command, p);
@@ -402,83 +394,6 @@ export class RuntimeKernel implements QueryPort {
     });
   }
 
-  private async handleCheckpointResolve(
-    command: Extract<KernelCommand, { kind: "checkpoint.resolve" }>,
-    p: Provenance,
-  ): Promise<CommandResult> {
-    const checkpoint = await this.deps.persistence.runInTransaction((tx) =>
-      tx.getCheckpoint(command.checkpoint_id),
-    );
-    if (!checkpoint) {
-      return this.commitDenial(p, ENTRY_TYPES.TRANSITION_DENIED, DENIAL_CODES.NOT_FOUND, "Checkpoint not found", HTTP_SEMANTIC.NOT_FOUND, false);
-    }
-
-    if (checkpoint.status !== "pending") {
-      return this.commitDenial(p, ENTRY_TYPES.CHECKPOINT_VOTE, DENIAL_CODES.CHECKPOINT_ALREADY_RESOLVED, "Already resolved", HTTP_SEMANTIC.CONFLICT, false, undefined, checkpoint.aggregate_id);
-    }
-
-    const assigneeOk = await this.deps.condition.matchAssignee(p.actor_id, checkpoint.quorum.assignees, p.actor_kind);
-    if (!assigneeOk) {
-      return this.commitDenial(p, ENTRY_TYPES.CHECKPOINT_VOTE, DENIAL_CODES.POLICY_DENIED, "Not eligible assignee", HTTP_SEMANTIC.FORBIDDEN, false, undefined, checkpoint.aggregate_id);
-    }
-
-    const ts = this.deps.clock.nowIso();
-    const decision = command.decision;
-    const voteDraft = buildEntry(p, this.deps.ids.ulid(), ts, ENTRY_TYPES.CHECKPOINT_VOTE, "success", {
-      checkpoint_id: checkpoint.checkpoint_id,
-      decision,
-    }, { aggregate_id: checkpoint.aggregate_id });
-
-    let updatedCp = addVote(checkpoint, {
-      actor_id: p.actor_id,
-      decision,
-      ts,
-    });
-
-    const aggregate = await this.deps.persistence.runInTransaction((tx) => tx.getSnapshot(checkpoint.aggregate_id));
-    if (!aggregate) {
-      return this.commitDenial(p, ENTRY_TYPES.TRANSITION_DENIED, DENIAL_CODES.NOT_FOUND, "Aggregate not found", HTTP_SEMANTIC.NOT_FOUND, false, undefined, checkpoint.aggregate_id);
-    }
-
-    const artifact = await this.deps.rules.load(aggregate.rule_ref);
-    const transition = artifact.transitions.find((t) => t.id === checkpoint.transition_id);
-    if (!transition) {
-      return this.commitDenial(p, ENTRY_TYPES.TRANSITION_DENIED, DENIAL_CODES.TRANSITION_STALE, "Transition missing", HTTP_SEMANTIC.CONFLICT, false, undefined, checkpoint.aggregate_id);
-    }
-
-    if (decision === "rejected" && shouldRejectImmediately(updatedCp, transition.checkpoint?.reject_requires_quorum)) {
-      return this.commitCheckpointRejected(p, voteDraft, updatedCp);
-    }
-
-    if (!isQuorumSatisfied(updatedCp)) {
-      return this.commitJournalOnly(p, voteDraft, async (tx) => {
-        await tx.upsertCheckpoint(updatedCp);
-      }, "checkpoint_vote", { checkpoint_id: checkpoint.checkpoint_id });
-    }
-
-    if (aggregate.state !== checkpoint.from_state) {
-      return this.commitDenial(p, ENTRY_TYPES.TRANSITION_DENIED, DENIAL_CODES.TRANSITION_STALE, "State moved", HTTP_SEMANTIC.CONFLICT, false, undefined, checkpoint.aggregate_id);
-    }
-
-    const metadata_patch = command.resume_data;
-    const updated = applyTransition(aggregate, transition, artifact, ts, metadata_patch);
-    const resolvedDraft = buildEntry(p, this.deps.ids.ulid(), ts, ENTRY_TYPES.CHECKPOINT_RESOLVED, "success", {
-      checkpoint_id: checkpoint.checkpoint_id,
-    }, { aggregate_id: checkpoint.aggregate_id });
-    const applyDraft = buildEntry(
-      p,
-      this.deps.ids.ulid(),
-      ts,
-      ENTRY_TYPES.TRANSITION_APPLIED,
-      "success",
-      transitionAppliedPayload(transition, updated, metadata_patch),
-      { aggregate_id: checkpoint.aggregate_id },
-    );
-
-    updatedCp = { ...updatedCp, status: "resolved", resolved_at: ts };
-    return this.commitCheckpointResolved(p, [voteDraft, resolvedDraft, applyDraft], updatedCp, updated, aggregate.revision);
-  }
-
   private async handleEventAppend(
     command: Extract<KernelCommand, { kind: "event.append" }>,
     p: Provenance,
@@ -653,72 +568,6 @@ export class RuntimeKernel implements QueryPort {
         HTTP_SEMANTIC.ACCEPTED,
         "success",
       );
-      if (p.command_id) {
-        const ins = await tx.insertIdempotency(p.command_id, result);
-        if (ins === "exists") return (await tx.getIdempotency(p.command_id))!;
-      }
-      return result;
-    });
-  }
-
-  private async commitCheckpointResolved(
-    p: Provenance,
-    drafts: import("@murrmure/runtime-contracts").JournalEntryDraft[],
-    checkpoint: import("@murrmure/runtime-contracts").Checkpoint,
-    aggregate: import("@murrmure/runtime-contracts").Aggregate,
-    expectedRevision: number,
-  ): Promise<CommandResult> {
-    return this.deps.persistence.runInTransaction(async (tx) => {
-      let lastSeq = 0;
-      let lastEntryId = "";
-      for (const draft of drafts) {
-        const alloc = await tx.appendJournal(draft);
-        await tx.insertOutbox(alloc.seq);
-        lastSeq = alloc.seq;
-        lastEntryId = draft.entry_id;
-      }
-      const won = await tx.casCheckpointStatus(checkpoint.checkpoint_id, "pending", "resolved");
-      if (!won) {
-        const denialDraft = buildDenialEntry(p, this.deps.ids.ulid(), this.deps.clock.nowIso(), ENTRY_TYPES.CHECKPOINT_VOTE, DENIAL_CODES.CHECKPOINT_ALREADY_RESOLVED, "Concurrent resolve", false, undefined, checkpoint.aggregate_id);
-        const dAlloc = await tx.appendJournal(denialDraft);
-        await tx.insertOutbox(dAlloc.seq);
-        return resultFromEntry({ entry_id: denialDraft.entry_id, seq: dAlloc.seq }, DENIAL_CODES.CHECKPOINT_ALREADY_RESOLVED, { message: "Concurrent resolve" }, HTTP_SEMANTIC.CONFLICT, "denial");
-      }
-      await tx.upsertCheckpoint(checkpoint);
-      const cas = await tx.upsertSnapshotIfRevision(aggregate, expectedRevision);
-      if (cas === "conflict") {
-        const staleDraft = buildDenialEntry(p, this.deps.ids.ulid(), this.deps.clock.nowIso(), ENTRY_TYPES.TRANSITION_DENIED, DENIAL_CODES.TRANSITION_STALE, "State changed", false, undefined, aggregate.aggregate_id);
-        const sAlloc = await tx.appendJournal(staleDraft);
-        await tx.insertOutbox(sAlloc.seq);
-        return resultFromEntry({ entry_id: staleDraft.entry_id, seq: sAlloc.seq }, DENIAL_CODES.TRANSITION_STALE, { message: "State changed" }, HTTP_SEMANTIC.CONFLICT, "denial");
-      }
-      const result = resultFromEntry({ entry_id: lastEntryId, seq: lastSeq }, "checkpoint_resolved", {
-        aggregate_id: aggregate.aggregate_id,
-        state: aggregate.state,
-        revision: aggregate.revision,
-      }, HTTP_SEMANTIC.OK, "success");
-      if (p.command_id) {
-        const ins = await tx.insertIdempotency(p.command_id, result);
-        if (ins === "exists") return (await tx.getIdempotency(p.command_id))!;
-      }
-      return result;
-    });
-  }
-
-  private async commitCheckpointRejected(
-    p: Provenance,
-    voteDraft: import("@murrmure/runtime-contracts").JournalEntryDraft,
-    checkpoint: import("@murrmure/runtime-contracts").Checkpoint,
-  ): Promise<CommandResult> {
-    return this.deps.persistence.runInTransaction(async (tx) => {
-      const vAlloc = await tx.appendJournal(voteDraft);
-      await tx.insertOutbox(vAlloc.seq);
-      const rejectDraft = buildEntry(p, this.deps.ids.ulid(), this.deps.clock.nowIso(), ENTRY_TYPES.CHECKPOINT_REJECTED, "success", { checkpoint_id: checkpoint.checkpoint_id }, { aggregate_id: checkpoint.aggregate_id });
-      const rAlloc = await tx.appendJournal(rejectDraft);
-      await tx.insertOutbox(rAlloc.seq);
-      await tx.casCheckpointStatus(checkpoint.checkpoint_id, "pending", "rejected");
-      await tx.upsertCheckpoint({ ...checkpoint, status: "rejected", resolved_at: this.deps.clock.nowIso() });
-      const result = resultFromEntry({ entry_id: rejectDraft.entry_id, seq: rAlloc.seq }, DENIAL_CODES.CHECKPOINT_DENIED, { checkpoint_id: checkpoint.checkpoint_id }, HTTP_SEMANTIC.FORBIDDEN, "denial");
       if (p.command_id) {
         const ins = await tx.insertIdempotency(p.command_id, result);
         if (ins === "exists") return (await tx.getIdempotency(p.command_id))!;

@@ -49,44 +49,6 @@ export function resolveFlowDir(murrmureRoot: string, flowId: string): string {
   return flowDir;
 }
 
-function mergeYamlSection<T extends Record<string, unknown>>(
-  path: string,
-  sectionKey: string,
-  entries: Record<string, unknown>,
-  defaults?: Record<string, unknown>,
-): boolean {
-  let doc: Record<string, unknown> = { ...(defaults ?? {}) };
-  if (existsSync(path)) {
-    const parsed = parseYaml(readFileSync(path, "utf-8"));
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      doc = { ...doc, ...(parsed as Record<string, unknown>) };
-    }
-  }
-
-  const section = doc[sectionKey];
-  const target =
-    section && typeof section === "object" && !Array.isArray(section)
-      ? { ...(section as Record<string, unknown>) }
-      : {};
-
-  let changed = false;
-  for (const [key, value] of Object.entries(entries)) {
-    if (!(key in target)) {
-      target[key] = value;
-      changed = true;
-    }
-  }
-
-  if (!changed && existsSync(path)) {
-    return false;
-  }
-
-  doc[sectionKey] = target;
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, stringifyYaml(doc), "utf-8");
-  return true;
-}
-
 function copyTemplateTree(templateDir: string, destRoot: string, flowId: string): string[] {
   const created: string[] = [];
   for (const srcPath of listFilesRecursive(templateDir)) {
@@ -100,36 +62,65 @@ function copyTemplateTree(templateDir: string, destRoot: string, flowId: string)
   return created;
 }
 
-function parseTemplateActions(templateDir: string, flowId: string): Record<string, unknown> {
-  const actionsPath = join(templateDir, "actions.yaml");
-  if (!existsSync(actionsPath)) {
-    return {};
+function parseTemplateHandlers(templateDir: string, flowId: string): Array<Record<string, unknown>> {
+  const handlersPath = join(templateDir, "handlers.yaml");
+  if (!existsSync(handlersPath)) {
+    return [];
   }
-  const parsed = parseYaml(readFileSync(actionsPath, "utf-8")) as {
-    actions?: Record<string, unknown>;
-  };
-  const actions = parsed.actions ?? {};
-  const resolved: Record<string, unknown> = {};
-  for (const [name, spec] of Object.entries(actions)) {
-    const resolvedName = applyFlowTemplateTokens(name, flowId);
-    if (spec && typeof spec === "object") {
-      resolved[resolvedName] = JSON.parse(
-        applyFlowTemplateTokens(JSON.stringify(spec), flowId),
-      ) as unknown;
-    }
-  }
-  return resolved;
+  const parsed = parseYaml(
+    applyFlowTemplateTokens(readFileSync(handlersPath, "utf-8"), flowId),
+  ) as { handlers?: Array<Record<string, unknown>> };
+  return parsed.handlers ?? [];
 }
 
-function parseTemplateExecutors(templateDir: string): Record<string, unknown> {
-  const executorsPath = join(templateDir, "executors.yaml");
-  if (!existsSync(executorsPath)) {
-    return {};
+function mergeHandlersFile(
+  murrmureRoot: string,
+  templateDir: string,
+  flowId: string,
+): boolean {
+  const handlersPath = join(murrmureRoot, "space", "handlers.yaml");
+  const incoming = parseTemplateHandlers(templateDir, flowId);
+  if (incoming.length === 0) {
+    return false;
   }
-  const parsed = parseYaml(readFileSync(executorsPath, "utf-8")) as {
-    executors?: Record<string, unknown>;
-  };
-  return parsed.executors ?? {};
+
+  let doc: { version: number; handlers: Array<Record<string, unknown>>; run_policies?: unknown[] } =
+    { version: 1, handlers: [] };
+  if (existsSync(handlersPath)) {
+    const parsed = parseYaml(readFileSync(handlersPath, "utf-8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const asRecord = parsed as Record<string, unknown>;
+      doc = {
+        version: 1,
+        handlers: Array.isArray(asRecord.handlers)
+          ? (asRecord.handlers as Array<Record<string, unknown>>)
+          : [],
+        run_policies: Array.isArray(asRecord.run_policies)
+          ? (asRecord.run_policies as unknown[])
+          : undefined,
+      };
+    }
+  }
+
+  const existingIds = new Set(
+    doc.handlers.map((h) => (typeof h.id === "string" ? h.id : "")),
+  );
+  let changed = false;
+  for (const handler of incoming) {
+    const id = typeof handler.id === "string" ? handler.id : "";
+    if (!id || existingIds.has(id)) continue;
+    doc.handlers.push(handler);
+    existingIds.add(id);
+    changed = true;
+  }
+
+  if (!changed && existsSync(handlersPath)) {
+    return false;
+  }
+
+  mkdirSync(dirname(handlersPath), { recursive: true });
+  writeFileSync(handlersPath, stringifyYaml(doc), "utf-8");
+  return true;
 }
 
 export function scaffoldFlowPackage(
@@ -146,20 +137,19 @@ export function scaffoldFlowPackage(
   const templateDir = cliResourcePath("templates", "space", "flows", template);
   const created: string[] = [];
 
-  const actionsPath = join(murrmureRoot, "actions.yaml");
-  if (mergeYamlSection(actionsPath, "actions", parseTemplateActions(templateDir, flowId), { version: 1 })) {
-    created.push(actionsPath);
-  }
-
-  const executorsPath = join(murrmureRoot, "executors.yaml");
-  if (mergeYamlSection(executorsPath, "executors", parseTemplateExecutors(templateDir))) {
-    created.push(executorsPath);
+  const handlersPath = join(murrmureRoot, "space", "handlers.yaml");
+  if (mergeHandlersFile(murrmureRoot, templateDir, flowId)) {
+    created.push(handlersPath);
   }
 
   const hooksTemplate = join(templateDir, "hooks.yaml");
-  const hooksDest = join(murrmureRoot, "hooks.yaml");
+  const hooksDest = join(murrmureRoot, "space", "hooks.yaml");
   if (!existsSync(hooksDest) && existsSync(hooksTemplate)) {
-    writeFileSync(hooksDest, readFileSync(hooksTemplate, "utf-8"), "utf-8");
+    writeFileSync(
+      hooksDest,
+      applyFlowTemplateTokens(readFileSync(hooksTemplate, "utf-8"), flowId),
+      "utf-8",
+    );
     created.push(hooksDest);
   }
 
@@ -175,7 +165,7 @@ export function scaffoldFlowPackage(
 
   const scriptsDir = join(templateDir, "scripts");
   if (existsSync(scriptsDir)) {
-    created.push(...copyTemplateTree(scriptsDir, join(murrmureRoot, "scripts"), flowId));
+    created.push(...copyTemplateTree(scriptsDir, join(murrmureRoot, "space", "scripts"), flowId));
   }
 
   if (template === "hello-gate") {

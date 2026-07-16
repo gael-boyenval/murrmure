@@ -1,5 +1,17 @@
 # @murrmure/shell-client
 
+## Unreleased
+
+### Added
+
+- `runFlow` now raises a structured `ShellClientHttpError` (with typed
+  `code`, `message`, `active_run_ids`, `max_concurrent_runs`) on non-2xx
+  responses so the Desktop shell can surface `FLOW_CONCURRENCY_LIMIT` and
+  `SPACE_HAS_ACTIVE_RUNS` denials.
+
+- Added private trusted-host upload-intent creation, raw file transfer,
+  cancellation, and structured HTTP contract errors.
+
 ## 0.1.1
 
 ### Patch Changes

@@ -40,7 +40,7 @@
       "actor": "sarah",
       "query": "audit.export",
       "params": { "instance_id": "{session_key}" },
-      "expect": { "events_include": ["state.transition", "checkpoint.resolved", "instance.metadata_patched"] }
+      "expect": { "events_include": ["state.transition", "mrmr.gate.resolved", "instance.metadata_patched"] }
     }
   ]
 }

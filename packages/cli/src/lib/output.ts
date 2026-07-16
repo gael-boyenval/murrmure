@@ -19,6 +19,7 @@ export type CliErrorPayload = {
   ok: false;
   code: string;
   message: string;
+  errors?: unknown[];
   hint?: unknown;
 };
 
@@ -28,7 +29,15 @@ export function formatJsonOk(data: Record<string, unknown> = {}): string {
 
 export function formatJsonError(code: string, message: string, hint?: unknown): string {
   const payload: CliErrorPayload = { ok: false, code, message };
-  if (hint !== undefined) payload.hint = hint;
+  if (
+    hint &&
+    typeof hint === "object" &&
+    Array.isArray((hint as { errors?: unknown }).errors)
+  ) {
+    payload.errors = (hint as { errors: unknown[] }).errors;
+  } else if (hint !== undefined) {
+    payload.hint = hint;
+  }
   return JSON.stringify(payload, null, 2);
 }
 
@@ -45,6 +54,11 @@ export function printErr(code: string, message: string, hint?: unknown): never {
     console.log(formatJsonError(code, message, hint));
   } else {
     consola.error(`✗ ${message}`);
+    if (hint && typeof hint === "object" && Array.isArray((hint as { errors?: unknown }).errors)) {
+      for (const error of (hint as { errors: Array<{ path?: string; message?: string }> }).errors) {
+        consola.info(`${error.path ?? ""} ${error.message ?? "validation failed"}`.trim());
+      }
+    }
     if (hint && typeof hint === "object" && hint && "tip" in hint) {
       consola.info(String((hint as { tip: string }).tip));
     }
@@ -56,7 +70,7 @@ export function printScopeError(err: ScopeError): never {
   switch (err.code) {
     case "SCOPE_MISSING":
       printErr(err.code, `${err.message} (${err.requiredScope})`, {
-        tip: "Run mrmr whoami · mint a new grant with mrmr grant mint",
+        tip: "Run mrmr whoami · create a local connection with mrmr connection create",
         required_scope: err.requiredScope,
         space_id: err.spaceId,
       });

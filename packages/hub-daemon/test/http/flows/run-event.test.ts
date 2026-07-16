@@ -65,13 +65,11 @@ describe("http/flows/run-event", () => {
               manifest: {
                 apiVersion: "murrmure.flow/v1",
                 name: "on-spec",
-                start: {
+                triggers: {
                   manual: false,
                   events: [{ type: "mrmr.spec.published", source: `/spaces/${spaceId}` }],
                 },
-                steps: [
-                  { id: "wake", invoke: { space: "{{origin_space}}", action: "wake" } },
-                ],
+                steps: [{ id: "wake", description: "wake" }],
               },
             },
           ],

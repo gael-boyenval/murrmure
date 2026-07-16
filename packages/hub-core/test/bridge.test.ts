@@ -1,13 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { addGateId, addSpaceId, stripPrefix, contractV2ToRuleArtifact, mapWaitCondition } from "@murrmure/hub-core";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { ContractV2Schema } from "@murrmure/contracts";
 import { ruleRefDigest } from "@murrmure/runtime-contracts";
-
-const __dir = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(__dir, "../../../fixtures/hub");
+import { loadHubContractFixture } from "../../../test-utils/hub/contracts.js";
 
 describe("bridge/ids", () => {
   test("prefix roundtrip", () => {
@@ -19,7 +14,7 @@ describe("bridge/ids", () => {
 
 describe("bridge/contract-v2", () => {
   test("maps to RuleArtifact v1", () => {
-    const raw = JSON.parse(readFileSync(join(FIXTURES, "contracts/linear-demo-v2.json"), "utf-8"));
+    const raw = loadHubContractFixture("linear-demo-v2");
     const contract = ContractV2Schema.parse(raw);
     const artifact = contractV2ToRuleArtifact(contract);
     expect(artifact.schema_version).toBe("1.0");

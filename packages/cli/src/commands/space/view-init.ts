@@ -7,7 +7,7 @@ import { resolveMurrmureRootFromCwd, scaffoldViewPackage } from "../../lib/view-
 export const spaceViewInitCommand = defineCommand({
   meta: {
     name: "init",
-    description: "Scaffold murrmure/views/{id}/ Vite+React view package (Requires: none)",
+    description: "Scaffold .mrmr/views/{id}/ Vite+React view package (Requires: none)",
   },
   args: {
     ...globalArgs,
@@ -18,7 +18,7 @@ export const spaceViewInitCommand = defineCommand({
     },
     "space-root": {
       type: "string",
-      description: "Space root containing murrmure/ (default: cwd)",
+      description: "Space root containing .mrmr/ (default: cwd)",
     },
   },
   async run({ args }) {
@@ -41,7 +41,7 @@ export const spaceViewInitCommand = defineCommand({
       }
       printOk({}, `✓ Created view '${viewId}' (${created.length} files)`);
       console.log("Next:");
-      console.log(`  cd murrmure/views/${viewId} && npm install`);
+      console.log(`  cd .mrmr/views/${viewId} && npm install`);
       console.log(`  mrmr view dev ${viewId}`);
       console.log("  npm run build && mrmr space apply");
     } catch (error) {

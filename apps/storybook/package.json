@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "storybook dev -p 6006",
-    "build": "storybook build && tsx scripts/capture-story-snapshots.ts",
+    "build": "storybook build",
     "build:static": "storybook build",
+    "build:with-snapshots": "storybook build && tsx scripts/capture-story-snapshots.ts",
     "snapshots": "tsx scripts/capture-story-snapshots.ts",
-    "postinstall": "playwright install chromium"
+    "postinstall": "node ./scripts/maybe-install-playwright.mjs"
   },
   "dependencies": {
     "@murrmure/shell-client": "workspace:*",

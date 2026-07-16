@@ -22,7 +22,17 @@ export class WizardHubError extends Error {
 async function parseHubResponse(res: Response): Promise<Record<string, unknown>> {
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
-    const denial = mapHubDenial(res.status, body);
+    const denial =
+      typeof body.code === "string"
+        ? {
+            code: body.code,
+            message:
+              typeof body.message === "string"
+                ? body.message
+                : `Hub request failed with status ${res.status}`,
+            ...("hint" in body ? { hint: body.hint } : {}),
+          }
+        : mapHubDenial(res.status, body);
     throw new WizardHubError(denial.code, denial.message, "hint" in denial ? denial.hint : undefined);
   }
   return body;
@@ -30,9 +40,13 @@ async function parseHubResponse(res: Response): Promise<Record<string, unknown>>
 
 export async function wizardSpaceInit(
   projectPath: string,
-  options?: { withSkill?: boolean },
+  options?: { withSkill?: boolean; withExamples?: boolean; slug?: string; name?: string },
 ): Promise<{ created: string[]; skill_installed: boolean; skill_path?: string }> {
-  const { created } = scaffoldMurrmureDir(projectPath);
+  const { created } = scaffoldMurrmureDir(projectPath, {
+    withExamples: options?.withExamples,
+    slug: options?.slug,
+    name: options?.name,
+  });
   let skill_installed = false;
   let skill_path: string | undefined;
   if (options?.withSkill) {
@@ -41,6 +55,26 @@ export async function wizardSpaceInit(
     skill_path = result.path;
   }
   return { created, skill_installed, skill_path };
+}
+
+export async function wizardCreateNamedSpace(
+  auth: HubAuth,
+  identity: { slug: string; name: string },
+): Promise<{ space_id: string; slug: string; name: string }> {
+  const res = await hubFetch(auth, "/v1/spaces", {
+    method: "POST",
+    json: {
+      ...identity,
+      install_policy: "human_only",
+      preview_policy: "same_origin_only",
+    },
+  });
+  const body = await parseHubResponse(res);
+  return {
+    space_id: String(body.space_id),
+    slug: String(body.slug),
+    name: String(body.name ?? identity.name),
+  };
 }
 
 export async function wizardSpaceLink(

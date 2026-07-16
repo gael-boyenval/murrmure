@@ -13,6 +13,7 @@ import type {
   RunStepMemo,
   SessionCreatedBy,
   SessionStatus,
+  ResolvedRunPolicy,
 } from "@murrmure/contracts";
 
 export interface TokenRow {
@@ -24,10 +25,22 @@ export interface TokenRow {
   harness_id?: string;
   flow_acl?: string[];
   status: "active" | "revoked";
+  /** ISO timestamp after which an active token is treated as denied. */
+  expires_at?: string;
+  /** Assignment scope reference (`{run_id}:{step_id}`) for resolve tokens. */
+  scope_ref?: string;
+  /**
+   * Consumer space a federated resolve token is bound to. Set when the token
+   * is minted for a `remote_hub` dispatch so the producer bytes endpoint can
+   * bind the artifact ACL principal to the credential instead of trusting an
+   * arbitrary `?space_id=` claim (parity with the `artifacts_in` path).
+   */
+  consumer_space_id?: string;
 }
 
 export interface GrantRow {
   grant_id: string;
+  token_id?: string;
   space_id: string;
   actor_id: string;
   label?: string;
@@ -87,9 +100,10 @@ export interface GateRow {
 export interface NotificationRow {
   notification_id: string;
   actor_id: string;
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   status: "pending" | "dismissed" | "resolved";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   space_id: string;
@@ -176,6 +190,7 @@ export interface StudioPersistencePort {
 
   getToken(token_id: string): Promise<TokenRow | null>;
   insertToken(row: TokenRow, created_at: string): Promise<void>;
+  revokeToken?(token_id: string): Promise<void>;
 
   insertGrant(row: GrantRow, created_at: string): Promise<void>;
   getGrant(grant_id: string): Promise<GrantRow | null>;
@@ -238,6 +253,8 @@ export interface StudioPersistencePort {
   listIndexedExecutors(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedHooks(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>>;
+  listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>>;
+  listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]>;
   listFlowIndex(space_id: string): Promise<FlowIndexEntry[]>;
   getFlowIndexEntry(flow_id: string, origin_space_id?: string): Promise<FlowIndexEntry | null>;
 
@@ -277,6 +294,13 @@ export interface StudioPersistencePort {
   getRunByInstanceId(instance_id: string): Promise<RunRow | null>;
 
   upsertRunStepMemo(memo: RunStepMemo): Promise<void>;
+  transitionNestedChild(input: {
+    run_id: string;
+    exec_context: Record<string, unknown>;
+    parent_memo: RunStepMemo;
+    child_memo: RunStepMemo;
+    declared_child_step_ids: string[];
+  }): Promise<boolean>;
   listRunStepMemos(run_id: string): Promise<RunStepMemo[]>;
   getRunStepMemoByIdempotencyKey(idempotency_key: string): Promise<RunStepMemo | null>;
   deleteRunStepMemos(run_id: string): Promise<void>;
@@ -295,6 +319,7 @@ export interface StudioPersistencePort {
   listNotifications(actor_id: string, filter?: { status?: NotificationRow["status"] }): Promise<NotificationRow[]>;
   dismissNotification(notification_id: string, actor_id: string, at: string): Promise<void>;
   resolveNotificationsForGate(gate_id: string, at: string): Promise<void>;
+  resolveNotificationsForRunStep(run_id: string, step_id: string, at: string): Promise<void>;
   countPendingNotifications(actor_id: string): Promise<number>;
 
   getUserPrefs(actor_id: string): Promise<UserPrefsRow | null>;

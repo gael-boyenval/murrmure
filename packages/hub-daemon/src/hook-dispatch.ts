@@ -15,6 +15,7 @@ function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    guard: ctx.spaceRunGuard,
     invokeAction: async (input) => {
       const result = await ctx.invokeService.invokeAction({
         space_id: input.space_id,
@@ -42,7 +43,7 @@ export async function dispatchHooksFromJournal(
   await dispatchHooksForEvent(hookDispatchDeps(ctx), event, {
     actor_id: input.actor_id,
     token_id: input.token_id,
-    capabilities: input.capabilities ?? ["flow:run", "action:invoke", "hub:admin"],
+    capabilities: input.capabilities ?? ["flow:run", "hub:admin"],
   });
 }
 

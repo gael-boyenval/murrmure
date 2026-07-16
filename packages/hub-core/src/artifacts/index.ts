@@ -6,3 +6,4 @@ export * from "./materialize.js";
 export * from "./gc-command.js";
 export * from "./resolve-in.js";
 export * from "./cross-hub-materialize.js";
+export * from "./relay-validation.js";

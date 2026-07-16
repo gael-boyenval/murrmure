@@ -2,41 +2,41 @@
 
 ## What Murrmure is
 
-A **local-first hub runtime** where humans and agents coordinate through **sessions**, **runs**, **gates**, and an append-only **journal**. Agents connect via MCP; humans use **Murrmure Desktop** (observer shell webview). Operators configure spaces via **CLI** (`mrmr`) and the **`murrmure/` space index** — there is no Configure UI.
+A **local-first hub runtime** where humans and agents coordinate through **sessions**, **runs**, **gates**, and an append-only **journal**. Agents connect via MCP; humans use **Murrmure Desktop** (observer shell webview). Operators configure spaces via **CLI** (`mrmr`) and the **`.mrmr/` space index** — the retired configure shell is gone.
 
 ## Product surfaces (shipped)
 
 | Surface | Role |
 |---------|------|
 | **Murrmure Desktop** | Primary human path — gates, runs, notifications, space home |
-| **CLI (`mrmr`)** | Admin — spaces, grants, `murrmure/` init/link/apply, federation, workers |
+| **CLI (`mrmr`)** | Admin — spaces, grants, `.mrmr/` init/link/apply, federation, workers |
 
-MCP (`murrmure-mcp`) is the agent integration path bundled with the CLI.
+MCP (`murrmure-mcp`) is the agent integration path. **Murrmure Desktop bundles** `@murrmure/mcp-bridge` and publishes the bridge path in `~/.murrmure/hubs/shared.json`; headless/CI installs the package globally.
 
 ## Core entities (v2)
 
 | Entity | ID prefix | Meaning |
 |--------|-----------|---------|
-| **Space** | `spc_*` | Isolation boundary; indexed from `murrmure/` |
+| **Space** | `spc_*` | Isolation boundary; indexed from `.mrmr/` |
 | **Session** | `ses_*` | Correlation container for related work |
-| **Run** | `run_*` | Execution unit (flow steps, actions, gates) |
+| **Run** | `run_*` | Execution unit (flow steps, handlers, gates) |
 | **Gate** | `gate_*` | Human decision point on a run |
-| **Flow** | `flw_*` | Indexed from `murrmure/flows/*/flow.manifest.yaml` |
+| **Flow** | `flw_*` | Indexed from `.mrmr/flows/*/flow.manifest.yaml` |
 
 Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id`** on all new integrations.
 
 ## End-to-end — review loop (example)
 
-1. Operator: `mrmr space init` → `mrmr space link --create` → `mrmr space apply` → `mrmr grant mint`
-2. Dev agent (MCP): mount-scoped tools when FDK worker is live, or indexed actions/flows via v2 platform tools
-3. Reviewer resolves gates in Desktop; agent waits with `murrmure_wait_for_gate`
+1. Operator: `mrmr setup` → connection consent/context selection → reload and verify
+2. Dev agent (MCP): platform tools (`murrmure_create_run`, `murrmure_list_step_contracts`, …); step completion via `murrmure_resolve_step` after handler dispatch
+3. Reviewer resolves human steps in Desktop; agent waits with `murrmure_wait_for_run` and completes agent steps with `murrmure_resolve_step`
 4. Audit via journal query or `mrmr runtime audit export`
 
 ## End-to-end — spec publish (example)
 
-1. **feature-spec** flow indexed under `murrmure/flows/` + `mrmr space apply`
-2. Agent drafts via mount MCP tools (`open_spec`, `patch_spec_section`, …)
-3. Human publishes → `spec.published` journal event → hook/trigger invokes downstream agent via `murrmure_invoke_action`
+1. **feature-spec** flow indexed under `.mrmr/flows/` + `mrmr space apply`
+2. Agent drafts via MCP platform tools and step contracts
+3. Human publishes → `spec.published` journal event → space event handler in `.mrmr/space/handlers.yaml` dispatches downstream work
 
 ## Personas
 
@@ -54,14 +54,14 @@ Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id
 - **Run = execution unit** — sessions correlate; runs carry lifecycle and step memos
 - **Journal canonical** — SQLite append-only + write-through snapshots
 - **Denials are events** — every 403/409 appends journal row
-- **One MCP server** — platform + mount-scoped flow tools; grant `flow_acl` filters catalog
-- **Space index** — `murrmure/` YAML is source of truth; hub indexes on apply
+- **One MCP server** — grant-filtered platform tools; no mount-scoped flow worker
+- **Space index** — `.mrmr/` YAML is source of truth; hub indexes on apply
 - **At-least-once + dedup** — no exactly-once global claim
 
 ## Non-goals (v2)
 
 - Murrmure Cloud (hosted SaaS, signup, multi-tenant accounts)
-- Configure UI / setup wizard (`/configure`, `/setup` retired)
+- Retired configure shell (`/configure`, `/setup` retired)
 - Browser-as-standalone-product without Desktop
 - Agent LLM loop inside hub
 - Flow marketplace / third-party package store
@@ -71,12 +71,13 @@ Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id
 ```text
 @murrmure/studio-contracts     wire types (leaf)
 @murrmure/hub-core             hexagon
-@murrmure/hub-daemon           HTTP + SSE + mounts
-@murrmure/cli                  mrmr + MCP + skill
+@murrmure/hub-daemon           HTTP + SSE + MCP
+@murrmure/cli                  mrmr + MCP + skills
+@murrmure/mcp-bridge           murrmure-mcp stdio bridge (bundled in Desktop)
 @murrmure/shell-web            observer shell (Desktop webview)
 @murrmure/shell-client         typed shell HTTP client
 @murrmure/view-sdk             custom view iframe protocol
-examples/flows/                reference FDK flows (review-loop, feature-spec)
+test-utils/spaces/             CI/manual test spaces (preview-review-v2, …)
 ```
 
 See per-domain specs under `studio-specs/current/` for route tables, wire formats, and acceptance criteria.

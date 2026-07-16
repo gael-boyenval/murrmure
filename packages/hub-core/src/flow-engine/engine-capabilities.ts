@@ -7,9 +7,11 @@ import type {
   ViewManifest,
 } from "@murrmure/contracts";
 import { compileFlowIr } from "./compile.js";
+import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractManifest } from "./step-contract-compile.js";
+import { lintHandlerCatalogCoverage } from "../index/handler-catalog-lint.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
-export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "checkpoint"] as const;
+export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "step_contract"] as const;
 
 export type EngineDispatchKind = (typeof ENGINE_DISPATCH_KINDS)[number];
 
@@ -37,11 +39,10 @@ export interface FlowApplyLintContext {
   manifestRaw?: Record<string, unknown>;
 }
 
-/** Codes that stay warn-only even under `--strict`. */
-export const WARN_ONLY_LINT_CODES = new Set([
-  "DEPRECATED_START_KEY",
-  "CHECKPOINT_LOOPBACK_HINT",
-]);
+/** Codes that stay warn-only even under `--strict`. The checkpoint-era
+ *  loopback hint was removed in the step-contract cutover; the post-cutover
+ *  apply target has no warn-only codes. */
+export const WARN_ONLY_LINT_CODES = new Set<string>([]);
 
 function pushWarning(
   out: FlowApplyLintWarning[],
@@ -62,13 +63,6 @@ function findView(
   views: FlowApplyLintIndex["views"],
 ): FlowApplyLintIndex["views"][number] | undefined {
   return views.find((v) => v.view_id === viewId || v.manifest.id === viewId);
-}
-
-/** Route must declare `goto` or `fail: true` — empty `{}` is not explicit (decision 06). */
-function isExplicitOnResolveRoute(route: { goto?: string; fail?: boolean } | undefined): boolean {
-  if (!route) return false;
-  if (route.fail === true) return true;
-  return typeof route.goto === "string" && route.goto.length > 0;
 }
 
 function viewBuildVerified(view: FlowApplyLintIndex["views"][number]): boolean {
@@ -92,15 +86,13 @@ function lintUnsupportedStepKinds(
 ): void {
   walkIrSteps(ir.steps, (step) => {
     if (ENGINE_DISPATCH_KINDS.includes(step.kind as EngineDispatchKind)) return;
-    if (step.kind === "wait") {
-      pushWarning(
-        out,
-        ctx,
-        step.id,
-        "UNSUPPORTED_STEP_KIND",
-        `Step kind '${step.kind}' is not dispatched by the engine`,
-      );
-    }
+    pushWarning(
+      out,
+      ctx,
+      step.id,
+      "UNSUPPORTED_STEP_KIND",
+      `Step kind '${step.kind}' is not dispatched by the engine`,
+    );
   });
 }
 
@@ -137,155 +129,10 @@ function lintInvokeCrossRefs(
 }
 
 function lintManifestStart(
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
+  _ctx: FlowApplyLintContext,
+  _out: FlowApplyLintWarning[],
 ): void {
-  const raw = ctx.manifestRaw ?? (ctx.manifest as Record<string, unknown>);
-  const hasStart = "start" in raw;
-  const hasTriggers = "triggers" in raw;
-  if (hasStart && !hasTriggers) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "DEPRECATED_START_KEY",
-      "Top-level 'start:' is deprecated — migrate to 'triggers:' (see decision 05)",
-    );
-  }
-  const start = ctx.manifest.start;
-  if (start.requires_view) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "LEGACY_START_REQUIRES_VIEW",
-      `start.requires_view '${start.requires_view}' is removed — use a step 0 checkpoint with view instead (decision 05)`,
-    );
-  }
-  const triggers = ctx.manifest.triggers;
-  if (triggers?.requires_view) {
-    pushWarning(
-      out,
-      ctx,
-      undefined,
-      "LEGACY_START_REQUIRES_VIEW",
-      `triggers.requires_view '${triggers.requires_view}' is removed — use a step 0 checkpoint with view instead (decision 05)`,
-    );
-  }
-}
-
-function lintCheckpointStep(
-  step: FlowStep,
-  stepIndex: number,
-  manifest: FlowManifest,
-  index: FlowApplyLintIndex,
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
-): void {
-  const checkpoint = step.checkpoint;
-  if (!checkpoint) return;
-
-  const viewId = checkpoint.view;
-  const view = findView(viewId, index.views);
-  if (!view) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_VIEW_NOT_FOUND",
-      `Checkpoint view '${viewId}' not found under murrmure/views/`,
-    );
-  } else if (!viewBuildVerified(view)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_VIEW_DIST_MISSING",
-      `View '${viewId}' is missing built dist/ or manifest entry file — run npm run build in murrmure/views/${viewId}/ before apply`,
-    );
-  }
-
-  const onResolve = checkpoint.on_resolve;
-  if (!isExplicitOnResolveRoute(onResolve?.default)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_ON_RESOLVE_DEFAULT_MISSING",
-      `Checkpoint '${step.id}' must declare on_resolve.default with goto or fail: true (decision 06)`,
-    );
-  }
-  if (!isExplicitOnResolveRoute(onResolve?.cancel)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_ON_RESOLVE_CANCEL_MISSING",
-      `Checkpoint '${step.id}' must declare on_resolve.cancel with goto or fail: true (decision 06)`,
-    );
-  }
-  if (onResolve?.when && (!onResolve.values || Object.keys(onResolve.values).length === 0)) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "ON_RESOLVE_WHEN_VALUES_EMPTY",
-      `Checkpoint '${step.id}' has on_resolve.when but empty values`,
-    );
-  }
-
-  const ids = stepIds(manifest);
-  const collectGoto = (route: { goto?: string } | undefined) => route?.goto;
-  const gotos = [
-    collectGoto(onResolve?.default),
-    collectGoto(onResolve?.cancel),
-    ...Object.values(onResolve?.values ?? {}).map(collectGoto),
-  ].filter((g): g is string => Boolean(g));
-
-  for (const goto of gotos) {
-    if (!ids.has(goto)) {
-      pushWarning(
-        out,
-        ctx,
-        step.id,
-        "GOTO_TARGET_NOT_FOUND",
-        `on_resolve goto target '${goto}' is not a step id in this flow`,
-      );
-    }
-  }
-
-  const priorInvokeIds = manifest.steps
-    .slice(0, stepIndex)
-    .filter((s) => s.invoke)
-    .map((s) => s.id);
-  if (priorInvokeIds.length === 0) return;
-
-  const loopbackTargets = new Set(
-    [
-      onResolve?.default?.goto,
-      onResolve?.cancel?.goto,
-      ...Object.values(onResolve?.values ?? {}).map((r) => r.goto),
-    ].filter((g): g is string => Boolean(g)),
-  );
-  const hasLoopback = [...loopbackTargets].some((target) => priorInvokeIds.includes(target));
-  if (!hasLoopback) {
-    pushWarning(
-      out,
-      ctx,
-      step.id,
-      "CHECKPOINT_LOOPBACK_HINT",
-      `Checkpoint '${step.id}' follows an invoke step but on_resolve has no loop-back goto to an earlier invoke — likely review loop missing`,
-    );
-  }
-}
-
-function lintManifestCheckpoints(
-  manifest: FlowManifest,
-  index: FlowApplyLintIndex,
-  ctx: FlowApplyLintContext,
-  out: FlowApplyLintWarning[],
-): void {
-  manifest.steps.forEach((step, i) => lintCheckpointStep(step, i, manifest, index, ctx, out));
+  // `start` and `requires_view` are rejected by the parser; no warn-only path.
 }
 
 export function lintFlowEngineCapabilities(
@@ -297,7 +144,10 @@ export function lintFlowEngineCapabilities(
   lintUnsupportedStepKinds(ir, ctx, out);
   lintInvokeCrossRefs(ir, index, ctx, out);
   lintManifestStart(ctx, out);
-  lintManifestCheckpoints(ctx.manifest, index, ctx, out);
+  const contractWarnings = lintStepContractManifest(ctx.manifest, ctx.flow_id);
+  for (const w of contractWarnings) {
+    out.push(w);
+  }
   return out;
 }
 
@@ -316,6 +166,16 @@ export function buildFlowApplyLintIndex(bundle: SpaceApplyBundle): FlowApplyLint
 export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWarning[] {
   const index = buildFlowApplyLintIndex(bundle);
   const warnings: FlowApplyLintWarning[] = [];
+  const knownStepIds = new Set<string>();
+  for (const flow of bundle.flows ?? []) {
+    const { catalog } = compileStepContractCatalog(flow.manifest, flow.flow_id);
+    if (catalog) {
+      for (const stepId of catalog.step_ids) knownStepIds.add(stepId);
+    }
+  }
+  for (const w of lintActionMurrmureTokens(bundle.actions?.file.actions ?? {}, knownStepIds)) {
+    warnings.push(w);
+  }
   for (const flow of bundle.flows ?? []) {
     const ir = compileFlowIr(flow.manifest, flow.flow_id);
     const raw =
@@ -329,6 +189,24 @@ export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWar
         manifestRaw: raw,
       }),
     );
+  }
+  const handlers = bundle.handlers?.file;
+  if (handlers) {
+    const handlerWarnings = lintHandlerCatalogCoverage({
+      handlers,
+      flows: (bundle.flows ?? []).map((flow) => ({
+        flow_id: flow.flow_id,
+        manifest: flow.manifest,
+      })),
+    });
+    for (const warning of handlerWarnings) {
+      warnings.push({
+        flow_id: warning.flow_id ?? "handlers",
+        step_id: warning.step_id,
+        code: warning.code,
+        message: warning.message,
+      });
+    }
   }
   return warnings;
 }

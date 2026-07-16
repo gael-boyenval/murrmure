@@ -1,10 +1,22 @@
 import type { Hono } from "hono";
 import { ulid } from "ulid";
-import { JOURNAL_EVENT_TYPES, type Capability, type Session } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  JOURNAL_EVENT_TYPES,
+  FLOW_CONCURRENCY_LIMIT,
+  type Capability,
+  type FlowIr,
+  type FlowIndexEntry,
+  type HandlerComplete,
+  type HandlerSpec,
+  type Session,
+  type StepContractCatalog,
+  type ViewManifest,
+} from "@murrmure/contracts";
 import {
   cancelRun,
   cancelSession,
-  createRun,
+  admitAndCreateRun,
   createSession,
   getSessionWithStatus,
   listSessionsFiltered,
@@ -20,6 +32,15 @@ import {
   isOrchestrationGate,
   compileFlowIr,
   mergeActionResultIntoRun,
+  flowStepContractCatalog,
+  buildHandlerIndex,
+  matchStepOpenedHandlers,
+  maybeAutoResolveExecutorStepAfterAction,
+  buildOpenStepProjections,
+  canReadFlow,
+  defaultExecutorTimeoutScheduler,
+  failRunWithNotification,
+  type RunGraphResolver,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
@@ -33,6 +54,8 @@ function sessionRunDeps(ctx: DaemonContext) {
     ids: { ulid: () => ulid() },
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
+    executorPollStore: ctx.executorPollStore,
+    guard: ctx.spaceRunGuard,
     dispatchSteps: async (input: {
       dispatch: import("@murrmure/hub-core").FlowStepDispatch[];
       session_id: string;
@@ -75,6 +98,32 @@ function filterSessionsByReadableSpaces(
   );
 }
 
+function resolveStepCompleteMode(input: {
+  catalog: ReturnType<typeof flowStepContractCatalog>;
+  flow_name?: string;
+  step_id: string;
+  indexed_hooks: Array<Record<string, unknown>>;
+}): HandlerComplete {
+  if (!input.catalog || !input.flow_name) return "explicit";
+
+  const handlers = input.indexed_hooks
+    .map((row) => HandlerSpecSchema.safeParse(row))
+    .filter((row): row is { success: true; data: HandlerSpec } => row.success)
+    .map((row) => row.data);
+  if (handlers.length === 0) return "explicit";
+
+  const matches = matchStepOpenedHandlers(
+    buildHandlerIndex({ version: 1, run_policies: [], handlers }),
+    `${input.flow_name}.${input.step_id}`,
+  );
+  if (matches.length !== 1) return "explicit";
+  const match = matches[0];
+  if (!match) return "explicit";
+  // `view_resolver` carries no completion policy — the View resolves via submit.
+  if (match.type === "view_resolver") return "explicit";
+  return match.complete ?? "explicit";
+}
+
 export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence, handler } = ctx;
   const deps = () => sessionRunDeps(ctx);
@@ -83,11 +132,8 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    if (
-      !hasCapability(effective, "flow:run") &&
-      !hasCapability(effective, "action:invoke")
-    ) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run or action:invoke required" }, 403);
+    if (!hasCapability(effective, "flow:run")) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
     const body = await c.req.json();
@@ -161,12 +207,30 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       : auth.space_id !== "bootstrap"
         ? prefixedSpaceId(bareSpaceId(auth.space_id))
         : undefined;
+    const requestedFlowId =
+      typeof body.flow_id === "string" && body.flow_id.length > 0 ? body.flow_id : null;
+    let indexedFlow: FlowIndexEntry | null = null;
+    if (requestedFlowId) {
+      if (!space_id) {
+        return c.json(
+          { code: "FLOW_SPACE_REQUIRED", message: "space_id is required when flow_id is provided" },
+          400,
+        );
+      }
+      indexedFlow = await murrmurePersistence.getFlowIndexEntry(
+        requestedFlowId,
+        bareSpaceId(space_id),
+      );
+      if (!indexedFlow) {
+        return c.json({ code: "FLOW_NOT_FOUND", message: "Flow not found in space index" }, 404);
+      }
+    }
 
-    const result = await createRun(deps(), {
+    const result = await admitAndCreateRun(deps(), {
       session_id,
       space_id,
-      flow_id: body.flow_id ?? null,
-      flow_digest: body.flow_digest,
+      flow_id: requestedFlowId,
+      flow_digest: indexedFlow?.digest,
       input_params: body.input,
       reference_run_ids: body.reference_run_ids,
       actor_id: auth.actor_id,
@@ -178,19 +242,22 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
 
     if ("error" in result) {
       const err = result.error ?? { code: "UNKNOWN", message: "Request failed" };
+      if (err.code === FLOW_CONCURRENCY_LIMIT) {
+        return c.json(err, 409);
+      }
       return c.json(err, err.code === "SCOPE_ENFORCEMENT_FAILURE" ? 403 : 404);
     }
 
-    if (body.flow_id && space_id) {
+    if (requestedFlowId && space_id) {
       const { dispatchFlowSteps } = await import("../../flow-dispatch.js");
       const { prepareFlowStart } = await import("@murrmure/hub-core");
-      const entry = await murrmurePersistence.getFlowIndexEntry(
-        String(body.flow_id),
+      const currentFlow = await murrmurePersistence.getFlowIndexEntry(
+        requestedFlowId,
         bareSpaceId(space_id),
       );
-      if (entry?.ir) {
+      if (currentFlow?.ir) {
         const execContext = { input: (body.input as Record<string, unknown>) ?? {} };
-        const prep = prepareFlowStart(entry, {
+        const prep = prepareFlowStart(currentFlow, {
           exec_context: execContext,
           origin_space_id: space_id,
           capabilities: effective,
@@ -217,7 +284,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    const scopeCheck = requireCapability(auth, "gate:resolve", effective);
+    const scopeCheck = requireCapability(auth, "flow:run", effective);
     if (scopeCheck) return scopeCheck;
 
     const body = await c.req.json().catch(() => ({}));
@@ -344,11 +411,41 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       })));
     }
 
+    const flowEntry = row.flow_id
+      ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id)
+      : null;
+    const indexedHooks = row.space_id
+      ? await murrmurePersistence.listIndexedHooks(row.space_id)
+      : [];
+    const indexedViews = row.space_id
+      ? await murrmurePersistence.listIndexedViews(row.space_id)
+      : [];
+    const handlerSpecs = indexedHooks
+      .map((raw) => HandlerSpecSchema.safeParse(raw))
+      .filter((r): r is { success: true; data: HandlerSpec } => r.success)
+      .map((r) => r.data);
+    const viewRows = indexedViews.map((raw) => {
+      const r = raw as { view_id?: string; manifest?: ViewManifest };
+      return { view_id: String(r.view_id ?? ""), manifest: r.manifest as ViewManifest };
+    }).filter((v) => v.view_id && v.manifest);
+    const open_steps = buildOpenStepProjections(
+      steps,
+      flowStepContractCatalog(flowEntry),
+      {
+        flow_name: flowEntry?.name,
+        space_id: row.space_id ? prefixedSpaceId(row.space_id) : undefined,
+        handlers: handlerSpecs,
+        views: viewRows,
+        exec_context: row.exec_context,
+      },
+    );
+
     return c.json({
       ...run,
       instance_id: runIdToInstanceId(run.run_id),
       steps,
       journal_replay,
+      open_steps,
     });
   });
 
@@ -356,17 +453,51 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const run_id = c.req.param("run_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireCapability(auth, "space:read", await caps(ctx, auth));
-    if (scopeCheck) return scopeCheck;
+    const effective = await caps(ctx, auth);
+    if (!canReadFlow(effective)) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:read required" }, 403);
+    }
 
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id.startsWith("ins_") ? run_id.slice(4) : run_id;
     const row = await murrmurePersistence.getRun(bare);
     if (!row) return c.json({ code: "run_not_found", message: "Run not found" }, 404);
+    if (
+      auth.space_id !== "bootstrap" &&
+      !hasCapability(effective, "hub:admin") &&
+      row.space_id &&
+      bareSpaceId(auth.space_id) !== bareSpaceId(row.space_id)
+    ) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "Run belongs to another space" }, 403);
+    }
 
     const steps = await murrmurePersistence.listRunStepMemos(`run_${bare}`);
     const entry = row.flow_id ? await murrmurePersistence.getFlowIndexEntry(row.flow_id, row.space_id) : null;
+    const rawSnapshot = row.exec_context._flow_snapshot;
+    const snapshot =
+      rawSnapshot && typeof rawSnapshot === "object"
+        ? (rawSnapshot as {
+            version?: number;
+            origin_space_id?: string;
+            flow_id?: string;
+            flow_digest?: string;
+            flow_name?: string;
+            ir?: FlowIr;
+            step_contract_catalog?: StepContractCatalog;
+            resolvers?: Record<string, RunGraphResolver | null>;
+          })
+        : undefined;
+    const pinnedSnapshot =
+      snapshot?.version === 1 &&
+      snapshot.flow_id === row.flow_id &&
+      snapshot.flow_digest === row.flow_digest
+        ? snapshot
+        : undefined;
+    const currentMatchesRun = Boolean(entry && entry.digest === row.flow_digest);
 
-    let ir = entry?.ir;
+    let ir = pinnedSnapshot?.ir ?? (currentMatchesRun ? entry?.ir : undefined);
+    const stepContractCatalog =
+      pinnedSnapshot?.step_contract_catalog ??
+      (currentMatchesRun ? flowStepContractCatalog(entry) : null);
     let pendingFlowId: string | undefined;
     if (!ir && row.exec_context._orchestration_pending) {
       const pendingGate = (await murrmurePersistence.listGatesByRun(bare)).find(
@@ -395,9 +526,17 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       run_id: `run_${bare}`,
       flow_id: row.flow_id ?? pendingFlowId,
       flow_digest: row.flow_digest ?? ir?.digest,
+      origin_space_id: pinnedSnapshot?.origin_space_id ?? (currentMatchesRun ? entry?.origin_space_id : undefined),
+      flow_name: pinnedSnapshot?.flow_name ?? (currentMatchesRun ? entry?.name : undefined),
+      mode:
+        row.lifecycle === "working" || row.lifecycle === "input-required"
+          ? "live"
+          : "history",
       ir,
+      step_contract_catalog: stepContractCatalog,
       step_memos: steps,
       siblings,
+      resolvers: pinnedSnapshot?.resolvers,
     });
 
     return c.json(graph);
@@ -408,7 +547,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await caps(ctx, auth);
-    const scopeCheck = requireCapability(auth, "gate:resolve", effective);
+    const scopeCheck = requireCapability(auth, "flow:run", effective);
     if (scopeCheck) return scopeCheck;
 
     const body = await c.req.json().catch(() => ({}));
@@ -482,7 +621,108 @@ export async function projectStepMemoFromJournal(
     (m) => m.step_id === input.step_id,
   ) ?? null;
   const ts = input.ts ?? new Date().toISOString();
-  const next = applyStepMemoFromJournal(existing, {
+  const run = await ctx.murrmurePersistence.getRun(bare);
+  const flowEntry =
+    run?.flow_id != null
+      ? await ctx.murrmurePersistence.getFlowIndexEntry(run.flow_id, run.space_id)
+      : null;
+  const catalog = flowStepContractCatalog(flowEntry);
+  const indexedHooks = run?.space_id
+    ? await ctx.murrmurePersistence.listIndexedHooks(run.space_id)
+    : [];
+  const completeMode = resolveStepCompleteMode({
+    catalog,
+    flow_name: flowEntry?.name,
+    step_id: input.step_id,
+    indexed_hooks: indexedHooks,
+  });
+  const requiresResolveCall = Boolean(catalog);
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
+    requiresResolveCall &&
+    completeMode === "auto" &&
+    input.result &&
+    catalog &&
+    input.run_id &&
+    input.step_id &&
+    run?.space_id
+  ) {
+    const space_id = run.space_id.startsWith("spc_") ? run.space_id : prefixedSpaceId(run.space_id);
+    const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
+    const journal: import("@murrmure/hub-core").StepResolveJournal = {
+      append: async (entry) => {
+        await ctx.handler.appendSpaceJournal({
+          type: entry.type,
+          space_id: entry.space_id,
+          session_id: entry.session_id,
+          run_id: entry.run_id,
+          actor_id: entry.actor_id,
+          token_id: entry.token_id,
+          data: { ...entry.data, step_id: entry.step_id },
+        });
+      },
+    };
+    const { flowAdvanceDeps } = await import("../../flow-advance.js");
+    let autoResolved = false;
+    try {
+      autoResolved = await maybeAutoResolveExecutorStepAfterAction(
+        {
+          ...sessionRunDeps(ctx),
+          registerArtifact: undefined,
+        },
+        {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          result: input.result,
+          actor_id: "system_flow",
+          token_id: "system",
+          space_id,
+          session_id,
+          catalog,
+          complete_mode: completeMode,
+          journal,
+          advance: flowAdvanceDeps(ctx),
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "HANDLER_COMPLETE_AUTO_NESTED"
+      ) {
+        const failedAt = new Date().toISOString();
+        await ctx.murrmurePersistence.upsertRunStepMemo({
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "failed",
+          completed_at: failedAt,
+          error_code: "HANDLER_COMPLETE_AUTO_NESTED",
+        });
+        await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "failed",
+          completed_at: failedAt,
+        });
+        await failRunWithNotification(
+          {
+            ...sessionRunDeps(ctx),
+          },
+          {
+            run_id: input.run_id,
+            actor_id: "system_flow",
+            token_id: "system",
+            reason: "HANDLER_COMPLETE_AUTO_NESTED",
+          },
+        );
+        return;
+      }
+      throw error;
+    }
+    if (autoResolved) return;
+  }
+
+  let next = applyStepMemoFromJournal(existing, {
     run_id: `run_${bare}`,
     step_id: input.step_id,
     type: input.type,
@@ -491,7 +731,58 @@ export async function projectStepMemoFromJournal(
     error_code: input.error_code,
     executor_type: input.executor_type,
   });
+
+  if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && requiresResolveCall && next) {
+    next = { ...next, status: "working", completed_at: undefined };
+  }
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED &&
+    existing?.status === "completed"
+  ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+    if (input.result) {
+      await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+        run_id: input.run_id,
+        step_id: input.step_id,
+        status: "completed",
+        result: input.result,
+        completed_at: ts,
+      });
+    }
+    return;
+  }
+
   if (next) await ctx.murrmurePersistence.upsertRunStepMemo(next);
+
+  const memos = await ctx.murrmurePersistence.listRunStepMemos(`run_${bare}`);
+  if (
+    input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED ||
+    input.type === JOURNAL_EVENT_TYPES.ACTION_FAILED ||
+    input.type === JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
+  ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+  }
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED
+  ) {
+    defaultExecutorTimeoutScheduler.stop(input.run_id, input.step_id);
+  }
+
+  if (
+    input.type === JOURNAL_EVENT_TYPES.STEP_OPENED ||
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED
+  ) {
+    const extendMs = defaultExecutorTimeoutScheduler.syncHumanWaitPause({
+      run_id: input.run_id,
+      catalog,
+      memos,
+    });
+    if (extendMs > 0) {
+      ctx.executorPollStore.extendOfferedDeadlinesForRun(input.run_id, extendMs);
+    }
+  }
 
   if (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && input.result) {
     await mergeActionResultIntoRun(ctx.murrmurePersistence, {
@@ -505,12 +796,26 @@ export async function projectStepMemoFromJournal(
     input.type === JOURNAL_EVENT_TYPES.ACTION_FAILED ||
     input.type === JOURNAL_EVENT_TYPES.ACTION_TIMED_OUT
   ) {
-    await mergeActionResultIntoRun(ctx.murrmurePersistence, {
-      run_id: input.run_id,
-      step_id: input.step_id,
-      status: "failed",
-      completed_at: ts,
-    });
+    const stepAlreadyTerminal =
+      existing?.status === "completed" || existing?.status === "failed" || next?.status === "completed";
+    if (stepAlreadyTerminal) {
+      if (input.result) {
+        await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+          run_id: input.run_id,
+          step_id: input.step_id,
+          status: "completed",
+          result: input.result,
+          completed_at: ts,
+        });
+      }
+    } else {
+      await mergeActionResultIntoRun(ctx.murrmurePersistence, {
+        run_id: input.run_id,
+        step_id: input.step_id,
+        status: "failed",
+        completed_at: ts,
+      });
+    }
   }
 
   const terminalTypes = [
@@ -519,7 +824,11 @@ export async function projectStepMemoFromJournal(
     "mrmr.action.timed_out",
     "mrmr.gate.resolved",
   ];
-  if (terminalTypes.includes(input.type)) {
+  const skipAdvance =
+    input.type === JOURNAL_EVENT_TYPES.STEP_RESOLVED ||
+    (input.type === JOURNAL_EVENT_TYPES.ACTION_COMPLETED && requiresResolveCall);
+
+  if (terminalTypes.includes(input.type) && !skipAdvance) {
     await maybeCompleteHeadlessRun(
       {
         studio: ctx.murrmurePersistence,

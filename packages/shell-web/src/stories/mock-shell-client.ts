@@ -11,11 +11,11 @@ export function createMockShellClient(
       { space_id: "spc_ops", name: "Ops", slug: "ops" },
     ],
     home: async () => ({
+      version: 2,
       space_id: "spc_demo",
       needs_attention: [],
       active_runs: [],
-      your_flows: [],
-      available_to_run: [],
+      flows: [],
       receiving_from: [],
       recent_completed: [],
       index: {
@@ -26,12 +26,26 @@ export function createMockShellClient(
       },
       emittable_events: [],
     }),
+    runs: async () => ({ space_id: "spc_demo", runs: [] }),
     flowPreview: async () => ({
+      version: 2,
       flow_id: "flw_demo",
+      origin_space_id: "spc_demo",
       name: "Demo flow",
       digest: "sha256:demo",
-      start: {},
-      steps: [],
+      can_run: true,
+      manual: true,
+      triggers: { manual: true },
+      graph: {
+        run_id: "preview:flw_demo",
+        flow_id: "flw_demo",
+        flow_digest: "sha256:demo",
+        mode: "preview",
+        nodes: [],
+        edges: [],
+        lanes: [],
+        step_memos: [],
+      },
     }),
     runFlow: async () => ({
       session: { session_id: "ses_demo", title: "Demo session" },
@@ -114,7 +128,34 @@ export function createMockShellClient(
       lanes: [],
       step_memos: [],
     }),
+    resolveStep: async (_runId, stepId, body) => ({
+      ok: true,
+      run_id: "run_demo",
+      step_id: stepId,
+      branch: body.branch,
+      status: "completed",
+    }),
+    openChild: async (runId, parentStepId, body) => ({
+      ok: true,
+      run_id: runId,
+      parent_step_id: parentStepId,
+      child_step_id: body.child_step_id,
+      iteration: 1,
+      deduplicated: false,
+    }),
+    createUploadIntent: async (_runId, _stepId, body) => ({
+      ok: true,
+      intent_id: "upi_demo",
+      expires_in_ms: 3_600_000,
+      files: body.files.map((file, index) => ({ index, size_bytes: file.size_bytes })),
+    }),
+    uploadIntentFile: async (_intentId, _index, file, options) => {
+      options?.onProgress?.(file.size, file.size);
+      return { received_bytes: file.size };
+    },
+    cancelUploadIntent: async () => {},
     retry: async () => ({ run: { run_id: "run_retry" } }),
+    cancel: async () => ({ run: { run_id: "run_demo", lifecycle: "cancelled" } }),
   },
   };
 }

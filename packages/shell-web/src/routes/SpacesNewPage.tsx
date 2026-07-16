@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Button } from "@murrmure/shell-ui";
@@ -47,10 +46,10 @@ export function SpacesNewPage() {
     <AppShell>
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Link a space</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Create your first space</h1>
           <CardDescription className="mt-2">
-            Murrmure v2 uses the CLI for space setup. Run these commands in your project directory, then watch
-            the sidebar update live.
+            Fresh storage is empty. Run setup in your project directory, confirm
+            its name and slug, then watch the sidebar update live.
           </CardDescription>
         </div>
 
@@ -62,35 +61,17 @@ export function SpacesNewPage() {
         )}
 
         <CliBlock
-          title="1. Initialize murrmure/ directory"
+          title="Guided setup"
+          command="mrmr setup"
+        />
+        <CliBlock
+          title="Offline scaffold only"
           command="mrmr space init"
         />
         <CliBlock
-          title="2. Create hub space and link path"
-          command="mrmr space link --create"
+          title="Granular link and apply"
+          command={"mrmr space link --create\nmrmr space apply"}
         />
-        <CliBlock
-          title="3. Apply space index from files"
-          command="mrmr space apply"
-        />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Agent grant (MCP)</CardTitle>
-            <CardDescription>
-              Mint grants via CLI — Configure UI is retired in v2.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="overflow-x-auto rounded-md border border-border bg-muted p-3 text-sm">
-              {`mrmr grant mint --space spc_… --label "cursor-agent" \\
-  --capabilities space:read,flow:run,action:invoke,journal:read`}
-            </pre>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Use the token on the <Link to="/connect" className="underline">Connect</Link> page for MCP setup.
-            </p>
-          </CardContent>
-        </Card>
 
         {spacesQuery.data && spacesQuery.data.length > 0 && (
           <div className="flex flex-wrap gap-2">

@@ -1,5 +1,693 @@
 # Changelog
 
+## Task 15 Lane C — build: v2 tutorial and bridge documentation cutover (2026-07-15)
+
+### Removed
+
+- `studio-specs/current/bridges/action-invoke.md` — its sole purpose was the v2
+  `action:invoke` route (`POST /v1/spaces/:id/actions/:name/invoke`), which Lane A
+  removed. Cross-links in `handlers.md`, `step-contract.md`, `artifacts.md`, and
+  `ADR-004-handlers-mrmr-cutover.md` were repointed; the ADR records the removal.
+- v2 tutorials `apps/docs/guide/tutorials/01-local-preview-review/` (1b, 9 parts),
+  `02-multi-agent-brief/` (5 parts), and `03-daily-brief-trigger/` (4 parts) —
+  archived to `studio-specs/archives/superseded/tutorials/` with a non-normative
+  README. They describe the removed v2 runtime (`action:invoke`, `gate:resolve`,
+  checkpoint gates, `awaiting_human`, base64 `PUT /v1/artifacts`,
+  `mrmr action invoke`) and never override `current/`.
+- `mrmr action invoke` section from `apps/docs/guide/cli.md` and the `action
+  invoke` command + "Action commands" section from
+  `studio-specs/current/cli/spec.md`.
+- `murrmure_invoke_action` from the MCP tool tables in
+  `apps/docs/reference/mcp-tools.md` and `studio-specs/current/product/spec.md`.
+- `GET /v1/spaces/:id/gates` and `POST /v1/spaces/:id/actions/:name/invoke` from
+  `apps/docs/reference/http-api.md` (with a `Retired` note for the latter).
+
+### Changed
+
+- `apps/docs/.vitepress/config.ts` and `apps/docs/guide/tutorials/index.md` now
+  treat **Tutorial v3 `1a`** as the only active introductory path; sidebar
+  entries for `1b`, `2`, and `3` are gone. Cross-links in `introduction.md`,
+  `quick-start.md`, `installation.md`, `review-workflow.md`,
+  `multi-agent-feature-spec.md`, `space-handlers.md`, `creating-flows.md`, the
+  `skill-developer` SKILL, and the `test-utils/spaces/*-v2/README.md` fixtures
+  were repointed to the v3 tutorial / Space handlers.
+- `studio-specs/current/bridges/flow-engine.md` — checkpoint modules removed
+  from the module table, `enrichCheckpointViewRefs` dropped from the index
+  pipeline, and the "Legacy invoke/checkpoint" + "Checkpoint runtime" sections
+  collapsed into a concise "Removed legacy engine surface (historical)" note.
+  `POST /v1/gates/:gate_id/resolve` is documented as the orchestration-gate route
+  (`flow:run`, space-bound); the legacy space-scoped `GET /v1/spaces/:id/gates`
+  is gone.
+- `studio-specs/current/bridges/artifacts.md` — `PUT /v1/artifacts` now uses an
+  `application/octet-stream` body with `x-murrmure-*` headers (no
+  `content_base64`); the `mrrm.artifact/v1` typo is corrected to
+  `mrmr.artifact/v1`; the "Invoke integration" section is now "Dispatch
+  integration" (internal dispatch only — handler, scheduler, federation relay).
+- `studio-specs/current/triggers/spec.md` — `mcp_wake` documented as legacy
+  dispatch with `POST /v1/mcp/wake` retired (404); `action-invoke.md` link
+  removed.
+- `studio-specs/current/desktop/spec.md` — push-notification assignees now refer
+  to orchestration gates (`flow:run`), not the `gate:resolve` fallback.
+- `apps/docs/reference/http-api.md` and `mcp-tools.md` — capability columns
+  updated to `flow:run` / `step:resolve` / `event:emit`; `action:invoke` and
+  `gate:resolve` removed from active capability rows.
+- `studio-specs/current/product/spec.md` — executor example `required_scopes`
+  trimmed to `[space:enter]`; capability table rewritten around `step:resolve`
+  and `event:emit`; MCP table updated; the phase-08 row is clarified as a
+  historical record (`space onboard` retired), not a current command.
+- `studio-specs/current/bridges/grants-migration.md` — `action:invoke` /
+  `gate:resolve` marked as removed capabilities; `state:transition` → `flow:run`,
+  `event:emit` → `event:emit`; native v2 capabilities list updated to
+  `step:resolve` / `event:emit`; conformance rules reference `flow:run`.
+
+### Added
+
+- `scripts/check-clean-state.mjs` and `packages/cli/test/docs-proof.test.ts`
+  now reject v2 runtime vocabulary in active guidance: `useViewSubmit`,
+  `content_base64`, `contract_keys`-keyed dispatch (outright); `mrmr action
+  invoke` and `awaiting_human` (context-aware — a line that names the token as
+  removed/superseded is allowed). `check-clean-state.mjs` `scan` now collects
+  line content and supports an `allowIf` removal-context matcher.
+- `studio-specs/archives/superseded/tutorials/README.md` — non-normative archive
+  marker for the retired v2 tutorials, with the v3 → v3 successor mapping.
+- `test-utils/spaces/tutorial-v3/manual-acceptance.schema.json` task pattern now
+  permits task `15` (`^(00|0[1-9]|1[0-5])$`).
+
+## Task 15 Lane A — fix: gate resolve boundary hardening (2026-07-15)
+
+### Removed
+
+- `POST /v1/spaces/:space_id/gates/:gate_id/resolve` legacy HTTP route
+  (`packages/hub-daemon/src/routes.ts`). It broadcast `gate.resolved` SSE
+  unconditionally (even on 404/403) and trusted `body.actor_id`. Gate
+  resolution now uses only the normative `POST /v1/gates/:gate_id/resolve`
+  (phase07) route.
+
+### Changed
+
+- `POST /v1/gates/:gate_id/resolve` (phase07) and `resolveGate`
+  (`packages/hub-core/src/gates/service.ts`) now enforce a space boundary: a
+  `flow:run` token may only resolve a gate in its own space; bootstrap and
+  `hub:admin` tokens may resolve cross-space. Both the route and the service
+  check the boundary (defense in depth); a mismatch yields
+  `SCOPE_ENFORCEMENT_FAILURE` (403).
+- `studio-specs/current/fixtures/product/product/http-sse-gate.json` and
+  `http-hub-j01.json`, and `apps/docs/reference/http-api.md` no longer reference
+  the removed space-scoped resolve route; the normative route is documented as
+  space-bound.
+
+### Added
+
+- Rejection tests: the removed legacy
+  `POST /v1/spaces/:id/gates/:gate/resolve` returns 404; a space-A `flow:run`
+  token cannot resolve a space-B gate (403) while bootstrap and same-space
+  tokens succeed (`packages/hub-daemon/test/http/gates/`); the removed
+  runtime-adapter `POST /v1/scopes/:scope_id/checkpoints/:id/resolve` returns
+  404 (`packages/runtime-adapter-http/test/http-conformance.test.ts`).
+
+## Task 15 Lane A — fix: remove kernel checkpoint runtime bridge (2026-07-15)
+
+### Removed
+
+- Kernel `checkpoint.resolve` command: the `checkpoint.resolve` variant is gone
+  from `KernelCommand` (`packages/runtime-contracts/src/types/kernel-command.ts`),
+  and the kernel handler no longer has the `checkpoint.resolve` case,
+  `handleCheckpointResolve`, or the `commitCheckpointResolved` /
+  `commitCheckpointRejected` committers
+  (`packages/runtime-kernel/src/command/handler.ts`). The vote/quorum/reject
+  lifecycle helpers (`isQuorumSatisfied`, `shouldRejectImmediately`, `addVote`)
+  are deleted; only `checkpointFromTransition` (checkpoint creation) remains
+  (`packages/runtime-kernel/src/checkpoint/lifecycle.ts`).
+- `POST /v1/scopes/:scope_id/checkpoints/:id/resolve` HTTP route
+  (`packages/runtime-adapter-http/src/app.ts`). Kernel checkpoints are no longer
+  resolvable over HTTP.
+- Dead kernel→Studio error mappings `checkpoint_vote_denied` and
+  `checkpoint_resolved` from `KERNEL_TO_STUDIO`
+  (`packages/hub-core/src/bridge/errors.ts`).
+
+### Changed
+
+- `gate.resolve` no longer bridges to the kernel `checkpoint.resolve` command.
+  `HubHandler.handleGateResolve` now delegates to the orchestration gate service
+  `resolveGate` (`packages/hub-core/src/gates/service.ts`) — the same path as
+  `POST /v1/gates/:gate_id/resolve` (phase07, `flow:run` authz). A `gate.resolve`
+  whose `gate_id` derives from a kernel checkpoint has no gates-table row and is
+  denied `gate_not_found` (404); the kernel checkpoint stays pending.
+- The kernel retains only checkpoint **creation** (the minimal checkpoint surface
+  for waiters + the `gate_queue` projection): a transition whose rule declares a
+  `checkpoint` quorum still pauses the aggregate (`checkpoint_pending`, 202) with
+  no state change. Advancing a paused aggregate is owned by the orchestration
+  gate service on the gates table, not the kernel.
+- `scripts/check-clean-state.mjs` now scans
+  `packages/runtime-contracts/src`, `packages/runtime-kernel/src`, and
+  `packages/runtime-adapter-http/src` and forbids the `checkpoint.resolve`
+  command literal.
+
+### Retained (unchanged)
+
+- Orchestration gate approval via `gates/service.ts resolveGate` +
+  `POST /v1/gates/:gate_id/resolve` (`flow:run` authz).
+- `mrmr.gate.resolved` journal/SSE events for orchestration gates.
+- Task 08 nested `STEP_YIELDED` / `STEP_RESUMED`.
+- Kernel checkpoint creation (`checkpoint.created`), the `gate` wait-condition
+  matcher, and the `gate_queue` projection (dormant — no production flow uses
+  checkpoint-quorum transitions post-cutover).
+
+## Task 15 Lane A — v2 runtime cutover: capabilities, gates, checkpoints, artifacts (2026-07-15)
+
+### Removed
+
+- `action:invoke` and `gate:resolve` capabilities from the capability enum
+  (`packages/contracts/src/grants/capability.ts`,
+  `packages/hub-core/src/grants/migrate.ts`). No compatibility aliases; v1
+  `event:emit` / `federation:emit` scopes now map to a native `event:emit`
+  capability (not to `action:invoke`).
+- Public `POST /v1/spaces/:id/actions/:name/invoke` HTTP route. Action
+  execution is now internal flow/hook/scheduler dispatch only
+  (`invokeService` used privately). The 10+ action-invoke HTTP tests are
+  strict 404 rejection tests at the boundary.
+- Checkpoint-era flow-engine machinery: `checkpoint-dispatch.ts`,
+  `checkpoint-resolve.ts`, `checkpoint-runner.ts`,
+  `isDeclarativeCheckpointStep`, and v2-only `on_resolve`/`goto` routing in
+  `advance.ts` / `advance-runner.ts` / `gates/service.ts`. All flows are
+  step-contract post-cutover. `checkpoint.test.ts` deleted; Task 08 nested
+  `STEP_YIELDED` / `STEP_RESUMED` verified unregressed.
+- `content_base64` from `ArtifactPutBodySchema` and the `PUT /v1/artifacts`
+  JSON body path. Artifact registration now takes an `application/octet-stream`
+  body with `x-murrmure-space-id` / `x-murrmure-name` /
+  `x-murrmure-authorized-readers` headers; internal `putArtifact` callers
+  (resolve-step promotion) pass raw bytes.
+
+### Changed
+
+- Gate policy: flow step progression uses `step:resolve` only. Run/session
+  cancel, orchestration gate approval, and notification fallbacks now require
+  `flow:run` on the run. `resolveGateV2` renamed to `resolveGate`
+  (`packages/hub-core/src/gates/service.ts`); the checkpoint-gate branch is
+  gone, the orchestration-approval path keeps clean authz.
+- Federated relay wire (`packages/hub-daemon/src/federation-wire.ts`) now
+  targets a dedicated internal dispatch endpoint
+  `POST /v1/federation/relay/spaces/:id/actions/:name/invoke`
+  (`packages/hub-daemon/src/routes/federation/index.ts`), gated on `flow:run`
+  — not the removed public action-invoke route. Cross-hub collection relay
+  verified end-to-end.
+
+### Added
+
+- `event:emit` native capability.
+- `check:clean-state` enforcement now forbids `action:invoke`, `gate:resolve`,
+  `isDeclarativeCheckpointStep` in production source, and `content_base64` in
+  the artifact PUT schema/path.
+- `checkpoint-resolve.json` skill-eval retargeted to post-cutover gate
+  approval (`disposition` / `continue` / `cancel` / `output` + `flow:run`;
+  dropped removed `on_resolve`).
+
+## Task 15 Lane A — legacy v2 runtime teardown (2026-07-15)
+
+### Removed
+
+- Dead `mrmr action invoke` CLI command group
+  (`packages/cli/src/commands/action/**`). The command was never registered
+  on the `mrmr` root (`packages/cli/src/commands/root.ts`), so it was
+  unreachable; removed as part of the v2 action-invoke surface teardown.
+  `docs-proof` already asserted its absence from the root command.
+- Unexposed `murrmure_invoke_action` MCP handler and input schema
+  (`packages/hub-daemon/src/mcp-handlers.ts`,
+  `packages/hub-daemon/src/mcp-tool-schemas.ts`). The tool was already absent
+  from `PLATFORM_TOOLS` (not listed in the MCP catalog) and rejected at the
+  `/v1/mcp/tools/call` authorization boundary with 403; only the dead handler
+  and schema remnants are removed. `check:clean-state` now forbids
+  `murrmure_invoke_action` in production source.
+
+### Notes
+
+- First slice of Task 15 Lane A. The remaining v2 runtime teardown
+  (`action:invoke` / `gate:resolve` grant capabilities and every tool/route
+  that requires them, checkpoint-era flow-engine machinery, and base64
+  cross-space artifact registration) is follow-on Lane A work; see the task
+  handoff for scope and design decisions.
+
+## Tutorial v3 Task 14 — release through the complete tutorial (2026-07-15)
+
+### Added
+
+- Tutorial v3 is now the canonical release acceptance path. Deterministic
+  release acceptance is automated: the Parts 1–6 progressive fixtures
+  (`test-utils/spaces/tutorial-v3/`), the packaged Desktop smoke
+  (`apps/desktop/test/tutorial-v3-packaged.test.ts`), the docs navigation
+  guard, and the release artifact template are all exercised in CI.
+- A release acceptance artifact template
+  (`test-utils/spaces/tutorial-v3/manual-acceptance.template.json`) conforms
+  to `manual-acceptance.schema.json` and pre-fills every signed-release-only
+  evidence kind (notarization/Gatekeeper, real Keychain, actual upgrade, real
+  integration-context reload). Operators copy it to record completed manual
+  evidence; a CI test validates the template against the schema (TV3-M).
+- `tutorial-v3-release` guards assert the docs navigation lists Tutorial v3
+  (`1a — First flow (v3)`) ahead of the v2 full tutorial and marks it
+  `start here`, and that release notes plus the one-time clean-slate local
+  reset procedure are published.
+
+### Notes
+
+- The `parts-1-6-release` beat splits cleanly: deterministic packaged
+  behavior (empty boot, hardened view host, exact intake View through the
+  packaged hub) is automated in macOS CI; the full Parts 1–6 run through a
+  signed packaged Desktop remains manual signed-release evidence
+  (`test.skip("Task 14 — Parts 1–6 execute through packaged Desktop")`).
+- Task 13 deferred three v2 runtime blockers that limit the full clean-slate
+  gate and remain owned by the T15 follow-on cutover / CLI typecheck-debt
+  owners: (1) legacy v2 runtime teardown (`action:invoke` / `gate:resolve`
+  capabilities, `mrmr action invoke` CLI, gate/checkpoint/`on_resolve`/`goto`
+  routing, base64 cross-space artifacts); (2) `packages/cli` pre-existing
+  typecheck debt; (3) v2 tutorial docs + legacy spec bridges. They are not
+  patched here, per the no-deferred-implementation-bucket guardrail.
+
+## Tutorial v3 Task 13 — clean-slate cutover (2026-07-15)
+
+### Removed
+
+- Orphaned `FlowCheckpointStepSchema` from `@murrmure/contracts` (checkpoint
+  steps are no longer authorable; the live `on_resolve` route schema used by
+  gates is retained).
+- Stale `test.skip("Task 01–12 — …")` placeholders from the Tutorial v3
+  skeleton suites now that Tasks 01–12 are approved.
+- Removed-command drift from active normative/guidance surfaces: `grant mint`
+  and `space onboard` are no longer described as current CLI commands in
+  `studio-specs/current/cli/spec.md`, `product/architecture.md`,
+  `bridges/config.md`, or `apps/docs/guide/how-it-fits-together.md`.
+
+### Added
+
+- `check:clean-state` now scans `packages/contracts/src` and rejects the
+  removed identifiers `useViewSubmit`, `your_flows`, `available_to_run`,
+  `HANDLER_MISSING`, and `FlowCheckpointStepSchema` from production source so
+  they cannot return.
+- `tutorial-v3-harness` Task 00 guard now asserts skeleton suites carry no
+  hidden failures and mark only pending (Task 13/14) work with an owning task
+  ID, instead of requiring a skip.
+
+### Fixed
+
+- `@murrmure/shell-web` typecheck debt: `formatStepExecutorOutput` now
+  formats `agent_stdout` sections instead of falling through to a missing
+  `.label`; the step-executor-output test fixture no longer carries an
+  untyped `error_code`; non-shipped Storybook stories/prototypes (which
+  reference an uninstalled `@storybook/*` toolchain) are excluded from the
+  production `tsc -p` pass.
+
+### Notes
+
+- The legacy v2 runtime — `action:invoke` / `gate:resolve` capabilities, the
+  `mrmr action invoke` CLI, gate/checkpoint/`on_resolve`/`goto` flow-engine
+  routing, and base64 cross-space artifact registration — remains active and
+  entangled with the gate kernel, run service, grants, and persistence. Its
+  full teardown is a major refactor owned by dedicated follow-on cutover
+  tasks (the removal/integration subset of T15), not an opaque patch in this
+  gate, per this task's "no deferred implementation bucket" guardrail.
+
+## Tutorial v3 Task 12 — one truthful flow page (2026-07-15)
+
+### Added
+
+- Space home now exposes one canonically deduplicated **Flows** list and a
+  fixed-height, 20-run **Recent completed** scroller with full run history.
+- Applied preview, live runs, and history share one flowchart page, selection
+  model, and responsive contract/resolver inspector. Manual authorized flows
+  start from the page header without changing the page experience.
+- Server-owned graph projection renders normalized branch routes, custom
+  decision fan-out, and one shared failure terminal. Resolver identity is
+  sanitized, and runs pin their flow/catalog plus handler config digests so a
+  later apply cannot rewrite historical rendering.
+
+### Breaking
+
+- Space-home payload v2 replaces overlapping `your_flows` and
+  `available_to_run` arrays with canonical `flows`.
+- Flow preview payload v2 carries the authorized graph and server-computed
+  `can_run`; clients no longer infer contracts or handler bindings.
+
+## Tutorial v3 Task 11 — multi-file artifact collections and run retention (2026-07-15)
+
+### Added
+
+- Artifact slots are now **bounded, ordered file collections**. `max_files`
+  defaults to `1` (singleton); `max_files > 1` declares a collection, with
+  optional `min_files` and `max_total_bytes`. Each file independently satisfies
+  MIME, extension, and byte constraints; normalized duplicate filenames fail;
+  submission and manifest preserve deterministic order. Archives remain opaque
+  single files.
+- Collection slots bind the **`.directory`** token; singleton slots bind
+  **`.path`**. The two token shapes are not interchangeable: a `.path` binding
+  on a collection (or `.directory` on a singleton) is rejected at apply time
+  with `HANDLER_BINDING_VALUE_MISSING` and lints as
+  `ARTIFACT_TOKEN_CARDINALITY_MISMATCH`. Cardinality is captured at promotion
+  time so projection never needs the catalog.
+- Local consumers receive one **verified directory** (collection) or file
+  (singleton) materialized atomically under
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/` with digest
+  verification, normalized unique names, source immutability, and all-or-nothing
+  visibility (`materializeConsumerCopyDirectory`).
+- Remote/federated consumers receive **ordered immutable artifact references**
+  (`transfer_id`, `digest`, `size_bytes`) and materialize them in their own
+  space. The destination fetches each referenced artifact from the producer's
+  new `GET /v1/artifacts/{transfer_id}/bytes` endpoint using the relayed
+  `hub_url` / `hub_token` (no destination pre-seeding), re-verifies the digest,
+  writes consumer copies under its own run-scratch tree, and rebinds them into
+  the handler tokens. The journaled dispatch audit carries opaque references
+  (`artifact:{producer}:{slot}(:directory)`, or the transfer id) — never a
+  `.mrmr/dev/runs` host path.
+- Relayed artifact references are validated against `authorized_readers` and
+  expiry before materialization — the same ACL/expiry checks the normal
+  `artifacts_in` path enforces — so a caller cannot bypass artifact
+  authorization by supplying a `step_contract`. An unauthorized relayed
+  reference is rejected with `ARTIFACT_ACCESS_DENIED` (403) before any bytes
+  are materialized. The producer `.../bytes` endpoint enforces the same ACL,
+  expiry, and digest checks and is reachable with `blob:read` or a federated
+  `step:resolve` credential.
+- The producer `.../bytes` endpoint binds the artifact ACL principal to the
+  credential, not a caller-supplied `?space_id=` (parity with `artifacts_in`).
+  The resolve token minted for a `remote_hub` dispatch carries a persisted
+  `consumer_space_id` binding; the claimed `space_id` must match it. A
+  same-space `blob:read` token may read only its own space's artifacts. A
+  bootstrap or wrong-space credential is rejected with `ARTIFACT_ACCESS_DENIED`
+  (403) before any bytes are served — a caller can no longer claim another
+  ACL-authorized space by supplying an arbitrary `?space_id=`.
+- Relayed reference `name`, `slot`, `producer_step`, and the destination
+  `consumer_step` (the relayed public invoke `step_id`) are all validated as
+  single safe path segments before they are joined into a consumer-copy path:
+  no `..`, absolute paths, or path separators are accepted. A crafted,
+  digest-valid reference — or a crafted relayed `step_id` — that would escape
+  the linked space root during materialization is rejected with
+  `ARTIFACT_PATH_TRAVERSAL` (404) before any consumer bytes are written. A
+  resolved-path containment check at the write sink backstops the segment
+  validation so verified bytes can never land outside the run scratch tree.
+- **Run retention GC**: terminal local bytes expire at `ended_at + 7 days`;
+  active run directories are never collected. GC runs at Hub startup and every
+  24 hours, removes only the per-run tree, preserves journal metadata and
+  global artifact manifests/refs, tolerates partial failure, and logs a
+  sanitized summary (counts and freed bytes only). No manual GC command or
+  release-time override ships.
+- Managed temporary, promoted, and consumer copies all count toward fixed local
+  quotas at the run and per-space level.
+- A concrete local + remote collection example fixture
+  (`test-utils/spaces/collection-example`) and ADR-014 document the canonical
+  run root, seven-day retention, and local-vs-federated materialization
+  boundary.
+
+### Removed
+
+- The stale `.mrmr.temp/runs` run root is banned from active code, tests,
+  fixtures, specs, tutorials, skills, and scaffolds. A repository guard
+  (`pnpm check:run-scratch-paths`) enforces no `.mrmr.temp/runs` and a single
+  canonical run-root constructor (`runScratchDir` / `spaceRunsDir`). Old
+  development scratch is not migrated and may be deleted manually.
+
+## Tutorial v3 Task 08 — nested build/review call-return (2026-07-15)
+
+### Added
+
+- `murrmure_open_child_step` atomically yields an assigned parent, revokes and
+  terminates the old assignment, and opens one direct declared child with
+  required idempotency.
+- Child return emits distinct yielded/resolved/resumed journal events and
+  creates a fresh parent assignment with canonical `returned_child` identity,
+  branch, iteration, payload, and promoted artifact references.
+- Agent, shell/script, and View adapters share the same nested context and
+  lifecycle. Views activate children through the credential-free host bridge.
+- The parent-owned build/review fixture, race/return integration suite, and
+  `check:nested-call-return` documentation guard are release-blocking.
+
+### Breaking
+
+- Nested children may no longer route directly to siblings. They return to an
+  ancestor with `resume` (the immediate parent by default); only the resumed
+  parent may activate its next direct child.
+- Removed parent-completion vocabulary and long-lived yielded assignments have
+  no active nested runtime path. Immediate run failure remains explicit as
+  `route: { run: failed }`.
+
+## Tutorial v3 Task 07 — connected agent build assignments (2026-07-15)
+
+### Added
+
+- Agent handler contracts now use the versioned
+  `Protocol: murrmure.agent/v1` envelope. Every branch is rendered
+  deterministically from the canonical compiled contract with a complete
+  Draft 2020-12 payload schema, separate artifact requirements, its control
+  effect, and a full resolve call carrying live run/step IDs.
+- Single-key assignments contain Contracts only; multi-key subgraph owners
+  additionally receive Discovery. Session, MCP-tools, Resolve-API,
+  `When ready:`, and placeholder-ID prose is removed.
+- Spawned connected agents now route their installed MCP descriptor through
+  ephemeral run/step/handler authority. The assignment bridge bypasses the
+  persistent OS-store connection and fails closed when assignment authority is
+  incomplete.
+- Local branch calls use workdir-relative artifact paths; remote/federated calls
+  use authorized upload-intent references. MCP resolve now forwards that remote
+  reference.
+- Tutorial Part 5, handler/agent docs, normative bridges, skills, fixtures, and
+  ADR-013 now describe the same prompt and authority boundary.
+
+## Tutorial v3 Task 06 — safe shell handler copies a verified run-scoped artifact (2026-07-15)
+
+### Added
+
+- Shell handlers now resolve with a strict **complete-argument grammar**:
+  every dynamic placeholder must occupy one whole unquoted argument and the
+  runtime shell-quotes it exactly once. Spaces, apostrophes, `$()`, backticks,
+  newlines, leading dashes, and Unicode in filenames or content stay literal
+  data and can no longer become shell fragments.
+- Author-quoted placeholders (`'{{x}}'`, `"{{x}}"`), embedded forms
+  (`--flag={{x}}`, `pre{{x}}post`), and unknown placeholders are rejected
+  before spawn. A missing/null binding fails fast with
+  `HANDLER_BINDING_VALUE_MISSING`; a schema-valid empty string remains one
+  empty argument.
+- A singleton artifact `.path` token (for example
+  `{{murrmure.step.intake.artifact.spec.path}}`) resolves to a **verified,
+  digest-checked, run-scoped consumer copy** at
+  `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}`.
+  The original artifact is never mutated; traversal and digest mismatch refuse
+  the copy before any consumer bytes are written.
+- Canonical `runScratchPaths` helpers centralize every run-scoped path
+  (run dir, step workdir, stable dir, consumer inputs, active contract).
+- Multiline handler commands run as `/bin/sh -e -c "<script>"` with no login
+  profile and no silent shell fallback; omitted `cwd` defaults to the space
+  root and omitted `delivery` defaults to fail-fast.
+- Timeout, cancellation, external resolution, yield, run terminal, or
+  Desktop shutdown terminates the **whole process group** with `SIGTERM`, waits
+  five seconds, then `SIGKILL`, and records exactly one terminal result.
+- Each spawned handler receives an **ephemeral run/step-scoped credential**
+  in its environment, never the persistent machine connection; the dispatch
+  audit records only command/prompt/cwd, so credentials never reach the
+  journal or public surfaces.
+
+### Breaking
+
+- Authored `kill_on` is removed; process termination is owned by the runtime.
+- Raw `{{key}}` interpolation that silently emptied unknown/missing bindings is
+  gone — handlers with unresolved placeholders now fail before spawn with a
+  typed error instead of running a malformed command.
+
+### Fixed (post-review, 2026-07-15)
+
+- Assignment credentials now carry an `expires_at` backstop and a `scope_ref`
+  (`{run_id}:{step_id}`); `requireToken` denies expired/revoked tokens and the
+  resolve route denies a scope mismatch (`TOKEN_STEP_SCOPE_MISMATCH`). Credentials
+  are revoked on step resolve/auto-complete, run terminal, and Desktop shutdown
+  via an assignment-credential registry, so no persistent child credential
+  survives a finished assignment.
+- Process-group `SIGKILL` escalation now stays armed when the shell leader exits
+  after `SIGTERM`, so a TERM-resistant descendant is reaped after the grace
+  period; Hub/Desktop shutdown cancels every registered shell executor.
+- Binding and materialization failures now map to their own typed codes
+  (`HANDLER_BINDING_VALUE_MISSING`, `HANDLER_PLACEHOLDER_QUOTED`/`EMBEDDED`,
+  `HANDLER_UNKNOWN_PLACEHOLDER`, `ARTIFACT_PATH_TRAVERSAL`,
+  `ARTIFACT_SOURCE_NOT_FOUND`/`NOT_FILE`, `ARTIFACT_DIGEST_MISMATCH`,
+  `ARTIFACT_COPY_FAILED`) before spawn, instead of collapsing to
+  `SHELL_SPAWN_FAILED`.
+- The dispatch audit resolves artifact `.path` placeholders to opaque references
+  (transfer id, else `artifact:{producer}:{slot}`) — never the producer's local
+  run-scratch path or the consumer copy path — so journals and public APIs
+  receive references, not local paths.
+- `materializeConsumerCopy` rejects symlinked sources and symlinked parent
+  directories that resolve outside the run scratch tree (`lstat` + `realpath`
+  canonicalization), and atomically renames into place (POSIX `rename` replaces
+  any existing destination) so a prior copy is never left missing.
+- The shell tokenizer preserves authored single-quoted literals verbatim and
+  recognizes hyphenated placeholders (e.g. `{{my-step.artifact.path}}`) so they
+  are substituted or rejected as unknown instead of silently passing through.
+- The exact Tutorial Part 5 (`write_spec_copy`) conformance test is now active.
+
+### Fixed (second post-review, 2026-07-15)
+
+- The assignment boundary is now enforced on **every `step:resolve` endpoint** —
+  step resolve, upload-intent creation, file transfer, and intent abandon — by
+  one shared `requireAssignmentScope` helper. An ephemeral handler token
+  (`scope_ref` `{run_id}:{step_id}:{handler_id}`, `harness_id` `run:{run_id}`)
+  can no longer create upload intents or transfer files for another active
+  run/step or in another space; mismatches return `TOKEN_RUN_SCOPE_MISMATCH`,
+  `TOKEN_STEP_SCOPE_MISMATCH`, or `scope_enforcement_failure`. Grant tokens keep
+  the space-only boundary.
+- Hub/Desktop shutdown now **awaits the SIGKILL escalation** before exiting. The
+  escalation timer is ref'd and `killChildProcess` returns an awaitable promise
+  that `awaitAllShellExecutorsTerminated` collects at shutdown, so a
+  TERM-resistant descendant can no longer outlive the daemon.
+- `materializeConsumerCopy` now contains the **destination parent**: after
+  `mkdir` the consumer `inputs/{slot}` directory is `realpath`-canonicalized
+  and rejected if it resolves outside the run scratch tree, and a pre-existing
+  symlink at the destination filename is rejected — so a malicious
+  `.../inputs/{slot}` symlink can no longer redirect the temp write and atomic
+  rename outside the tree.
+- Process-tree termination is now **once-only**: the executor deregisters its
+  cancel handle when the process settles (timeout, error, or close), so a
+  timeout that locally terminates followed by the run-failure cancellation path
+  signals the group exactly once (one `SIGTERM`, one `SIGKILL`, one terminal
+  result). New integrated and HTTP regressions cover cross-run/step/space
+  upload scope, awaited shutdown escalation, destination-parent symlink escape,
+  and integrated timeout/cancel once-only behavior.
+
+### Fixed (third post-review, 2026-07-15)
+
+- The process-group `SIGKILL` escalation now **survives the shell leader
+  exiting after `SIGTERM`**. Previously `killChildProcess` registered `finish`
+  on the leader's `close`/`exit`, which cleared the five-second escalation
+  timer and resolved the promise the moment the leader died — so a
+  TERM-resistant descendant in the process group could outlive the daemon while
+  `awaitAllShellExecutorsTerminated` returned. The `close`/`exit` handler now
+  resolves early only once a signal-0 probe confirms the **entire process group**
+  is dead; a surviving descendant keeps the group alive, so the ref'd SIGKILL
+  escalation fires on the group after the grace period and shutdown awaits full
+  group death. New regression covers leader exit plus a surviving TERM-resistant
+  descendant (one `SIGTERM`, one `SIGKILL`).
+
+## Tutorial v3 Task 09 — run capacity and safe apply (2026-07-15)
+
+### Added
+
+- Space-owned `run_policies: [{ flow, max_concurrent_runs }]` in
+  `handlers.yaml`. `flow` is an authored alias resolved at apply to canonical
+  `{ origin_space_id, flow_id, flow_digest }`; `max_concurrent_runs` is an
+  integer ≥ 1; no policy means unlimited. The portable flow carries no
+  concurrency policy.
+- One atomic run-capacity admission check shared by every start path (manual,
+  trigger, API, MCP, federated). Overflow creates no queue/partial run and
+  returns `409 FLOW_CONCURRENCY_LIMIT` with the canonical flow identity, the
+  configured limit, and the active blocking run IDs.
+- Apply quiescence: an apply replaces a space's configuration only when the
+  whole space has no non-terminal runs; otherwise `409 SPACE_HAS_ACTIVE_RUNS`
+  with the blocking run IDs and the prior index preserved.
+- A shared per-space guard serializes admission (count + insert) and apply
+  (quiescence check + commit) so a limit of one never admits two and no run
+  observes a partially replaced index.
+- Trigger delivery records a typed `mrmr.flow.start_denied` journal event; a
+  later retry performs a fresh admission check.
+- Typed run-policy apply failures (`RUN_POLICY_UNKNOWN_FLOW`,
+  `RUN_POLICY_AMBIGUOUS_FLOW`, `RUN_POLICY_DUPLICATE`) preserve the prior index.
+- Runs and journals pin the applied `flow_digest` admitted at start.
+
+### Breaking
+
+- None. Existing `handlers.yaml` files without `run_policies` behave as before
+  (unlimited). An invalid `run_policies` entry now hard-fails apply with a typed
+  code instead of being ignored.
+
+## Tutorial v3 Task 02 — local connections and bundled bridge (2026-07-14)
+
+### Breaking
+
+- Public local authorization uses `mrmr connection create|activate|list|rotate|revoke`.
+  Removed `grant mint`, `grant use`, `agent connect`, `agent activate`, and
+  `space onboard` command paths without aliases.
+- Local MCP configuration no longer contains token environment entries.
+  Credentials live only in macOS Keychain; explicit headless CI runtime
+  injection is the sole `MURRMURE_HUB_TOKEN` exception.
+- Legacy action/grant MCP tools are absent; run cancellation uses `flow:run`.
+
+### Added
+
+- Named least-privilege `tutorial-builder/v1` profile with exactly
+  `space:read`, `flow:read`, `flow:run`, and `step:resolve`.
+- Neutral multi-context adapter descriptor, idempotent Cursor MCP/skill install,
+  generic no-write instructions, and reload/resume state.
+- Stable user-only `~/.murrmure/bin/murrmure-mcp` launcher with validated bundle
+  discovery across Desktop relaunch, move, and update.
+- Doctor classifications for descriptor/token leakage and locked/missing local
+  credentials; advanced flow ACLs reject non-applied aliases.
+
+## Tutorial v3 Task 03 — resolver-agnostic step contracts and trigger-only start (2026-07-14)
+
+### Breaking
+
+- Flow manifests are **resolver-agnostic**: steps carry only `id`, optional
+  `description`, optional `branches`, and optional nested `steps`. Removed
+  fields `role`, `presentation`, `deriveRole`, and legacy step kinds are
+  rejected by the strict schema with no fallback.
+- `triggers` is the **only** start-condition field. The removed `start`
+  (including dual `start` + `triggers`) and flow-level `requires_view` are
+  rejected; `requires_view` is not an alias inside `triggers` either.
+- Branch authoring is **flat**. Wrapper shapes (`payload:`, `outcome:`) and
+  superseded routing keys (`next`, `fail_run`, `goto`, `fail`, `complete`,
+  `continue`) are rejected. Routing uses `route: { step }`,
+  `route: { run: completed | failed }`, or `resume: <ancestor>`.
+- Open steps are exposed generically as `open_steps[]` with
+  `resolver: string | null`. `awaiting_human` and `active_human_step` are
+  removed; flow steps create no gate rows.
+- `apiVersion: murrmure.flow/v1` is the sole clean target — no dual parser or
+  v2 reader.
+
+### Added
+
+- Compiler injects `completed` / `failed` **default branches** for steps that
+  omit `branches`; explicit and injected defaults are semantically identical.
+  Explicit `branches: {}` is **hard-rejected at parse** (HTTP 400, no
+  `--strict` needed — the bundle never reaches the index) and custom top-level
+  branches require an explicit `route`.
+- Single canonical owner for `BranchResolveContract` and
+  `OpenStepResolverProjection` in `@murrmure/contracts`.
+- Parse hard-reject codes (no `--strict` needed): `LEGACY_START_KEY`,
+  `LEGACY_REQUIRES_VIEW`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`,
+  `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warning codes:
+  `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`,
+  `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`,
+  `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`.
+- ADR-007 records the resolver-agnostic step contract and trigger-only clean
+  cutover.
+
+### Migration
+
+- Move start conditions from `start:` to `triggers:`. Remove `requires_view`;
+  bind Views through `.mrmr/space/handlers.yaml` (`contract_keys`), not the flow.
+- Replace `role` / `presentation` / `deriveRole` with resolver-agnostic steps;
+  bind execution and human UI in the space.
+- Rewrite branches flat: `schema` + optional `artifact_slots` + `route`/`resume`.
+  Use `route: { run: completed | failed }` for terminal outcomes; `next: null`
+  and `fail_run: true` are gone.
+- Read open steps from `open_steps[]`; gate rows no longer exist for flow steps.
+
+## Tutorial v3 clean-state setup (2026-07-14)
+
+### Breaking
+
+- Fresh Hub/Desktop storage now starts with zero spaces, persisted contracts,
+  flow installs, and demo flows. Production seed contracts and package-catalog
+  stubs are removed from startup and packaging.
+- Earlier development databases are not migrated. Quit Desktop and move
+  `~/.murrmure` aside once before relaunching.
+
+### Added
+
+- `mrmr setup` now creates one folder-defaulted, user-named space with an
+  editable slug used consistently in Hub state and `.mrmr/`.
+- `mrmr space init` remains fully offline and creates no credential. Local-tool
+  connection creation is a separate later step.
+
+## MCP reliability phase 3 (2026-07-09)
+
+### Breaking
+
+- MCP client onboarding now uses `murrmure-mcp` (package `@murrmure/mcp-bridge`) with thin config shape.
+- Legacy fat MCP config examples (`command: "murrmure"` + `args: ["mcp"]` + space-id env pinning) are removed from docs/spec guidance.
+
 ## Murrmure v2 product GA — phases 01–10 (2026-07-03)
 
 ### Added
@@ -20,7 +708,7 @@
 
 - **Removed FDK worker runtime** — no `FlowWorkerPool`, `MountRegistry`, live apply, or capability worker bundles in `@murrmure/hub-daemon`.
 - **Removed `@murrmure/flow-dev-kit` / `@murrmure/flow-kit`** package and all CLI FDK commands (`mrmr flow init`, `validate`, `build`, `push`, `dev --sim`, evolution subcommands).
-- **Removed** `examples/capabilities/` CDK reference trees. Use `examples/flows/preview-review-v2/` and `mrmr space apply` instead.
+- **Removed** `examples/capabilities/` CDK reference trees. Strict-apply test spaces live under `test-utils/spaces/`.
 - **`mrmr flow status` / `mrmr flow list`** now read **indexed** flows via `/v1/spaces/:id/index/flows` (no `.flow-push-state.json`).
 - Deleted human docs: `flow-evolution`, `reference/flow-dev-kit`.
 

@@ -13,8 +13,8 @@
 
 | Surface | Role |
 |---------|------|
-| **Custom view** (`murrmure/views/`) | **The product.** Full-screen (or full primary-region) UI authored per workflow — preview, review, brief editor, daily dashboard. Hides or replaces generic shell chrome. This is what users build and what end users live in. |
-| **Shell chrome** (space home, flowchart, notifications, gate inbox, settings) | **Admin / operator mode.** Observe runs, debug, manage spaces and grants, resolve gates when no custom view is loaded. Not the default day-to-day experience for workflow authors or their users. |
+| **Custom view** (`.mrmr/views/`) | **The product.** Full-screen (or full primary-region) UI authored per workflow — preview, review, brief editor, daily dashboard. Hides or replaces generic shell chrome. This is what users build and what end users live in. |
+| **Shell chrome** (space home, flowchart, notifications, gate inbox, settings) | **Admin / operator mode.** Observe runs, debug, and manage spaces and grants. Unbound human steps are visible but expose no synthesized resolve form. |
 
 **Hard rules for all design and implementation:**
 
@@ -22,9 +22,9 @@
 2. **Building custom views that take over the UI is success**, not a advanced feature.
 3. **The default shell is for admins and operators**, not a substitute for domain UI.
 4. Protocol (sessions, runs, gates, invoke, artifacts) stays in the hub; **presentation is 100% the view bundle** at gates and human checkpoints.
-5. FDK worker install is gone; **space-directory views + ViewCanvasHost** carry the same full-canvas ambition without a second product inside the product.
+5. Retired worker-install paths are gone; **space-directory views + ViewCanvasHost** carry the same full-canvas ambition without a second product inside the product.
 
-If a feature ships built-in forms or a narrow side drawer as the primary human path, **it violates this north star.**
+If a feature ships built-in resolver forms or a narrow side drawer, **it violates this north star.**
 
 ---
 
@@ -254,7 +254,7 @@ Murrmure validates **delivery, digest, ACL, TTL** — not file semantics.
 **Triggers and flows:**
 
 - Triggers **can start a flow** or **create/extend a session** without a declared graph.
-- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, optional `requires_view`.
+- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, `flow_call` — declared under the single `triggers` field. Flow-level view binding is removed; Views bind through the space.
 - Agent may **MCP-push session-scoped orchestration** → **human gate** before bind. Long-lived flows: write files + CLI push.
 
 **Notifications:** global header **Needs you**, notification center, `/notifications` — gates primary; separate from logs.
@@ -293,10 +293,11 @@ my-backend-space/
   mcp.json / .cursor/   # user-owned harness config
   src/                  # code project (example)
   docs/                 # knowledge base (alternative)
-  murrmure/
-    actions.yaml        # action registry: name X → local executor
-    triggers.yaml       # when to invoke / start flows / extend sessions
-    flows/              # optional — local or scope: global orchestration
+  .mrmr/
+    space/
+      space.yaml        # slug, tags, link block (space_id + host)
+      handlers.yaml     # step + event handlers (only indexed file)
+    flows/              # optional — local or global orchestration (protocol only)
     views/              # optional — view packages (decoupled from flows)
   .mrmr.temp/           # gitignored exchange mailbox
     inbox/
@@ -367,7 +368,7 @@ A **flow** is **declarative orchestration** — a thin step graph for a workflow
 | **Local flows** | Declared in a project space — repo-specific pipeline |
 | **Global flows** | `scope: global` in any space — recommended catalog pattern; grants control access |
 | **Generalize** | Move flow/view files to another space via CLI when local → shared |
-| **Trigger modes** | Like GitHub Actions: manual, event, schedule; optional `requires_view` |
+| **Trigger modes** | Like GitHub Actions: manual, event, schedule, flow_call — under `triggers` (no flow-level view binding) |
 | **Initiation** | Shell (if allowed), CLI, trigger, agent MCP (session-scoped + human gate) |
 
 Flows declare **steps and contracts**, not implementation:
@@ -451,20 +452,22 @@ Detail: [space-flow-protocol-v2.md §4](../../archives/plans/space-flow-protocol
 
 ## Triggers and actions
 
-**Triggers** connect the protocol to space-local execution:
+**Triggers** connect the protocol to space-local execution. In the clean protocol these are **event handlers** in `.mrmr/space/handlers.yaml` (`on: event: { type, source? }`) plus flow start conditions — not Murrmure-owned agent configuration:
 
 - **Cron-like automation** (hub schedules delivery)
 - **Flow step** (“call space B now”)
 - **Start or extend a session** (including without a declared flow graph)
 - **Start a flow** (when trigger config says so)
-- **External client** (Claude Desktop POST → start flow or invoke action)
-- **Journal event** (`spec.published` in space A → action in space B)
+- **External client** (Claude Desktop POST → start flow or run a handler)
+- **Journal event** (`spec.published` in space A → handler in space B)
 
 > “Hub can do that with cron-like automation, or when asked by a flow.”
 
-Trigger **definitions** belong in the **space** (`murrmure/triggers.yaml`), not as Murrmure-owned agent configuration.
+Trigger **definitions** belong in the **space** (`.mrmr/space/handlers.yaml`), not as Murrmure-owned agent configuration. Emission is via **`murrmure_emit_event`** (`event:emit` capability), gated at apply time by `.mrmr/space/events.yaml`.
 
-### Action `X` lives in the space; execution is user-owned
+### Action `X` lives in the space; execution is user-owned (legacy — removed, Task 15)
+
+> The clean protocol uses **handlers** (`on::key` for steps, `on: event:` for reactions) bound in `.mrmr/space/handlers.yaml`. The Action + Executor table below is the pre-cutover legacy model, **removed** — the handlers-only cutover is complete (Task 15); spaces use handlers only.
 
 | Murrmure (protocol) | Space (implementation) |
 |---------------------|-------------------------|
@@ -473,7 +476,7 @@ Trigger **definitions** belong in the **space** (`murrmure/triggers.yaml`), not 
 | `cd` to space root, run hook, capture stdout/JSON response | Prompts, skills, model |
 | Dedup, timeout, journal, retry | Business success/failure |
 
-**v1 partial match:** `mcp_wake` + `wake_label` ≈ action name; `payload_map` ≈ params. Missing: space-owned registry, explicit response contract, `cd`+execute primitive, triggers in files.
+**v1 partial match (historical):** the retired wake wire and legacy wake routing label approximated an action name (404, phase 16); `payload_map` ≈ params. Missing: space-owned registry, explicit response contract, `cd`+execute primitive, triggers in files — all supplied by the clean handler + `murrmure_emit_event` protocol.
 
 **Executor registration:** something in the space must listen or be spawnable — Murrmure must not silently become the agent runtime. Open design: long-lived MCP vs one-shot CLI vs desktop watcher (deferred).
 
@@ -523,9 +526,9 @@ Any client may speak Murrmure protocol:
 
 | Client | Example use |
 |--------|----------------|
-| Claude Desktop | Trigger flow; invoke action in remote space (via HTTP/MCP adapter) |
-| Cursor | MCP connected to hub; woken by `mcp_wake` / future invoke |
-| Pi / shell | Executor for action `X` in `actions.yaml` |
+| Claude Desktop | Trigger flow; run a handler in remote space (via HTTP/MCP adapter) |
+| Cursor | MCP connected to hub; reacts to events via `on: event:` handlers and `murrmure_emit_event` |
+| Pi / shell | Handler `shell_spawn` executor (legacy `actions.yaml` executors removed — Task 15) |
 | Cron / hub scheduler | Time-based trigger delivery |
 | Another Murrmure hub | Federation (remote orchestrator) |
 | Desktop app | Protocol server + shell; observes sessions; does not define agents |
@@ -544,7 +547,7 @@ Even under this philosophy, the hub is not “config-free”:
 | **Tokens & grants** | Who may invoke flows, call spaces, read artifacts |
 | **Event journal & seq** | Shared truth for all clients |
 | **Flow index + grants** | Which flows exist (from space files); who may trigger |
-| **Delivery semantics** | invoke, wake, webhook, dedup, retry, timeout |
+| **Delivery semantics** | handler dispatch, event emit, webhook, dedup, retry, timeout |
 | **Gates** | Human validation checkpoints in the protocol |
 | **Artifact manifests** | transfer_id, digest, authorized readers, TTL |
 | **Audit / export** | Cross-team production requirement |
@@ -564,8 +567,8 @@ This is **authorization + wire**, not **agent definition**.
 | **Shell orchestration graph editor** | File/CLI-first; shell visualizes only |
 | Flow installed independently in every space | Prefer indexed flows + scope local/global |
 | Megabyte payloads inline in events | Breaks journal; use artifacts |
-| Hub defines what action `X` executes | Belongs in space `actions.yaml` |
-| Triggers authored only in Configure UI with agent semantics | Belongs in space files; Murrmure indexes |
+| Hub defines what action `X` executes | Belongs in space `handlers.yaml` |
+| Triggers authored only in retired configure shell with agent semantics | Belongs in space files; Murrmure indexes |
 | Assuming MCP always connected without executor | “Wake” with no listener |
 | Murrmure runs LLM loop inside hub | Explicitly out of product scope |
 | **Timeline as primary live dashboard** | Use flowchart for live; logs for retrieval |
@@ -584,14 +587,14 @@ The **philosophy matches** kernel direction (journal, gates, blobs, triggers, `q
 | View decoupled from flow | UI bundled in flow package |
 | **Session** = cross-space unit of work | `instance_id` / review session only |
 | Shell flowchart + global notifications + logs | Review canvas, event tail |
-| CLI-first create; shell instructs | Partial configure UI |
-| Triggers in space files | Triggers in hub DB + Configure UI |
-| Action invoke + response contract | `mcp_wake` + `wake_label`; often fire-and-forget |
+| CLI-first create; shell instructs | Partial retired configure shell |
+| Triggers in space files | Triggers in hub DB + retired configure shell |
+| Action invoke + response contract | Retired wake wire retired (404); handlers + `murrmure_emit_event` now |
 | Artifacts via `.mrmr.temp/` + exchange manifest | Hub `dataDir` blobs + `blob_refs` |
 | Any client triggers flows | MCP-primary |
 | Flow orchestrates cross-space as main story | Cross-space via `query_ask` + triggers; flow mostly in-space |
 
-**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to action invoke + `.mrmr.temp/`.
+**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to `on: event:` handlers + `murrmure_emit_event` + flow triggers + `step:resolve`, with artifacts via `.mrmr.temp/`/exchange store (the `action invoke` spine is removed/historical — Task 15).
 
 v1 is **scaffolding toward** this philosophy, not a full realization.
 
@@ -622,7 +625,7 @@ Captured for later; **do not implement** without a new plan slice:
 
 ## External references (not adoption)
 
-Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — different center of gravity (space/session vs agent peer). **Borrow:** task/context grouping, lifecycle states, parallel work, artifact patterns. **Optional later:** `actions.yaml` executor `a2a` for external agents.
+Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — different center of gravity (space/session vs agent peer). **Borrow:** task/context grouping, lifecycle states, parallel work, artifact patterns. **Optional later:** an `a2a` handler type for external agents (legacy `actions.yaml` executor removed — Task 15).
 
 **Research repos** (`.opensrc` via `projects.yaml`): A2A, Windmill, Inngest, CloudEvents, Temporal, MCP SDK — patterns for runs UX, triggers, event envelope, orchestration. See [space-flow-protocol-v2.md §0c](../../archives/plans/space-flow-protocol-v2.md).
 
@@ -634,7 +637,7 @@ Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — differe
 |-----|--------|
 | [hub/architecture.md](../hub/architecture.md) | Journal, modules, federation |
 | [cross-space/spec.md](../cross-space/spec.md) | `query_ask` / `query_answer` (XS0) |
-| [triggers/spec.md](../triggers/spec.md) | v1 trigger + `mcp_wake` |
+| [triggers/spec.md](../triggers/spec.md) | Event handlers + retired wake-wire presets |
 | [flow-runtime/spec.md](../flow-runtime/spec.md) | v1 mount registry (per-space) |
 | [config/spec.md](../config/spec.md) | Configure shell routes |
 | [desktop/spec.md](../desktop/spec.md) | Local single-URL desktop |

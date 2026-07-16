@@ -5,8 +5,7 @@ import {
   getGateById,
   listGatesForRun,
   presentGateForActor,
-  resolveCheckpointViewRef,
-  resolveGateV2,
+  resolveGate,
   getUserMe,
   patchUserMe,
   queryJournal,
@@ -58,13 +57,6 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         ? true
         : hasCapability(effective, "space:read");
 
-    const runBare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;
-    const runRow = await murrmurePersistence.getRun(runBare);
-    const flowEntry =
-      runRow?.flow_id && runRow.space_id
-        ? await murrmurePersistence.getFlowIndexEntry(runRow.flow_id, runRow.space_id)
-        : null;
-
     const presented = [];
     for (const gate of gates) {
       const row = await getGateById(deps(), gate.gate_id);
@@ -75,8 +67,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         space_name: (await murrmurePersistence.getSpace(row.space_id))?.name ??
           (await murrmurePersistence.getSpace(row.space_id))?.slug,
       });
-      const view_ref = resolveCheckpointViewRef(flowEntry?.ir, gate.step_id);
-      presented.push(view_ref ? { ...base, view_ref } : base);
+      presented.push(base);
     }
     return c.json({ gates: presented });
   });
@@ -86,8 +77,18 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-    if (!hasCapability(effective, "gate:resolve")) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "gate:resolve required" }, 403);
+    if (!hasCapability(effective, "flow:run")) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
+    }
+
+    // Space boundary: a flow:run token may only resolve a gate in its own space.
+    // Bootstrap and hub:admin tokens are privileged and may resolve cross-space.
+    // resolveGate re-checks the same boundary (defense in depth).
+    const gateRow = await getGateById(deps(), gate_id);
+    if (!gateRow) return c.json({ code: "gate_not_found", message: "Gate not found" }, 404);
+    const isPrivileged = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    if (!isPrivileged && bareSpaceId(auth.space_id) !== gateRow.space_id) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "token space does not match gate space" }, 403);
     }
 
     const body = await c.req.json().catch(() => ({}));
@@ -97,7 +98,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
         : body.disposition === "continue"
           ? "continue"
           : undefined;
-    const result = await resolveGateV2(deps(), {
+    const result = await resolveGate(deps(), {
       gate_id,
       disposition,
       output:
@@ -107,9 +108,10 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
       decision: body.decision === "rejected" ? "rejected" : body.decision === "approved" ? "approved" : undefined,
       actor_id: auth.actor_id,
       token_id: auth.token_id,
+      space_id: auth.space_id,
       resume_data: body.resume_data,
       form_values: body.form_values ?? body.form,
-      can_resolve: hasCapability(effective, "gate:resolve"),
+      can_resolve: hasCapability(effective, "flow:run"),
       capabilities: effective,
     });
 
@@ -162,7 +164,7 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
           })),
         });
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     return c.json({ gates: [], timed_out: true });
@@ -173,8 +175,8 @@ export function mountGateRoutes(app: Hono, ctx: DaemonContext): void {
     const auth = await requireToken(murrmurePersistence, c.req.raw);
     if (auth instanceof Response) return auth;
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
-    if (!hasCapability(effective, ["flow:run", "action:invoke", "hub:admin"])) {
-      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run or action:invoke required" }, 403);
+    if (!hasCapability(effective, ["flow:run", "hub:admin"])) {
+      return c.json({ code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" }, 403);
     }
 
     const body = await c.req.json();
@@ -228,6 +230,7 @@ export function mountNotificationRoutes(app: Hono, ctx: DaemonContext): void {
         kind: n.kind,
         status: n.status,
         gate_id: n.gate_id ? addGateId(n.gate_id) : undefined,
+        step_id: n.step_id,
         run_id: n.run_id ? `run_${n.run_id}` : undefined,
         session_id: n.session_id ? `ses_${n.session_id}` : undefined,
         space_id: addSpaceId(n.space_id),
@@ -344,7 +347,7 @@ export function mountJournalQueryRoutes(app: Hono, ctx: DaemonContext): void {
           terminal: true,
         });
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 100));
     }
 
     const run = await murrmurePersistence.getRun(bare);

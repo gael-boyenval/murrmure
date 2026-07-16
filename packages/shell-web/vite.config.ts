@@ -1,25 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import {
-  DESKTOP_HOST,
-  parseHubPort,
-  parseShellDevPort,
-} from "../../apps/desktop/src/dev-ports.ts";
-
-const shellDevPort = parseShellDevPort(process.env);
-const hubUrl = `http://${DESKTOP_HOST}:${parseHubPort(process.env)}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: DESKTOP_HOST,
-    port: shellDevPort,
+    host: "127.0.0.1",
+    port: 5174,
     strictPort: true,
     proxy: {
-      "/v1": { target: hubUrl, changeOrigin: true },
-      "/api": { target: hubUrl, changeOrigin: true },
-      "/flows": { target: hubUrl, changeOrigin: true },
+      "/v1": { target: "http://127.0.0.1:8787", changeOrigin: true },
+      "/api": { target: "http://127.0.0.1:8787", changeOrigin: true },
     },
   },
 });

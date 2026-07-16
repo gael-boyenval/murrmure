@@ -185,15 +185,30 @@ export function migrateStudio(db: Database.Database): void {
       PRIMARY KEY (space_id, name)
     );
 
+    CREATE TABLE IF NOT EXISTS space_views (
+      space_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      digest TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      PRIMARY KEY (space_id, name)
+    );
+
     CREATE TABLE IF NOT EXISTS flow_index (
       origin_space_id TEXT NOT NULL,
       flow_id TEXT NOT NULL,
       digest TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      view_ref_json TEXT,
       PRIMARY KEY (origin_space_id, flow_id)
     );
     CREATE INDEX IF NOT EXISTS idx_flow_index_origin ON flow_index(origin_space_id);
+
+    CREATE TABLE IF NOT EXISTS space_run_policies (
+      space_id TEXT NOT NULL,
+      flow_id TEXT NOT NULL,
+      flow_digest TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      PRIMARY KEY (space_id, flow_id)
+    );
 
     CREATE TABLE IF NOT EXISTS artifacts (
       transfer_id TEXT PRIMARY KEY,
@@ -338,6 +353,9 @@ export function migrateStudio(db: Database.Database): void {
   if (!grantColNames.has("capabilities_json")) {
     db.exec(`ALTER TABLE grants ADD COLUMN capabilities_json TEXT`);
   }
+  if (!grantColNames.has("token_id")) {
+    db.exec(`ALTER TABLE grants ADD COLUMN token_id TEXT`);
+  }
 
   const memberCols = db.prepare("PRAGMA table_info(members)").all() as Array<{ name: string }>;
   const memberColNames = new Set(memberCols.map((c) => c.name));
@@ -354,6 +372,15 @@ export function migrateStudio(db: Database.Database): void {
   }
   if (!tokenColNames.has("capabilities_json")) {
     db.exec(`ALTER TABLE tokens ADD COLUMN capabilities_json TEXT`);
+  }
+  if (!tokenColNames.has("expires_at")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN expires_at TEXT`);
+  }
+  if (!tokenColNames.has("scope_ref")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN scope_ref TEXT`);
+  }
+  if (!tokenColNames.has("consumer_space_id")) {
+    db.exec(`ALTER TABLE tokens ADD COLUMN consumer_space_id TEXT`);
   }
 
   if (!colNames.has("query_policy_json")) {
@@ -390,6 +417,12 @@ export function migrateStudio(db: Database.Database): void {
     db.exec(`ALTER TABLE user_prefs ADD COLUMN notify_email INTEGER NOT NULL DEFAULT 1`);
     db.exec(`ALTER TABLE user_prefs ADD COLUMN notify_desktop INTEGER NOT NULL DEFAULT 1`);
   }
+
+  const notificationCols = db.prepare("PRAGMA table_info(notifications)").all() as Array<{ name: string }>;
+  const notificationColNames = new Set(notificationCols.map((c) => c.name));
+  if (!notificationColNames.has("step_id")) {
+    db.exec(`ALTER TABLE notifications ADD COLUMN step_id TEXT`);
+  }
 }
 
 function migrateFlowIndexCompositeKey(db: Database.Database): void {
@@ -406,11 +439,10 @@ function migrateFlowIndexCompositeKey(db: Database.Database): void {
       flow_id TEXT NOT NULL,
       digest TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      view_ref_json TEXT,
       PRIMARY KEY (origin_space_id, flow_id)
     );
-    INSERT INTO flow_index_migrated (origin_space_id, flow_id, digest, payload_json, view_ref_json)
-      SELECT origin_space_id, flow_id, digest, payload_json, view_ref_json FROM flow_index;
+    INSERT INTO flow_index_migrated (origin_space_id, flow_id, digest, payload_json)
+      SELECT origin_space_id, flow_id, digest, payload_json FROM flow_index;
     DROP TABLE flow_index;
     ALTER TABLE flow_index_migrated RENAME TO flow_index;
     CREATE INDEX IF NOT EXISTS idx_flow_index_origin ON flow_index(origin_space_id);
@@ -428,9 +460,10 @@ export function ensureBootstrapToken(db: Database.Database, token: string, actor
     "space:enter",
     "flow:read",
     "flow:run",
-    "action:invoke",
-    "gate:resolve",
+    "event:emit",
+    "step:resolve",
     "journal:read",
+    "executor:poll",
   ];
   const scopes = JSON.stringify(capabilities);
   const capabilitiesJson = JSON.stringify(capabilities);

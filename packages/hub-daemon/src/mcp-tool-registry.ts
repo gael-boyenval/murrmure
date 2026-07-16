@@ -4,10 +4,10 @@ import {
   hasCapability,
   resolveEffectiveCapabilities,
   buildEmittableEventsCatalog,
-  buildEmitEventInputSchema,
 } from "@murrmure/hub-core";
 import { bareSpaceId } from "./space-id.js";
 import type { TokenContext } from "./auth.js";
+import { buildPlatformToolInputSchema } from "./mcp-tool-schemas.js";
 
 export interface ToolDef {
   name: string;
@@ -29,20 +29,22 @@ const PLATFORM_TOOLS: Array<{
   { name: "query_ask", required_scope: "space:read", description: "Cross-space typed query (spec_summary@1, etc.)" },
   { name: "murrmure_apply_space", required_scope: "space:write", description: "Re-index murrmure/ files for a space" },
   { name: "murrmure_space_status", required_scope: "space:read", description: "Indexed digests and counts for a space" },
-  { name: "murrmure_grant_mint", required_scope: "space:admin", description: "Mint an agent grant (CLI preferred in v2)" },
-  { name: "murrmure_invoke_action", required_scope: "action:invoke", description: "Invoke a space-indexed action" },
+  { name: "murrmure_space_health", required_scope: "space:read", description: "Space health summary (index + handler coverage)" },
+  { name: "murrmure_resolve_step", required_scope: "step:resolve", description: "Resolve an active flow step (branch + payload + optional artifacts_out)" },
+  { name: "murrmure_open_child_step", required_scope: "step:resolve", description: "Yield an active parent assignment and open one declared child" },
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
+  { name: "murrmure_list_handlers", required_scope: "space:read", description: "List indexed step/event handlers for a space" },
   { name: "murrmure_emit_event", required_scope: "event:emit", description: "Emit a platform event from the caller space (source inferred)" },
   { name: "murrmure_create_session", required_scope: "flow:run", description: "Create a correlation session" },
   { name: "murrmure_list_sessions", required_scope: "space:read", description: "List sessions (filtered by grant)" },
   { name: "murrmure_get_session", required_scope: "space:read", description: "Get session by id" },
   { name: "murrmure_create_run", required_scope: "flow:run", description: "Start a run in a session" },
   { name: "murrmure_get_run", required_scope: "space:read", description: "Get run describe document" },
+  { name: "murrmure_get_run_context", required_scope: "space:read", description: "Get run + active contract context" },
+  { name: "murrmure_list_step_contracts", required_scope: "space:read", description: "List active step contract slice + graph_digest for a run" },
   { name: "murrmure_get_run_graph", required_scope: "flow:read", description: "Get run flowchart graph (manifest overlay + step memo)" },
   { name: "murrmure_attach_orchestration", required_scope: "flow:run", description: "Agent-push murrmure.flow.attach/v1; creates orchestration.validate gate" },
-  { name: "murrmure_cancel_run", required_scope: "gate:resolve", description: "Cancel an in-flight run" },
-  { name: "murrmure_wait_for_gate", required_scope: "space:read", description: "Long-poll pending gates on run/session" },
-  { name: "murrmure_resolve_gate", required_scope: "gate:resolve", description: "Resolve a pending gate" },
+  { name: "murrmure_cancel_run", required_scope: "flow:run", description: "Cancel an in-flight run" },
   { name: "murrmure_wait_for_run", required_scope: "space:read", description: "Long-poll until run reaches terminal lifecycle" },
   { name: "murrmure_journal_query", required_scope: "journal:read", description: "Query journal entries with filters" },
 ];
@@ -103,7 +105,10 @@ export class McpToolRegistry {
         };
         if (tool.name === "murrmure_emit_event" && bareSpace) {
           emitCatalog ??= await buildEmittableEventsCatalog(this.studio, bareSpace);
-          def.inputSchema = buildEmitEventInputSchema(emitCatalog);
+        }
+        const inputSchema = buildPlatformToolInputSchema(tool.name, { emitCatalog });
+        if (inputSchema) {
+          def.inputSchema = inputSchema;
         }
         out.push(def);
       }
@@ -141,17 +146,15 @@ export class McpToolRegistry {
       case "space:read":
         return hasCapability(effective, ["space:read", "journal:read"]);
       case "state:transition":
-        return hasCapability(effective, ["flow:run", "action:invoke"]);
+        return hasCapability(effective, "flow:run");
       case "event:emit":
-        return hasCapability(effective, "action:invoke");
-      case "action:invoke":
-        return hasCapability(effective, "action:invoke");
+        return hasCapability(effective, "event:emit");
       case "flow:run":
-        return hasCapability(effective, ["flow:run", "action:invoke"]);
+        return hasCapability(effective, "flow:run");
       case "flow:read":
         return hasCapability(effective, ["flow:read", "flow:run"]);
-      case "gate:resolve":
-        return hasCapability(effective, "gate:resolve");
+      case "step:resolve":
+        return hasCapability(effective, "step:resolve");
       case "journal:read":
         return hasCapability(effective, "journal:read");
       default:

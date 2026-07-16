@@ -13,7 +13,20 @@ export type {
   RunDetailPayload,
   JournalEntryItem,
   SpaceHomePayload,
+  SpaceHomeActionRow,
+  SpaceHomeAttentionRow,
+  SpaceHomeEmittableEventRow,
+  SpaceHomeEventRow,
+  SpaceHomeFlowRow,
+  SpaceHomeHookRow,
+  SpaceHomeIndexSection,
+  SpaceHomeRunRow,
+  RunGraphBranchMetadata,
+  RunGraphResolver,
+  RunGraphStepMetadata,
   NotificationItem,
+  UploadIntentFileInput,
+  UploadIntentResponse,
 } from "./types.js";
 export { parseSseMessage, JOURNAL_SSE_EVENTS } from "./sse.js";
-export { createShellClient } from "./client.js";
+export { createShellClient, ShellClientHttpError } from "./client.js";

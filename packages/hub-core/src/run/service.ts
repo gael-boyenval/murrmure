@@ -2,12 +2,20 @@ import type { Capability, RunLifecycle, SessionCreatedBy } from "@murrmure/contr
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { HubHandler } from "../handlers/hub.js";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
+import type { ExecutorPollStore } from "../executors/queue-store.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 import { canStartFlow } from "../grants/migrate.js";
-import { buildRunFailedNotificationDraft, resolveRunFailedNotificationRecipients } from "../projections/notifications.js";
+import {
+  buildRunFailedNotificationDraft,
+  resolveRunFailedNotificationRecipients,
+  runFailedNotificationCopy,
+} from "../projections/notifications.js";
+import { cancelRunExecutors, terminateRunExecutors } from "../invoke/run-executor-cancel.js";
 import { instanceStateToLifecycle, runIdToInstanceId } from "./lifecycle.js";
 import { toRunDto, refreshSessionStatus, toSessionDto } from "../session/index.js";
 import { deriveSessionStatus } from "../session/status.js";
+import { SpaceConcurrencyGuard, spaceRunGuard } from "./space-guard.js";
+import { admitFlowRun, type FlowAdmissionError } from "./admission.js";
 
 export interface SessionRunDeps {
   studio: StudioPersistencePort;
@@ -15,6 +23,9 @@ export interface SessionRunDeps {
   ids: { ulid: () => string };
   clock: { nowIso: () => string };
   cancelTimeoutMs?: number;
+  executorPollStore?: ExecutorPollStore;
+  /** Per-space coordination guard shared with apply; defaults to the in-process singleton. */
+  guard?: SpaceConcurrencyGuard;
 }
 
 function bare(id: string): string {
@@ -60,9 +71,15 @@ export async function failRunWithNotification(
   }
 
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: input.run_id,
+    executorPollStore: deps.executorPollStore,
+    reason: input.reason ?? "Run failed",
+  });
   await deps.studio.updateRunLifecycle(runBare, "failed", ts);
 
   const spaceBare = run.space_id;
+  const { title, summary } = runFailedNotificationCopy(input.reason);
   if (spaceBare) {
     const session = await deps.studio.getSession(run.session_id);
     const space = await deps.studio.getSpace(spaceBare);
@@ -84,6 +101,8 @@ export async function failRunWithNotification(
         space_name: space?.name ?? space?.slug,
         actor_id: notifyActor,
         can_read_space: actorCanReadSpaceForNotification(notifyActor, grants, session?.actor_id),
+        title,
+        summary: summary ?? space?.name ?? space?.slug,
       });
 
       if (draft) {
@@ -110,7 +129,7 @@ export async function failRunWithNotification(
       run_id: prefixedRun(runBare),
       actor_id: input.actor_id,
       token_id: input.token_id,
-      data: { reason: input.reason },
+      data: { reason: input.reason, title, summary },
     });
   }
 
@@ -170,22 +189,24 @@ export async function createSession(
   });
 }
 
+export interface CreateRunInput {
+  session_id: string;
+  space_id?: string;
+  flow_id?: string | null;
+  flow_digest?: string;
+  input_params?: Record<string, unknown>;
+  reference_run_ids?: string[];
+  actor_id: string;
+  token_id: string;
+  capabilities: Capability[];
+  contract_ref_id?: string;
+  metadata?: Record<string, unknown>;
+  from_step_id?: string;
+}
+
 export async function createRun(
   deps: SessionRunDeps,
-  input: {
-    session_id: string;
-    space_id?: string;
-    flow_id?: string | null;
-    flow_digest?: string;
-    input_params?: Record<string, unknown>;
-    reference_run_ids?: string[];
-    actor_id: string;
-    token_id: string;
-    capabilities: Capability[];
-    contract_ref_id?: string;
-    metadata?: Record<string, unknown>;
-    from_step_id?: string;
-  },
+  input: CreateRunInput,
 ) {
   const sessionBare = bare(input.session_id);
   const session = await deps.studio.getSession(sessionBare);
@@ -278,6 +299,48 @@ export async function createRun(
   };
 }
 
+/**
+ * Capacity admission + run insert inside the per-space guard. Every flow start
+ * funnels through here so admission (count + insert) is atomic across start
+ * paths and coordinated with apply. A null `flow_id` (headless invoke) skips
+ * capacity admission but still holds the guard so apply quiescence is sound.
+ */
+export async function admitAndCreateRun(
+  deps: SessionRunDeps,
+  input: CreateRunInput,
+) {
+  const spaceId = input.space_id;
+  const flowId = input.flow_id;
+  if (!spaceId) {
+    return createRun(deps, input);
+  }
+  const guard = deps.guard ?? spaceRunGuard;
+  return guard.with(spaceId, async () => {
+    let flowDigest = input.flow_digest;
+    if (flowId) {
+      const entry = await deps.studio.getFlowIndexEntry(
+        flowId,
+        spaceId.startsWith("spc_") ? spaceId.slice(4) : spaceId,
+      );
+      if (!entry) {
+        return {
+          error: { code: "FLOW_NOT_FOUND", message: "Flow not indexed in target space" },
+        } as const;
+      }
+      flowDigest = entry.digest;
+
+      const admission = await admitFlowRun(deps.studio, {
+        space_id: spaceId,
+        flow_id: flowId,
+      });
+      if (!admission.ok) {
+        return { error: admission.error } as const;
+      }
+    }
+    return createRun(deps, { ...input, flow_digest: flowDigest });
+  });
+}
+
 export async function cancelRun(
   deps: SessionRunDeps,
   input: {
@@ -297,6 +360,11 @@ export async function cancelRun(
   }
 
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: prefixedRun(runBare),
+    executorPollStore: deps.executorPollStore,
+    reason: "cancelled",
+  });
   await deps.studio.updateRunLifecycle(runBare, "cancelled", ts);
 
   const spaceId = input.space_id ?? (run.space_id ? addSpaceId(run.space_id) : undefined);
@@ -355,6 +423,11 @@ export async function cancelSession(
 
   for (const run of runs) {
     if (run.lifecycle === "working" || run.lifecycle === "input-required") {
+      terminateRunExecutors({
+        run_id: prefixedRun(run.run_id),
+        executorPollStore: deps.executorPollStore,
+        reason: "session cancelled",
+      });
       await deps.studio.updateRunLifecycle(run.run_id, "cancelled", ts);
     }
   }
@@ -363,6 +436,11 @@ export async function cancelSession(
     const pending = await deps.studio.listRunsBySession(sessionBare);
     for (const run of pending) {
       if (run.lifecycle === "working" || run.lifecycle === "input-required") {
+        terminateRunExecutors({
+          run_id: prefixedRun(run.run_id),
+          executorPollStore: deps.executorPollStore,
+          reason: "session cancelled",
+        });
         await deps.studio.updateRunLifecycle(run.run_id, "cancelled", deps.clock.nowIso());
       }
     }
@@ -400,7 +478,7 @@ export async function retryRun(
     return { error: { code: "RUN_NOT_RETRYABLE", message: "Only failed or cancelled runs can be retried" } } as const;
   }
 
-  return createRun(deps, {
+  return admitAndCreateRun(deps, {
     session_id: `ses_${failed.session_id}`,
     space_id: input.space_id ?? (failed.space_id ? addSpaceId(failed.space_id) : undefined),
     flow_id: failed.flow_id,
@@ -456,6 +534,11 @@ export async function maybeCompleteHeadlessRun(
   }
 
   const ts = deps.clock.nowIso();
+  terminateRunExecutors({
+    run_id: prefixedRun(runBare),
+    executorPollStore: deps.executorPollStore,
+    reason: "run completed",
+  });
   await deps.studio.updateRunLifecycle(runBare, "completed", ts);
 
   const session = await deps.studio.getSession(run.session_id);
@@ -571,13 +654,13 @@ export async function ensureSessionAndRun(
   }
 
   if (!runId) {
-    const created = await createRun(deps, {
+    const created = await admitAndCreateRun(deps, {
       session_id: sessionId,
       space_id: input.space_id,
       flow_id: null,
       actor_id: input.actor_id,
       token_id: input.token_id,
-      capabilities: ["action:invoke"],
+      capabilities: ["flow:run"],
     });
     if ("error" in created) {
       return { error: created.error };

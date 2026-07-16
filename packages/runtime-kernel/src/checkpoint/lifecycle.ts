@@ -1,32 +1,12 @@
-import type { Checkpoint, CheckpointVote } from "@murrmure/runtime-contracts";
+import type { Checkpoint } from "@murrmure/runtime-contracts";
 
-export function isQuorumSatisfied(checkpoint: Checkpoint): boolean {
-  const approvals = checkpoint.votes.filter((v) => v.decision === "approved").length;
-  const { mode, count } = checkpoint.quorum;
-
-  if (mode === "any") return approvals >= count;
-  if (mode === "all") return approvals >= checkpoint.quorum.assignees.length;
-  if (mode === "count") return approvals >= count;
-  return false;
-}
-
-export function shouldRejectImmediately(
-  checkpoint: Checkpoint,
-  reject_requires_quorum?: boolean,
-): boolean {
-  if (reject_requires_quorum) return false;
-  return checkpoint.votes.some((v) => v.decision === "rejected");
-}
-
-export function addVote(checkpoint: Checkpoint, vote: CheckpointVote): Checkpoint {
-  const existing = checkpoint.votes.findIndex((v) => v.actor_id === vote.actor_id);
-  const votes =
-    existing >= 0
-      ? checkpoint.votes.map((v, i) => (i === existing ? vote : v))
-      : [...checkpoint.votes, vote];
-  return { ...checkpoint, votes };
-}
-
+// The kernel retains a minimal checkpoint *creation* path: a transition whose
+// rule declares a `checkpoint` quorum pauses the aggregate (pending) until an
+// external resolver advances it. The hub no longer bridges gate.resolve to a
+// Removed kernel checkpoint resolve command — gate resolution is owned by the
+// orchestration gate service (gates/service) on the gates table. The vote /
+// quorum / reject lifecycle helpers that supported the removed checkpoint.resolve
+// command have been deleted; only transition→checkpoint construction remains.
 export function checkpointFromTransition(
   checkpoint_id: string,
   scope_id: string,

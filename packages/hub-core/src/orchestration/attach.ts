@@ -4,7 +4,7 @@ import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 import { createPendingGate, type GateServiceDeps } from "../gates/service.js";
 import { hasCapability } from "../grants/migrate.js";
 import { parseFlowManifest } from "../flow-engine/parse.js";
-import { createRun, type SessionRunDeps } from "../run/service.js";
+import { admitAndCreateRun, type SessionRunDeps } from "../run/service.js";
 import { bindOrchestrationToRun } from "./bind.js";
 import { buildOrchestrationPreview } from "./preview.js";
 
@@ -85,7 +85,7 @@ export async function attachOrchestration(
   const preview = buildOrchestrationPreview(manifest, flow_id);
   const spacePrefixed = addSpaceId(stripSpaceId(input.space_id));
 
-  const runResult = await createRun(deps, {
+  const runResult = await admitAndCreateRun(deps, {
     session_id: input.session_id,
     space_id: spacePrefixed,
     flow_id: null,

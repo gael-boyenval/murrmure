@@ -25,7 +25,7 @@ Teams are adopting AI coding agents fast. But the tools for *working with* those
 
 - **Reviewers & designers** — review the real thing in Murrmure Desktop, comment, approve. Install Desktop; nothing else for human UI.
 - **Team leads & PMs** — see what's in flight, gate what ships, and keep a record for compliance.
-- **Agent operators & engineers** — connect agents with `mrmr grant mint`; author indexed flows in `murrmure/` with `mrmr space flow init` and custom views.
+- **Participant operators & engineers** — connect local tools with `mrmr connection create`; author indexed flows in `.mrmr/` (`mrmr space init`, write manifests/handlers/views, `mrmr space apply`).
 
 ## The one-line version
 

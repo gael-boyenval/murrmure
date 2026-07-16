@@ -1,0 +1,18 @@
+version: 1
+run_policies:
+  - flow: api-contract-review
+    max_concurrent_runs: 1
+
+handlers:
+  # Local consumer: the collection slot `assets` binds with `.directory`, which
+  # resolves to one verified consumer input directory containing every file in
+  # the ordered collection with normalized unique names and digest verification.
+  # A `.path` binding on this collection slot is rejected at apply time
+  # (cardinality mismatch) and lints as ARTIFACT_TOKEN_CARDINALITY_MISMATCH.
+  - id: review_collection
+    on: step.opened::api-contract-review.review
+    type: shell_spawn
+    complete: auto
+    command: |
+      ls -1 {{murrmure.step.intake.artifact.assets.directory}} | sort
+    timeout_ms: 10000

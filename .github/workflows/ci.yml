@@ -63,8 +63,8 @@ jobs:
 
           npm install -g "$CLI_TGZ"
           cd "$WORK_DIR"
-          mkdir -p murrmure
+          mkdir -p .mrmr
           mrmr space flow init hello --template hello-gate
 
-          test -f murrmure/flows/hello/flow.manifest.yaml
-          test -f murrmure/actions.yaml
+          test -f .mrmr/flows/hello/flow.manifest.yaml
+          test -f .mrmr/space/handlers.yaml

@@ -1,21 +1,20 @@
-import { accessSync, constants, mkdirSync, readFileSync, statSync } from "node:fs";
+import { accessSync, constants, mkdirSync, statSync } from "node:fs";
 import { once } from "node:events";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, pinContract, createInProcessExecutorPollStore, reconcileHeadlessRuns } from "@murrmure/hub-core";
-import { ContractV2Schema } from "@murrmure/contracts";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, awaitAllShellExecutorsTerminated, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
+import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
 import { acquireLock, cleanupStaleStaging, releaseLock, resolveDataDir, updateLockOwnerEndpoint, writeDiscovery } from "./ops.js";
 import { McpToolRegistry } from "./mcp-tool-registry.js";
 import { ControlBus } from "./control-bus.js";
-import { McpWakeDispatcher } from "./mcp-wake-dispatcher.js";
+import { McpSessionRegistry } from "./mcp-session-registry.js";
 import { registerPlatformMcpHandlers } from "./mcp-handlers.js";
 import { dispatchHooksFromJournal, journalEventToHookSource } from "./hook-dispatch.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
@@ -24,10 +23,10 @@ import { ArtifactService } from "./artifact-service.js";
 import { createDaemonFederationPort } from "./federation-wire.js";
 import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./flow-scheduler-cron.js";
 import { registerArtifactGcCron } from "./artifact-gc-cron.js";
+import { createRunRetentionDeps, registerRunRetentionGc } from "./run-retention-gc.js";
 import { createOutOfShellService, wrapHandlerForOutOfShell } from "./out-of-shell-service.js";
 import type { EventAppendCommand } from "@murrmure/contracts";
-
-const __dir = dirname(fileURLToPath(import.meta.url));
+import { UploadIntentService } from "./upload-intent-service.js";
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 
@@ -90,10 +89,6 @@ function assertLoopbackListenHost(config: DaemonConfig): void {
   }
 }
 
-function resolveContractsDir(config: DaemonConfig): string {
-  return join(config.bundleRoot ?? join(__dir, "../../../fixtures"), "hub/contracts");
-}
-
 function closeServerGracefully(server: ReturnType<typeof serve>): Promise<void> {
   return new Promise((resolveClose) => {
     server.close(() => resolveClose());
@@ -128,8 +123,6 @@ export async function startHubDaemon(config: DaemonConfig) {
   }
   cleanupStaleStaging(resolveDataDir(config));
 
-  const contractsDir = resolveContractsDir(config);
-
   mkdirSync(dirname(config.databasePath), { recursive: true });
   const kernelPersistence = await createRuntimePersistence(config.databasePath);
   const db = new Database(config.databasePath);
@@ -139,24 +132,28 @@ export async function startHubDaemon(config: DaemonConfig) {
   ensureBootstrapToken(db, bootstrapBare, "actor_bootstrap", "bootstrap");
   const murrmurePersistence = createSqliteStudioPersistence(db);
 
-  for (const [refId, file] of [["cref_linear_demo", "linear-demo-v2.json"]] as const) {
-    const contractPath = join(contractsDir, file);
-    const contract = ContractV2Schema.parse(JSON.parse(readFileSync(contractPath, "utf-8")));
-    await pinContract(murrmurePersistence, refId, contract);
-  }
-
   const ids = { ulid: () => ulid() };
   const clock = { nowIso: () => new Date().toISOString() };
+
+  setMurrmureProtocolRenderer((ctx) => renderMurrmureProtocolEnvelope(ctx));
+  // Install the revoker used by the assignment-credential registry so terminal
+  // paths (resolve, run terminal, shutdown) revoke ephemeral resolve tokens.
+  setResolveCredentialRevoker((token_id) => {
+    void murrmurePersistence.revokeToken?.(token_id);
+  });
 
   const { kernel } = createHubKernel({ kernelPersistence, murrmurePersistence, ids, clock });
   const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);
 
   const mcpToolRegistry = new McpToolRegistry(murrmurePersistence);
   const controlBus = new ControlBus();
-  const mcpWakeDispatcher = new McpWakeDispatcher(controlBus);
+  const mcpSessionRegistry = new McpSessionRegistry(controlBus);
   const triggerDispatcher = new TriggerDispatcher(murrmurePersistence, handler);
   const executorPollStore = createInProcessExecutorPollStore();
   const federationPort = createDaemonFederationPort(murrmurePersistence);
+  const spaceRunGuard = new SpaceConcurrencyGuard();
+  const uploadIntentService = new UploadIntentService(config.dataDir);
+  await uploadIntentService.start();
 
   const ctx: DaemonContext = {
     handler,
@@ -167,10 +164,12 @@ export async function startHubDaemon(config: DaemonConfig) {
     sseSubscribers: new Set(),
     mcpToolRegistry,
     controlBus,
-    mcpWakeDispatcher,
+    mcpSessionRegistry,
     triggerDispatcher,
     executorPollStore,
     federationPort,
+    uploadIntentService,
+    spaceRunGuard,
     invokeService: undefined as never,
     artifactService: undefined as never,
     outOfShellService: undefined as never,
@@ -180,14 +179,21 @@ export async function startHubDaemon(config: DaemonConfig) {
     murrmurePersistence,
     handler,
     controlBus,
-    mcpWakeDispatcher,
+    mcpSessionRegistry,
     ctx,
     ctx.artifactService,
     federationPort,
   );
   ctx.outOfShellService = createOutOfShellService(ctx);
   wrapHandlerForOutOfShell(handler, ctx.outOfShellService);
-  triggerDispatcher.invokeService = ctx.invokeService;
+
+  const stopTimeoutSweep = startExecutorTimeoutSweep({
+    studio: murrmurePersistence,
+    handler,
+    ids,
+    clock,
+    executorPollStore: executorPollStore,
+  });
 
   void reconcileHeadlessRuns({ studio: murrmurePersistence, handler, ids, clock })
     .then((stats) => {
@@ -203,6 +209,9 @@ export async function startHubDaemon(config: DaemonConfig) {
     });
 
   const stopArtifactGc = registerArtifactGcCron(ctx.artifactService);
+  const stopRunRetention = registerRunRetentionGc(createRunRetentionDeps(murrmurePersistence), {
+    log: (line) => console.log(line),
+  });
   const stopFlowScheduler = registerFlowSchedulerCron(
     murrmurePersistence,
     ctx.invokeService,
@@ -265,10 +274,21 @@ export async function startHubDaemon(config: DaemonConfig) {
     shuttingDown = (async () => {
       process.off("SIGINT", handleSigint);
       process.off("SIGTERM", handleSigterm);
+      // Terminate every spawned shell handler process tree and revoke all
+      // ephemeral resolve credentials so nothing outlives the daemon stop.
+      cancelAllShellExecutors();
+      revokeAllResolveCredentials();
       stopArtifactGc();
+      stopRunRetention();
       stopFlowScheduler();
+      stopTimeoutSweep();
+      uploadIntentService.stop();
       releaseLock(config);
       await closeServerGracefully(server);
+      // Await the SIGKILL escalation so a TERM-resistant descendant is reaped
+      // before the daemon process exits; the escalation timers are ref'd so
+      // this keeps the event loop alive until every tree is gone.
+      await awaitAllShellExecutorsTerminated();
       await kernelPersistence.close();
       db.close();
     })();
@@ -304,7 +324,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const shellStaticDir = process.env.MURRMURE_SHELL_STATIC_DIR;
   const embedded = process.env.MURRMURE_EMBEDDED === "1";
   const listenHost = process.env.MURRMURE_LISTEN_HOST ?? "127.0.0.1";
-  const bundleRoot = process.env.MURRMURE_BUNDLE_ROOT;
   const bootstrapToken = process.env.MURRMURE_BOOTSTRAP_TOKEN;
   await startHubDaemon({
     databasePath,
@@ -314,7 +333,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     shellStaticDir,
     embedded,
     listenHost,
-    bundleRoot,
     bootstrapToken,
   });
 }

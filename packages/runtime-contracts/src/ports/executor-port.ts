@@ -1,5 +1,5 @@
 import type { ExecutorBinding } from "./indexed-executor-binding.js";
-import type { DispatchContext, DispatchOutcome, InvokeRequest } from "../types/invoke.js";
+import type { DispatchAudit, DispatchContext, DispatchOutcome, InvokeRequest } from "../types/invoke.js";
 
 export type Reachability = "reachable" | "unreachable" | "unknown";
 
@@ -15,6 +15,11 @@ export interface PreflightContext {
 /** Executor adapter boundary (rev-1 §4.3). */
 export interface ExecutorPort {
   preflight(binding: ExecutorBinding, context: PreflightContext): Promise<ReachabilityResult>;
+  /** Resolve command/prompt/cwd before dispatch for journal and operator UI. */
+  resolveDispatchAudit?(
+    invoke: InvokeRequest,
+    context: DispatchContext,
+  ): Promise<DispatchAudit | undefined>;
   dispatch(invoke: InvokeRequest, context: DispatchContext): Promise<DispatchOutcome>;
   cancel?(invoke: InvokeRequest): Promise<void>;
 }

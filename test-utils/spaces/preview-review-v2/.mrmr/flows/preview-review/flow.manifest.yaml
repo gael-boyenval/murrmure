@@ -1,0 +1,77 @@
+# Role: mixed orchestration — write_spec → build (loop + review) → archive → commit.
+# Step-contract v3 manifest — review lives under build; routing uses route/resume.
+apiVersion: murrmure.flow/v1
+name: preview-review
+description: Spec intake → write → build (loop + review) → archive → commit
+
+triggers:
+  manual: true
+
+steps:
+  - id: intake
+    description: Human attaches spec markdown.
+    branches:
+      continue:
+        schema:
+          type: object
+          required: [spec_filename, reviewer]
+        artifact_slots:
+          spec:
+            description: Attached spec markdown file
+            max_bytes: 1048576
+        route: { step: write_spec }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
+
+  - id: write_spec
+    description: Agent writes spec to repo.
+
+  - id: build
+    description: Coordinate build and human review children until validated.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [preview_url]
+          properties:
+            preview_url: { type: string }
+        route: { step: archive }
+      failed:
+        schema: { type: object }
+        route: { run: failed }
+    steps:
+      - id: build-loop
+        description: Implement site; resolve when preview URL ready.
+        branches:
+          completed:
+            schema:
+              type: object
+              required: [preview_url]
+              properties:
+                preview_url: { type: string }
+            resume: build
+          failed:
+            schema: { type: object }
+            resume: build
+      - id: review
+        description: Human validates the current preview.
+        branches:
+          validated:
+            schema: { type: object }
+            resume: build
+          changes_required:
+            schema:
+              type: object
+              properties:
+                comments: { type: array }
+            resume: build
+          cancel:
+            schema: { type: object }
+            route: { run: failed }
+
+  - id: archive
+    description: Archive the built site.
+
+  - id: commit
+    description: Commit the archived result.

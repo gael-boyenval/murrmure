@@ -42,11 +42,31 @@ export const spaceStatusCommand = defineCommand({
     }
 
     const counts = body.counts as Record<string, number> | undefined;
+    const digests = body.digests as
+      | {
+          flows?: Array<{
+            flow_id: string;
+            digest: string;
+            step_contract_catalog_digest?: string;
+            step_contract_step_count?: number;
+          }>;
+        }
+      | undefined;
     console.log(`Space ${spaceId}`);
     console.log(`  actions:   ${counts?.actions ?? 0}`);
     console.log(`  executors: ${counts?.executors ?? 0}`);
     console.log(`  hooks:     ${counts?.hooks ?? 0}`);
     console.log(`  flows:     ${counts?.flows ?? 0}`);
+    if (digests?.flows?.length) {
+      console.log("  flow digests:");
+      for (const f of digests.flows) {
+        const catalog =
+          f.step_contract_catalog_digest != null
+            ? ` · catalog ${f.step_contract_catalog_digest.replace(/^sha256:/, "").slice(0, 12)}… (${f.step_contract_step_count ?? 0} steps)`
+            : "";
+        console.log(`    ${f.flow_id}: ${f.digest.replace(/^sha256:/, "").slice(0, 12)}…${catalog}`);
+      }
+    }
     const bindings = body.bindings as Array<{ host: string; path: string }> | undefined;
     if (bindings?.length) {
       console.log("  bindings:");

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../src/main.js";
 import { addTokenId } from "@murrmure/hub-core";
 
-describe("http/deprecated-removed (phase 16 + 18)", () => {
+describe("http/deprecated-removed (phase 16 + VS-8 cutover)", () => {
   let baseUrl: string;
   let cleanup: () => void;
   let spaceId: string;
@@ -43,7 +43,10 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
       method: "POST",
       headers: bootstrap(),
-      body: JSON.stringify({ label: "agent", scopes: ["space:read", "flow:run", "action:invoke"] }),
+      body: JSON.stringify({
+        label: "agent",
+        scopes: ["space:read", "flow:run", "step:resolve", "event:emit"],
+      }),
     });
     token = (await grantRes.json()).token;
   });
@@ -118,6 +121,24 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     expect(res.status).toBe(404);
   });
 
+  test("POST /v1/runs/{id}/steps/{step_id}/complete returns 404", async () => {
+    const res = await fetch(`${baseUrl}/v1/runs/run_demo/steps/build/complete`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ result: { preview_url: "http://127.0.0.1:5173" } }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test("POST /v1/spaces/{space_id}/gates/{gate_id}/resolve returns 404 (legacy route removed)", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/gates/gate_demo/resolve`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ decision: "approved" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   test("MCP catalog excludes v1 platform tools", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -128,8 +149,27 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     for (const removed of ["get_space_state", "transition", "wait_for_state", "emit_event", "contract_versions"]) {
       expect(names).not.toContain(removed);
     }
-    expect(names).toContain("murrmure_invoke_action");
+    expect(names).not.toContain("murrmure_invoke_action");
+    expect(names).not.toContain("murrmure_grant_mint");
     expect(names).toContain("murrmure_emit_event");
+  });
+
+  test("MCP catalog excludes VS-8 removed flow step tools", async () => {
+    const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const { tools } = (await res.json()) as { tools: Array<{ name: string }> };
+    const names = tools.map((t) => t.name);
+    for (const removed of [
+      "murrmure_complete_action",
+      "murrmure_wait_for_gate",
+      "murrmure_resolve_gate",
+    ]) {
+      expect(names).not.toContain(removed);
+    }
+    expect(names).toContain("murrmure_resolve_step");
+    expect(names).toContain("murrmure_wait_for_run");
   });
 
   test("MCP catalog includes murrmure_emit_event when grant has event:emit", async () => {
@@ -151,5 +191,86 @@ describe("http/deprecated-removed (phase 16 + 18)", () => {
     const names = tools.map((t) => t.name);
     expect(names).toContain("murrmure_emit_event");
     expect(names).not.toContain("emit_event");
+  });
+
+  test("MCP catalog includes murrmure_resolve_step when grant has step:resolve", async () => {
+    const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ label: "resolver", scopes: ["space:read", "step:resolve"] }),
+    });
+    const resolverToken = (await grantRes.json()).token as string;
+
+    const res = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceId}`, {
+      headers: { Authorization: `Bearer ${resolverToken}` },
+    });
+    expect(res.status).toBe(200);
+    const { tools } = (await res.json()) as { tools: Array<{ name: string }> };
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("murrmure_resolve_step");
+  });
+
+  test("grant mint rejects removed capabilities (action:invoke / gate:resolve)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "removed-cap", capabilities: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { code: string; message: string };
+      expect(body.code).toBe("unknown_capability");
+      expect(body.message).toContain(removed);
+    }
+  });
+
+  test("grant mint rejects removed capabilities in legacy scopes field (space-scoped route)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ label: "removed-scope", scopes: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        code: string;
+        message: string;
+        hint?: { invalid_scopes?: string[] };
+      };
+      expect(body.code).toBe("unknown_scope");
+      expect(body.message).toContain(removed);
+      expect(body.hint?.invalid_scopes).toContain(removed);
+    }
+  });
+
+  test("grant mint rejects removed capabilities in legacy scopes field (top-level /v1/grants route)", async () => {
+    for (const removed of ["action:invoke", "gate:resolve"]) {
+      const res = await fetch(`${baseUrl}/v1/grants`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${addTokenId("01JBOOTSTRAPTOKEN00000099")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ space_id: spaceId, label: "removed-scope", scopes: ["space:read", removed] }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        code: string;
+        message: string;
+        hint?: { invalid_scopes?: string[] };
+      };
+      expect(body.code).toBe("unknown_scope");
+      expect(body.message).toContain(removed);
+      expect(body.hint?.invalid_scopes).toContain(removed);
+    }
   });
 });

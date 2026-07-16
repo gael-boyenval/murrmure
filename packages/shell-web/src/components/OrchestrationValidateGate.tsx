@@ -1,15 +1,11 @@
 import { lazy, Suspense, useMemo } from "react";
 import type { GateItem, RunGraphPayload } from "@murrmure/shell-client";
-import { GateResolvePanel } from "./GateResolvePanel.js";
-import { GateHeader } from "./GateHeader.js";
-import { Card, CardContent } from "@murrmure/shell-ui";
+import { ProtocolGateForm } from "./ProtocolGateForm.js";
+import { Card, CardContent, CardHeader, CardTitle } from "@murrmure/shell-ui";
 
 const RunFlowchartView = lazy(() =>
   import("./RunFlowchartView.js").then((m) => ({ default: m.RunFlowchartView })),
 );
-
-const ORCHESTRATION_APPROVE_CONSEQUENCE =
-  "Approving binds this orchestration to the session and enqueues the proposed steps.";
 
 export interface OrchestrationValidateGateProps {
   gate: GateItem;
@@ -49,7 +45,12 @@ export function OrchestrationValidateGate({ gate, graph, onSubmit, submitting }:
   return (
     <div className="space-y-4">
       <Card>
-        <GateHeader gate={gate} />
+        <CardHeader>
+          <CardTitle className="text-base">Review proposed orchestration</CardTitle>
+          {preview ? (
+            <p className="text-sm text-muted-foreground">{preview.manifest_name}</p>
+          ) : null}
+        </CardHeader>
         <CardContent className="space-y-4">
           {previewGraph ? (
             <Suspense fallback={<p className="text-sm text-muted-foreground">Loading preview…</p>}>
@@ -80,13 +81,7 @@ export function OrchestrationValidateGate({ gate, graph, onSubmit, submitting }:
         </CardContent>
       </Card>
 
-      <GateResolvePanel
-        gate={gate}
-        onSubmit={onSubmit}
-        submitting={submitting}
-        approveConsequence={ORCHESTRATION_APPROVE_CONSEQUENCE}
-        hideHeader
-      />
+      <ProtocolGateForm gate={gate} onSubmit={onSubmit} submitting={submitting} />
     </div>
   );
 }

@@ -1,25 +1,24 @@
 # Triggers — wire bridge
 
-Maps [spec.md](../triggers/spec.md) to hub + shell.
+Maps [spec.md](../triggers/spec.md) to hub + shell. **Event-driven handlers** live in `.mrmr/space/handlers.yaml` alongside step lifecycle handlers — see [handlers.md](./handlers.md).
 
-## Canonical action shape
+## Event handlers (post-cutover)
 
-```typescript
-interface McpWakeAction {
-  type: "mcp_wake";
-  target_space_id: string;
-  wake_label: string;
-  payload_map: Record<string, string>;
-  session_hint?: "wake";
-}
+Declare event reactions in `handlers.yaml` with `on: event: { type, source? }` and empty or auxiliary `contract_keys`:
 
-interface TriggerDedup {
-  key_jsonpaths: string[];
-  window_seconds: number;
-}
+```yaml
+handlers:
+  - id: on-pr-merged
+    contract_keys: []
+    on:
+      event:
+        type: github.pull_request.merged
+    type: shell_spawn
+    complete: auto
+    command: mrmr flow run preview-review --input '{"pr": "{{event.number}}"}'
 ```
 
-**Legacy normalize on register:** `wake_mcp_agent` + `tool` → `mcp_wake` + `wake_label`.
+Emission: agents with the `event:emit` capability call `murrmure_emit_event`. Declarations in `.mrmr/space/events.yaml` gate emittable types at apply time.
 
 **Dedup drop reason enum:** `duplicate_business_key` | `duplicate_event_id` | `disabled` | `policy_denied`
 
@@ -28,34 +27,25 @@ interface TriggerDedup {
 | Method | Path | Handler |
 |--------|------|---------|
 | GET | `/v1/spaces/{id}/triggers/event-catalog` | Rebuild from MountRegistry + contract loader |
-| GET | `/v1/spaces/{id}/triggers/templates` | Static template defs |
-| POST | `/v1/spaces/{id}/triggers/from-template` | Expand → `trigger.register` |
+| GET | `/v1/spaces/{id}/triggers/templates` | Historical retired presets (list only) |
+| POST | `/v1/spaces/{id}/triggers/from-template` | Expand → `trigger.register` (retired presets rejected) |
 | POST | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger.replay` last matching or synthetic |
 
-Requires scope `trigger:register`. Wake labels must be on space allow-list.
-
-## mcp_wake dispatch
-
-```typescript
-const payload = applyJsonPathMap(sourceEvent.payload, action.payload_map);
-await mcpWake({
-  target_space_id,
-  wake_label: action.wake_label,
-  payload,
-  session_hint: "wake",
-});
-```
-
-On failure: `integration_failure` event + delivery log `outcome: failed`.
-
-If no connected session: enqueue + `control.wake_pending`.
+Requires scope `trigger:register`. Emittable event types are gated in `.mrmr/space/events.yaml` at apply time.
 
 ## Shell / trigger registration (v2)
 
-Trigger registration is **CLI-first** (`mrmr space trigger *`) or via indexed hooks in `murrmure/hooks.yaml` + `mrmr space apply`. Configure trigger UI components were retired with Configure shell.
+Trigger registration is **CLI-first** (`mrmr space trigger *`) or via event handlers in `.mrmr/space/handlers.yaml` + `mrmr space apply`. The handlers-only cutover is complete (Task 15): legacy hook indexes no longer index — space reactions live only in `.mrmr/space/handlers.yaml`. Retired configure-shell trigger UI components were removed with the shell.
+
+Legacy wake-wire trigger actions are archived in [../../archives/triggers-legacy-wake-wire.md](../../archives/triggers-legacy-wake-wire.md).
 
 ## Package
 
 ```
 packages/triggers-templates/
 ```
+
+## References
+
+- [handlers.md](./handlers.md) — step + event handler schema
+- [grants-migration.md](./grants-migration.md) — `event:emit` capability

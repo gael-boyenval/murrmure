@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@murrmure/hub-core": "workspace:*",
     "@murrmure/runtime-contracts": "workspace:*"
   },
   "devDependencies": {
     "@murrmure/contracts": "workspace:*",
-    "@murrmure/hub-core": "workspace:*",
     "tsx": "^4.19.3",
     "vitest": "^3.2.4"
   }

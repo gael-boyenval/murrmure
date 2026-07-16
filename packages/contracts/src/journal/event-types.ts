@@ -12,12 +12,17 @@ export const JOURNAL_EVENT_TYPES = {
   ACTION_EXECUTOR_UNAVAILABLE: "mrmr.action.executor_unavailable",
   GATE_PENDING: "mrmr.gate.pending",
   GATE_RESOLVED: "mrmr.gate.resolved",
+  STEP_OPENED: "mrmr.step.opened",
+  STEP_YIELDED: "mrmr.step.yielded",
+  STEP_RESUMED: "mrmr.step.resumed",
+  STEP_RESOLVED: "mrmr.step.resolved",
   ARTIFACT_TRANSFERRED: "mrmr.artifact.transferred",
   ARTIFACT_EXPIRED: "mrmr.artifact.expired",
   HOOK_DELIVERED: "mrmr.hook.delivered",
   FLOW_ATTACHED: "mrmr.flow.attached",
   FLOW_CHILD_STARTED: "mrmr.flow.child_started",
   FLOW_CHILD_COMPLETED: "mrmr.flow.child_completed",
+  FLOW_START_DENIED: "mrmr.flow.start_denied",
   SPACE_INDEX_UPDATED: "mrmr.space.index_updated",
 } as const;
 

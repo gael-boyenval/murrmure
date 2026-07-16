@@ -11,7 +11,8 @@ import {
   resolveDesktopPaths,
   type DesktopPaths,
 } from "./paths.js";
-import { ensureBootstrapSession } from "./session.js";
+import { DEFAULT_BOOTSTRAP_TOKEN_BARE, ensureBootstrapSession, toBearerToken, type BootstrapSession } from "./session.js";
+import { installMcpLauncher } from "./mcp-launcher.js";
 
 export type HubProcess = Subprocess;
 
@@ -48,6 +49,18 @@ export async function startHubSidecar(options?: {
 }): Promise<HubSidecarHandle> {
   const mode = options?.mode ?? (isDesktopDevMode() ? "dev" : "prod");
   const paths = resolveDesktopPaths({ mode });
+  const launcher = installMcpLauncher({
+    dataDir: paths.dataDir,
+    bridgeEntry: paths.mcpBridgeEntry,
+    nodeBinary: paths.nodeBinary,
+  });
+  if (!launcher.supported && mode === "prod") {
+    throw new Error(
+      process.platform === "darwin"
+        ? "Packaged Desktop is missing the bundled MCP bridge."
+        : "Packaged Desktop local-tool connections are supported on macOS only in this release.",
+    );
+  }
 
   const existingHub = await detectExistingHub(paths.lockOwnerPath);
   if (existingHub.running) {
@@ -60,11 +73,6 @@ export async function startHubSidecar(options?: {
       assertReadablePath(paths.hubEntry, "Hub entry");
     }
     assertReadablePath(paths.shellStaticDir, "Bundled shell dist");
-    assertReadablePath(paths.bundleRoot, "Bundle root");
-  }
-
-  if (mode === "dev-hmr") {
-    assertReadablePath(paths.bundleRoot, "Bundle root");
   }
 
   const hubProcess = Bun.spawn([paths.hubCommand, ...paths.hubArgs], {
@@ -98,12 +106,8 @@ export async function connectDevHmrServices(): Promise<HubSidecarHandle> {
   const paths = resolveDesktopPaths({ mode: "dev-hmr", env });
 
   // run-dev-hmr.ts already waits for hub + Vite before spawning the native window.
-  // Re-fetching from the Electrobun Worker is flaky (Bun Worker fetch to localhost)
-  // and blocks window creation for up to 30s when it fails.
-  const session = await ensureBootstrapSession({
-    hubUrl: paths.hubUrl,
-    bootstrapToken: process.env.MURRMURE_BOOTSTRAP_TOKEN,
-  });
+  // Do not fetch from the Electrobun process — Bun fetch to 127.0.0.1 hangs there.
+  const session = resolveDevHmrBootstrapSession(env);
 
   const hubProcess = {
     exited: Promise.resolve(),
@@ -117,6 +121,17 @@ export async function connectDevHmrServices(): Promise<HubSidecarHandle> {
     hubProcess,
     shutdown: async () => undefined,
   };
+}
+
+export function resolveDevHmrBootstrapSession(env: NodeJS.ProcessEnv = process.env): BootstrapSession {
+  const token = toBearerToken(env.MURRMURE_BOOTSTRAP_TOKEN ?? DEFAULT_BOOTSTRAP_TOKEN_BARE);
+  const actorId = env.MURRMURE_BOOTSTRAP_ACTOR_ID?.trim();
+  if (!actorId) {
+    throw new Error(
+      "Missing MURRMURE_BOOTSTRAP_ACTOR_ID — run via `pnpm desktop:dev:hmr` (orchestrator pre-fetches whoami).",
+    );
+  }
+  return { token, actor_id: actorId };
 }
 
 export function bootstrapLaunchUrl(hubUrl: string, token: string): string {

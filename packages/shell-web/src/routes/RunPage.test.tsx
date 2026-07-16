@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ViewCanvasHostProps } from "../components/ViewCanvasHost.js";
 import { ShellClientContext } from "../providers/ShellClientProvider.js";
-import type { GateItem, ShellClient } from "@murrmure/shell-client";
+import type { ShellClient } from "@murrmure/shell-client";
 import { RunPage } from "./RunPage.js";
 
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
@@ -24,41 +24,44 @@ vi.mock("../components/ViewCanvasHost.js", () => ({
   },
 }));
 
-const pendingGate: GateItem = {
-  gate_id: "gte_run",
+const activeHumanRun = {
   run_id: "run_abc",
   session_id: "ses_1",
-  step_id: "review",
-  status: "pending",
-  title: "Review checkpoint",
-  view_ref: {
-    view_id: "preview-review",
-    origin_space_id: "spc_demo",
-    entry_url: "./dist/index.html",
-  },
+  flow_id: "flw_demo",
+  space_id: "spc_demo",
+  lifecycle: "working",
+  open_steps: [
+    {
+      step_id: "review",
+      resolver: { handler_id: "hdl_intake", type: "view_resolver", view_id: "intake" },
+      view: {
+        view_id: "intake",
+        origin_space_id: "spc_demo",
+        entry: "./dist/index.html",
+      },
+      branches: [
+        { branch: "validated" },
+        { branch: "changes_required" },
+        { branch: "cancel" },
+      ],
+    },
+  ],
 };
 
-function renderRunPage(gateStatusRef: { current: string }) {
+function renderRunPage(runRef: { current: typeof activeHumanRun | null }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   const mockClient = {
     runs: {
-      get: vi.fn().mockResolvedValue({
-        run_id: "run_abc",
-        session_id: "ses_1",
-        flow_id: "flw_demo",
-        space_id: "spc_demo",
-        lifecycle: "working",
-      }),
+      get: vi.fn().mockImplementation(async () => runRef.current),
       graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [] }),
+      resolveStep: vi.fn().mockImplementation(async () => {
+        runRef.current = null;
+      }),
     },
     gates: {
-      listForRun: vi.fn().mockImplementation(async () => [
-        { ...pendingGate, status: gateStatusRef.current },
-      ]),
-      resolve: vi.fn().mockImplementation(async () => {
-        gateStatusRef.current = "cancelled";
-      }),
+      listForRun: vi.fn().mockResolvedValue([]),
+      resolve: vi.fn(),
     },
     auth: { mintSseTicket: vi.fn() },
     journal: { subscribe: () => () => undefined },
@@ -82,10 +85,13 @@ afterEach(() => {
   capturedCanvasProps.length = 0;
 });
 
+// Task 04: the hub projects a `view_resolver` + inline view ref on the open
+// step; the shell consumes it verbatim (no client-side handler matching) and
+// mounts the hardened ViewCanvasHost.
 describe("RunPage checkpoint canvas", () => {
-  it("cancel resolves gate, refetches, and exits canvas when gate is terminal", async () => {
-    const gateStatusRef = { current: "pending" };
-    renderRunPage(gateStatusRef);
+  it("cancel resolves step, refetches, and exits canvas when step is no longer open", async () => {
+    const runRef = { current: activeHumanRun as typeof activeHumanRun | null };
+    renderRunPage(runRef);
 
     await waitFor(() => {
       expect(screen.getByTestId("view-canvas-host")).toBeTruthy();
@@ -100,24 +106,17 @@ describe("RunPage checkpoint canvas", () => {
   });
 
   it("keeps stable ViewCanvasHost props across unrelated parent re-renders", async () => {
-    const gateStatusRef = { current: "pending" };
+    const runRef = { current: activeHumanRun as typeof activeHumanRun | null };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     const mockClient = {
       runs: {
-        get: vi.fn().mockResolvedValue({
-          run_id: "run_abc",
-          session_id: "ses_1",
-          flow_id: "flw_demo",
-          space_id: "spc_demo",
-          lifecycle: "working",
-        }),
+        get: vi.fn().mockImplementation(async () => runRef.current),
         graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [] }),
+        resolveStep: vi.fn(),
       },
       gates: {
-        listForRun: vi.fn().mockImplementation(async () => [
-          { ...pendingGate, status: gateStatusRef.current },
-        ]),
+        listForRun: vi.fn().mockResolvedValue([]),
         resolve: vi.fn(),
       },
       auth: { mintSseTicket: vi.fn() },
@@ -160,7 +159,7 @@ describe("RunPage checkpoint canvas", () => {
     });
 
     const after = capturedCanvasProps[capturedCanvasProps.length - 1];
-    expect(after.onSubmit).toBe(before.onSubmit);
+    expect(after.onSubmitBranch).toBe(before.onSubmitBranch);
     expect(after.onCancel).toBe(before.onCancel);
     expect(after.context).toBe(before.context);
   });

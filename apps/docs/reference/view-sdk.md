@@ -1,8 +1,18 @@
 # View SDK (`@murrmure/view-sdk`)
 
-Client package for **custom checkpoint views** in `murrmure/views/`. Published to npm as `@murrmure/view-sdk`.
+Client package for **custom step views** in `.mrmr/views/`. Published to npm as `@murrmure/view-sdk`.
 
-Views are **not hub entities** — the hub denormalizes `view_ref` onto checkpoint steps at `mrmr space apply`. At a pending checkpoint, **ViewCanvasHost** loads the view in the full primary canvas; the shell sends `ViewAppContext` via postMessage and maps submit to `{ disposition, output }` at resolve time.
+Views are **not hub entities** and **not flow entities**. A space binds a View to
+a resolver-agnostic step with a `view_resolver` handler in
+`.mrmr/space/handlers.yaml`; the View identity (`view_id`) lives in the space, never
+in the flow. At apply time the hub indexes the View and, at run time, projects an
+inline `view` ref onto the open step. The shell loads the locally built View in a
+**hardened iframe host**, sends `ViewAppContext` via postMessage, and mediates
+branch/cancel intent back to the hub at resolve time. Views receive **no hub
+credential** and must not call hub APIs directly.
+
+See [ADR-009](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+for the ownership and host-boundary decision.
 
 ## Install
 
@@ -13,30 +23,59 @@ npm install @murrmure/view-sdk
 Scaffold a view package in your space:
 
 ```bash
-mrmr space view init preview-review
-cd murrmure/views/preview-review && npm install
+mrmr space view init preview-review-intake
+cd .mrmr/views/preview-review-intake && npm install
 ```
+
+## Binding a View to a step
+
+In `.mrmr/space/handlers.yaml`:
+
+```yaml
+handlers:
+  - id: intake_view
+    on: step.opened::preview-review.intake
+    type: view_resolver
+    view: preview-review-intake
+```
+
+`view_resolver` binds `step.opened::{flow_name}.{step_id}` only and carries no
+executor fields. Apply validates the `view_id` and its build atomically; an
+unknown or unbuilt View fails apply and preserves the prior index.
 
 ## Exports
 
 | Export | Consumer | Role |
 |--------|----------|------|
 | `@murrmure/view-sdk` | Shell (`shell-web`) | `ViewHostFrame`, `attachViewHostBridge`, `resolveViewEntryUrl` |
-| `@murrmure/view-sdk/app` | View apps in `murrmure/views/*/src/` | `createViewMount`, `ViewProvider`, context hooks, submit/cancel |
+| `@murrmure/view-sdk/app` | View apps in `.mrmr/views/*/src/` | `createViewMount`, `ViewProvider`, `useViewContract`, `submitBranch`, `openChildStep`, `cancel` |
 
 ## Author surface (`./app`)
 
 ```tsx
-import { createViewMount, useViewContext, useViewSubmit } from "@murrmure/view-sdk/app";
+import { createViewMount, useViewContract } from "@murrmure/view-sdk/app";
 
 function App() {
-  const ctx = useViewContext();
-  const { submit, cancel } = useViewSubmit();
+  const { context, ready, submitBranch, openChild, cancel, submission } = useViewContract();
+  if (!ready) return null;
 
   return (
-    <button type="button" onClick={() => submit({ outcome: "validated" })}>
-      Approve {ctx.gate?.step_id}
-    </button>
+    <>
+      {context.step.declared_children?.[0] ? (
+        <button onClick={() => openChild(context.step.declared_children![0]!, crypto.randomUUID())}>
+          Start child
+        </button>
+      ) : null}
+      <button onClick={() => submitBranch("continue", { files: { spec } })}>
+        Submit {context.step.step_id}
+      </button>
+      {submission.status === "uploading" ? (
+        <>
+          <progress value={submission.uploadedBytes} max={submission.totalBytes} />
+          <button onClick={submission.cancel}>Cancel upload</button>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -47,70 +86,101 @@ createViewMount({ App });
 
 | Symbol | Role |
 |--------|------|
-| `createViewMount({ App, boundary? })` | Mount to `#root`; listen for `murrmure.view.context`; post `murrmure.view.ready` |
-| `ViewProvider` | Internal — wraps app with context + hub client |
-| `useViewContext()` | Full `ViewAppContext` from shell |
-| `useViewHubClient()` | `@murrmure/shell-client` instance (read APIs only) |
-| `useViewSubmit()` | `{ submit(params), cancel() }` → postMessage to shell |
+| `createViewMount({ App, boundary? })` | Mount to `#root`; subscribe for context; post `murrmure.view.ready` |
+| `ViewProvider` | Internal — wraps app with context |
+| `useViewContract()` | `{ context, ready, branches, validate, submitBranch, openChild, cancel, submission }` |
+| `submitBranch(context, branch, { payload?, files? })` | Post browser files to the trusted host; await resolve result |
+| `openChildStep(context, childStepId, idempotencyKey)` | Ask the trusted host to yield the parent and activate one declared child |
+| `cancel(context)` | Resolve the workflow `cancel` branch; this is not upload cancellation |
+| `submission.cancel()` | Abort the active pre-commit upload; temporary bytes are removed and the step stays open |
+| `validateBranchResolve(context, branch, input)` | Fast iframe preflight; the trusted host and Hub perform full validation |
+| `isViewContractError(e)` / `ViewContractError` | Typed submission error |
 | `ViewErrorBoundary` | Optional error UI (used by default in `createViewMount`) |
 
 ### ViewAppContext
 
-All checkpoint mounts (step 0 and mid-run) share one shape:
+All step mounts share one shape. There is **no `token`** and **no `gate`**.
 
 ```typescript
 interface ViewAppContext {
   flow_id: string;
   space_id: string;
   hub_base_url: string;
-  token: string;           // read-only shell token
+  mode: "production" | "dev";
+  transport_version: number;   // postMessage envelope version
+  nonce: string;               // per-mount nonce bound to every message
   session_id?: string;
   run_id?: string;
-  gate?: {
-    gate_id: string;
+  step: {
     step_id: string;
-    payload_ref?: string;
-    responseSchema?: ResponseSchema;  // optional hint — not a form mandate
+    branches: ViewBranchContract[];   // complete selected-branch contracts
+    reason?: "opened" | "resumed";
+    declared_children?: string[];
+    returned_child?: {
+      step_id: string;
+      branch: string;
+      iteration: number;
+      payload: Record<string, unknown>;
+      artifacts_out: Array<Record<string, unknown>>;
+    };
   };
   steps?: Record<string, { output?: Record<string, unknown>; status?: string }>;
   input?: Record<string, unknown>;
 }
 ```
 
-**Security:** views must use read-only hub APIs. They must **not** call orchestration mutation APIs (attach, apply, grant mint, gate resolve).
+**Security:** views receive no hub credential and run sandboxed. They must not
+attempt hub API calls or parent-frame access; all interaction is host-mediated
+postMessage.
 
 ## Host protocol (postMessage)
 
+Every message carries an envelope `{ v, nonce }` bound to the mount. The host
+verifies source window, origin, transport version, and nonce on every message.
+
 | Direction | Message | Purpose |
 |-----------|---------|---------|
-| Host → view | `{ type: "murrmure.view.context", context }` | Checkpoint context |
-| View → host | `{ type: "murrmure.view.ready" }` | View mounted |
-| View → host | `{ type: "murrmure.view.submit", params }` | Human done — **free shape** |
-| View → host | `{ type: "murrmure.view.cancel" }` | Human dismissed |
+| Host → view | `murrmure.view.context` (with envelope) | Step context |
+| View → host | `murrmure.view.ready` | View mounted |
+| View → host | `murrmure.view.submit_branch` `{ submission_id, branch, input }` | Validate, upload, and resolve |
+| View → host | `murrmure.view.cancel_submission` `{ submission_id }` | Abort pre-commit submission |
+| View → host | `murrmure.view.cancel` | Human dismissed |
+| View → host | `murrmure.view.resolved` | View observed resolution |
+| View → host | `murrmure.view.open_child` | Activate one declared child from an assigned nested parent |
+| Host → view | `murrmure.view.ack` `{ ok }` | Acknowledge submit/cancel |
+| Host → view | `murrmure.view.submission` | Monotonic validating/uploading/resolving progress |
 
-Example submit payloads:
+`submitBranch`/`openChild`/`cancel` resolve when the host ACKs `{ ok: true }` and reject
+with `ViewContractError` on `{ ok: false }`.
 
-```typescript
-submit({ outcome: "validated" });
-submit({ outcome: "changes_required", comments: [{ text: "Fix header" }] });
-```
+`ViewContractError.errors` is the transport-neutral
+`CONTRACT_VALIDATION_FAILED` array: `{ source, path, rule, message }`, where
+`path` is an RFC 6901 JSON Pointer. Content, credentials, validator internals,
+and host paths are never exposed.
 
-The shell maps submit → `{ disposition, output }` at resolve time (phase 05).
+Production submission is host-only: the iframe sends `File`/`Blob` objects,
+while the shell privately obtains Hub upload intents and streams bytes. Intent
+IDs and Hub credentials never cross into the iframe. Dev mode runs the same
+contract checks and reports a sanitized, non-mutating intent locally; it makes
+no upload or resolve request.
 
 ## Dev loop
 
 Design against fixture context without a real run:
 
 ```bash
-mrmr view dev preview-review
-mrmr view dev preview-review --fixture gate-round-2
+mrmr view dev preview-review-intake
+mrmr view dev preview-review-intake --fixture intake
 ```
 
-- CLI starts the author's `npm run dev` (Vite) subprocess
+- CLI starts the author's `npm run dev` (Vite) subprocess.
 - Fixture files under `dev/fixtures/*.json` are full `ViewAppContext` snapshots
-- Submit in dev mode logs only — no real gate resolve until a production run
-- Open Desktop route: `/spaces/{space_id}/dev/views/{view_id}` (after `mrmr view dev`)
-- Ship path: `npm run build` → `mrmr space apply`
+  (`mode: "dev"`, with `step.branches`).
+- Submit/cancel in dev mode logs non-mutating intents only — no real resolve
+  until a production run.
+- Open Desktop route: `/spaces/{space_id}/dev/views/{view_id}` (after
+  `mrmr view dev`).
+- Ship path: `npm run build` → `mrmr space apply`.
 
 ## Shell helper (host side)
 
@@ -120,10 +190,18 @@ import { ViewHostFrame } from "@murrmure/view-sdk";
 <ViewHostFrame
   src={entryUrl}
   context={viewAppContext}
-  onSubmit={(params) => resolveCheckpoint(params)}
-  onCancel={() => closeCanvas()}
+  onSubmitBranch={async (branch, input, submission) =>
+    uploadAndResolve(branch, input, submission)
+  }
+  onCancelSubmission={cancelUpload}
+  onCancel={async () => closeCanvas()}
+  onResolved={onResolved}
 />
 ```
+
+`ViewHostFrame` renders the iframe with `sandbox="allow-scripts"` and a
+restrictive CSP (`default-src 'none'`, no `connect-src`, no `frame-src`).
+External View entry URLs are rejected.
 
 ## Entry URL resolution
 
@@ -135,12 +213,16 @@ GET /v1/spaces/{space_id}/views/{view_id}/{path}
 
 Requires the space to be linked with a filesystem root (`mrmr space link`).
 
-## Fallback
+## Unbound steps
 
-If a checkpoint references a view but `dist/` is missing at apply time, apply warns (or `--strict` fails). At run time the shell may fall back to a built-in form — **not** the primary path when a custom view is expected.
+A step with no `view_resolver` is valid and externally resolvable. Its
+projection carries `resolver: null` and no `view` ref. The shell renders an
+**observability-only** state for it — no built-in form or fallback control is
+synthesized. An authorized protocol client resolves the step externally.
 
 ## Related
 
-- [Shell client](./shell-client) — read-only HTTP from views
-- [Space index](../guide/space-index) — `murrmure/views/` layout
-- [Known gaps](../guide/known-gaps) — engine/checkpoint gaps (B1–B4)
+- [Space handlers guide](../guide/space-handlers.md) — `view_resolver` binding
+- [Space index](../guide/space-index) — `.mrmr/views/` layout
+- [ADR-009 — Space-owned view resolvers and hardened host](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md)
+- [Known gaps](../guide/known-gaps) — engine/checkpoint gaps

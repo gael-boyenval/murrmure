@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-export const MRMR_TEMP_DIR = ".mrmr.temp";
+export const MRMR_TEMP_DIR = ".mrmr/dev";
 export const INBOX_DIR = "inbox";
 export const OUTBOX_DIR = "outbox";
 

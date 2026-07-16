@@ -1,12 +1,10 @@
 # Murrmure
 
-Local-first **hub runtime** for human/agent workflows. Teams configure spaces,
-index `murrmure/` directories, and mint agent grants in the browser shell.
-Agents connect via MCP; the hub journals every command, event, and denial in SQLite.
+Local-first **hub runtime** for human/agent workflows. Teams configure spaces
+and index `.mrmr/` directories. The hub journals every command, event, and
+denial in SQLite.
 
-Reference workflows ship as v2 space-directory examples under
-`examples/flows/preview-review-v2/` — indexed with **`mrmr space apply`**, not
-worker install.
+Internal test fixtures live under `test-utils/spaces/` (strict-apply CI only — not linked from user docs).
 
 Normative platform specs: [`studio-specs/current/`](studio-specs/current/overview.md).
 
@@ -33,7 +31,7 @@ Agents (Cursor, CI)     MCP + HTTP grants
         └── @murrmure/executors     shell spawn, MCP session, queue poll
 
 Humans                  @murrmure/shell-web (observer shell)
-        │               ViewCanvasHost for custom murrmure/views/
+        │               ViewCanvasHost for custom .mrmr/views/
         ▼
 ~/.murrmure/              SQLite DB (`murrmure.db`), space index, staging dirs
 ```
@@ -48,7 +46,7 @@ Humans                  @murrmure/shell-web (observer shell)
 | `@murrmure/cli` | CLI (`mrmr`) and MCP adapter |
 | `@murrmure/shell-web` | Browser shell (observer mode; `/spaces/new` first-run) |
 | `@murrmure/view-sdk` | Custom view host + `createViewMount` app helpers |
-| `examples/flows/` | v2 reference space-directory workflows |
+| `test-utils/` | CI/manual test spaces and workers (not user documentation) |
 
 Dependency rule: custom views use `@murrmure/view-sdk`; flows are indexed from
 `murrmure/` via `mrmr space apply`. See
@@ -59,11 +57,11 @@ Dependency rule: custom views use `@murrmure/view-sdk`; flows are indexed from
 | Path | Purpose |
 |------|---------|
 | `packages/` | Active platform workspace |
-| `examples/flows/` | v2 reference workflows (`preview-review-v2`, …) |
+| `test-utils/spaces/` | Strict-apply test trees (`preview-review-v2`, …) |
 | `apps/docs/` | VitePress user guide |
 | `studio-specs/current/` | Normative specs (implement from here) |
 | `studio-specs/plans/` | Deferred scope — do not implement directly |
-| `fixtures/hub/` | Contract fixtures and acceptance data |
+| `test-utils/hub/` | Explicit non-shipped Hub contract fixtures and pin helpers |
 
 ## Requirements
 
@@ -89,10 +87,9 @@ Starts:
 
 ### First-run smoke test
 
-1. Open `http://127.0.0.1:5174/setup` and complete the setup wizard (spaces,
-   apply a v2 `murrmure/` tree, mint an agent grant).
-2. Copy the MCP snippet into your agent config (`MURRMURE_HUB_TOKEN`,
-   `MURRMURE_SPACE_ID`).
+1. Open Desktop. A fresh launch has no spaces, persisted contracts, or demo flows.
+2. In a project folder, run `mrmr setup`; confirm one name and editable slug.
+   Setup scaffolds `.mrmr/`, links, and applies without creating a local-tool credential.
 3. Run an indexed flow via **`mrmr flow run`** or Desktop **Run**; resolve gates
    in custom views when present.
 

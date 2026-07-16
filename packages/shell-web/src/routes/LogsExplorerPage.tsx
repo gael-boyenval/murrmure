@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "../layout/AppShell.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@murrmure/shell-ui";
+import { DataTableView } from "../components/DataTableView.js";
+import { formatDateTime } from "../lib/format-display.js";
 
 const FILTER_KEYS = ["session", "space_id", "type", "since", "until"] as const;
 
@@ -67,11 +69,11 @@ export function LogsExplorerPage() {
             {(logsQuery.data ?? []).map((entry) => (
               <div key={entry.id} className="rounded border border-border p-2">
                 <div className="flex flex-wrap gap-2 text-muted-foreground">
-                  <span>{entry.time}</span>
+                  <span title={entry.time}>{formatDateTime(entry.time)}</span>
                   <span>{entry.type}</span>
                   {entry.session_id ? <span>{entry.session_id}</span> : null}
                 </div>
-                <pre className="mt-1 whitespace-pre-wrap break-all">{JSON.stringify(entry.data, null, 0)}</pre>
+                <DataTableView value={entry.data} className="mt-1" />
               </div>
             ))}
             {!logsQuery.isLoading && (logsQuery.data?.length ?? 0) === 0 ? (

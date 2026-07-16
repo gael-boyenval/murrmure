@@ -1,8 +1,10 @@
 # Project-specific
 .opensrc/
 .dev/
+.mrmr/dev/
 .DS_Store
 fixtures/demo/.cursor/
+packages/hub-daemon/data/
 
 # Logs
 logs

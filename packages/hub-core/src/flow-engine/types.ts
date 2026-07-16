@@ -22,4 +22,14 @@ export interface FlowStartResult {
   dispatch: FlowStepDispatch[];
 }
 
-export type FlowStartError = { code: string; message: string };
+export interface FlowStartError {
+  code: string;
+  message: string;
+  /** Populated when `code === "FLOW_CONCURRENCY_LIMIT"` (run-capacity denial). */
+  flow_id?: string;
+  flow_name?: string;
+  origin_space_id?: string;
+  flow_digest?: string;
+  max_concurrent_runs?: number;
+  active_run_ids?: string[];
+}

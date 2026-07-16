@@ -1,5 +1,18 @@
 import { resolve } from "node:path";
-import { defaultInstallPath, installMurrmureSkill, readSkillVersion } from "./install.js";
+import {
+  defaultInstallPath,
+  installMurrmureSkill,
+  resolveSkillInstallVariant,
+  readSkillVersion,
+  type SkillInstallVariant,
+} from "./install.js";
+
+function parseVariant(value: unknown): SkillInstallVariant | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const raw = String(value);
+  if (raw === "agent" || raw === "developer" || raw === "all") return raw;
+  throw new Error(`Invalid --variant '${raw}'. Expected: agent, developer, all`);
+}
 
 function parseArgs(argv: string[]) {
   const args = [...argv];
@@ -38,22 +51,34 @@ export async function runMurrmureSkillCli(argv: string[]): Promise<void> {
   switch (command) {
     case "install":
     case "update": {
-      const result = installMurrmureSkill(target);
+      const variant = parseVariant(flags.variant);
+      const result = installMurrmureSkill(target, { variant });
+      const resolved = resolveSkillInstallVariant(target, variant);
       out(
         {
           ...result,
+          variant: resolved,
           command,
           message:
             command === "update"
-              ? `Updated murrmure skill to v${result.version}`
-              : `Installed murrmure skill to ${result.path}`,
+              ? `Updated murrmure ${resolved} skill variant`
+              : `Installed murrmure ${resolved} skill variant`,
         },
         json,
       );
       break;
     }
     case "version": {
-      out({ ok: true, version: readSkillVersion(), install_path: defaultInstallPath(target) }, json);
+      const variant = flags.variant === "developer" ? "developer" : "agent";
+      out(
+        {
+          ok: true,
+          variant,
+          version: readSkillVersion(variant),
+          install_path: defaultInstallPath(target, variant),
+        },
+        json,
+      );
       break;
     }
     default:

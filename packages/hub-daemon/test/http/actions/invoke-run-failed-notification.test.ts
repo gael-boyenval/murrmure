@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
@@ -10,16 +10,8 @@ describe("http/actions/invoke-run-failed-notification", () => {
   let cleanup: () => void;
   let bootstrapToken: string;
   let spaceId: string;
-  let projectDir: string;
 
   beforeAll(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "invoke-fail-notif-"));
-    const binDir = join(projectDir, "bin");
-    mkdirSync(binDir, { recursive: true });
-    const failScript = join(binDir, "fail.sh");
-    writeFileSync(failScript, '#!/bin/sh\necho \'{"error":"boom"}\' >&2\nexit 1\n');
-    chmodSync(failScript, 0o755);
-
     const dir = mkdtempSync(join(tmpdir(), "hub-invoke-fail-notif-"));
     bootstrapToken = "01JBOOTSTRAPTOKEN00000055";
     const daemon = await startHubDaemon({
@@ -35,7 +27,6 @@ describe("http/actions/invoke-run-failed-notification", () => {
     cleanup = () => {
       daemon.server.close();
       rmSync(dir, { recursive: true, force: true });
-      rmSync(projectDir, { recursive: true, force: true });
     };
 
     const auth = {
@@ -50,12 +41,6 @@ describe("http/actions/invoke-run-failed-notification", () => {
     });
     spaceId = (await created.json()).space_id;
 
-    await fetch(`${baseUrl}/v1/spaces/${spaceId}/link`, {
-      method: "POST",
-      headers: auth,
-      body: JSON.stringify({ path: projectDir, primary: true }),
-    });
-
     await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
       method: "POST",
       headers: auth,
@@ -67,6 +52,7 @@ describe("http/actions/invoke-run-failed-notification", () => {
               version: 1,
               actions: {
                 always_fail: { executor: "shell", command: "./bin/fail.sh" },
+                slow_hang: { executor: "shell", command: "./bin/hang.sh" },
               },
             },
           },
@@ -92,7 +78,7 @@ describe("http/actions/invoke-run-failed-notification", () => {
     "Content-Type": "application/json",
   });
 
-  test("failed invoke marks run failed and creates run_failed notification", async () => {
+  test("action invoke route is removed — failing action not reachable (404)", async () => {
     const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
       method: "POST",
       headers: auth(),
@@ -117,16 +103,15 @@ describe("http/actions/invoke-run-failed-notification", () => {
         params: {},
       }),
     });
-    expect(invokeRes.status).toBe(422);
+    expect(invokeRes.status).toBe(404);
+  });
 
-    const runCheck = await fetch(`${baseUrl}/v1/runs/${run.run_id}`, { headers: auth() });
-    const runBody = await runCheck.json();
-    expect(runBody.lifecycle).toBe("failed");
-
-    const notifications = await fetch(`${baseUrl}/v1/notifications?status=pending`, { headers: auth() });
-    const notifBody = (await notifications.json()) as {
-      notifications: Array<{ kind: string; run_id?: string }>;
-    };
-    expect(notifBody.notifications.some((n) => n.kind === "run_failed" && n.run_id === run.run_id)).toBe(true);
+  test("action invoke route is removed — hanging action not reachable (404)", async () => {
+    const invokeRes = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/slow_hang/invoke`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({ params: {} }),
+    });
+    expect(invokeRes.status).toBe(404);
   });
 });

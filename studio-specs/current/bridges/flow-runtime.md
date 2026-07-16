@@ -2,6 +2,13 @@
 
 Maps [spec.md](../flow-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
 
+MCP transport assumption: local tools use the Desktop-bundled
+`murrmure-mcp` bridge (`@murrmure/mcp-bridge`) through its stable launcher,
+with `--hub` and `--connection` ID arguments. The bridge reads the credential
+from the OS store. Desktop publishes the launcher command, bundled entry, and
+runtime in shared discovery. Explicit headless CI may inject
+Explicit headless CI may inject a hub bearer token at process runtime.
+
 ## HTTP additions
 
 | Method | Path | Command | Notes |
@@ -34,7 +41,7 @@ Client → server (first message after connect):
     "contract_versions": [
       { "flow_id": "review-loop", "version": "2.0.0", "contract_ref_id": "cref_…" }
     ],
-    "known_tools": ["transition", "create_review_session"]
+    "known_tools": ["murrmure_space_status", "murrmure_resolve_step", "murrmure_wait_for_run"]
   }
 }
 ```
@@ -80,13 +87,17 @@ interface ControlBus {
   drain(principal: ControlPrincipal, afterSeq?: number): ControlMessage[];
 }
 
-interface McpWakeDispatcher {
-  wake(args: {
-    target_space_id: string;
-    wake_label: string;
-    payload: unknown;
-    session_hint: "wake";
-  }): Promise<void>;
+interface McpSessionRegistry {
+  // The retired wake HTTP endpoint is gone — 404 (phase 16). The clean
+  // protocol uses event handlers + `murrmure_emit_event` + flow triggers
+  // (see triggers/spec.md). This registry tracks connected MCP principals
+  // per space for the live `mcp_session` executor + handshake — it does not
+  // dispatch legacy wake calls (the retired wake dispatcher was renamed to clarify
+  // this; legacy wake runtime calls are not a runtime primitive).
+  connect(principal: ControlPrincipal): void;
+  disconnect(principal: ControlPrincipal): void;
+  hasConnectedSession(spaceId: string): boolean;
+  connectedPrincipals(spaceId: string): ControlPrincipal[];
 }
 ```
 
@@ -100,11 +111,10 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 | `flow.live_apply_failed` | Mount error |
 | `flow.unmounted` | Rollback/supersede |
 | `mcp.tools_changed` | Audit mirror |
-| `mcp.wake_delivered` | Wake delivered to session |
 
 ## SSE (optional)
 
-`event: flow.live_applied` on space channel — configure UI refreshes installed list.
+`event: flow.live_applied` on space channel — retired configure shell would have refreshed installed list (removed).
 
 ## Packages
 
@@ -113,4 +123,4 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 | `packages/hub-daemon/src/mount-registry.ts` | MountRegistry |
 | `packages/hub-daemon/src/mcp-tool-registry.ts` | Catalog rebuild |
 | `packages/hub-daemon/src/control-bus.ts` | Outbox + replay |
-| `packages/hub-daemon/src/mcp-wake-dispatcher.ts` | wake_label routing |
+| `packages/hub-daemon/src/mcp-session-registry.ts` | Connected-session tracking (wake wire retired — 404; renamed from `mcp-wake-dispatcher.ts`) |

@@ -2,13 +2,27 @@
   "flow_id": "preview-review",
   "space_id": "spc_local",
   "hub_base_url": "http://127.0.0.1:8787",
-  "token": "dev-readonly",
+  "mode": "dev",
+  "transport_version": 1,
+  "nonce": "dev-round-1",
   "session_id": "ses_dev",
   "run_id": "run_dev",
-  "gate": {
-    "gate_id": "gte_dev",
+  "step": {
     "step_id": "review",
-    "payload_ref": "art_preview_meta"
+    "branches": [
+      {
+        "branch": "validated",
+        "schema": { "type": "object" },
+        "artifact_slots": {
+          "spec": {
+            "description": "Validated spec markdown",
+            "media_types": ["text/markdown"],
+            "extensions": [".md"]
+          }
+        }
+      },
+      { "branch": "changes_required" }
+    ]
   },
   "input": {
     "reviewer": "you@local",

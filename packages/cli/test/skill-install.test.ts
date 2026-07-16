@@ -6,33 +6,10 @@ import {
   defaultInstallPath,
   installMurrmureSkill,
   legacyInstallPath,
+  legacyMonolithInstallPath,
   skillSourceDir,
   SKILL_DIR_NAME,
 } from "../src/skill/install.js";
-
-const REFERENCE_FILES = [
-  "platform-model.md",
-  "known-gaps.md",
-  "cli.md",
-  "mcp.md",
-  "grants.md",
-  "space-directory.md",
-  "flow-authoring.md",
-  "actions-executors.md",
-  "hooks-triggers.md",
-  "views.md",
-  "gates.md",
-  "orchestration-attach.md",
-  "federation.md",
-  "troubleshooting.md",
-  "wizards.md",
-] as const;
-
-const DELETED_REFERENCE_FILES = [
-  "evolution-pipeline.md",
-  "capability-authoring.md",
-  "workers.md",
-] as const;
 
 const FDK_PATTERNS = [
   /flow push/i,
@@ -55,79 +32,53 @@ describe("murrmure skill install", () => {
     rmSync(targetDir, { recursive: true, force: true });
   });
 
-  test("installs to .cursor/skills/murrmure with correct frontmatter", () => {
-    const result = installMurrmureSkill(targetDir);
+  test("installs agent skill to .cursor/skills/murrmure-agent", () => {
+    const result = installMurrmureSkill(targetDir, { variant: "agent" });
     expect(result.ok).toBe(true);
-    expect(result.path).toBe(defaultInstallPath(targetDir));
+    expect(result.path).toBe(defaultInstallPath(targetDir, "agent"));
 
     const skillMd = readFileSync(join(result.path, "SKILL.md"), "utf-8");
-    expect(skillMd).toMatch(/^name: murrmure/m);
-    expect(skillMd).toContain("Task router");
+    expect(skillMd).toMatch(/^name: murrmure-agent/m);
+    expect(skillMd).toContain("Runtime MCP");
     expect(skillMd).not.toContain("murrmure-flow");
   });
 
-  test("removes stale murrmure-flow directory on install", () => {
-    const legacyPath = legacyInstallPath(targetDir);
-    mkdirSync(legacyPath, { recursive: true });
-    writeFileSync(join(legacyPath, "SKILL.md"), "name: murrmure-flow\n");
+  test("installs all variants to murrmure-agent and murrmure-developer", () => {
+    const result = installMurrmureSkill(targetDir, { variant: "all" });
+    expect(result.variant).toBe("all");
+    expect(existsSync(defaultInstallPath(targetDir, "agent"))).toBe(true);
+    expect(existsSync(defaultInstallPath(targetDir, "developer"))).toBe(true);
+    expect(result.installed).toHaveLength(2);
+  });
 
-    installMurrmureSkill(targetDir);
+  test("removes stale legacy skill directories on install", () => {
+    const legacyPath = legacyInstallPath(targetDir);
+    const monolithPath = legacyMonolithInstallPath(targetDir);
+    mkdirSync(legacyPath, { recursive: true });
+    mkdirSync(monolithPath, { recursive: true });
+    writeFileSync(join(legacyPath, "SKILL.md"), "name: murrmure-flow\n");
+    writeFileSync(join(monolithPath, "SKILL.md"), "name: murrmure\n");
+
+    installMurrmureSkill(targetDir, { variant: "agent" });
 
     expect(existsSync(legacyPath)).toBe(false);
-    expect(existsSync(defaultInstallPath(targetDir))).toBe(true);
+    expect(existsSync(monolithPath)).toBe(false);
+    expect(existsSync(defaultInstallPath(targetDir, "agent"))).toBe(true);
   });
 
-  test("reinstall removes deleted bundled reference files from prior install", () => {
-    const dest = defaultInstallPath(targetDir);
-    installMurrmureSkill(targetDir);
-
-    for (const file of DELETED_REFERENCE_FILES) {
-      writeFileSync(join(dest, "reference", file), `# stale ${file}\n`);
-    }
-
-    installMurrmureSkill(targetDir);
-
-    for (const file of DELETED_REFERENCE_FILES) {
-      expect(
-        existsSync(join(dest, "reference", file)),
-        `stale reference/${file} should be removed on reinstall`,
-      ).toBe(false);
-    }
-    for (const file of REFERENCE_FILES) {
-      expect(existsSync(join(dest, "reference", file)), `reference/${file} should remain`).toBe(
-        true,
-      );
-    }
-  });
-
-  test("reference inventory matches phase 07 spec", () => {
-    const refDir = join(skillSourceDir(), "reference");
-    for (const file of REFERENCE_FILES) {
-      expect(existsSync(join(refDir, file)), `missing reference/${file}`).toBe(true);
-    }
-    for (const file of DELETED_REFERENCE_FILES) {
-      expect(existsSync(join(refDir, file)), `legacy reference/${file} should be deleted`).toBe(
-        false,
-      );
-    }
-  });
-
-  test("skill tree has zero FDK push/evolution references", () => {
-    const skillRoot = skillSourceDir();
-    const files = [
-      readFileSync(join(skillRoot, "SKILL.md"), "utf-8"),
-      ...REFERENCE_FILES.map((f) =>
-        readFileSync(join(skillRoot, "reference", f), "utf-8"),
-      ),
-    ].join("\n");
+  test("skill sources have zero FDK push/evolution references", () => {
+    const variants = ["agent", "developer"] as const;
+    const files = variants
+      .map((variant) => readFileSync(join(skillSourceDir(variant), "SKILL.md"), "utf-8"))
+      .join("\n");
 
     for (const pattern of FDK_PATTERNS) {
       expect(files).not.toMatch(pattern);
     }
   });
 
-  test("SKILL_DIR_NAME is murrmure", () => {
-    expect(SKILL_DIR_NAME).toBe("murrmure");
+  test("SKILL_DIR_NAME is murrmure-agent", () => {
+    expect(SKILL_DIR_NAME).toBe("murrmure-agent");
   });
 });
 

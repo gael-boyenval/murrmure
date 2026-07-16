@@ -36,17 +36,8 @@ const MORNING_BRIEF_BUNDLE = {
       manifest: {
         apiVersion: "murrmure.flow/v1",
         name: "morning-brief",
-        start: { manual: true, idempotency: "run_key" },
-        steps: [
-          {
-            id: "research",
-            invoke: {
-              space: "{{origin_space}}",
-              action: "overnight_research",
-              params: { topic: "{{input.topic}}" },
-            },
-          },
-        ],
+        triggers: { manual: true, idempotency: "run_key" },
+        steps: [{ id: "research", description: "research" }],
       },
     },
   ],

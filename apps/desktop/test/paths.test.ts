@@ -7,7 +7,6 @@ import {
   isDesktopDevHmrMode,
   resolveDatabasePath,
   resolveDesktopPaths,
-  shouldPreferLegacyDatabaseMigration,
   SHELL_DEV_PORT,
 } from "../src/paths.js";
 
@@ -61,7 +60,7 @@ describe("resolveDesktopPaths dev-hmr", () => {
     });
 
     expect(env.MURRMURE_SHELL_STATIC_DIR).toBeUndefined();
-    expect(env.MURRMURE_BUNDLE_ROOT).toBe("/repo/fixtures");
+    expect(env.MURRMURE_BUNDLE_ROOT).toBeUndefined();
     expect(env.MURRMURE_DATA_DIR).toBe("/tmp/murrmure");
     expect(env.DATABASE_PATH).toBe("/tmp/murrmure/murrmure.db");
     expect(env.PORT).toBe("8787");
@@ -91,58 +90,19 @@ describe("isDesktopDevHmrMode", () => {
 });
 
 describe("resolveDatabasePath", () => {
-  test("returns murrmure.db when already present", () => {
+  test("always resolves the clean-state database name", () => {
     const dir = mkdtempSync(join(tmpdir(), "murrmure-db-"));
-    writeFileSync(join(dir, "murrmure.db"), "");
     expect(resolveDatabasePath(dir)).toBe(join(dir, "murrmure.db"));
     rmSync(dir, { recursive: true, force: true });
   });
 
-  test("migrates legacy studio.db to murrmure.db", () => {
+  test("does not migrate or read an earlier development database", () => {
     const dir = mkdtempSync(join(tmpdir(), "murrmure-db-"));
-    writeFileSync(join(dir, "studio.db"), "legacy");
-    const logs: string[] = [];
-    const path = resolveDatabasePath(dir, (msg) => logs.push(msg));
-    expect(path).toBe(join(dir, "murrmure.db"));
-    expect(existsSync(join(dir, "murrmure.db"))).toBe(true);
-    expect(existsSync(join(dir, "studio.db"))).toBe(false);
-    expect(logs.some((l) => l.includes("Migrated legacy database"))).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test("buildHubSpawnEnv uses migrated database path", () => {
-    const dir = mkdtempSync(join(tmpdir(), "murrmure-db-"));
-    writeFileSync(join(dir, "studio.db"), "legacy");
-    const paths = resolveDesktopPaths({
-      mode: "dev",
-      cwd: "/repo/apps/desktop",
-      env: { MURRMURE_REPO_ROOT: "/repo", MURRMURE_DATA_DIR: dir },
-    });
-    const env = buildHubSpawnEnv(paths, { PATH: "/usr/bin" });
-    expect(env.DATABASE_PATH).toBe(join(dir, "murrmure.db"));
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test("prefers legacy studio.db when murrmure.db is empty placeholder", () => {
-    const dir = mkdtempSync(join(tmpdir(), "murrmure-db-"));
-    writeFileSync(join(dir, "murrmure.db"), "");
-    writeFileSync(join(dir, "studio.db"), "x".repeat(9000));
-    const logs: string[] = [];
-    const path = resolveDatabasePath(dir, (msg) => logs.push(msg));
-    expect(path).toBe(join(dir, "murrmure.db"));
-    expect(existsSync(join(dir, "studio.db"))).toBe(false);
-    expect(existsSync(join(dir, "murrmure.db"))).toBe(true);
-    expect(logs.some((l) => l.includes("Replacing empty"))).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  test("shouldPreferLegacyDatabaseMigration detects empty canonical with data legacy", () => {
-    const dir = mkdtempSync(join(tmpdir(), "murrmure-db-"));
-    const canonical = join(dir, "murrmure.db");
     const legacy = join(dir, "studio.db");
-    writeFileSync(canonical, "");
-    writeFileSync(legacy, "x".repeat(9000));
-    expect(shouldPreferLegacyDatabaseMigration(canonical, legacy)).toBe(true);
+    writeFileSync(legacy, "old-state");
+    expect(resolveDatabasePath(dir)).toBe(join(dir, "murrmure.db"));
+    expect(existsSync(legacy)).toBe(true);
+    expect(existsSync(join(dir, "murrmure.db"))).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 });

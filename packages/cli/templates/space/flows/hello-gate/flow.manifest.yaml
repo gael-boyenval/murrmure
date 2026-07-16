@@ -1,39 +1,58 @@
-# Role: declarative flow graph — intake checkpoint → build → review loop (preview-review shape).
+# Role: preview-review loop — intake, build, review, done (step contracts; handlers bind views/actions).
 apiVersion: murrmure.flow/v1
 name: {{FLOW_ID}}
-description: Preview review loop — intake, build, review checkpoints with on_resolve goto
+description: Preview review loop — intake, build, review with explicit branch routing
 
 triggers:
   manual: true
 
-start:
-  manual: true
-
 steps:
   - id: intake
-    checkpoint:
-      view: {{FLOW_ID}}-intake
-      on_resolve:
-        default: { goto: build }
-        cancel: { fail: true }
+    description: Human attaches spec and starts the loop.
+    branches:
+      continue:
+        schema: { type: object }
+        route: { step: build }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
+
   - id: build
-    invoke:
-      space: "{{origin_space}}"
-      action: {{FLOW_ID}}_run_preview_agent
-      params:
-        preview_url: "{{input.preview_url}}"
-        feedback: "{{steps.review.output.comments}}"
+    description: Agent builds preview; resolve when preview URL ready.
+    branches:
+      completed:
+        schema:
+          type: object
+          required: [preview_url]
+          properties:
+            preview_url: { type: string }
+        route: { step: review }
+      failed:
+        schema: { type: object }
+        route: { run: failed }
+
   - id: review
-    checkpoint:
-      view: {{FLOW_ID}}
-      on_resolve:
-        when: output.outcome
-        values:
-          validated: { goto: done }
-          changes_required: { goto: build }
-        default: { goto: done }
-        cancel: { fail: true }
+    description: Human validates preview — resolve validated or changes_required.
+    branches:
+      validated:
+        schema: { type: object }
+        route: { step: done }
+      changes_required:
+        schema:
+          type: object
+          properties:
+            comments: { type: array }
+        route: { step: build }
+      cancel:
+        schema: { type: object }
+        route: { run: failed }
+
   - id: done
-    invoke:
-      space: "{{origin_space}}"
-      action: {{FLOW_ID}}_mark_validated
+    description: Agent marks validated.
+    branches:
+      completed:
+        schema: { type: object }
+        route: { run: completed }
+      failed:
+        schema: { type: object }
+        route: { run: failed }

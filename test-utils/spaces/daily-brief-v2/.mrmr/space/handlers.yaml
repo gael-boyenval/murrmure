@@ -1,0 +1,40 @@
+version: 1
+
+handlers:
+  - id: daily-brief-agent
+    contract_keys: [daily-brief.agent]
+    on: step.opened::daily-brief.agent
+    type: shell_spawn
+    complete: explicit
+    command: echo '{"wake":"handle_brief_requested"}'
+    prompt: |
+      Wake label handle_brief_requested (stub). Gather data, then resolve agent step:
+      `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "agent", branch: "completed" })`
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000
+
+  - id: daily-brief-done
+    contract_keys: [daily-brief.done]
+    on: step.opened::daily-brief.done
+    type: shell_spawn
+    complete: explicit
+    command: echo '{"format":"markdown","body":"# Daily brief"}'
+    prompt: |
+      Submit brief output (stub). Then:
+      `murrmure_resolve_step({ run_id: "{{run_id}}", step_id: "done", branch: "completed" })`
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000
+
+  - id: brief-requested-wake
+    contract_keys: []
+    on:
+      event:
+        type: brief.requested
+    type: shell_spawn
+    complete: auto
+    command: echo '{"wake":"handle_brief_requested"}'
+    cwd: "{{space_root}}"
+    delivery: fail_fast
+    timeout_ms: 30000

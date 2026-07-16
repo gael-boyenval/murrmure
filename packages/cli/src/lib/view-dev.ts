@@ -1,6 +1,7 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Readable } from "node:stream";
 import { resolveViewDir } from "./view-scaffold.js";
 
 export type PackageManager = "npm" | "pnpm" | "bun";
@@ -81,7 +82,7 @@ export function parseViteDevUrl(line: string): string | undefined {
 }
 
 export function writeViewDevSession(spaceRoot: string, session: ViewDevSession): string {
-  const dir = join(spaceRoot, ".murrmure");
+  const dir = join(spaceRoot, ".mrmr", "dev");
   mkdirSync(dir, { recursive: true });
   const path = join(dir, "view-dev.json");
   writeFileSync(path, `${JSON.stringify(session, null, 2)}\n`, "utf-8");
@@ -103,7 +104,7 @@ export function resolveInitialFixture(
 }
 
 export interface ViewDevProcessHandle {
-  child: ChildProcessWithoutNullStreams;
+  child: ChildProcessByStdio<null, Readable, Readable>;
   devUrl: Promise<string>;
   stop: () => void;
 }

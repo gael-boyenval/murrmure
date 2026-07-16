@@ -1,22 +1,25 @@
 {
-  "description": "Phase 08 — space onboard smoke (link → apply → status)",
-  "command": "mrmr space onboard --yes --json",
+  "description": "Tutorial v3 setup smoke (create → init → link → apply → connection)",
+  "command": "mrmr setup --yes --json",
   "prerequisites": [
-    "murrmure/ directory with at least one flow.manifest.yaml",
-    "MURRMURE_HUB_URL + MURRMURE_HUB_TOKEN with space:write",
-    "--space or --create via murrmure/space.yaml slug"
+    "running local Desktop hub",
+    "authenticated bootstrap operator",
+    "empty tutorial working directory"
   ],
-  "steps": ["link", "apply", "status"],
+  "steps": ["spaces", "init", "link", "apply", "skill", "connection"],
   "expect": {
     "ok": true,
-    "flows_min": 1,
     "link_present": true,
-    "step_ids": ["link", "apply", "status"]
+    "connection_profile": "tutorial-builder/v1",
+    "token_exposed": false,
+    "step_ids": ["spaces", "init", "link", "apply", "skill", "connection"]
   },
   "agent_equivalent": [
+    "mrmr space create",
+    "mrmr space init",
     "mrmr space link --path . --space spc_…",
     "mrmr space apply",
-    "mrmr space status --json"
+    "mrmr connection create --space spc_…"
   ],
-  "human_equivalent": "mrmr space onboard"
+  "human_equivalent": "mrmr setup"
 }

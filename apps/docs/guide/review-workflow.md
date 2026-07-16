@@ -1,62 +1,65 @@
-# Review workflow (v2 indexed)
+# Review workflow (v3 step contracts)
 
-Canonical human/agent preview review on **indexed flows** — example: [`preview-review-v2`](https://github.com/gael-boyenval/murrmure/tree/main/examples/flows/preview-review-v2).
+Canonical human/agent preview review on **indexed flows**. Walkthrough: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/).
 
 Normative spec: [reference workflow spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/plans/product/plan/06-reference-workflow-preview-review.md).
 
 ## Overview
 
 ```text
-intake checkpoint → build → review checkpoint ⇄ build → done
+intake → write_spec → build (build-loop ⇄ build.review) → archive → commit
 ```
 
-Humans work in **ViewCanvasHost** (custom views at checkpoint steps). Shell chrome is **operator/admin mode**.
+Humans work in a space-bound `view_resolver` through **ViewCanvasHost**.
 
 ## Setup
 
 ```bash
-cd examples/flows/preview-review-v2/murrmure/views/preview-review-intake && npm install && npm run build
+cd .mrmr/views/preview-review-intake && npm install && npm run build
 cd ../preview-review && npm install && npm run build
-cd ../../..
+cd ../..
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
-mrmr grant mint --space spc_ui_sandbox --capabilities flow:run,flow:read
+mrmr connection create --space spc_ui_sandbox
 ```
 
-## Pattern A — Flow-owned loop
+Handlers in `.mrmr/space/handlers.yaml` own agent steps (`feature_write_spec`, `feature_build`, …) via **`on::key`** (`contract_keys` is prompt-scope only).
+
+## Parent-owned nested build
 
 1. Desktop **Run** on **preview-review**
-2. Intake view in **ViewCanvasHost** — reviewer + preview URL
-3. Build invoke runs `run_preview_agent`
-4. Review view — human validates or requests changes
-5. `on_resolve` branches: `changes_required` → build; `validated` → done
-
-## Pattern B — Agent-owned loop
-
-Same manifest; agent uses **`murrmure_wait_for_gate`** / **`murrmure_wait_for_run`** between rounds while human uses **ViewCanvasHost**.
+2. Intake view — attach spec file
+3. Parent `build` opens `build.build-loop` with
+   **`murrmure_open_child_step`** and yields.
+4. The child resolves with `preview_url`; a fresh parent assignment receives
+   `returned_child`.
+5. Parent opens `build.review` and yields to the human View.
+6. Feedback resumes the parent for another build iteration; validation resumes
+   it for parent resolution.
 
 ## Session and run ids
 
 | Id | Role |
 |----|------|
 | `ses_…` | Session — journal, notifications, Desktop title |
-| `run_…` | Single flow execution; pauses at checkpoints |
-| Resolve wire | `{ disposition: "continue" \| "cancel", output: { … } }` |
+| `run_…` | Single flow execution; pauses at human steps |
+| Resolve wire | `{ branch, payload, artifacts_out? }` via **`murrmure_resolve_step`** or **`mrmr step resolve`** |
 
 ## Agent tools (platform MCP)
 
 | Step | Tool |
 |------|------|
-| Invoke build | `murrmure_invoke_action` |
-| Wait for human | `murrmure_wait_for_gate` or `murrmure_wait_for_run` |
-| Resolve (imperative gates) | `murrmure_resolve_gate` |
+| Open one declared child | `murrmure_open_child_step` |
+| Complete agent step | `murrmure_resolve_step` |
+| Read contract | `active-step-contract.json` or `murrmure_list_step_contracts` |
+| List handlers | `murrmure_list_handlers` |
 
 ## Tutorial
 
-Full walkthrough: [Tutorial 1 — Local preview review](./tutorials/01-local-preview-review/).
+Full walkthrough: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/).
 
 ## Related
 
+- [Space handlers](./space-handlers)
 - [View SDK](../reference/view-sdk)
-- [Shell routes](./shell-routes) — ViewCanvasHost vs admin chrome
-- [Troubleshooting](./troubleshooting)
+- [MCP tools](../reference/mcp-tools)

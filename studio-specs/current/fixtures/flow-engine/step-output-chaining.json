@@ -3,7 +3,7 @@
   "manifest": {
     "apiVersion": "murrmure.flow/v1",
     "name": "step-output-chaining",
-    "start": { "manual": true },
+    "triggers": { "manual": true },
     "steps": [
       { "id": "build", "invoke": { "space": "{{origin_space}}", "action": "build" } },
       {

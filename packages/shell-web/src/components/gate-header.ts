@@ -1,4 +1,5 @@
 import type { GateItem } from "@murrmure/shell-client";
+import { formatRelativeDuration } from "../lib/format-display.js";
 
 export interface GateHeaderViewModel {
   title: string;
@@ -12,14 +13,7 @@ export interface GateHeaderViewModel {
 }
 
 export function formatGatePendingDuration(iso: string, now = new Date()): string {
-  const then = new Date(iso);
-  const diffMs = Math.max(0, now.getTime() - then.getTime());
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  return formatRelativeDuration(iso, now);
 }
 
 function defaultGateTitle(gate: GateItem): string {

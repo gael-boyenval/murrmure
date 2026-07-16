@@ -67,8 +67,8 @@ export function scaffoldViewPackage(targetMurrmureRoot: string, viewId: string):
 
 export function resolveMurrmureRootFromCwd(cwd: string, spaceRoot?: string): string {
   const base = spaceRoot ? resolve(spaceRoot) : resolve(cwd);
-  const direct = join(base, "murrmure");
+  const direct = join(base, ".mrmr");
   if (existsSync(direct)) return direct;
-  throw new Error(`No murrmure/ directory — run from a linked space root or pass --space-root`);
+  throw new Error(`No .mrmr/ directory — run from a linked space root or pass --space-root`);
 }
 

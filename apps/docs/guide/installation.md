@@ -12,14 +12,14 @@ Install npm packages when you run agents, scripts/CI, or author indexed flows.
 
 - **Node.js 20+**
 - Murrmure Desktop running (or hub reachable at `http://127.0.0.1:8787`)
-- A minted grant token (`tok_...`) from **`mrmr grant mint`**
-- Target space id (`spc_...`) for `MURRMURE_SPACE_ID`
+- A space and one local connection created through Desktop + `mrmr setup`
 
 ## Step 2: choose your package(s)
 
 | Package | Needed by | Install | What you get |
 |---------|-----------|---------|--------------|
-| `@murrmure/cli` | Everyone (agents + operators + authors) | `npm install -g @murrmure/cli` | `mrmr` / `murrmure mcp` — setup, space apply, MCP, flow run |
+| `@murrmure/cli` | Operators + authors | `npm install -g @murrmure/cli` | `mrmr` setup, space apply, connection workflows |
+| `@murrmure/mcp-bridge` | Agent MCP clients | Bundled with **Murrmure Desktop**; `npm install -g` only for headless/CI without Desktop | `murrmure-mcp` MCP stdio bridge |
 
 If you prefer no global installs:
 
@@ -29,7 +29,7 @@ npx @murrmure/cli health
 
 ## Step 3: standard agent setup
 
-1. Install:
+1. Install CLI (MCP bridge ships inside Murrmure Desktop — no extra install when Desktop is running):
 
 ```bash
 npm install -g @murrmure/cli
@@ -41,10 +41,10 @@ npm install -g @murrmure/cli
 mrmr setup
 ```
 
-Or mint a grant manually:
+Or create a connection manually:
 
 ```bash
-mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:read
+mrmr connection create --space spc_…
 ```
 
 3. Add MCP config in your agent client — see [Connect your agent](./agents-mcp).
@@ -55,19 +55,19 @@ mrmr grant mint --space spc_… --label "my-agent" --capabilities flow:run,flow:
 
 ```bash
 mrmr space init
-mrmr space flow init my-flow --template hello-gate
+# Write .mrmr/flows/{name}/flow.manifest.yaml + .mrmr/space/handlers.yaml — see Tutorial 1
+mrmr space link --path . --create
 mrmr space apply --strict
+mrmr skill install --variant all
 ```
 
-See [Creating flows](./creating-flows) and [Flows tutorial](./flows-tutorial).
+See [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/), [Creating flows](./creating-flows), and [Space handlers](./space-handlers).
 
 ## CI / headless environment
 
 ```bash
-export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_HUB_TOKEN=tok_your_grant_token
-export MURRMURE_SPACE_ID=spc_your_space_id
-mrmr setup --yes --json
+# Inject the connection token from the CI provider only at process runtime.
+murrmure-mcp --headless-ci --hub http://127.0.0.1:8787
 ```
 
 ## You do not need for normal onboarding

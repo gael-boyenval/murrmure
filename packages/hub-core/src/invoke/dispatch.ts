@@ -9,6 +9,8 @@ import {
   validateJournalInlinePayload,
 } from "../journal/append.js";
 import type { InvokeOrchestratorDeps, ResolvedInvoke } from "./types.js";
+import type { ExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
+import { defaultExecutorTimeoutScheduler } from "../executors/timeout-scheduler.js";
 
 export interface InvokeActor {
   actor_id: string;
@@ -18,6 +20,13 @@ export interface InvokeActor {
 export interface OrchestrateInvokeOptions {
   /** Skip idempotency memo lookup (e.g. when draining a queued invoke). */
   skipMemoLookup?: boolean;
+  executorTimeoutScheduler?: ExecutorTimeoutScheduler;
+  /** Persist resolved shell command/prompt (e.g. into run exec_context). */
+  onDispatchAudit?: (input: {
+    run_id: string;
+    step_id: string;
+    audit: import("@murrmure/runtime-contracts").DispatchAudit;
+  }) => void | Promise<void>;
 }
 
 /** Terminal for idempotent retry — prevents duplicate journal/MCP publish on redispatch. */
@@ -96,6 +105,9 @@ export async function orchestrateInvoke(
     }
   }
 
+  const scheduler = options?.executorTimeoutScheduler ?? defaultExecutorTimeoutScheduler;
+  const timeoutMs = resolved.action.timeout_ms;
+
   const port = deps.registry.getPort(resolved.binding);
   if (!port) {
     const outcome = {
@@ -152,6 +164,34 @@ export async function orchestrateInvoke(
     return buildInvokeResponse(outcome);
   }
 
+  const dispatchRequest: InvokeRequest = {
+    ...request,
+    step_id,
+    delivery: resolved.delivery,
+    step_contract: request.step_contract,
+  };
+
+  const dispatchContext = {
+    action: resolved.action,
+    binding: resolved.binding,
+    space_root: resolved.space_root,
+    exec_input: request.exec_input,
+    step_contract: request.step_contract,
+  };
+
+  const dispatchAudit = port.resolveDispatchAudit
+    ? await port.resolveDispatchAudit(dispatchRequest, dispatchContext)
+    : undefined;
+
+  const dispatchedData: Record<string, unknown> = {
+    executor_type: resolved.binding.type,
+  };
+  if (dispatchAudit) {
+    dispatchedData.command = dispatchAudit.command;
+    dispatchedData.prompt = dispatchAudit.prompt;
+    dispatchedData.cwd = dispatchAudit.cwd;
+  }
+
   await journalInvokeLifecycle(deps.journal, {
     type: JOURNAL_EVENT_TYPES.ACTION_DISPATCHED,
     space_id: request.space_id,
@@ -161,21 +201,27 @@ export async function orchestrateInvoke(
     action_name: request.action_name,
     actor_id: actor.actor_id,
     token_id: actor.token_id,
-    data: withIdempotencyKey({ executor_type: resolved.binding.type }, idempotencyKey),
+    data: withIdempotencyKey(dispatchedData, idempotencyKey),
   });
 
-  const dispatchRequest: InvokeRequest = {
-    ...request,
-    step_id,
-    delivery: resolved.delivery,
-  };
+  if (dispatchAudit && request.run_id) {
+    await options?.onDispatchAudit?.({
+      run_id: request.run_id,
+      step_id,
+      audit: dispatchAudit,
+    });
+  }
 
-  const outcome = await port.dispatch(dispatchRequest, {
-    action: resolved.action,
-    binding: resolved.binding,
-    space_root: resolved.space_root,
-    exec_input: request.exec_input,
-  });
+  if (request.run_id && timeoutMs) {
+    scheduler.start({
+      run_id: request.run_id,
+      step_id,
+      timeout_ms: timeoutMs,
+      action_name: request.action_name,
+    });
+  }
+
+  const outcome = await port.dispatch(dispatchRequest, dispatchContext);
 
   const normalized = { ...outcome, step_id: outcome.step_id ?? step_id, run_id: outcome.run_id ?? request.run_id };
 
@@ -230,6 +276,7 @@ export async function orchestrateInvoke(
       if (idempotencyKey && shouldMemoizeOutcome(failed)) {
         await Promise.resolve(deps.memoStore.set(idempotencyKey, failed));
       }
+      if (request.run_id) scheduler.stop(request.run_id, step_id);
       return buildInvokeResponse(failed);
     }
 
@@ -264,6 +311,7 @@ export async function orchestrateInvoke(
         idempotencyKey,
       ),
     });
+    if (request.run_id) scheduler.stop(request.run_id, step_id);
   }
 
   if (idempotencyKey && shouldMemoizeOutcome(normalized)) {

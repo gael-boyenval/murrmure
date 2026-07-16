@@ -40,8 +40,8 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `login`, `logout`, `whoami` | Save and inspect hub credentials |
 | `doctor` | Hub, auth, and scope diagnostics |
 | `health` | Unauthenticated hub health check |
-| `space` | Spaces, grants, members, triggers, index apply |
-| `action` | Invoke indexed actions |
+| `space` | Spaces, members, triggers, index apply |
+| `connection` | Create, activate, list, rotate, and revoke trust-boundary access |
 | `me` | User preferences (landing space) |
 | `worker` | External queue_poll worker helpers |
 | `federation` | Federation peer management |
@@ -49,10 +49,12 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `runtime` | Events, gates, waits, audit |
 | `flow` | Indexed `flow run` + local validate helpers |
 | `view` | Scaffold custom view packages |
-| `setup` | First-run wizard (`mrmr setup`, `mrmr space onboard`) |
-| `skill` | Install/update the **murrmure** agent skill |
+| `setup` | First-run wizard (`mrmr setup`) |
+| `step` | Step-level runtime (`mrmr step resolve`) |
+| `skill` | Install/update split **murrmure-agent** / **murrmure-developer** skills |
 
-**MCP:** `mrmr mcp` / `murrmure mcp` — see [Connect your agent](./agents-mcp).
+**MCP:** Desktop installs stable `~/.murrmure/bin/murrmure-mcp`; local config
+contains Hub/connection IDs only. See [Connect local tools](./agents-mcp).
 
 ## Doctor
 
@@ -63,7 +65,8 @@ mrmr doctor
 mrmr doctor --json
 ```
 
-Human output includes auth source, hub status, per-space scopes, and capability summary (push flows / mint grants / register triggers). JSON shape: `{ ok, issues, profile }`.
+Human output includes auth source, hub status, per-space scopes, and capability
+summary. JSON shape: `{ ok, issues, profile }`.
 
 > `mrmr flow doctor` is deprecated — it prints a stderr hint and delegates to `mrmr doctor`.
 
@@ -90,32 +93,39 @@ mrmr logout
 mrmr logout --yes
 ```
 
+Activate an existing local connection:
+
+```bash
+mrmr connection activate con_… --space spc_ui_sandbox
+```
+
 ## Environment (CI / scripts)
 
 ```bash
-export MURRMURE_HUB_URL=http://127.0.0.1:8787
-export MURRMURE_HUB_TOKEN=tok_your_grant_token
-export MURRMURE_SPACE_ID=spc_your_space_id
+# Explicit headless CI only: inject MURRMURE_HUB_TOKEN from provider secrets.
+murrmure-mcp --headless-ci --hub http://127.0.0.1:8787
 ```
 
 ## Indexed flows (v2)
 
-Scaffold and index workflows in `murrmure/`:
+Scaffold and index workflows in `.mrmr/`:
 
 ```bash
 mrmr space init
-mrmr space flow init preview-review --template hello-gate
+# Author .mrmr/flows/preview-review/flow.manifest.yaml + .mrmr/space/handlers.yaml — see Tutorial 1
 mrmr space apply --strict
 mrmr flow run flw_flows_preview_review --input '{}' --space spc_ui_sandbox
 ```
 
-See [Flows tutorial](./flows-tutorial) and [Creating flows](./creating-flows).
+`--strict` fails on lint errors including **`LEGACY_STEP_KIND`** — manifests with `invoke:` / `checkpoint:` / `gate:` top-level steps are rejected. Migrate to unified step contracts ([bridge](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/bridges/step-contract.md)).
 
-**Agent skill** (optional):
+See [Space handlers](./space-handlers), [Space index](./space-index), and [Creating flows](./creating-flows).
+
+**Agent skills** (optional):
 
 ```bash
-mrmr skill install
-mrmr skill update
+mrmr skill install --variant all
+mrmr skill update --variant agent
 ```
 
 See [Agent skill](./agent-skill).
@@ -190,9 +200,10 @@ mrmr space archive spc_ui_sandbox
 
 | Command | Requires | HTTP |
 |---------|----------|------|
-| `init` | none (local) | Scaffolds `murrmure/` (actions, executors, hooks, example flow) |
+| `init` | none (local) | Scaffolds `.mrmr/` (empty handlers by default; `--with-examples` adds starter flow) |
 | `link` | `space:write` | `POST /v1/spaces/:id/link` — use `--create` to mint space from `space.yaml` slug |
-| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `murrmure/` and index |
+| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `.mrmr/` and index |
+| `doctor` | `space:read` | Handler coverage, bindings, MCP hints |
 | `status` | `space:read` | `GET /v1/spaces/:id/index/status` |
 | `list` | `space:enter` | `GET /v1/spaces` |
 | `show <space_id>` | valid token for space | `GET /v1/spaces/:id` |
@@ -206,13 +217,20 @@ mrmr space archive spc_ui_sandbox
 
 Add `--json` for scripting. See [Admin commands (CLI)](./configuration.md) and [Space index](./space-index.md).
 
-### `mrmr action invoke`
+### `mrmr step resolve`
+
+Resolve the current run step from shell env bindings. Used by handlers with `complete: cli` and shell scripts.
 
 ```bash
-mrmr action invoke my_action --params '{"key":"value"}' --space spc_ui_sandbox
+# Requires MURRMURE_RUN_ID, MURRMURE_STEP_ID, MURRMURE_HUB_URL, MURRMURE_HUB_TOKEN
+mrmr step resolve --branch completed --payload-json '{"preview_url":"http://localhost:3000"}'
+mrmr step resolve --branch failed --payload-stdin   # read JSON object from stdin
+mrmr step resolve --branch completed --artifact-out report=out/report.json
 ```
 
-Invoke an indexed action from `murrmure/actions.yaml`. Requires **`action:invoke`**. HTTP: `POST /v1/spaces/{id}/actions/{name}/invoke`.
+Requires **`step:resolve`**. HTTP: `POST /v1/runs/{id}/steps/{step_id}/resolve`.
+
+See [Space handlers](./space-handlers).
 
 ### `mrmr me set-landing`
 
@@ -228,7 +246,7 @@ Set per-user landing space. Requires **`space:enter`**. HTTP: `PATCH /v1/me`.
 mrmr view init review-params
 ```
 
-Scaffold `murrmure/views/{id}/` locally. See [View SDK](../reference/view-sdk).
+Scaffold `.mrmr/views/{id}/` locally. See [View SDK](../reference/view-sdk).
 
 ### `mrmr worker poll`
 

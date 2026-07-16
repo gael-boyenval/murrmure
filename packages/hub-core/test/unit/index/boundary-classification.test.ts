@@ -14,9 +14,9 @@ describe("index/boundary-classification", () => {
     expect(keys).not.toContain("registerView");
   });
 
-  test("flow index rows denormalize view_ref without view registry", () => {
+  test("flow index rows denormalize protocol fields without a view registry", () => {
     const layer = "protocol-index";
-    const owns = ["actions", "executors", "hooks", "flow_index.view_ref"];
+    const owns = ["actions", "executors", "hooks", "flow_index.payload_json"];
     const notHubEntities = ["view_registry", "inline_script_steps"];
     expect(owns.every((item) => !notHubEntities.includes(item))).toBe(true);
     expect(layer).toBe("protocol-index");

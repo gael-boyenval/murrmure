@@ -1,13 +1,14 @@
-import type { Capability, HookSpec } from "@murrmure/contracts";
-import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
+import { HandlerSpecSchema, type Capability, type HandlerSpec, type HookSpec } from "@murrmure/contracts";
+import { JOURNAL_EVENT_TYPES, FLOW_CONCURRENCY_LIMIT } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
-import { createRun, createSession, type SessionRunDeps } from "../run/service.js";
+import { admitAndCreateRun, createSession, type SessionRunDeps } from "../run/service.js";
 import { startFlowRun, type FlowRunServiceDeps } from "../flow-engine/run-service.js";
 import { resolveTemplateString, resolveStepParams } from "../flow-engine/templates.js";
 import type { HookSourceEvent } from "./matcher.js";
 import { computeHookDedupKey, hookStepId, matchHooks } from "./matcher.js";
+import { matchEventHandlers } from "../index/parse-handlers.js";
 
 export interface HookDispatchDeps extends SessionRunDeps, FlowRunServiceDeps {
   invokeAction: (input: {
@@ -112,7 +113,7 @@ export async function dispatchHook(
 
       if ("invoke" in action) {
         if (!runId) {
-          const created = await createRun(deps, {
+          const created = await admitAndCreateRun(deps, {
             session_id: sessionId,
             space_id: hookSpace,
             flow_id: null,
@@ -172,6 +173,25 @@ export async function dispatchHook(
           event_source: source,
         });
         if (!started.ok) {
+          if (started.error.code === FLOW_CONCURRENCY_LIMIT) {
+            await deps.handler
+              .appendSpaceJournal({
+                type: JOURNAL_EVENT_TYPES.FLOW_START_DENIED,
+                space_id: hookSpace,
+                actor_id: input.actor_id,
+                token_id: input.token_id,
+                data: {
+                  flow_id: entry.flow_id,
+                  flow_name: entry.name,
+                  mode: "event",
+                  event_type: input.event.event_type,
+                  event_source: source,
+                  max_concurrent_runs: started.error.max_concurrent_runs,
+                  active_run_ids: started.error.active_run_ids,
+                },
+              })
+              .catch(() => undefined);
+          }
           return { outcome: "failed", message: started.error.message };
         }
         sessionId = started.session.session_id;
@@ -180,7 +200,7 @@ export async function dispatchHook(
     }
 
     if (!sessionId || !runId) {
-      const created = await createRun(deps, {
+      const created = await admitAndCreateRun(deps, {
         session_id: sessionId!,
         space_id: hookSpace,
         flow_id: null,
@@ -220,6 +240,85 @@ export async function dispatchHook(
   }
 }
 
+async function dispatchEventHandler(
+  deps: HookDispatchDeps,
+  input: {
+    hook_space_id: string;
+    handler: HandlerSpec;
+    event: HookSourceEvent;
+    actor_id: string;
+    token_id: string;
+    capabilities: Capability[];
+  },
+): Promise<HookDispatchResult> {
+  const source = input.event.source ?? `/spaces/${input.event.space_id}`;
+  const dedupKey = computeHookDedupKey(source, input.event.event_id, input.handler.id);
+  const existing = await deps.studio.findRunByIdempotencyKey(dedupKey);
+  if (existing) {
+    return { outcome: "deduped", run_id: `run_${existing.run_id}` };
+  }
+
+  const execContext = eventExecContext(input.event);
+  const hookSpace = addSpaceId(stripSpaceId(input.hook_space_id));
+  const session = await createSession(deps, {
+    title: `Handler ${input.handler.id}`,
+    subject: input.handler.id,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    space_id: hookSpace,
+    created_by: { type: "hook", hook_id: input.handler.id },
+  });
+  const created = await admitAndCreateRun(deps, {
+    session_id: session.session_id,
+    space_id: hookSpace,
+    flow_id: null,
+    input_params: { ...execContext, idempotency_key: dedupKey },
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    capabilities: input.capabilities,
+  });
+  if ("error" in created) {
+    return { outcome: "failed", message: created.error?.message ?? "create_run_failed" };
+  }
+
+  const params = resolveHookParams(
+    input.handler.type === "view_resolver" ? undefined : input.handler.params,
+    execContext,
+  );
+  const step_id = hookStepId(input.handler.id);
+  const invokeResult = await deps.invokeAction({
+    space_id: hookSpace,
+    action_name: input.handler.id,
+    session_id: session.session_id,
+    run_id: created.run.run_id,
+    step_id,
+    params,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    idempotency_key: `${created.run.run_id}:${step_id}:${dedupKey}`,
+  });
+  if (invokeResult.http >= 400) {
+    return { outcome: "failed", message: "invoke_failed" };
+  }
+
+  await deps.handler.appendSpaceJournal({
+    type: JOURNAL_EVENT_TYPES.HOOK_DELIVERED,
+    space_id: hookSpace,
+    session_id: session.session_id,
+    run_id: created.run.run_id,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    data: {
+      hook_id: input.handler.id,
+      event_id: input.event.event_id,
+      event_type: input.event.event_type,
+      dedup_key: dedupKey,
+    },
+  });
+
+  return { outcome: "delivered", session_id: session.session_id, run_id: created.run.run_id };
+}
+
 export async function dispatchHooksForEvent(
   deps: HookDispatchDeps,
   event: HookSourceEvent,
@@ -231,6 +330,27 @@ export async function dispatchHooksForEvent(
   for (const space of spaces) {
     const rawHooks = await deps.studio.listIndexedHooks(space.space_id);
     for (const raw of rawHooks) {
+      const parsedHandler = HandlerSpecSchema.safeParse(raw);
+      if (parsedHandler.success) {
+        const eventSource = event.source ?? `/spaces/${event.space_id}`;
+        const matchedHandlers = matchEventHandlers([parsedHandler.data], {
+          event_type: event.event_type,
+          source: eventSource,
+        });
+        for (const matchedHandler of matchedHandlers) {
+          const result = await dispatchEventHandler(deps, {
+            hook_space_id: space.space_id,
+            handler: matchedHandler,
+            event,
+            actor_id: input.actor_id,
+            token_id: input.token_id,
+            capabilities: input.capabilities,
+          });
+          results.push(result);
+        }
+        continue;
+      }
+
       const hook_id = String(raw.name ?? "");
       const spec = raw as HookSpec & { name?: string };
       if (!spec.on || !spec.do) continue;

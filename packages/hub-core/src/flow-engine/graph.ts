@@ -1,6 +1,16 @@
-import type { FlowIr, FlowStepIr, RunLifecycle, RunStepMemo } from "@murrmure/contracts";
+import type {
+  FlowIr,
+  FlowStepIr,
+  OpenStepResolver,
+  RunLifecycle,
+  RunStepMemo,
+  StepArtifactSlot,
+  StepCatalogRoute,
+  StepContractCatalog,
+} from "@murrmure/contracts";
 import { buildStepDispatch } from "./advance.js";
 import type { FlowStepDispatch } from "./types.js";
+import { topLevelCatalogSteps } from "./step-catalog.js";
 
 export interface RunGraphLane {
   step_id: string;
@@ -18,18 +28,47 @@ export interface RunGraphNode {
   run_id?: string;
   federated?: boolean;
   remote_label?: string;
+  parent_step_id?: string;
+  metadata?: RunGraphStepMetadata;
 }
 
 export interface RunGraphEdge {
   id: string;
   source: string;
   target: string;
+  label?: string;
+  tone?: "default" | "failure";
+  route_kind?: "open" | "advance" | "fail_run" | "resume";
+}
+
+export interface RunGraphBranchMetadata {
+  branch: string;
+  schema_ref?: string;
+  schema?: Record<string, unknown>;
+  payload_required: string[];
+  artifact_required: string[];
+  artifact_slots: Record<string, StepArtifactSlot>;
+  routes: StepCatalogRoute[];
+}
+
+export interface RunGraphResolver extends OpenStepResolver {
+  config_digest: string;
+}
+
+export interface RunGraphStepMetadata {
+  description?: string;
+  branches: RunGraphBranchMetadata[];
+  resolver: RunGraphResolver | null;
+  resolver_source: "current" | "dispatch";
 }
 
 export interface RunGraphResponse {
   run_id: string;
   flow_id?: string | null;
   flow_digest?: string;
+  origin_space_id?: string;
+  flow_name?: string;
+  mode: "preview" | "live" | "history";
   nodes: RunGraphNode[];
   edges: RunGraphEdge[];
   lanes: RunGraphLane[];
@@ -49,9 +88,21 @@ export function buildRunGraph(input: {
   flow_id?: string | null;
   flow_digest?: string;
   ir?: FlowIr;
+  step_contract_catalog?: StepContractCatalog | null;
   step_memos: RunStepMemo[];
   siblings?: RunGraphSibling[];
+  origin_space_id?: string;
+  flow_name?: string;
+  mode?: "preview" | "live" | "history";
+  resolvers?: Record<string, RunGraphResolver | null>;
 }): RunGraphResponse {
+  if (input.step_contract_catalog?.entries.length) {
+    return buildStepContractRunGraph({
+      ...input,
+      step_contract_catalog: input.step_contract_catalog,
+    });
+  }
+
   const nodes: RunGraphNode[] = [];
   const edges: RunGraphEdge[] = [];
   const lanes: RunGraphLane[] = [];
@@ -144,9 +195,165 @@ export function buildRunGraph(input: {
     run_id: input.run_id,
     flow_id: input.flow_id,
     flow_digest: input.flow_digest,
+    origin_space_id: input.origin_space_id,
+    flow_name: input.flow_name,
+    mode: input.mode ?? "live",
     nodes,
     edges,
     lanes,
+    step_memos: input.step_memos,
+  };
+}
+
+function buildStepContractRunGraph(input: {
+  run_id: string;
+  flow_id?: string | null;
+  flow_digest?: string;
+  step_contract_catalog: StepContractCatalog;
+  step_memos: RunStepMemo[];
+  origin_space_id?: string;
+  flow_name?: string;
+  mode?: "preview" | "live" | "history";
+  resolvers?: Record<string, RunGraphResolver | null>;
+}): RunGraphResponse {
+  const catalog = input.step_contract_catalog;
+  const memoByStep = new Map(input.step_memos.map((m) => [m.step_id, m]));
+  const nodes: RunGraphNode[] = [];
+  const edges: RunGraphEdge[] = [];
+  const entriesById = new Map(catalog.entries.map((entry) => [entry.step_id, entry]));
+  const hasFailureRoute = catalog.entries.some((entry) =>
+    Object.values(entry.branches).some((branch) =>
+      branch.routes.some((route) => route.engine === "fail_run"),
+    ),
+  );
+  const hasSuccessRoute = catalog.entries.some((entry) =>
+    Object.values(entry.branches).some((branch) =>
+      branch.routes.some((route) => route.engine === "advance" && !route.step_id),
+    ),
+  );
+
+  const metadataFor = (step: (typeof catalog.entries)[number]): RunGraphStepMetadata => ({
+    description: step.description,
+    branches: Object.entries(step.branches).map(([branch, definition]) => ({
+      branch,
+      schema_ref: definition.schema_ref,
+      schema: definition.schema,
+      payload_required: definition.payload_required,
+      artifact_required: definition.artifact_required,
+      artifact_slots: definition.artifact_slots,
+      routes: definition.routes,
+    })),
+    resolver: input.resolvers?.[step.step_id] ?? null,
+    resolver_source: input.mode === "preview" ? "current" : "dispatch",
+  });
+  const isPlainDefaultStep = (step: (typeof catalog.entries)[number]): boolean =>
+    Object.keys(step.branches).length === 2 &&
+    Object.hasOwn(step.branches, "completed") &&
+    Object.hasOwn(step.branches, "failed");
+
+  for (const step of catalog.entries) {
+    nodes.push({
+      id: `step:${step.step_id}`,
+      step_id: step.step_id,
+      kind: "step_contract",
+      status: memoByStep.get(step.step_id)?.status,
+      parent_step_id: step.parent_id ?? undefined,
+      metadata: metadataFor(step),
+    });
+    if (!isPlainDefaultStep(step)) {
+      nodes.push({
+        id: `decision:${step.step_id}`,
+        step_id: step.step_id,
+        kind: "decision",
+        parent_step_id: step.parent_id ?? undefined,
+      });
+    }
+  }
+
+  if (hasSuccessRoute) {
+    nodes.push({
+      id: "terminal:succeeded",
+      step_id: "run.succeeded",
+      kind: "success_terminal",
+    });
+  }
+
+  if (hasFailureRoute) {
+    nodes.push({
+      id: "terminal:failed",
+      step_id: "run.failed",
+      kind: "failure_terminal",
+    });
+  }
+
+  const targetForRoute = (route: StepCatalogRoute): string | undefined => {
+    if (route.engine === "fail_run") return "terminal:failed";
+    if (route.step_id && entriesById.has(route.step_id)) return `step:${route.step_id}`;
+    if (route.engine === "advance" && !route.step_id) return "terminal:succeeded";
+    return undefined;
+  };
+
+  for (const step of catalog.entries) {
+    const branchEntries = Object.entries(step.branches);
+    const isPlainDefault = isPlainDefaultStep(step);
+    const sourceId = `step:${step.step_id}`;
+    const branchSourceId = isPlainDefault ? sourceId : `decision:${step.step_id}`;
+
+    if (!isPlainDefault) {
+      edges.push({
+        id: `${sourceId}->${branchSourceId}`,
+        source: sourceId,
+        target: branchSourceId,
+      });
+    }
+
+    for (const [branchName, branch] of branchEntries) {
+      for (const [routeIndex, route] of branch.routes.entries()) {
+        const target = targetForRoute(route);
+        if (!target || target === sourceId) continue;
+        const failure = route.engine === "fail_run";
+        edges.push({
+          id: `${branchSourceId}->${target}:${branchName}:${routeIndex}`,
+          source: branchSourceId,
+          target,
+          ...(!isPlainDefault || branchName !== "completed" ? { label: branchName } : {}),
+          ...(failure ? { tone: "failure" as const } : {}),
+          ...(route.engine ? { route_kind: route.engine } : {}),
+        });      }
+    }
+  }
+
+  // Catalogs from older runs may not carry explicit `open` routes. Preserve a
+  // truthful compact chain only when no branch route describes that transition.
+  const topLevel = topLevelCatalogSteps(catalog);
+  for (let index = 0; index < topLevel.length - 1; index += 1) {
+    const source = topLevel[index]!;
+    const target = topLevel[index + 1]!;
+    const alreadyRouted = edges.some(
+      (edge) =>
+        (edge.source === `step:${source.step_id}` ||
+          edge.source === `decision:${source.step_id}`) &&
+        edge.target === `step:${target.step_id}`,
+    );
+    if (!alreadyRouted) {
+      edges.push({
+        id: `step:${source.step_id}->step:${target.step_id}:catalog-order`,
+        source: `step:${source.step_id}`,
+        target: `step:${target.step_id}`,
+      });
+    }
+  }
+
+  return {
+    run_id: input.run_id,
+    flow_id: input.flow_id,
+    flow_digest: input.flow_digest,
+    origin_space_id: input.origin_space_id,
+    flow_name: input.flow_name,
+    mode: input.mode ?? "live",
+    nodes,
+    edges,
+    lanes: [],
     step_memos: input.step_memos,
   };
 }
@@ -186,7 +393,7 @@ export function planLaneDispatches(
       flow_id: "flw_lane",
       name: "lane",
       digest: "lane",
-      start: {},
+      triggers: {},
       steps: laneSteps,
     } as FlowIr;
     const dispatch = buildStepDispatch(ir, i, execContext, originSpaceId);

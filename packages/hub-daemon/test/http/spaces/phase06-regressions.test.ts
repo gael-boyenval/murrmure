@@ -101,7 +101,7 @@ describe("http/spaces/phase06-regressions", () => {
       headers: bootstrap(),
       body: JSON.stringify({
         label: "emit-only",
-        capabilities: ["action:invoke"],
+        capabilities: ["event:emit"],
       }),
     });
     emitOnlyToken = (await emitGrant.json()).token as string;
@@ -124,7 +124,7 @@ describe("http/spaces/phase06-regressions", () => {
     "Content-Type": "application/json",
   });
 
-  test("action:invoke grant can invoke indexed action", async () => {
+  test("action invoke route is removed (404) regardless of grant", async () => {
     const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/ping/invoke`, {
       method: "POST",
       headers: {
@@ -133,9 +133,7 @@ describe("http/spaces/phase06-regressions", () => {
       },
       body: JSON.stringify({ params: {} }),
     });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { dispatch: { status: string } };
-    expect(body.dispatch.status).toBe("completed");
+    expect(res.status).toBe(404);
   });
 
   test("space:write grant can apply space index", async () => {
@@ -243,7 +241,7 @@ describe("http/spaces/phase06-regressions", () => {
     expect(body.message).toMatch(/journal:read|SCOPE|scope|not authorized/i);
   });
 
-  test("invoke idempotency survives daemon restart", async () => {
+  test("action invoke route is removed — idempotent replay path unreachable (404)", async () => {
     const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
       method: "POST",
       headers: bootstrapAuth(),
@@ -258,10 +256,9 @@ describe("http/spaces/phase06-regressions", () => {
     });
     const { run } = (await runRes.json()) as { run: { run_id: string } };
 
-    const idemKey = "phase06-idem-key";
     const invokeHeaders = {
       ...bootstrapAuth(),
-      "Idempotency-Key": idemKey,
+      "Idempotency-Key": "phase06-idem-key",
     };
 
     const first = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/ping/invoke`, {
@@ -274,23 +271,9 @@ describe("http/spaces/phase06-regressions", () => {
         params: {},
       }),
     });
-    expect(first.status).toBe(200);
+    expect(first.status).toBe(404);
 
-    closeServer();
-
-    const restarted = await startHubDaemon({
-      databasePath,
-      port: 0,
-      dataDir: join(dataDir, "data"),
-      defaultSpaceId: "",
-      bootstrapToken,
-    });
-    const addr = restarted.server.address();
-    const port = typeof addr === "object" && addr ? addr.port : 8787;
-    const restartedUrl = `http://127.0.0.1:${port}`;
-    closeServer = () => restarted.server.close();
-
-    const second = await fetch(`${restartedUrl}/v1/spaces/${spaceId}/actions/ping/invoke`, {
+    const second = await fetch(`${baseUrl}/v1/spaces/${spaceId}/actions/ping/invoke`, {
       method: "POST",
       headers: invokeHeaders,
       body: JSON.stringify({
@@ -300,9 +283,6 @@ describe("http/spaces/phase06-regressions", () => {
         params: {},
       }),
     });
-    expect(second.status).toBe(200);
-    const replay = (await second.json()) as { dispatch: { status: string; step_id: string } };
-    expect(replay.dispatch.status).toBe("completed");
-    expect(replay.dispatch.step_id).toBe("action:ping");
+    expect(second.status).toBe(404);
   });
 });

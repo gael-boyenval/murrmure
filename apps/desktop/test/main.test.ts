@@ -1,14 +1,12 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 
 const mockStartHubSidecar = vi.fn();
-const mockConnectDevHmrServices = vi.fn();
 const mockSubscribe = vi.fn();
 const mockInstallMenus = vi.fn();
 
 vi.mock("../src/runner.js", () => ({
   bootstrapLaunchUrl: vi.fn(() => "http://127.0.0.1:8787/"),
   startHubSidecar: (...args: unknown[]) => mockStartHubSidecar(...args),
-  connectDevHmrServices: (...args: unknown[]) => mockConnectDevHmrServices(...args),
 }));
 
 vi.mock("../src/notifications.js", () => ({
@@ -48,7 +46,6 @@ vi.mock("electrobun", () => ({
     },
     on: vi.fn(),
     activate: vi.fn(),
-    show: vi.fn(),
     isMinimized: vi.fn(() => false),
     hidden: false,
   })),
@@ -61,23 +58,11 @@ vi.mock("electrobun", () => ({
 describe("runDesktopApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.MURRMURE_DESKTOP_DEV_HMR;
     process.removeAllListeners("SIGINT");
     process.removeAllListeners("SIGTERM");
     mockStartHubSidecar.mockResolvedValue({
-      paths: { hubUrl: "http://127.0.0.1:8787", dataDir: "/tmp/murrmure", shellWebUrl: null },
+      paths: { hubUrl: "http://127.0.0.1:8787", dataDir: "/tmp/murrmure" },
       token: "tok_test",
-      actorId: "actor_bootstrap",
-      shutdown: vi.fn().mockResolvedValue(undefined),
-    });
-    mockConnectDevHmrServices.mockResolvedValue({
-      paths: {
-        hubUrl: "http://127.0.0.1:8787",
-        dataDir: "/tmp/murrmure",
-        shellWebUrl: "http://127.0.0.1:5174",
-      },
-      token: "tok_test",
-      actorId: "actor_bootstrap",
       shutdown: vi.fn().mockResolvedValue(undefined),
     });
   });
@@ -100,19 +85,6 @@ describe("runDesktopApp", () => {
       "Out-of-shell SSE notifications unavailable; desktop will continue without them.",
       expect.any(Error),
     );
-    onceSpy.mockRestore();
-  });
-
-  test("uses connectDevHmrServices when MURRMURE_DESKTOP_DEV_HMR=1", async () => {
-    process.env.MURRMURE_DESKTOP_DEV_HMR = "1";
-    const onceSpy = vi.spyOn(process, "once").mockImplementation(() => process);
-    mockSubscribe.mockResolvedValue(() => undefined);
-
-    const { runDesktopApp } = await import("../src/main.js");
-    await expect(runDesktopApp()).resolves.toBeUndefined();
-
-    expect(mockConnectDevHmrServices).toHaveBeenCalledOnce();
-    expect(mockStartHubSidecar).not.toHaveBeenCalled();
     onceSpy.mockRestore();
   });
 });

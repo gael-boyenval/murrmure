@@ -1,11 +1,17 @@
-/** Rev-1 agent grant capabilities for setup/onboard wizards (replaces v1 WORKER_SCOPES). */
-export const AGENT_GRANT_CAPABILITIES = [
+/** Named least-privilege profile used for local Tutorial v3 connections. */
+export const TUTORIAL_BUILDER_PROFILE = {
+  name: "tutorial-builder",
+  version: 1,
+  id: "tutorial-builder/v1",
+} as const;
+
+export const TUTORIAL_BUILDER_CAPABILITIES = [
   "space:read",
-  "flow:run",
   "flow:read",
-  "action:invoke",
-  "gate:resolve",
-  "journal:read",
+  "flow:run",
+  "step:resolve",
 ] as const;
 
-export const AGENT_GRANT_CAPABILITIES_CSV = AGENT_GRANT_CAPABILITIES.join(",");
+/** @deprecated Internal compatibility export; public setup uses connection vocabulary. */
+export const AGENT_GRANT_CAPABILITIES = TUTORIAL_BUILDER_CAPABILITIES;
+export const AGENT_GRANT_CAPABILITIES_CSV = TUTORIAL_BUILDER_CAPABILITIES.join(",");

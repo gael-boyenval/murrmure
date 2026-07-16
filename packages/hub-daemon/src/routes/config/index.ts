@@ -2,8 +2,10 @@ import type { Hono } from "hono";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
-import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
-import { normalizeTriggerBody } from "../triggers/index.js";
+import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
+import { partitionScopes } from "@murrmure/hub-core";
+import { normalizeTriggerBody, TriggerActionRejectedError } from "../triggers/index.js";
+import { grantResultBody } from "../grants/index.js";
 
 export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   const { handler, murrmurePersistence } = ctx;
@@ -93,7 +95,7 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
   });
 
   app.get("/v1/spaces/:space_id/flows/:install_id/source", async (c) => {
-    return c.json({ code: "source_not_found", message: "FDK source snapshots removed in v2" }, 404);
+    return c.json({ code: "source_not_found", message: "Source snapshots are not stored by the Hub" }, 404);
   });
 
   app.get("/v1/spaces/:space_id/contracts/diff", async (c) => {
@@ -177,8 +179,36 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const scopeCheck = requireScope(auth, "space:admin");
     if (scopeCheck) return scopeCheck;
 
+    const rawCaps = (body?.capabilities as unknown[] | undefined) ?? undefined;
+    if (rawCaps?.length) {
+      const { invalid } = partitionCapabilities(rawCaps);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_capability",
+            message: `Unknown or removed capabilities: ${invalid.join(", ")}`,
+            hint: { invalid_capabilities: invalid },
+          },
+          400,
+        );
+      }
+    }
+    const rawScopes = (body?.scopes as unknown[] | undefined) ?? undefined;
+    if (rawScopes?.length) {
+      const { invalid } = partitionScopes(rawScopes);
+      if (invalid.length > 0) {
+        return c.json(
+          {
+            code: "unknown_scope",
+            message: `Unknown or removed scopes: ${invalid.join(", ")}`,
+            hint: { invalid_scopes: invalid },
+          },
+          400,
+        );
+      }
+    }
     const result = await config.mintGrant(space_id, body, provenanceFrom(auth, space_id, c.req.header("Idempotency-Key") ?? undefined));
-    return c.json(result.body, 200);
+    return c.json(grantResultBody(result), result.http_semantic);
   });
 
   app.post("/v1/spaces/:space_id/grants/:grant_id/revoke", async (c) => {
@@ -225,8 +255,21 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const scopeCheck = requireScope(auth, "trigger:register");
     if (scopeCheck) return scopeCheck;
 
-    const trigger = await config.registerTrigger(space_id, normalizeTriggerBody(body));
-    return c.json(trigger, 201);
+    try {
+      const trigger = await config.registerTrigger(space_id, normalizeTriggerBody(body));
+      return c.json(trigger, 201);
+    } catch (e) {
+      if (
+        e instanceof TriggerActionRejectedError ||
+        (e instanceof Error && (e as { code?: string }).code === "TRIGGER_ACTION_RETIRED")
+      ) {
+        return c.json(
+          { code: "TRIGGER_ACTION_RETIRED", message: e instanceof Error ? e.message : "trigger action retired" },
+          422,
+        );
+      }
+      throw e;
+    }
   });
 
   app.post("/v1/spaces/:space_id/triggers/:trigger_id/disable", async (c) => {

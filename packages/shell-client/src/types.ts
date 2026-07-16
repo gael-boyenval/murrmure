@@ -3,6 +3,19 @@ export interface ShellClientOptions {
   token: string;
 }
 
+export interface UploadIntentFileInput {
+  slot: string;
+  name: string;
+  media_type: string;
+  size_bytes: number;
+}
+
+export interface UploadIntentResponse {
+  intent_id: string;
+  expires_in_ms: number;
+  files: Array<{ index: number; size_bytes: number }>;
+}
+
 export interface SpaceSummary {
   space_id: string;
   slug?: string;
@@ -30,9 +43,10 @@ export interface UserProfile {
 
 export interface NotificationItem {
   notification_id: string;
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   status: "pending" | "dismissed" | "resolved";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   space_id: string;
@@ -109,21 +123,24 @@ export interface JournalEntryItem {
   data: Record<string, unknown>;
 }
 
+export interface FlowStartConditions {
+  manual?: boolean;
+  flow_call?: boolean;
+  events?: Array<{ type: string; source?: string }>;
+  schedule?: string | null;
+  idempotency?: string;
+}
+
 export interface SpaceHomeFlowRow {
   flow_id: string;
+  origin_space_id: string;
   name: string;
   digest: string;
   can_run: boolean;
   can_preview: boolean;
   manual: boolean;
-  start?: { requires_view?: string | null };
-  view_ref?: {
-    view_id: string;
-    origin_space_id?: string;
-    entry_url?: string;
-    shell_route?: string;
-    params_schema?: string;
-  };
+  authored_here: boolean;
+  triggers: FlowStartConditions;
 }
 
 export interface SpaceHomeRunRow {
@@ -137,8 +154,9 @@ export interface SpaceHomeRunRow {
 }
 
 export interface SpaceHomeAttentionRow {
-  kind: "gate" | "run_failed";
+  kind: "gate" | "run_failed" | "human_step";
   gate_id?: string;
+  step_id?: string;
   run_id?: string;
   session_id?: string;
   title: string;
@@ -203,11 +221,11 @@ export interface SpaceHomeEmittableEventRow {
 }
 
 export interface SpaceHomePayload {
+  version: 2;
   space_id: string;
   needs_attention: SpaceHomeAttentionRow[];
   active_runs: SpaceHomeRunRow[];
-  your_flows: SpaceHomeFlowRow[];
-  available_to_run: SpaceHomeFlowRow[];
+  flows: SpaceHomeFlowRow[];
   receiving_from: SpaceHomeFlowRow[];
   recent_completed: SpaceHomeRunRow[];
   index: SpaceHomeIndexSection;
@@ -215,18 +233,15 @@ export interface SpaceHomePayload {
 }
 
 export interface FlowPreviewPayload {
+  version: 2;
   flow_id: string;
+  origin_space_id: string;
   name: string;
   digest: string;
-  start: Record<string, unknown>;
-  steps: Array<{ id: string; kind: string; invoke?: { space: string; action: string }; gate?: { form?: string } }>;
-  view_ref?: {
-    view_id: string;
-    origin_space_id?: string;
-    entry_url?: string;
-    shell_route?: string;
-    params_schema?: string;
-  };
+  can_run: boolean;
+  manual: boolean;
+  triggers: FlowStartConditions;
+  graph: RunGraphPayload;
 }
 
 export interface RunGraphLane {
@@ -245,16 +260,62 @@ export interface RunGraphNode {
   run_id?: string;
   federated?: boolean;
   remote_label?: string;
+  parent_step_id?: string;
+  metadata?: RunGraphStepMetadata;
+}
+
+export interface RunGraphResolver {
+  handler_id: string;
+  type: string;
+  view_id?: string;
+  config_digest: string;
+}
+
+export interface RunGraphBranchMetadata {
+  branch: string;
+  schema_ref?: string;
+  schema?: Record<string, unknown>;
+  payload_required: string[];
+  artifact_required: string[];
+  artifact_slots: Record<string, Record<string, unknown>>;
+  routes: Array<{
+    engine?: "open" | "advance" | "fail_run" | "resume";
+    step_id?: string;
+  }>;
+}
+
+export interface RunGraphStepMetadata {
+  description?: string;
+  branches: RunGraphBranchMetadata[];
+  resolver: RunGraphResolver | null;
+  resolver_source: "current" | "dispatch";
 }
 
 export interface RunGraphPayload {
   run_id: string;
   flow_id?: string | null;
   flow_digest?: string;
+  origin_space_id?: string;
+  flow_name?: string;
+  mode?: "preview" | "live" | "history";
   nodes: RunGraphNode[];
-  edges: Array<{ id: string; source: string; target: string }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    tone?: "default" | "failure";
+    route_kind?: "open" | "advance" | "fail_run" | "resume";
+  }>;
   lanes: RunGraphLane[];
-  step_memos: Array<{ step_id: string; status: string }>;
+  step_memos: Array<{
+    step_id: string;
+    status: string;
+    started_at?: string;
+    completed_at?: string;
+    error_code?: string;
+    executor_type?: string;
+  }>;
 }
 
 export interface RunDetailPayload {
@@ -266,6 +327,41 @@ export interface RunDetailPayload {
   exec_context?: Record<string, unknown>;
   journal_replay?: Array<{ step_id: string; status: string }>;
   steps?: Array<{ step_id: string; status: string }>;
+  open_steps?: Array<{
+    step_id: string;
+    parent_id?: string | null;
+    description?: string;
+    reason?: "opened" | "resumed";
+    declared_children?: string[];
+    returned_child?: {
+      step_id: string;
+      branch: string;
+      iteration: number;
+      payload: Record<string, unknown>;
+      artifacts_out: Array<Record<string, unknown>>;
+    };
+    /** Sanitized resolver descriptor; `null` means no space handler is bound. */
+    resolver: {
+      handler_id: string;
+      type: string;
+      view_id?: string;
+    } | null;
+    /** Inline View reference, present only when a `view_resolver` is bound. */
+    view?: {
+      view_id: string;
+      origin_space_id: string;
+      entry?: string;
+      shell_route?: string;
+    } | null;
+    branches: Array<{
+      branch: string;
+      schema_ref?: string;
+      schema?: Record<string, unknown>;
+      payload_required: string[];
+      artifact_required: string[];
+      artifact_slots: Record<string, Record<string, unknown>>;
+    }>;
+  }>;
 }
 
 export interface SessionDetailPayload {
@@ -287,12 +383,15 @@ export interface ShellClient {
   spaces: {
     list(): Promise<SpaceSummary[]>;
     home(space_id: string): Promise<SpaceHomePayload>;
+    runs(space_id: string): Promise<{ space_id: string; runs: SpaceHomeRunRow[] }>;
     flowPreview(space_id: string, flow_id: string): Promise<FlowPreviewPayload>;
     runFlow(flow_id: string, body: { space_id?: string; input?: Record<string, unknown> }): Promise<{
       session: { session_id: string; title: string };
       run_id: string;
       flow_digest: string;
     }>;
+    /** Soft-delete: archive the space on the hub (local files are kept). */
+    archive(space_id: string): Promise<{ space_id: string }>;
   };
   me: {
     get(): Promise<UserProfile>;
@@ -333,6 +432,47 @@ export interface ShellClient {
   runs: {
     get(run_id: string): Promise<RunDetailPayload>;
     graph(run_id: string): Promise<RunGraphPayload>;
+    resolveStep(
+      run_id: string,
+      step_id: string,
+      body: {
+        branch: string;
+        payload?: Record<string, unknown>;
+        artifacts_out?: Array<{ slot: string; path: string }>;
+        upload_intent_id?: string;
+        idempotency_key?: string;
+      },
+    ): Promise<{ ok: boolean; run_id: string; step_id: string; branch: string; status: string }>;
+    openChild(
+      run_id: string,
+      parent_step_id: string,
+      body: { child_step_id: string; idempotency_key: string },
+    ): Promise<{
+      ok: boolean;
+      run_id: string;
+      parent_step_id: string;
+      child_step_id: string;
+      iteration: number;
+      deduplicated: boolean;
+    }>;
+    createUploadIntent(
+      run_id: string,
+      step_id: string,
+      body: {
+        branch: string;
+        payload?: Record<string, unknown>;
+        files: UploadIntentFileInput[];
+        idempotency_key: string;
+      },
+    ): Promise<UploadIntentResponse>;
+    uploadIntentFile(
+      intent_id: string,
+      index: number,
+      file: Blob,
+      options?: { signal?: AbortSignal; onProgress?: (loaded: number, total: number) => void },
+    ): Promise<{ received_bytes: number }>;
+    cancelUploadIntent(intent_id: string): Promise<void>;
     retry(run_id: string, body?: { from_step_id?: string; space_id?: string }): Promise<{ run: { run_id: string } }>;
+    cancel(run_id: string, body?: { space_id?: string }): Promise<{ run: { run_id: string; lifecycle: string } }>;
   };
 }

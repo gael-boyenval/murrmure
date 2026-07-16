@@ -1,5 +1,5 @@
-import type { ViewAppContext } from "@murrmure/view-sdk";
-import type { GateItem } from "@murrmure/shell-client";
+import { VIEW_TRANSPORT_VERSION, type ViewAppContext, type ViewBranchContract } from "@murrmure/view-sdk";
+import type { RunDetailPayload } from "@murrmure/shell-client";
 
 export interface ViewRefLike {
   view_id: string;
@@ -12,14 +12,26 @@ export interface BuildViewAppContextInput {
   flow_id: string;
   space_id: string;
   hub_base_url: string;
-  token: string;
   session_id?: string;
   run_id?: string;
-  gate: Pick<GateItem, "gate_id" | "step_id" | "payload_ref" | "form">;
+  step_id: string;
+  branches?: ViewBranchContract[];
+  reason?: "opened" | "resumed";
+  declared_children?: string[];
+  returned_child?: {
+    step_id: string;
+    branch: string;
+    iteration: number;
+    payload: Record<string, unknown>;
+    artifacts_out: Array<Record<string, unknown>>;
+  };
   exec_context?: Record<string, unknown>;
+  mode?: "production" | "dev";
+  nonce?: string;
 }
 
-/** Build ViewAppContext for ViewCanvasHost from run + pending gate (decision 03). */
+/** Build the v3 ViewAppContext for a hardened view host. No token: views never
+ * hold a Hub credential and submit host-mediated via `submitBranch`. */
 export function buildViewAppContext(input: BuildViewAppContextInput): ViewAppContext {
   const exec = input.exec_context ?? {};
   const stepsRaw = exec.steps;
@@ -36,16 +48,63 @@ export function buildViewAppContext(input: BuildViewAppContextInput): ViewAppCon
     flow_id: input.flow_id,
     space_id: input.space_id,
     hub_base_url: input.hub_base_url,
-    token: input.token,
+    mode: input.mode ?? "production",
+    transport_version: VIEW_TRANSPORT_VERSION,
+    nonce: input.nonce ?? makeViewNonce(),
     session_id: input.session_id,
     run_id: input.run_id,
-    gate: {
-      gate_id: input.gate.gate_id,
-      step_id: input.gate.step_id,
-      payload_ref: input.gate.payload_ref,
-      ...(input.gate.form ? { responseSchema: input.gate.form } : {}),
+    step: {
+      step_id: input.step_id,
+      branches: input.branches ?? [],
+      reason: input.reason,
+      declared_children: input.declared_children ?? [],
+      returned_child: input.returned_child,
     },
     ...(steps ? { steps } : {}),
     ...(runInput ? { input: runInput } : {}),
   };
+}
+
+export function buildViewAppContextFromRun(
+  run: RunDetailPayload,
+  input: {
+    hub_base_url: string;
+    flow_id: string;
+    space_id: string;
+    mode?: "production" | "dev";
+    nonce?: string;
+  },
+): ViewAppContext | null {
+  const active = run.open_steps?.[0];
+  if (!active) return null;
+  return buildViewAppContext({
+    flow_id: input.flow_id,
+    space_id: input.space_id,
+    hub_base_url: input.hub_base_url,
+    session_id: run.session_id,
+    run_id: run.run_id,
+    step_id: active.step_id,
+    branches: active.branches.map((b) => ({
+      branch: b.branch,
+      ...(b.schema_ref ? { schema_ref: b.schema_ref } : {}),
+      ...(b.schema ? { schema: b.schema } : {}),
+      payload_required: b.payload_required,
+      artifact_required: b.artifact_required,
+      artifact_slots: b.artifact_slots,
+    })),
+    reason: active.reason,
+    declared_children: active.declared_children,
+    returned_child: active.returned_child,
+    exec_context: run.exec_context,
+    mode: input.mode ?? "production",
+    nonce: input.nonce,
+  });
+}
+
+function makeViewNonce(): string {
+  const cryptoApi = globalThis.crypto as Crypto | undefined;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+  return `nonce-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

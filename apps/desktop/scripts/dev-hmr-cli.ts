@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readlinkSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -11,13 +13,6 @@ import {
 import { dirname, join } from "node:path";
 
 const DEV_LINK_MARKER = ".dev/cli-global-link.json";
-
-const CLI_BINARIES = [
-  { name: "mrmr", script: "cli.js" },
-  { name: "murrmure", script: "cli.js" },
-  { name: "mrmr-mcp", script: "mcp.js" },
-  { name: "murrmure-mcp", script: "mcp.js" },
-] as const;
 
 interface DevLinkEntry {
   path: string;
@@ -32,6 +27,10 @@ interface DevLinkState {
 
 export function cliPackageDir(repoRoot: string): string {
   return join(repoRoot, "packages/cli");
+}
+
+export function mcpBridgePackageDir(repoRoot: string): string {
+  return join(repoRoot, "packages/mcp-bridge");
 }
 
 export function devLinkMarkerPath(repoRoot: string): string {
@@ -69,15 +68,20 @@ export function resolveDevBinDir(): string {
   return resolveGlobalBinDir();
 }
 
-export function buildCli(repoRoot: string): void {
-  const result = spawnSync("pnpm", ["--filter", "@murrmure/cli", "build"], {
+function buildPackage(repoRoot: string, packageName: string): void {
+  const result = spawnSync("pnpm", ["--filter", packageName, "build"], {
     cwd: repoRoot,
     stdio: "inherit",
     env: process.env,
   });
   if (result.status !== 0) {
-    throw new Error("CLI build failed");
+    throw new Error(`Build failed for ${packageName}`);
   }
+}
+
+export function buildCli(repoRoot: string): void {
+  buildPackage(repoRoot, "@murrmure/cli");
+  buildPackage(repoRoot, "@murrmure/mcp-bridge");
 }
 
 function readDevLinkState(repoRoot: string): DevLinkState | null {
@@ -94,31 +98,64 @@ function writeDevLinkState(repoRoot: string, state: DevLinkState): void {
   writeFileSync(markerPath, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
 }
 
-/** Symlink built `mrmr` / `murrmure` into the active global bin dir for local dev testing. */
+/** Symlink built `mrmr` / `murrmure` / `murrmure-mcp` into global bin for local dev testing. */
 export function linkCliGlobal(repoRoot: string): void {
-  if (readDevLinkState(repoRoot)) {
-    throw new Error("CLI dev global links already active — stop the other dev session first");
+  const stale = readDevLinkState(repoRoot);
+  if (stale) {
+    console.log(
+      "[desktop:dev:hmr] reclaiming CLI dev global links left by a previous session…",
+    );
+    unlinkCliGlobal(repoRoot);
   }
 
   buildCli(repoRoot);
   const binDir = resolveDevBinDir();
-  const cliDist = join(cliPackageDir(repoRoot), "dist");
+  const binaries = [
+    {
+      name: "mrmr",
+      target: join(cliPackageDir(repoRoot), "dist", "cli.js"),
+    },
+    {
+      name: "murrmure",
+      target: join(cliPackageDir(repoRoot), "dist", "cli.js"),
+    },
+    {
+      name: "murrmure-mcp",
+      target: join(mcpBridgePackageDir(repoRoot), "dist", "main.js"),
+    },
+  ] as const;
   const state: DevLinkState = { bin_dir: binDir, bins: [] };
 
-  for (const { name, script } of CLI_BINARIES) {
+  for (const { name, target } of binaries) {
     const binPath = join(binDir, name);
-    const target = join(cliDist, script);
     if (!existsSync(target)) {
-      throw new Error(`CLI build output missing: ${target}`);
+      throw new Error(`Build output missing: ${target}`);
     }
 
     const entry: DevLinkEntry = { path: binPath, replacedFile: false };
-    if (existsSync(binPath)) {
-      try {
-        entry.previousTarget = readlinkSync(binPath);
-        unlinkSync(binPath);
-      } catch {
-        entry.replacedFile = true;
+
+    // Use lstat rather than existsSync: existsSync follows symlinks and returns
+    // false when the link target is gone, so a dangling symlink left by a
+    // crashed session would bypass cleanup and make symlinkSync fail with
+    // EEXIST. lstat sees the symlink entry itself whether or not the target
+    // still exists.
+    let stat: ReturnType<typeof lstatSync> = null;
+    try {
+      stat = lstatSync(binPath);
+    } catch {
+      // Nothing at binPath — fresh link.
+    }
+
+    if (stat) {
+      if (stat.isSymbolicLink()) {
+        try {
+          entry.previousTarget = readlinkSync(binPath);
+        } catch {
+          // Unreadable link target; nothing to restore on shutdown.
+        }
+        rmSync(binPath, { force: true });
+      } else {
+        // Real file or directory — don't clobber a genuine global install.
         throw new Error(
           `Refusing to overwrite global ${name} (${binPath}) — remove the existing binary first`,
         );
@@ -130,7 +167,7 @@ export function linkCliGlobal(repoRoot: string): void {
   }
 
   writeDevLinkState(repoRoot, state);
-  console.log(`[desktop:dev:hmr] linked mrmr → ${cliDist} (${binDir})`);
+  console.log(`[desktop:dev:hmr] linked mrmr, murrmure, murrmure-mcp (${binDir})`);
 }
 
 /** Remove dev global symlinks created by linkCliGlobal. */
@@ -141,14 +178,16 @@ export function unlinkCliGlobal(repoRoot: string): void {
   }
 
   for (const entry of state.bins) {
-    if (!existsSync(entry.path)) {
+    // lstat (not existsSync) so dangling symlinks are still removed; existsSync
+    // would skip them and leave stale links behind for the next startup.
+    try {
+      lstatSync(entry.path);
+    } catch {
       continue;
     }
-    try {
-      unlinkSync(entry.path);
-    } catch {
-      // Already removed.
-    }
+
+    rmSync(entry.path, { force: true });
+
     if (entry.previousTarget) {
       try {
         symlinkSync(entry.previousTarget, entry.path);

@@ -35,4 +35,18 @@ describe("withSidecarStartupCleanup", () => {
     expect(result).toBe("ready");
     expect(stopHubChild).not.toHaveBeenCalled();
   });
+
+  test("resolveDevHmrBootstrapSession reads orchestrator env", async () => {
+    const { resolveDevHmrBootstrapSession } = await import("../src/runner.js");
+    const session = resolveDevHmrBootstrapSession({
+      MURRMURE_BOOTSTRAP_TOKEN: "tok_test",
+      MURRMURE_BOOTSTRAP_ACTOR_ID: "act_test",
+    });
+    expect(session).toEqual({ token: "tok_test", actor_id: "act_test" });
+  });
+
+  test("resolveDevHmrBootstrapSession requires actor id", async () => {
+    const { resolveDevHmrBootstrapSession } = await import("../src/runner.js");
+    expect(() => resolveDevHmrBootstrapSession({})).toThrow(/MURRMURE_BOOTSTRAP_ACTOR_ID/);
+  });
 });

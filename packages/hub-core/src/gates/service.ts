@@ -22,8 +22,7 @@ import {
 } from "../orchestration/bind.js";
 import { parseOrchestrationPayloadRef, type OrchestrationPreview } from "../orchestration/preview.js";
 import type { Capability } from "@murrmure/contracts";
-import { isDeclarativeCheckpointStep } from "../flow-engine/checkpoint-dispatch.js";
-import { advanceFlowAfterCheckpointResolve, type CheckpointRunnerDeps } from "../flow-engine/checkpoint-runner.js";
+import { canResolveGate, hasCapability, resolveEffectiveCapabilities } from "../grants/migrate.js";
 
 export interface GateServiceDeps extends Partial<OrchestrationBindDeps> {
   studio: StudioPersistencePort;
@@ -161,10 +160,13 @@ export async function getGateById(deps: GateServiceDeps, gate_id: string): Promi
   return deps.studio.getGate(bare);
 }
 
-export interface GateResolveV2Input {
+export interface GateResolveInput {
   gate_id: string;
   actor_id: string;
   token_id: string;
+  /** Token space — when provided, resolveGate rejects if it does not match the
+   *  gate's space (unless the token is bootstrap or holds hub:admin). */
+  space_id?: string;
   /** Normative v2 wire */
   disposition?: "continue" | "cancel";
   output?: Record<string, unknown>;
@@ -176,7 +178,7 @@ export interface GateResolveV2Input {
   capabilities?: Capability[];
 }
 
-function mapGateResolveInput(input: GateResolveV2Input): {
+function mapGateResolveInput(input: GateResolveInput): {
   disposition: "continue" | "cancel";
   output: Record<string, unknown>;
   decision: "approved" | "rejected";
@@ -206,22 +208,9 @@ function mapGateResolveInput(input: GateResolveV2Input): {
   };
 }
 
-async function isFlowCheckpointGate(
+export async function resolveGate(
   deps: GateServiceDeps,
-  row: GateRow,
-): Promise<boolean> {
-  if (isOrchestrationGate(row)) return false;
-  const run = await deps.studio.getRun(row.run_id);
-  if (!run?.flow_id || !run.flow_digest) return false;
-  const entry = await deps.studio.getFlowIndexEntry(run.flow_id, run.space_id);
-  if (!entry?.ir) return false;
-  const step = entry.ir.steps.find((s) => s.id === row.step_id);
-  return isDeclarativeCheckpointStep(step);
-}
-
-export async function resolveGateV2(
-  deps: GateServiceDeps,
-  input: GateResolveV2Input,
+  input: GateResolveInput,
 ): Promise<{ gate: Gate; error?: { code: string; message: string } }> {
   const bare = stripGateId(input.gate_id);
   const row = await deps.studio.getGate(bare);
@@ -235,9 +224,29 @@ export async function resolveGateV2(
     };
   }
 
+  // Space boundary: a token may only resolve a gate in its own space. Bootstrap
+  // and hub:admin tokens are privileged and may resolve gates cross-space. The
+  // HTTP route (POST /v1/gates/:gate_id/resolve) enforces the same check; this
+  // guard defends any other caller of resolveGate.
+  if (input.space_id) {
+    const isPrivileged =
+      input.space_id === "bootstrap" || hasCapability(input.capabilities ?? [], "hub:admin");
+    if (!isPrivileged) {
+      const tokenSpaceBare = input.space_id.startsWith("spc_") ? input.space_id.slice(4) : input.space_id;
+      if (tokenSpaceBare !== row.space_id) {
+        return {
+          gate: rowToGate(row),
+          error: { code: "SCOPE_ENFORCEMENT_FAILURE", message: "token space does not match gate space" },
+        };
+      }
+    }
+  }
+
   const grants = await deps.studio.listGrants(row.space_id);
   const actorGrants = grants.filter((g) => g.actor_id === input.actor_id && g.status === "active");
-  const grantCanResolve = actorGrants.some((g) => g.scopes.includes("gate:resolve"));
+  const grantCanResolve = actorGrants.some((g) =>
+    canResolveGate(resolveEffectiveCapabilities({ scopes: g.scopes, capabilities: g.capabilities })),
+  );
   const canResolve =
     input.can_resolve === true ||
     row.assignees?.includes(input.actor_id) ||
@@ -247,7 +256,7 @@ export async function resolveGateV2(
   if (!canResolve) {
     return {
       gate: rowToGate(row),
-      error: { code: "SCOPE_ENFORCEMENT_FAILURE", message: "gate:resolve required" },
+      error: { code: "SCOPE_ENFORCEMENT_FAILURE", message: "flow:run required" },
     };
   }
 
@@ -266,39 +275,19 @@ export async function resolveGateV2(
 
   const run = await deps.studio.getRun(row.run_id);
   const orchestration = isOrchestrationGate(row);
-  const flowCheckpoint = !orchestration && run ? await isFlowCheckpointGate(deps, row) : false;
 
   if (orchestration && decision === "approved") {
     const bindResult = await bindOrchestrationFromGate(deps, {
       gate: row,
       actor_id: input.actor_id,
       token_id: input.token_id,
-      capabilities: input.capabilities ?? ["flow:run", "action:invoke"],
+      capabilities: input.capabilities ?? ["flow:run"],
     });
     if ("error" in bindResult) {
       return { gate: rowToGate(row), error: bindResult.error };
     }
   } else if (orchestration && decision === "rejected") {
     await rejectOrchestrationGate(deps, row);
-  } else if (flowCheckpoint && run && deps.dispatchSteps) {
-    const spaceId = addSpaceId(row.space_id);
-    const advanceResult = await advanceFlowAfterCheckpointResolve(
-      { ...deps, dispatchSteps: deps.dispatchSteps } as CheckpointRunnerDeps,
-      {
-        run_id: prefixedRun(row.run_id),
-        session_id: prefixedSession(row.session_id),
-        space_id: spaceId,
-        step_id: row.step_id,
-        disposition,
-        output,
-        actor_id: input.actor_id,
-        token_id: input.token_id,
-        capabilities: input.capabilities,
-      },
-    );
-    if (advanceResult.error) {
-      return { gate: rowToGate(row), error: advanceResult.error };
-    }
   } else if (run && run.lifecycle === "input-required" && decision === "approved") {
     await deps.studio.updateRunLifecycle(row.run_id, "working");
   } else if (run && decision === "rejected") {
@@ -330,8 +319,6 @@ export async function resolveGateV2(
   const updated = (await deps.studio.getGate(bare))!;
   return { gate: rowToGate(updated) };
 }
-
-export { resolveCheckpointViewRef } from "./checkpoint-view.js";
 
 export function presentGateForActor(
   gate: Gate,

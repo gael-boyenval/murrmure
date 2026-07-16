@@ -1,4 +1,6 @@
-// @vitest-environment jsdom
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -35,7 +37,7 @@ describe("App /connect route", () => {
     vi.clearAllMocks();
   });
 
-  it("renders ConnectPage for bundled authenticated users", async () => {
+  it("redirects bundled authenticated users from /connect to /spaces/new", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
@@ -50,6 +52,6 @@ describe("App /connect route", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Connect agent")).toBeTruthy();
+    expect(await screen.findByText(/Create your first space/i)).toBeTruthy();
   });
 });

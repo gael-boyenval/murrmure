@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { renderUsage } from "citty";
+import { renderUsage, type CommandDef } from "citty";
 import { flowCommand } from "../src/commands/flow/index.js";
 import {
   flowDoctorCommand,
@@ -26,7 +26,7 @@ describe("flow command help", () => {
   });
 
   test.each(FLOW_LEAVES)("$name --help includes Requires line", async ({ command, requires }) => {
-    const usage = await renderUsage(command);
+    const usage = await renderUsage(command as CommandDef);
     expect(usage.length).toBeGreaterThan(20);
     expect(usage).toMatch(/Requires:/);
     expect(usage).toContain(requires);

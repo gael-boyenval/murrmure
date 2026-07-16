@@ -4,6 +4,7 @@ import { RunIdSchema } from "../ids.js";
 export const RunStepStatusSchema = z.enum([
   "pending",
   "working",
+  "yielded",
   "completed",
   "failed",
   "skipped",
