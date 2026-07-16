@@ -60,6 +60,10 @@ const CANONICAL_HELPER = "packages/hub-core/src/flow-engine/run-scratch-paths.ts
 
 // Rule 1: stale run root.
 const STALE_RUN_ROOT = /\.mrmr\.temp\/runs\b/;
+// Manifest documents forbidden patterns; must not self-trigger.
+const RULE1_EXCLUDE_FILES = new Set([
+  "studio-specs/current/clean-slate/removal-manifest.json",
+]);
 // Rule 2: literal join("…", ".mrmr", "dev", "runs") construction (any quotes).
 const LITERAL_RUN_ROOT_CONSTRUCTION = /["'`]\.mrmr["'`]\s*,\s*["']dev["']\s*,\s*["']runs["']/;
 
@@ -95,6 +99,8 @@ const activeFiles = ACTIVE_ROOTS.flatMap((path) =>
   collectFiles(join(REPO_ROOT, path), /\.(?:ts|tsx|js|mjs|json|md|ya?ml)$/),
 );
 for (const file of activeFiles) {
+  const rel = relative(REPO_ROOT, file);
+  if (RULE1_EXCLUDE_FILES.has(rel)) continue;
   const content = readFileSync(file, "utf-8");
   const match = content.match(STALE_RUN_ROOT);
   if (match?.index != null) {
