@@ -1,6 +1,6 @@
 {
   "name": "@murrmure/shell-web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
   "dependencies": {
     "@murrmure/shell-client": "workspace:*",
     "@murrmure/shell-ui": "workspace:*",
-  "@murrmure/view-sdk": "workspace:*",
+    "@murrmure/view-sdk": "workspace:*",
     "@tanstack/react-query": "^5.66.9",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",

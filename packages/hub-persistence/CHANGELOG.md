@@ -1,5 +1,13 @@
 # @murrmure/hub-persistence
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [495435e]
+- Updated dependencies [82c78fc]
+  - @murrmure/contracts@0.2.0
+
 ## Unreleased
 
 ### Added
