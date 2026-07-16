@@ -35,8 +35,10 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      # Pin npm 11.x: trusted publishing needs ≥11.5.1, but npm 12 rejects
+      # --no-git-checks that changesets passes through `pnpm publish`.
       - name: Upgrade npm (OIDC trusted publishing requires npm ≥ 11.5.1)
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
