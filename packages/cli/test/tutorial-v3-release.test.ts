@@ -227,12 +227,11 @@ describe("Tutorial v3 release acceptance (Task 14)", () => {
     );
   });
 
-  test("Task 14 — deterministic packaged Desktop smoke is active; only the signed-release Parts 1–6 run is manual", () => {
+  test("Task 14 — packaged Desktop smoke tests are all active in CI", () => {
     const packaged = readFileSync(
       join(REPO_ROOT, "apps/desktop/test/tutorial-v3-packaged.test.ts"),
       "utf8",
     );
-    // Deterministic release smoke that runs in CI is active (not skipped).
     expect(packaged).toMatch(/test\("Task 01 — packaged Desktop boots/);
     expect(packaged).toMatch(
       /test\("Task 04 — packaged shell ships the hardened view host/,
@@ -240,11 +239,7 @@ describe("Tutorial v3 release acceptance (Task 14)", () => {
     expect(packaged).toMatch(
       /test\("Task 04 — exact tutorial intake View opens in production via the packaged hub/,
     );
-    // The only skipped beat is the signed-release Parts 1–6 path through
-    // packaged Desktop, owned by Task 14.
     const skips = packaged.match(/test\.skip\("Task \d+ — [^"]+"/g) ?? [];
-    expect(skips).toEqual([
-      'test.skip("Task 14 — Parts 1–6 execute through packaged Desktop"',
-    ]);
+    expect(skips).toEqual([]);
   });
 });

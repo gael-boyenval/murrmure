@@ -1,19 +1,15 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { HandlerSpecSchema } from "@murrmure/contracts";
 import { parseHandlersFile } from "@murrmure/hub-core";
 import {
-  applyIndexDiff,
   compileStepContractCatalog,
   lintHandlerCatalogCoverage,
   lintSpaceApplyBundle,
-  openStepContract,
   parseFlowManifest,
   strictLintFailures,
-  catalogEntryForStep,
 } from "@murrmure/hub-core";
 import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
@@ -214,89 +210,6 @@ describe("preview-review-v2 reference example", () => {
     for (const path of scanPaths) {
       expect(readFileSync(path, "utf-8")).not.toMatch(fdkPattern);
     }
-  });
-
-  // Handler dispatch on step open is owned by T05/T06 (handlers). Task 03
-  // removes role-based dispatch from openStepContract; the index/compile
-  // portions this test also covers are exercised by docs-proof 10-T1.
-  test.skip("handlers.yaml flows through apply index to step dispatch", async () => {
-    const bundle = readSpaceApplyBundle(EXAMPLE_ROOT);
-    expect(bundle.handlers?.file.handlers.length).toBeGreaterThan(0);
-
-    const indexed = applyIndexDiff(
-      { actions: [], executors: [], hooks: [], events: [], flows: [], views: [], run_policies: [] },
-      bundle,
-      "spc_preview_review",
-    );
-    const handlerRows = indexed.next.hooks.filter((row) =>
-      HandlerSpecSchema.safeParse(JSON.parse(row.payload_json)).success,
-    );
-    expect(handlerRows.map((row) => row.key)).toEqual([
-      "intake_view",
-      "feature_write_spec",
-      "feature_build",
-      "feature_archive",
-      "feature_commit",
-    ]);
-
-    const flow = bundle.flows?.find((f) => f.flow_id === PREVIEW_REVIEW_FLOW_ID);
-    expect(flow).toBeDefined();
-    if (!flow) return;
-    const { catalog } = compileStepContractCatalog(flow.manifest, flow.flow_id);
-    expect(catalog).not.toBeNull();
-    if (!catalog) return;
-
-    const studio = {
-      getRun: vi.fn(async () => ({
-        flow_id: flow.flow_id,
-        space_id: "preview",
-        lifecycle: "working",
-      })),
-      getFlowIndexEntry: vi.fn(async () => ({
-        name: flow.manifest.name,
-        step_contract_catalog: catalog,
-      })),
-      listIndexedHooks: vi.fn(async () =>
-        handlerRows.map((row) => JSON.parse(row.payload_json) as Record<string, unknown>),
-      ),
-      listRunStepMemos: vi.fn(async () => []),
-      getSpaceBindings: vi.fn(async () => []),
-      upsertRunStepMemo: vi.fn(async () => undefined),
-      updateRunLifecycle: vi.fn(async () => undefined),
-      getSpace: vi.fn(async () => ({ name: "Preview", slug: "preview" })),
-      listGrants: vi.fn(async () => []),
-      insertNotification: vi.fn(async () => undefined),
-    };
-    const dispatchSteps = vi.fn(async (_input: { dispatch: { action_name: string }[] }) => undefined);
-    const clock = { nowIso: () => "2026-07-09T10:00:00.000Z" };
-
-    const writeSpecEntry = catalogEntryForStep(catalog, "write_spec");
-    expect(writeSpecEntry).toBeDefined();
-    if (!writeSpecEntry) return;
-
-    await openStepContract(
-      {
-        studio: studio as never,
-        dispatchSteps,
-        clock,
-        ids: { ulid: () => "evt_pr" },
-        handler: { appendSpaceJournal: vi.fn() } as never,
-        resolveFlowAuth: vi.fn(),
-      } as never,
-      {
-        run_id: "run_run_pr",
-        session_id: "ses_ses_pr",
-        space_id: "spc_preview_review",
-        step_id: "write_spec",
-        entry: writeSpecEntry,
-        exec_context: {},
-        actor_id: "actor_alice",
-        token_id: "tok_1",
-      },
-    );
-
-    expect(dispatchSteps).toHaveBeenCalledTimes(1);
-    expect(dispatchSteps.mock.calls[0]?.[0]?.dispatch?.[0]?.action_name).toBe("feature_write_spec");
   });
 
   test("v2.2 manifest passes strict apply lint", () => {

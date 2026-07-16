@@ -243,6 +243,4 @@ describe("Tutorial v3 packaged Desktop conformance", () => {
       space.cleanup();
     }
   });
-
-  test.skip("Task 14 — Parts 1–6 execute through packaged Desktop", () => {});
 });

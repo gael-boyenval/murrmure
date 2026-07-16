@@ -1,31 +1,40 @@
-import { useViewContext, useViewSubmit } from "@murrmure/view-sdk/app";
+import { useViewContract } from "@murrmure/view-sdk/app";
 
 export function App() {
-  const { params } = useViewContext<{ step?: string }>();
-  const { submit, cancel } = useViewSubmit();
-  const isReview = params?.step === "review";
+  const { context, submitBranch, cancel } = useViewContract();
+  const stepId = context?.step_id;
+  const isReview = stepId === "review";
+
+  if (!context) {
+    return (
+      <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", color: "#64748b" }}>
+        Waiting for view context…
+      </main>
+    );
+  }
 
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", maxWidth: 480 }}>
       <h1 style={{ marginTop: 0 }}>{isReview ? "Review daily brief" : "Daily brief"}</h1>
       {isReview ? (
         <>
-          <p style={{ color: "#64748b" }}>Agent output appears here in Desktop **ViewCanvasHost**.</p>
-          <button type="button" onClick={() => submit({ outcome: "done" })}>
+          <p style={{ color: "#64748b" }}>Agent output appears here in Desktop ViewCanvasHost.</p>
+          <button type="button" onClick={() => void submitBranch("approved", {})}>
             Mark done
           </button>
         </>
       ) : (
         <>
           <p style={{ color: "#64748b" }}>
-            Click to emit <code>brief.requested</code> and wake your agent via hooks.
+            Continue to the agent step. Event wake is handled by space handlers on{" "}
+            <code>brief.requested</code>.
           </p>
-          <button type="button" onClick={() => submit({ event: "brief.requested" })}>
+          <button type="button" onClick={() => void submitBranch("continue", {})}>
             Run daily brief
           </button>
         </>
       )}
-      <button type="button" onClick={() => cancel()} style={{ marginLeft: "0.5rem" }}>
+      <button type="button" onClick={() => void cancel()} style={{ marginLeft: "0.5rem" }}>
         Cancel
       </button>
     </main>
