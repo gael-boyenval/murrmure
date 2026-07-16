@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 # Publishes via npm Trusted Publisher (OIDC) — no NPM_TOKEN secret.
-# Configure on npmjs.com for each public package (@murrmure/cli, contracts, shell-client, view-sdk):
+# Configure on npmjs.com for each public package (@murrmure/cli, contracts, shell-client, view-sdk, mcp-bridge):
 #   Publisher: GitHub Actions
 #   Repository: gael-boyenval/murrmure
 #   Workflow filename: release.yml
