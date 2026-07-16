@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Doc drift check — warn-only phases 01–09; strict (exit 1) from phase 10.
- * See studio-specs/plans/product/plan/decisions/14-doc-tracker-warn-from-phase-01.md
+ * Tracker + decision archived with the shipped product plan (2026-07):
+ * studio-specs/archives/plans/shipped-2026-07/product-plan/
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
@@ -9,11 +10,14 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const TRACKER = join(REPO_ROOT, "studio-specs/plans/product/plan/00-doc-skill-mcp-tracker.md");
+const TRACKER = join(
+  REPO_ROOT,
+  "studio-specs/archives/plans/shipped-2026-07/product-plan/00-doc-skill-mcp-tracker.md",
+);
 const STRICT = process.argv.includes("--strict") || process.env.DOC_TRACKER_STRICT === "1";
 const IS_CI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
-const CODE_PREFIXES = ["packages/", "apps/", "studio-specs/plans/product/plan/"];
+const CODE_PREFIXES = ["packages/", "apps/", "studio-specs/plans/"];
 
 /** Doc/skill paths referenced in the tracker (backtick paths). */
 function extractTrackerDocPaths(content) {

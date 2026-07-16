@@ -1405,7 +1405,7 @@ Sourced from [plan/index.md](../../plans/product/plan/index.md) rev-5 (2026-07-0
 | 09 | Retired worker stack deletion | ✅ | historical release record |
 | 10 | Human docs rewrite + acceptance proof | ✅ | [10-docs-and-proof](../../plans/product/plan/10-docs-and-proof.md) |
 
-Living checklist: [00-doc-skill-mcp-tracker.md](../../plans/product/plan/00-doc-skill-mcp-tracker.md).
+Living checklist (archived with shipped product plan): [00-doc-skill-mcp-tracker.md](../../archives/plans/shipped-2026-07/product-plan/00-doc-skill-mcp-tracker.md).
 Historical worker-stack inventories and review synthesis live under
 `studio-specs/archives/`.
 
