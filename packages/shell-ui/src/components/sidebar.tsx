@@ -15,7 +15,7 @@ export function SidebarHeader({ className, ...props }: React.HTMLAttributes<HTML
 }
 
 export function SidebarContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-1 flex-col gap-1 overflow-y-auto p-3", className)} {...props} />;
+  return <div className={cn("flex flex-1 flex-col gap-1 overflow-y-auto p-3 scrollbar-subtle", className)} {...props} />;
 }
 
 export function SidebarFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

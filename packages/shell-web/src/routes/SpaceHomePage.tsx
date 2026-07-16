@@ -14,6 +14,7 @@ import { useShellClient } from "../providers/ShellClientProvider.js";
 import { setActiveSpaceId } from "../hooks.js";
 import { useEffect } from "react";
 import { DismissRunButton } from "../components/DismissRunButton.js";
+import { DeleteSpaceButton } from "../components/DeleteSpaceButton.js";
 
 function FlowRow({
   flow,
@@ -158,9 +159,17 @@ export function SpaceHomePage() {
   return (
     <AppShell>
       <div className="mx-auto w-full min-w-2xl max-w-2xl space-y-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {space?.name ?? space?.slug ?? spaceId}
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {space?.name ?? space?.slug ?? spaceId}
+          </h1>
+          {spaceId ? (
+            <DeleteSpaceButton
+              spaceId={spaceId}
+              spaceLabel={space?.name ?? space?.slug ?? spaceId}
+            />
+          ) : null}
+        </div>
 
         {homeQuery.isLoading && (
           <p className="text-sm text-muted-foreground">Loading space home…</p>
@@ -257,7 +266,7 @@ export function SpaceHomePage() {
           <CardContent>
             {home?.recent_completed.length ? (
               <div
-                className="max-h-80 overflow-y-auto pr-1"
+                className="scrollbar-subtle max-h-80 overflow-y-auto pr-1"
                 aria-label="Recent completed runs"
               >
                 {home.recent_completed.map((run) => <RunRow key={run.run_id} run={run} />)}

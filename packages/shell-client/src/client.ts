@@ -92,6 +92,14 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           flow_digest: string;
         }>;
       },
+      async archive(space_id) {
+        const res = await fetch(`${base}/v1/spaces/${encodeURIComponent(space_id)}/archive`, {
+          method: "POST",
+          headers: authHeaders(token),
+        });
+        if (!res.ok) await throwHttpError(res, `spaces.archive failed: ${res.status}`);
+        return res.json() as Promise<{ space_id: string }>;
+      },
     },
     me: {
       async get() {

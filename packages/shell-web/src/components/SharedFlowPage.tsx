@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { RunGraphPayload } from "@murrmure/shell-client";
 import { Badge } from "@murrmure/shell-ui";
 import { Link } from "react-router-dom";
 import { AppShell } from "../layout/AppShell.js";
+import { useIsMobile } from "../hooks/useMediaQuery.js";
 import { FlowStepMetadataPanel } from "./FlowStepMetadataPanel.js";
 import { ResizableSplitPane } from "./ResizableSplitPane.js";
 
@@ -46,6 +48,7 @@ export function SharedFlowPage({
   secondary,
 }: SharedFlowPageProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   const renderableGraph =
     graph && Array.isArray(graph.nodes) && Array.isArray(graph.edges)
       ? graph
@@ -53,13 +56,10 @@ export function SharedFlowPage({
   const selectedNode = renderableGraph?.nodes.find(
     (node) => node.kind === "step_contract" && node.step_id === selectedStepId,
   );
+  const showMobileDrawer = Boolean(selectedNode && isMobile);
 
   useEffect(() => {
-    if (
-      !selectedNode ||
-      (typeof window.matchMedia === "function" &&
-        window.matchMedia("(min-width: 768px)").matches)
-    ) return;
+    if (!showMobileDrawer) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     drawerRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -70,7 +70,38 @@ export function SharedFlowPage({
       window.removeEventListener("keydown", closeOnEscape);
       previouslyFocused?.focus();
     };
-  }, [selectedNode, onSelectStep]);
+  }, [showMobileDrawer, onSelectStep]);
+
+  const closeMetadata = selectedNode ? () => onSelectStep(undefined) : undefined;
+
+  const mobileDrawer =
+    showMobileDrawer && selectedNode && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center md:hidden"
+            role="presentation"
+          >
+            <button
+              type="button"
+              aria-label="Dismiss step metadata"
+              className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+              onClick={() => onSelectStep(undefined)}
+            />
+            <div
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Step metadata for ${selectedNode.step_id}`}
+              tabIndex={-1}
+              className="scrollbar-subtle relative z-10 max-h-[85vh] w-full overflow-y-auto rounded-t-xl border border-border bg-card p-3 shadow-xl outline-none"
+            >
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/40" aria-hidden />
+              <FlowStepMetadataPanel node={selectedNode} onClose={closeMetadata} />
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <AppShell>
@@ -113,26 +144,13 @@ export function SharedFlowPage({
           }
           secondary={
             <>
-              <FlowStepMetadataPanel node={selectedNode} />
+              <FlowStepMetadataPanel node={selectedNode} onClose={closeMetadata} />
               {secondary}
             </>
           }
         />
 
-        {selectedNode ? (
-          <div className="fixed inset-0 z-50 flex items-end bg-black/50 md:hidden">
-            <div
-              ref={drawerRef}
-              role="dialog"
-              aria-modal="true"
-              aria-label={`Step metadata for ${selectedNode.step_id}`}
-              tabIndex={-1}
-              className="max-h-[85vh] w-full overflow-y-auto rounded-t-xl bg-background p-3 outline-none"
-            >
-              <FlowStepMetadataPanel node={selectedNode} onClose={() => onSelectStep(undefined)} />
-            </div>
-          </div>
-        ) : null}
+        {mobileDrawer}
       </div>
     </AppShell>
   );

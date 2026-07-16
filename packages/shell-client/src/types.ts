@@ -390,6 +390,8 @@ export interface ShellClient {
       run_id: string;
       flow_digest: string;
     }>;
+    /** Soft-delete: archive the space on the hub (local files are kept). */
+    archive(space_id: string): Promise<{ space_id: string }>;
   };
   me: {
     get(): Promise<UserProfile>;

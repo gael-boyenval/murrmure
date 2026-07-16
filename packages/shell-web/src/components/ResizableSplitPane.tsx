@@ -17,9 +17,12 @@ function readStoredWidth(): number | undefined {
 }
 
 function clampSecondaryWidth(width: number, containerWidth: number): number {
-  const maxByPrimary = containerWidth - MIN_PRIMARY_WIDTH - HANDLE_WIDTH;
+  if (containerWidth <= 0) return width;
+  // Keep enough room for the flowchart; shrink the inspector when the viewport is tight.
+  const maxByPrimary = Math.max(0, containerWidth - MIN_PRIMARY_WIDTH - HANDLE_WIDTH);
   const max = Math.min(MAX_SECONDARY_WIDTH, maxByPrimary);
-  return Math.max(MIN_SECONDARY_WIDTH, Math.min(max, width));
+  const min = Math.min(MIN_SECONDARY_WIDTH, max);
+  return Math.max(min, Math.min(max, width));
 }
 
 export interface ResizableSplitPaneProps {

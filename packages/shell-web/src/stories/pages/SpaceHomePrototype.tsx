@@ -174,7 +174,7 @@ export function SpaceHomePrototype({ state }: { state: SpaceHomePrototypeState }
             {isEmpty ? (
               <p className="text-sm text-muted-foreground">No recent runs</p>
             ) : (
-              <div className="max-h-80 overflow-y-auto">
+              <div className="scrollbar-subtle max-h-80 overflow-y-auto">
                 {completedRuns.map((run) => (
                   <RunRow key={run.run_id} title={run.title ?? run.run_id} runId={run.run_id} lifecycle={run.lifecycle} />
                 ))}

@@ -96,7 +96,7 @@ export function AppShell({
             </Button>
           </SidebarFooter>
         </Sidebar>
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-6">{children}</main>
+        <main className="scrollbar-subtle flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-6">{children}</main>
       </div>
     </div>
   );

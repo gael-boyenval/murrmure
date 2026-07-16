@@ -17,13 +17,15 @@ export function FlowStepMetadataPanel({
     );
   }
 
+  const branches = Array.isArray(metadata.branches) ? metadata.branches : [];
+
   return (
     <section
       aria-label={`Step metadata for ${node.step_id}`}
-      className="min-h-0 overflow-y-auto rounded-md border border-border bg-background p-4"
+      className="scrollbar-subtle min-h-0 overflow-y-auto rounded-md border border-border bg-card p-4"
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="font-semibold">{node.step_id}</h2>
           {metadata.description ? (
             <p className="mt-1 text-sm text-muted-foreground">{metadata.description}</p>
@@ -66,34 +68,52 @@ export function FlowStepMetadataPanel({
         <div>
           <h3 className="font-medium">Branches and contracts</h3>
           <div className="mt-2 space-y-3">
-            {metadata.branches.map((branch) => (
-              <div key={branch.branch} className="rounded border border-border p-3">
-                <p className="font-medium">{branch.branch}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Route: {branch.routes.map((route) => route.step_id ?? route.engine ?? "advance").join(", ")}
-                </p>
-                {branch.schema_ref ? <p className="mt-1 font-mono text-xs">Schema: {branch.schema_ref}</p> : null}
-                {branch.schema ? (
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-[11px]">
-                    {JSON.stringify(branch.schema, null, 2)}
-                  </pre>
-                ) : null}
-                {Object.keys(branch.artifact_slots).length ? (
-                  <div className="mt-2">
-                    <p className="text-xs font-medium">Artifacts</p>
-                    <ul className="mt-1 list-inside list-disc text-xs text-muted-foreground">
-                      {Object.entries(branch.artifact_slots).map(([slot, constraints]) => (
-                        <li key={slot}>
-                          <span className="font-mono">{slot}</span>
-                          {branch.artifact_required.includes(slot) ? " (required)" : ""}
-                          {Object.keys(constraints).length ? ` — ${JSON.stringify(constraints)}` : ""}
-                        </li>
-                      ))}
-                    </ul>
+            {branches.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No branch contracts on this step.</p>
+            ) : (
+              branches.map((branch) => {
+                const routes = Array.isArray(branch.routes) ? branch.routes : [];
+                const artifactSlots = branch.artifact_slots ?? {};
+                const artifactRequired = Array.isArray(branch.artifact_required)
+                  ? branch.artifact_required
+                  : [];
+                return (
+                  <div key={branch.branch} className="rounded border border-border p-3">
+                    <p className="font-medium">{branch.branch}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Route:{" "}
+                      {routes.length
+                        ? routes.map((route) => route.step_id ?? route.engine ?? "advance").join(", ")
+                        : "—"}
+                    </p>
+                    {branch.schema_ref ? (
+                      <p className="mt-1 font-mono text-xs">Schema: {branch.schema_ref}</p>
+                    ) : null}
+                    {branch.schema ? (
+                      <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 text-[11px]">
+                        {JSON.stringify(branch.schema, null, 2)}
+                      </pre>
+                    ) : null}
+                    {Object.keys(artifactSlots).length ? (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium">Artifacts</p>
+                        <ul className="mt-1 list-inside list-disc text-xs text-muted-foreground">
+                          {Object.entries(artifactSlots).map(([slot, constraints]) => (
+                            <li key={slot}>
+                              <span className="font-mono">{slot}</span>
+                              {artifactRequired.includes(slot) ? " (required)" : ""}
+                              {constraints && Object.keys(constraints).length
+                                ? ` — ${JSON.stringify(constraints)}`
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
         </div>
       </div>
