@@ -25,8 +25,6 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.6.0",
-    "@murrmure/contracts": "workspace:*",
-    "@murrmure/hub-core": "workspace:*",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "esbuild": "^0.25.0",
@@ -34,6 +32,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@murrmure/contracts": "workspace:*",
+    "@murrmure/hub-core": "workspace:*",
     "@types/node": "^22.10.2",
     "tsup": "^8.5.0",
     "typescript": "^5.6.3",

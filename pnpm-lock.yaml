@@ -133,12 +133,6 @@ importers:
       '@clack/prompts':
         specifier: ^1.6.0
         version: 1.6.0
-      '@murrmure/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@murrmure/hub-core':
-        specifier: workspace:*
-        version: link:../hub-core
       citty:
         specifier: ^0.2.2
         version: 0.2.2
@@ -155,6 +149,12 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@murrmure/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@murrmure/hub-core':
+        specifier: workspace:*
+        version: link:../hub-core
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.21
