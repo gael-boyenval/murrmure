@@ -185,6 +185,9 @@ importers:
 
   packages/executors:
     dependencies:
+      '@murrmure/hub-core':
+        specifier: workspace:*
+        version: link:../hub-core
       '@murrmure/runtime-contracts':
         specifier: workspace:*
         version: link:../runtime-contracts
@@ -192,9 +195,6 @@ importers:
       '@murrmure/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@murrmure/hub-core':
-        specifier: workspace:*
-        version: link:../hub-core
       tsx:
         specifier: ^4.19.3
         version: 4.22.4
