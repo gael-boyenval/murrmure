@@ -67,4 +67,4 @@ jobs:
           mrmr space flow init hello --template hello-gate
 
           test -f murrmure/flows/hello/flow.manifest.yaml
-          test -f murrmure/actions.yaml
+          test -f murrmure/space/handlers.yaml

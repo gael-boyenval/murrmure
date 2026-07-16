@@ -25,6 +25,7 @@
     "docs:preview": "pnpm --filter @murrmure/docs preview",
     "storybook": "pnpm --filter @murrmure/storybook dev",
     "storybook:build": "pnpm --filter @murrmure/storybook build",
+    "storybook:build:with-snapshots": "pnpm --filter @murrmure/storybook build:with-snapshots",
     "storybook:snapshots": "pnpm --filter @murrmure/storybook snapshots",
     "murrmure-hub": "pnpm --filter @murrmure/hub-daemon dev",
     "check:doc-tracker": "node scripts/check-doc-tracker.mjs",
