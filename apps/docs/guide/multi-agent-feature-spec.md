@@ -107,7 +107,7 @@ Do **not** give the orchestrator write access to foreign spaces. Cross-space coo
 
 ### 1.4 React to spec.published with an event handler (Dev space)
 
-The dev space reacts to `spec.published` with an **`on: event:` handler** in `.mrmr/space/handlers.yaml` — the clean protocol. The retired `mcp_wake` trigger template is gone (Task 15 Lane C): the `POST /v1/mcp/wake` wire is 404 and `mcpWake(...)` is not a runtime primitive, so there is no `spec-published-wake-dev` template to register.
+The dev space reacts to `spec.published` with an **`on: event:` handler** in `.mrmr/space/handlers.yaml` — the clean protocol. Retired wake-wire trigger templates are historical only (Task 15 Lane C); there is no `spec-published-wake-dev` template to register.
 
 ```yaml
 # ~/work/dev-project/.mrmr/space/handlers.yaml
@@ -132,7 +132,7 @@ cd ~/work/dev-project
 mrmr space apply --strict
 ```
 
-After you **Publish**, the hub delivers `spec.published` to the dev-space handler (Session + Run + journal `mrmr.handler.delivered`); the dev Cursor window is woken via `shell_spawn` (replay on MCP reconnect if the session was offline). Observe handler delivery in Desktop **`/logs`** or the run view — there is no `mcp_wake` trigger-action delivery log.
+After you **Publish**, the hub delivers `spec.published` to the dev-space handler (Session + Run + journal `mrmr.handler.delivered`); the dev Cursor window is woken via `shell_spawn` (replay on MCP reconnect if the session was offline). Observe handler delivery in Desktop **`/logs`** or the run view — there is no legacy wake-wire trigger delivery log.
 
 ---
 

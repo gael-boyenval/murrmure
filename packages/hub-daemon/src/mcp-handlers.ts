@@ -100,7 +100,7 @@ export function registerPlatformMcpHandlers(
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
       throw new Error(
-        typeof data.message === "string" ? data.message : `Grant mint failed (${res.status})`,
+        typeof data.message === "string" ? data.message : `Connection grant creation failed (${res.status})`,
       );
     }
     return data;

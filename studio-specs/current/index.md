@@ -17,7 +17,7 @@ docs are in [../archives/README.md](../archives/README.md). On conflict,
 | **CLI (`mrmr`)** | [cli/spec.md](./cli/spec.md) |
 | **Observer shell** (Desktop webview) | [shell/spec.md](./shell/spec.md) |
 
-Configure UI and `/setup` wizard are **retired** — archived at [archives/superseded/config-shell-v1.md](../archives/superseded/config-shell-v1.md).
+The retired configure shell (historical `/setup` flow) is archived under [archives/superseded/](../archives/superseded/).
 
 ## Platform foundations
 
@@ -38,6 +38,17 @@ Configure UI and `/setup` wizard are **retired** — archived at [archives/super
 
 Runnable reference flows live in the repo at
 [`test-utils/spaces/`](../../test-utils/spaces/) — strict-apply fixtures for CI and manual smoke; not linked from `apps/docs/`.
+
+## Clean-slate enforcement
+
+| Tool | Role |
+|------|------|
+| [clean-slate/removal-manifest.json](./clean-slate/removal-manifest.json) | Single removal vocabulary manifest (Tasks 01–15) |
+| `pnpm check:removal-matrix:report` | Full hit inventory (blocking + informational) |
+| `pnpm check:removal-matrix` | CI gate — exit 1 until backlog is zero |
+| [clean-slate/removal-matrix-backlog.md](./clean-slate/removal-matrix-backlog.md) | Snapshot backlog and remediation slices |
+
+Flip `check:removal-matrix` into `check:docs-proof` when the backlog reaches zero.
 
 ## Doc types
 

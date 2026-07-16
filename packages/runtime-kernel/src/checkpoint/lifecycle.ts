@@ -3,7 +3,7 @@ import type { Checkpoint } from "@murrmure/runtime-contracts";
 // The kernel retains a minimal checkpoint *creation* path: a transition whose
 // rule declares a `checkpoint` quorum pauses the aggregate (pending) until an
 // external resolver advances it. The hub no longer bridges gate.resolve to a
-// kernel checkpoint.resolve command — gate resolution is owned by the
+// Removed kernel checkpoint resolve command — gate resolution is owned by the
 // orchestration gate service (gates/service) on the gates table. The vote /
 // quorum / reject lifecycle helpers that supported the removed checkpoint.resolve
 // command have been deleted; only transition→checkpoint construction remains.

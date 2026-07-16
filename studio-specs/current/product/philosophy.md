@@ -254,7 +254,7 @@ Murrmure validates **delivery, digest, ACL, TTL** — not file semantics.
 **Triggers and flows:**
 
 - Triggers **can start a flow** or **create/extend a session** without a declared graph.
-- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, `flow_call` — declared under the single `triggers` field. Flow-level `requires_view` is removed; Views bind through the space.
+- Flow trigger modes (GitHub Actions model): `manual`, `event`, `schedule`, `flow_call` — declared under the single `triggers` field. Flow-level view binding is removed; Views bind through the space.
 - Agent may **MCP-push session-scoped orchestration** → **human gate** before bind. Long-lived flows: write files + CLI push.
 
 **Notifications:** global header **Needs you**, notification center, `/notifications` — gates primary; separate from logs.
@@ -368,7 +368,7 @@ A **flow** is **declarative orchestration** — a thin step graph for a workflow
 | **Local flows** | Declared in a project space — repo-specific pipeline |
 | **Global flows** | `scope: global` in any space — recommended catalog pattern; grants control access |
 | **Generalize** | Move flow/view files to another space via CLI when local → shared |
-| **Trigger modes** | Like GitHub Actions: manual, event, schedule, flow_call — under `triggers` (no flow-level `requires_view`) |
+| **Trigger modes** | Like GitHub Actions: manual, event, schedule, flow_call — under `triggers` (no flow-level view binding) |
 | **Initiation** | Shell (if allowed), CLI, trigger, agent MCP (session-scoped + human gate) |
 
 Flows declare **steps and contracts**, not implementation:
@@ -476,7 +476,7 @@ Trigger **definitions** belong in the **space** (`.mrmr/space/handlers.yaml`), n
 | `cd` to space root, run hook, capture stdout/JSON response | Prompts, skills, model |
 | Dedup, timeout, journal, retry | Business success/failure |
 
-**v1 partial match (historical):** the retired `mcp_wake` + `wake_label` wire approximated an action name (404, phase 16); `payload_map` ≈ params. Missing: space-owned registry, explicit response contract, `cd`+execute primitive, triggers in files — all supplied by the clean handler + `murrmure_emit_event` protocol.
+**v1 partial match (historical):** the retired wake wire and legacy wake routing label approximated an action name (404, phase 16); `payload_map` ≈ params. Missing: space-owned registry, explicit response contract, `cd`+execute primitive, triggers in files — all supplied by the clean handler + `murrmure_emit_event` protocol.
 
 **Executor registration:** something in the space must listen or be spawnable — Murrmure must not silently become the agent runtime. Open design: long-lived MCP vs one-shot CLI vs desktop watcher (deferred).
 
@@ -568,7 +568,7 @@ This is **authorization + wire**, not **agent definition**.
 | Flow installed independently in every space | Prefer indexed flows + scope local/global |
 | Megabyte payloads inline in events | Breaks journal; use artifacts |
 | Hub defines what action `X` executes | Belongs in space `handlers.yaml` |
-| Triggers authored only in Configure UI with agent semantics | Belongs in space files; Murrmure indexes |
+| Triggers authored only in retired configure shell with agent semantics | Belongs in space files; Murrmure indexes |
 | Assuming MCP always connected without executor | “Wake” with no listener |
 | Murrmure runs LLM loop inside hub | Explicitly out of product scope |
 | **Timeline as primary live dashboard** | Use flowchart for live; logs for retrieval |
@@ -587,9 +587,9 @@ The **philosophy matches** kernel direction (journal, gates, blobs, triggers, `q
 | View decoupled from flow | UI bundled in flow package |
 | **Session** = cross-space unit of work | `instance_id` / review session only |
 | Shell flowchart + global notifications + logs | Review canvas, event tail |
-| CLI-first create; shell instructs | Partial configure UI |
-| Triggers in space files | Triggers in hub DB + Configure UI |
-| Action invoke + response contract | `mcp_wake` + `wake_label` retired (404); handlers + `murrmure_emit_event` now |
+| CLI-first create; shell instructs | Partial retired configure shell |
+| Triggers in space files | Triggers in hub DB + retired configure shell |
+| Action invoke + response contract | Retired wake wire retired (404); handlers + `murrmure_emit_event` now |
 | Artifacts via `.mrmr.temp/` + exchange manifest | Hub `dataDir` blobs + `blob_refs` |
 | Any client triggers flows | MCP-primary |
 | Flow orchestrates cross-space as main story | Cross-space via `query_ask` + triggers; flow mostly in-space |
@@ -637,7 +637,7 @@ Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — differe
 |-----|--------|
 | [hub/architecture.md](../hub/architecture.md) | Journal, modules, federation |
 | [cross-space/spec.md](../cross-space/spec.md) | `query_ask` / `query_answer` (XS0) |
-| [triggers/spec.md](../triggers/spec.md) | Event handlers + retired `mcp_wake` presets |
+| [triggers/spec.md](../triggers/spec.md) | Event handlers + retired wake-wire presets |
 | [flow-runtime/spec.md](../flow-runtime/spec.md) | v1 mount registry (per-space) |
 | [config/spec.md](../config/spec.md) | Configure shell routes |
 | [desktop/spec.md](../desktop/spec.md) | Local single-URL desktop |

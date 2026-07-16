@@ -70,11 +70,11 @@ Re-read **`active-step-contract.json`** (path in `MURRMURE_ACTIVE_STEP_CONTRACT_
 
 ## Removed tools
 
-`murrmure_complete_action`, `murrmure_invoke_action`,
+`murrmure_complete_action`, the removed public invoke MCP tool,
 `murrmure_wait_for_gate`, `murrmure_resolve_gate`, and
 `murrmure_grant_mint` — use handlers + **`murrmure_resolve_step`** and manage
 local authorization with `mrmr connection`.
 
 Local MCP config uses the stable launcher plus `--hub` and `--connection`; it
-contains no token environment entry. `MURRMURE_HUB_TOKEN` is allowed only as
+contains no token environment entry. A hub bearer token is allowed only as
 runtime secret injection in explicit headless CI mode.

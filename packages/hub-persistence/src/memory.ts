@@ -1,4 +1,5 @@
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
+import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
@@ -364,7 +365,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
       }
     }
     for (const flow of snapshot.flows) {
-      this.flowIndexById.set(this.flowIndexKey(flow.origin_space_id, flow.flow_id), flow);
+      const { payload_json: _payload, ...entry } = flow;
+      this.flowIndexById.set(
+        this.flowIndexKey(flow.origin_space_id, flow.flow_id),
+        normalizeFlowIndexEntry(entry),
+      );
     }
   }
 
@@ -402,7 +407,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     const snapshot = await this.getSpaceIndexSnapshot(space_id);
     return snapshot.flows.map((row) => {
       const { payload_json: _payload, ...entry } = row;
-      return entry;
+      return normalizeFlowIndexEntry(entry);
     });
   }
 

@@ -7,7 +7,7 @@ machine/trust boundary, not an agent entity.
 The default profile `tutorial-builder/v1` is fixed to `space:read`,
 `flow:read`, `flow:run`, and `step:resolve`. `event:emit` and `journal:read`
 are not defaults. The removed `action:invoke` / `gate:resolve` capabilities and
-their MCP paths (`murrmure_invoke_action`, gate tools) are absent — action
+their MCP paths (removed public invoke MCP tool, gate tools) are absent — action
 execution is internal dispatch only and gate approval uses `flow:run`.
 
 ## Mapping table
@@ -59,8 +59,7 @@ mrmr connection create --space spc_…
 mrmr connection activate con_… --space spc_…
 ```
 
-Creation auto-activates. `grant mint`, `grant use`, `agent connect`,
-`agent activate`, and `space onboard` have no aliases. Local credentials exist
+Creation auto-activates. Legacy grant lifecycle commands, legacy agent pairing commands, and the dedicated onboard command have no aliases. Local credentials exist
 only in the OS store keyed by Hub + connection ID. Generated descriptors,
 activation state, files, logs, arguments, and normal environment guidance carry
 IDs only.

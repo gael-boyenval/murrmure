@@ -3,12 +3,9 @@ import { bareSpaceId } from "./space-id.js";
 
 /**
  * Tracks connected MCP sessions per space (handshake registration + reachability
- * + server→client publish). Despite the historical "wake" lineage, this is the
- * MCP session registry — it is NOT the retired `mcp_wake` trigger dispatch path.
- * The `POST /v1/mcp/wake` wire is 404 (Task 15 Lane C) and `mcpWake(...)` is not
- * a runtime primitive; trigger templates with type `mcp_wake` must not dispatch
- * (see `TriggerDispatcher`). This class only powers the live `mcp_session`
- * executor and `/v1/mcp/session/handshake`.
+ * + server→client publish). This is the MCP session registry for the live
+ * `mcp_session` executor and `/v1/mcp/session/handshake` — not a trigger dispatch
+ * path. Retired trigger-action wires fail fast in `TriggerDispatcher`.
  */
 export class McpSessionRegistry {
   private readonly connected = new Map<string, Set<ControlPrincipal>>();

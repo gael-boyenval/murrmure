@@ -230,7 +230,7 @@ Deployables (later):
 
 ### MCP platform tools (rev-1)
 
-Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Local participants connect through the stable `murrmure-mcp` launcher with `--hub` and `--connection` ID arguments; the bridge resolves the credential from the OS store. Desktop discovery records the stable launcher at `mcp_bridge.command` plus the bundled bridge entry and runtime (see Part 13). `MURRMURE_HUB_TOKEN` is reserved for explicit headless CI runtime injection.
+Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Local participants connect through the stable `murrmure-mcp` launcher with `--hub` and `--connection` ID arguments; the bridge resolves the credential from the OS store. Desktop discovery records the stable launcher at `mcp_bridge.command` plus the bundled bridge entry and runtime (see Part 13). Hub bearer token is reserved for explicit headless CI runtime injection.
 
 | Tool | Required capability | HTTP / behavior |
 |------|---------------------|-----------------|
@@ -242,7 +242,7 @@ Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-
 | `murrmure_wait_for_run` | `space:read` | long-poll run status |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
 
-**Deprecated (v1 mount / instance model):** `get_space_state`, `transition`, `emit_event`, `wait_for_state`, `wait_for_gate`, `blob_read`, `blob_write`, `murrmure_complete_action`, `murrmure_resolve_gate`. Do not document for new integrations.
+**Deprecated (v1 mount / instance model):** `get_space_state`, `transition`, `emit_event`, `wait_for_state`, `wait_for_gate`, `blob_read`, `blob_write`, legacy complete-action MCP tool, legacy gate-resolve MCP tool. Do not document for new integrations.
 
 Grant-filtered catalog refresh required after grant changes or `mrmr space apply`.
 
@@ -405,12 +405,12 @@ Timeout returns **200 + structured snapshot**, not silent hang.
 
 ### Handler allow-list (v1 — historical)
 
-> **Removed (Task 15 Lane C).** The `mcp_wake` handler type is a retired
-> historical preset (the `POST /v1/mcp/wake` wire returns **404**, phase 16). The clean protocol uses **event handlers** in `.mrmr/space/handlers.yaml` (`on: event: { type, source? }`) + **`murrmure_emit_event`** (`event:emit` capability) + flow start conditions — not this v1 allow-list. The table below is a removal record only.
+> **Removed (Task 15 Lane C).** The retired wake handler type is a retired
+> historical preset (the retired wake HTTP endpoint returns **404**, phase 16). The clean protocol uses **event handlers** in `.mrmr/space/handlers.yaml` (`on: event: { type, source? }`) + **`murrmure_emit_event`** (`event:emit` capability) + flow start conditions — not this v1 allow-list. The table below is a removal record only.
 
 | Type | Idempotent default |
 |------|-------------------|
-| `mcp_wake` (retired — 404) | yes |
+| retired wake handler (404) | yes |
 | `http_webhook` | configurable |
 | `http_github_actions_dispatch` | **no** |
 | `cli_allowlisted` | configurable |
@@ -711,4 +711,4 @@ Review/board/foundation semantics in core · Agent LLM loop in hub · Exactly-on
 - [hub-core-validation-2026-06-20.md](./hub-core-validation-2026-06-20.md) — journey review
 - [../studio-v3-core-architecture-2026-06-20.md](../studio-v3-core-architecture-2026-06-20.md) — phase 1 analysis
 
-**Next:** `@murrmure/contracts` Zod schemas implementing Part 4–12 wire types.
+**Following:** `@murrmure/contracts` Zod schemas implementing Part 4–12 wire types.

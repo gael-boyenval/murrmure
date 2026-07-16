@@ -8,7 +8,7 @@ Normative spec for `@murrmure/cli` (`mrmr` / `murrmure`). Implementation plan: [
 
 1. Best-in-class CLI DX — `--help` on every command with description, args, flags, examples, and `Requires:` line.
 2. Human-readable default output on stdout; `--json` for scripts.
-3. Hub config parity — CLI mirrors hub HTTP routes (no Configure UI).
+3. Hub config parity — CLI mirrors hub HTTP routes (no retired configure shell).
 4. Scope-aware preflight — fail fast before HTTP when token lacks scope (config routes) or wrong space (product routes).
 5. Docs/spec/help alignment — no ghost commands.
 
@@ -242,9 +242,9 @@ Hub or creates a token, grant, connection, or credential.
 
 **`space link`:** Registers `{ host, path, primary }` binding with hub; persists **`link.space_id`** and machine-local **`link.host`** in `.mrmr/space/space.yaml` (not `.murrmure/link.json`). Use `--create` to create hub space from `space.yaml` slug.
 
-**`space apply`:** Strict-parses each flow manifest (`triggers`-only; the removed `start`, `requires_view`, `role`, `presentation`, `deriveRole`, wait shapes, wrapper branches, and `invoke:`/`checkpoint:`/`gate:` kinds are rejected with specific codes — no dual parser), compiles a `StepContractCatalog` per flow, lints handler coverage, and POSTs the bundle to the hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [step-contract bridge](../bridges/step-contract.md) for the full lint code table and [flow-engine bridge](../bridges/flow-engine.md).
+**`space apply`:** Strict-parses each flow manifest (`triggers`-only; the removed `start`, flow-level view binding field, `role`, `presentation`, role-derivation field, wait shapes, wrapper branches, and `invoke:`/`checkpoint:`/`gate:` kinds are rejected with specific codes — no dual parser), compiles a `StepContractCatalog` per flow, lints handler coverage, and POSTs the bundle to the hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [step-contract bridge](../bridges/step-contract.md) for the full lint code table and [flow-engine bridge](../bridges/flow-engine.md).
 
-**Apply lint (clean cutover):** Hard-rejected at parse (HTTP 400, no `--strict` needed): `LEGACY_START_KEY`, `LEGACY_REQUIRES_VIEW`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warnings (print by default, exit 1 under `--strict`): `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`, `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`, `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`. Unbound steps (`resolver: null`) are valid and produce no warning.
+**Apply lint (clean cutover):** Hard-rejected at parse (HTTP 400, no `--strict` needed): `LEGACY_START_KEY`, `LEGACY_VIEW_BINDING`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warnings (print by default, exit 1 under `--strict`): `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`, `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`, `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`. Unbound steps (`resolver: null`) are valid and produce no warning.
 
 **`space flow init <id> [--template hello-gate|hello-invoke]`:** Scaffolds indexed flow stack under `.mrmr/` — manifest (`triggers` + resolver-agnostic step contracts with flat `branches`/`route`), handlers, scripts, and view packages (`hello-gate` embeds intake + review views from phase 02 template). Requires existing `.mrmr/` root. Each scaffolded file includes a one-line role comment. `hello-gate` matches [06-reference-workflow-preview-review.md](../../plans/product/plan/06-reference-workflow-preview-review.md). Legacy `mrmr flow init` inside a `.mrmr/` repo redirects with exit 1.
 
@@ -289,8 +289,7 @@ canonical flow IDs; unknown/future/stale aliases fail.
 Local credentials exist only in the OS credential store keyed by Hub +
 connection ID. Activation state, descriptors, generated instructions, logs,
 arguments, project files, and normal environment guidance contain IDs only.
-`grant mint`, `grant use`, `agent connect`, `agent activate`, and
-`space onboard` are absent without aliases.
+Legacy grant lifecycle commands, legacy agent pairing commands, and the dedicated onboard command are absent without aliases.
 
 **Scope denial (human, mint):**
 
@@ -407,7 +406,7 @@ Resolves the current run step from a **shell handler** context. Used when handle
 |----------|---------|
 | `MURRMURE_RUN_ID` | Target run |
 | `MURRMURE_STEP_ID` | Target step |
-| `MURRMURE_HUB_TOKEN` | Short-lived, run-scoped resolve grant |
+| hub bearer token | Short-lived, run-scoped resolve grant |
 | `MURRMURE_HUB_URL` | Hub base URL |
 
 **HTTP:** `POST /v1/runs/{run_id}/steps/{step_id}/resolve`

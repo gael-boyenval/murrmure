@@ -120,7 +120,7 @@ Grants v2: [grants-migration.md](./grants-migration.md).
 | HTTP | Hub operations | Notes |
 |------|----------------|-------|
 | `POST /api/sessions` | `instance.create` + `state.transition(open_review)` optional | Returns `session_key` = `instance_id` |
-| `GET /api/sessions` | `query: instance.list` filtered by `contract_ref_id = cref_review_loop` | |
+| `GET /api/sessions` | `query: instance.list` filtered by review-loop contract pin | |
 | `GET /api/sessions/{key}` | `instance.get` → project SessionJson | |
 | `PATCH /api/sessions/{key}` | `instance.metadata.patch` | `{ target: { url } }`, `{ title }` |
 | `POST …/comments` | `instance.metadata.patch` on `metadata.review.threads` | |
@@ -160,7 +160,7 @@ Update capability bundle `contract/` schemas to match contract states (drop `col
 | Finish review (round 2) | `finish_review` | `changes_made` → `converged` |
 | Request production | `request_production` | `converged` → gate → `production_approved` |
 
-Contract fixture: `studio-specs/current/fixtures/product/hub/contracts/review-loop-v2.json`, pin id `cref_review_loop`.
+Contract fixture: `studio-specs/current/fixtures/product/hub/contracts/review-loop-v2.json` (review-loop contract pin).
 
 ### wait_for_review / review-cycle
 

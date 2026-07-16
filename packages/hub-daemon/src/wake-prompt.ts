@@ -9,11 +9,6 @@ export interface InvokeActionParams {
   executor_id?: string;
 }
 
-export interface WakePendingParams {
-  wake_label?: string;
-  payload?: unknown;
-}
-
 function formatParamsBlock(params: Record<string, unknown> | undefined): string {
   if (!params || Object.keys(params).length === 0) return "";
   const { instruction, prompt, ...data } = params;
@@ -56,33 +51,12 @@ export function formatInvokeActionWake(params: InvokeActionParams): string {
   return lines.join("\n").trim();
 }
 
-export function formatWakePendingWake(params: WakePendingParams): string {
-  const label = String(params.wake_label ?? "unknown");
-  const payload =
-    params.payload === undefined
-      ? ""
-      : `\nPayload:\n${JSON.stringify(params.payload, null, 2)}\n`;
-  return [
-    "Murrmure control wake: pending wake",
-    "",
-    `Wake label: ${label}`,
-    payload,
-    "Handle this wake using your Murrmure tools and local workspace access.",
-  ]
-    .join("\n")
-    .trim();
-}
-
 export function formatControlWake(
   method: string,
   params: Record<string, unknown>,
 ): string | null {
-  switch (method) {
-    case "murrmure/control.invoke_action":
-      return formatInvokeActionWake(params as InvokeActionParams);
-    case "murrmure/control.wake_pending":
-      return formatWakePendingWake(params as WakePendingParams);
-    default:
-      return null;
+  if (method === "murrmure/control.invoke_action") {
+    return formatInvokeActionWake(params as InvokeActionParams);
   }
+  return null;
 }

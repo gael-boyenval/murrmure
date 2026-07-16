@@ -71,7 +71,6 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
         name: body.name as string | undefined,
         source_space_id: String(body.source_space_id ?? ""),
         target_space_id: String(body.target_space_id ?? space_id),
-        wake_label: body.wake_label as string | undefined,
       });
     } catch (e) {
       if (isRetiredActionError(e)) {
@@ -127,8 +126,7 @@ export function mountTriggerRoutes(app: Hono, ctx: DaemonContext): void {
 
 export function normalizeTriggerBody(body: Record<string, unknown>): Record<string, unknown> {
   const action = (body.action as Record<string, unknown>) ?? {};
-  // Reject retired mcp_wake actions at the custom register boundary (strict,
-  // not silent). The wire is 404; new spaces use on: event: handlers.
+  // Reject retired trigger actions at the custom register boundary (strict).
   assertTriggerActionAccepted(action);
   const dedup = normalizeTriggerDedup(body.dedup as Record<string, unknown> | undefined);
   return {

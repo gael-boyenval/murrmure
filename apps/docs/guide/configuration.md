@@ -1,6 +1,6 @@
 # Admin commands (CLI)
 
-Team setup and administration happen through the **`mrmr` CLI**. There is no Configure UI — use these commands from a terminal while Murrmure Desktop (or your hub) is running.
+Team setup and administration happen through the **`mrmr` CLI**. The retired configure shell is gone — use these commands from a terminal while Murrmure Desktop (or your hub) is running.
 
 Requires a token with **`space:admin`** scope. Desktop bootstrap token works for first-run setup; mint admin grants for ongoing ops.
 

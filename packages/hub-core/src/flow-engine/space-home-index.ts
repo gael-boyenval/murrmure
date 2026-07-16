@@ -79,7 +79,7 @@ export function parseHookRow(raw: Record<string, unknown>): SpaceHomeHookRow | n
 export function collectFlowStartEvents(flows: FlowIndexEntry[]): SpaceHomeEventRow[] {
   const rows: SpaceHomeEventRow[] = [];
   for (const flow of flows) {
-    for (const event of flow.triggers.events ?? []) {
+    for (const event of flow.triggers?.events ?? []) {
       rows.push({
         event_type: event.type,
         kind: "flow_start",

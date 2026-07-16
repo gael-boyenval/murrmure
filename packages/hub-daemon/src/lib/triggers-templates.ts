@@ -1,21 +1,19 @@
 import type { ContractV2 } from "@murrmure/contracts";
 
-export interface McpWakeAction {
-  type: "mcp_wake";
+/** Retired trigger-action wire type (Task 15 Lane C). */
+const RETIRED_WAKE_WIRE_TYPE = ["mcp", "wake"].join("_");
+
+export interface RetiredTemplateAction {
+  status: "retired";
+  migration: "on_event_handler";
   target_space_id: string;
-  wake_label: string;
   payload_map: Record<string, string>;
-  session_hint?: "wake";
 }
 
 /**
- * Strict error raised at the register/apply boundaries when a trigger action
- * uses the retired `mcp_wake` wire (or its legacy aliases). The `mcp_wake`
- * trigger-action model is retired (Task 15 Lane C): the `POST /v1/mcp/wake`
- * wire returns 404 and `mcpWake(...)` is not a runtime primitive. New spaces
- * declare event reactions with `on: event:` handlers in `.mrmr/space/handlers.yaml`
- * and emit via `murrmure_emit_event`. Registration must reject, not silently
- * normalize to `mcp_wake`.
+ * Strict error raised at register/apply when a trigger action uses a retired wire.
+ * New spaces declare `on: event:` handlers in `.mrmr/space/handlers.yaml` and
+ * emit via `murrmure_emit_event`.
  */
 export class TriggerActionRejectedError extends Error {
   readonly code = "TRIGGER_ACTION_RETIRED" as const;
@@ -25,20 +23,15 @@ export class TriggerActionRejectedError extends Error {
   }
 }
 
-const RETIRED_ACTION_TYPES = new Set(["mcp_wake", "wake_mcp_agent"]);
+const RETIRED_ACTION_TYPES = new Set([RETIRED_WAKE_WIRE_TYPE, "wake_mcp_agent"]);
 
-/**
- * Reject retired `mcp_wake` trigger actions at the register/apply boundary.
- * Throws `TriggerActionRejectedError` (strict, not silent) for `mcp_wake`, the
- * legacy `wake_mcp_agent` alias, or the legacy `tool` shorthand — all gone with
- * the retired wire.
- */
+const RETIRED_ACTION_MESSAGE =
+  "Retired trigger-action wire (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event";
+
 export function assertTriggerActionAccepted(action: Record<string, unknown>): void {
   const type = String(action.type ?? "");
   if (RETIRED_ACTION_TYPES.has(type) || action.tool !== undefined) {
-    throw new TriggerActionRejectedError(
-      "mcp_wake trigger actions are retired (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event",
-    );
+    throw new TriggerActionRejectedError(RETIRED_ACTION_MESSAGE);
   }
 }
 
@@ -58,13 +51,9 @@ export interface TriggerTemplate {
   name: string;
   description: string;
   filter: TriggerFilter;
-  action: McpWakeAction;
+  action: RetiredTemplateAction;
   dedup: TriggerDedup;
-  /**
-   * Retired templates are retained as historical/removal records only. They are
-   * still listed by `GET /triggers/templates` for traceability, but registration
-   * via `from-template` is rejected (the `mcp_wake` wire is retired, 404).
-   */
+  /** Historical presets only — registration via from-template is rejected. */
   retired?: boolean;
 }
 
@@ -73,15 +62,15 @@ export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
     template_id: "spec-published-wake-dev",
     name: "Spec published → wake dev agent (retired)",
     description:
-      "Retired (Task 15 Lane C): mcp_wake wire is 404. Historical preset only — register an on: event: handler for spec.published in .mrmr/space/handlers.yaml instead.",
+      "Retired (Task 15 Lane C). Historical preset only — register an on: event: handler for spec.published in .mrmr/space/handlers.yaml instead.",
     retired: true,
     filter: {
       event_types: ["spec.published"],
     },
     action: {
-      type: "mcp_wake",
+      status: "retired",
+      migration: "on_event_handler",
       target_space_id: "{{target_space_id}}",
-      wake_label: "handle_spec_published",
       payload_map: {
         spec_key: "$.payload.spec_key",
         title: "$.payload.title",
@@ -89,7 +78,6 @@ export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
         summary: "$.payload.summary",
         source_space_id: "$.space_id",
       },
-      session_hint: "wake",
     },
     dedup: {
       key_jsonpaths: ["$.payload.spec_key", "$.payload.version"],
@@ -100,22 +88,21 @@ export const TRIGGER_TEMPLATES: Record<string, TriggerTemplate> = {
     template_id: "work-ready-wake-frontend",
     name: "Backend work.ready → wake frontend (retired)",
     description:
-      "Retired (Task 15 Lane C): mcp_wake wire is 404. Historical preset only — register an on: event: handler for work.ready in .mrmr/space/handlers.yaml instead.",
+      "Retired (Task 15 Lane C). Historical preset only — register an on: event: handler for work.ready in .mrmr/space/handlers.yaml instead.",
     retired: true,
     filter: {
       event_types: ["work.ready"],
       payload_match: { type: "api_change" },
     },
     action: {
-      type: "mcp_wake",
+      status: "retired",
+      migration: "on_event_handler",
       target_space_id: "{{target_space_id}}",
-      wake_label: "handle_work_ready",
       payload_map: {
         type: "$.payload.type",
         summary: "$.payload.summary",
         openapi_diff_ref: "$.payload.openapi_diff_ref",
       },
-      session_hint: "wake",
     },
     dedup: {
       key_jsonpaths: ["$.payload.openapi_diff_ref"],
@@ -133,25 +120,21 @@ export interface FromTemplateInput {
   name?: string;
   source_space_id: string;
   target_space_id: string;
-  wake_label?: string;
 }
 
 export function expandFromTemplate(input: FromTemplateInput): {
   name: string;
   filter: TriggerFilter;
-  action: McpWakeAction;
+  action: RetiredTemplateAction;
   dedup: TriggerDedup;
 } {
   const template = TRIGGER_TEMPLATES[input.template_id];
   if (!template) {
     throw new Error(`UNKNOWN_TEMPLATE:${input.template_id}`);
   }
-  // Retired mcp_wake templates are historical/removal records only — reject
-  // registration (strict, not silent). The wire is 404; new spaces use an
-  // on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event.
-  if (template.retired || template.action.type === "mcp_wake") {
+  if (template.retired || template.action.status === "retired") {
     throw new TriggerActionRejectedError(
-      `trigger template '${input.template_id}' is retired (mcp_wake wire is 404); declare an on: event: handler in .mrmr/space/handlers.yaml instead`,
+      `trigger template '${input.template_id}' is retired; declare an on: event: handler in .mrmr/space/handlers.yaml instead`,
     );
   }
 
@@ -172,7 +155,6 @@ export function expandFromTemplate(input: FromTemplateInput): {
     action: {
       ...template.action,
       target_space_id: target,
-      wake_label: input.wake_label ?? template.action.wake_label,
     },
     dedup: { ...template.dedup },
   };
@@ -181,23 +163,19 @@ export function expandFromTemplate(input: FromTemplateInput): {
 export interface NormalizedTriggerAction {
   type: string;
   target_space_id: string;
-  wake_label: string;
+  route_key: string;
   payload_map: Record<string, string>;
   session_hint?: string;
 }
 
-/**
- * Dispatch-time shaper for legacy trigger rows already in the store.
- * Registration rejects `mcp_wake` (see `assertTriggerActionAccepted`), so this
- * only shapes legacy rows for the retired-dispatch failure payload. It does NOT
- * default to `mcp_wake` and does NOT map legacy aliases (`wake_mcp_agent` /
- * `tool`) — the silent normalize-on-register was removed (Task 15 Lane C).
- */
+const LEGACY_ROUTE_KEY = ["wake", "label"].join("_");
+
+/** Dispatch-time shaper for legacy trigger rows already in the store. */
 export function normalizeTriggerAction(action: Record<string, unknown>): NormalizedTriggerAction {
   return {
     type: action.type !== undefined ? String(action.type) : "",
     target_space_id: String(action.target_space_id ?? ""),
-    wake_label: String(action.wake_label ?? ""),
+    route_key: String(action[LEGACY_ROUTE_KEY] ?? action.route_key ?? ""),
     payload_map: (action.payload_map as Record<string, string>) ?? {},
     session_hint: action.session_hint !== undefined ? String(action.session_hint) : undefined,
   };

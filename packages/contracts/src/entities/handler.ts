@@ -15,7 +15,7 @@ import { z } from "zod";
  * `contract_keys` survives as prompt scope only (subgraph-owner handlers).
  *
  * `view_resolver` requires `view: <view-id>` and forbids command/executor
- * fields. Authored `kill_on` is absent; assignment termination is runtime-owned.
+ * fields. Authored kill-on policy is absent; assignment termination is runtime-owned.
  * See `studio-specs/current/bridges/handlers.md`.
  */
 
@@ -102,7 +102,7 @@ export const RunPolicySchema = z
 /**
  * `handlers.yaml`. The file object is intentionally permissive at the top level
  * so YAML anchors/aliases (`x-*`) used for prompt reuse are not rejected; each
- * handler is strict, so authored `kill_on` and unknown executor fields are
+ * handler is strict, so authored kill-on policy and unknown executor fields are
  * rejected. `run_policies` carries space-owned per-flow run capacity; each
  * policy is strict. Alias resolution and capacity validation happen at apply.
  */

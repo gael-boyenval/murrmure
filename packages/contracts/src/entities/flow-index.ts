@@ -21,3 +21,11 @@ export const FlowIndexEntrySchema = z.object({
 });
 
 export type FlowIndexEntry = z.infer<typeof FlowIndexEntrySchema>;
+
+/** Legacy index rows may omit `triggers`; treat as invoke-only `{}`. */
+export function normalizeFlowIndexEntry(entry: FlowIndexEntry): FlowIndexEntry {
+  return {
+    ...entry,
+    triggers: entry.triggers ?? {},
+  };
+}

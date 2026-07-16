@@ -87,7 +87,7 @@ describe("space trigger register/list", () => {
           json: async () => ({
             code: "TRIGGER_ACTION_RETIRED",
             message:
-              "mcp_wake trigger actions are retired (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event",
+              "Retired trigger-action wire (Task 15 Lane C); use an on: event: handler in .mrmr/space/handlers.yaml + murrmure_emit_event",
           }),
         };
       }
@@ -126,7 +126,7 @@ describe("space trigger register/list", () => {
     };
     expect(payload.ok).toBe(false);
     expect(payload.code).toBe("TRIGGER_ACTION_RETIRED");
-    expect(payload.message).toContain("mcp_wake");
+    expect(payload.message).toContain("Retired trigger-action");
   });
 
   test("list calls GET /triggers", async () => {

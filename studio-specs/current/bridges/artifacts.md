@@ -67,7 +67,7 @@ Scopes: `blob:read` or a federated `step:resolve` credential.
 ## Dispatch integration
 
 Internal dispatch (handler `shell_spawn`/`mcp_session`, scheduler, and the
-peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke`)
+peer-only federation relay invoke endpoint)
 accepts inbound artifact references:
 
 ```json

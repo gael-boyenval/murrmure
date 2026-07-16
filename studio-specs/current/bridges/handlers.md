@@ -6,7 +6,7 @@
 
 Spaces own execution via **handlers**. A step handler binds to a resolver-agnostic
 step with `on: step.opened::{flow_name}.{qualified_step_id}` (the **`on::key`
-binding**). Flow manifests carry protocol only — no `executor.action`, no
+binding**). Flow manifests carry protocol only — no indexed action binding, no
 `role`, no `presentation`, no View identity. Handlers replace `actions.yaml`,
 `hooks.yaml`, and `executors.yaml` for default spaces. A space binds a custom
 View to a step with a **`view_resolver`** handler; the View identity lives in
@@ -18,10 +18,9 @@ the space, never in the flow.
 
 **Path:** `.mrmr/space/handlers.yaml` (v1)
 
-**Legacy (removed):** `murrmure/actions.yaml`, `murrmure/hooks.yaml`, and
-`murrmure/executors.yaml` no longer index — the handlers-only cutover is complete
+**Legacy (removed):** split legacy action/hook/executor indexes no longer index — the handlers-only cutover is complete
 (Task 15); `mrmr space apply` reads `.mrmr/space/handlers.yaml` alone. Flow steps
-must not declare `executor.action`.
+must not declare indexed action bindings.
 
 ```yaml
 version: 1
@@ -53,7 +52,7 @@ handlers:
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls `resolve_step` after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
-| `kill_on` | **Removed.** Assignment termination is runtime-owned; authored `kill_on` is rejected. |
+| kill-on policy | **Removed.** Assignment termination is runtime-owned; authored kill-on policy is rejected. |
 
 ---
 
@@ -245,9 +244,9 @@ runtime owns process lifecycle. See
   daemon. Termination is once-only: the executor deregisters its cancel handle
   when the process settles, so a timeout followed by run-failure cancellation
   signals the group exactly once. Hub/Desktop shutdown cancels every registered
-  shell executor. Authored `kill_on` is removed.
+  shell executor. Authored kill-on policy is removed.
 - Each spawned handler receives an **ephemeral run/step/handler-scoped
-  credential** (`MURRMURE_HUB_TOKEN`) in its environment, never the persistent
+  credential** (hub bearer token) in its environment, never the persistent
   machine connection. The token carries an `expires_at` backstop and a
   `scope_ref` (`{run_id}:{step_id}:{handler_id}`) with a `harness_id` of
   `run:{run_id}`; `requireToken` denies an expired or revoked token. The
@@ -324,11 +323,11 @@ A human step is presented by a space-bound **`view_resolver`** (the space owns
 the View), or left unbound and observability-only. The engine opens no
 presentation itself and the shell synthesizes no form.
 
-### Q4 — `murrmure_invoke_action` fate (removed in Task 15 Lane A)
+### Q4 — removed public invoke MCP tool fate (removed in Task 15 Lane A)
 
 **Status:** DECIDED
 
-Fully removed (Task 15 Lane A). Step lifecycle uses `murrmure_resolve_step` + handler dispatch; the public `POST /v1/spaces/:id/actions/:name/invoke` HTTP route, the `mrmr action invoke` CLI, and the `murrmure_invoke_action` MCP surface are all gone (strict 404 / not-registered rejection at the boundary). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke` (`flow:run`-gated).
+Fully removed (Task 15 Lane A). Step lifecycle uses `murrmure_resolve_step` + handler dispatch; the retired public action-invoke HTTP surface, the legacy action-invoke CLI, and the removed public invoke MCP tool are all gone (strict 404 / not-registered rejection at the boundary). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay invoke endpoint (`flow:run`-gated).
 
 ### Q5 — Worker missing bindings
 
@@ -340,7 +339,7 @@ Warning by default (`WORKER_NO_BINDINGS`). Strict error in CI when `mrmr space d
 
 **Status:** DECIDED
 
-`MURRMURE_HUB_TOKEN` injected on `shell_spawn` dispatch is **short-lived and run/step/handler-scoped** (resolve capability only). Minted per dispatch with an `expires_at` backstop, a `scope_ref` (`{run_id}:{step_id}:{handler_id}`), and a `harness_id` of `run:{run_id}`; revoked on step resolve/auto-complete, run terminal, and Desktop shutdown. Never reuse long-lived grant tokens in shell env. The assignment boundary is enforced on every `step:resolve` endpoint — `mrmr step resolve`, upload-intent creation, file transfer, and intent abandon — by one shared `requireAssignmentScope` helper, so an ephemeral token can never act for another run/step/space. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly and is denied on `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH` / `TOKEN_RUN_SCOPE_MISMATCH`), cross-space (`scope_enforcement_failure`), or expiry/revocation. Views receive no hub credential.
+Hub bearer token injected on `shell_spawn` dispatch is **short-lived and run/step/handler-scoped** (resolve capability only). Minted per dispatch with an `expires_at` backstop, a `scope_ref` (`{run_id}:{step_id}:{handler_id}`), and a `harness_id` of `run:{run_id}`; revoked on step resolve/auto-complete, run terminal, and Desktop shutdown. Never reuse long-lived grant tokens in shell env. The assignment boundary is enforced on every `step:resolve` endpoint — `mrmr step resolve`, upload-intent creation, file transfer, and intent abandon — by one shared `requireAssignmentScope` helper, so an ephemeral token can never act for another run/step/space. `mrmr step resolve` targets `MURRMURE_HUB_URL` explicitly and is denied on `scope_ref` mismatch (`TOKEN_STEP_SCOPE_MISMATCH` / `TOKEN_RUN_SCOPE_MISMATCH`), cross-space (`scope_enforcement_failure`), or expiry/revocation. Views receive no hub credential.
 
 ### Q7 — `complete: cli` branch validation
 

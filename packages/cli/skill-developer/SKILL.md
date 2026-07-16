@@ -35,7 +35,7 @@ Deep dives: [reference/space-directory.md](reference/space-directory.md), [refer
 ## Authoring workflow
 
 1. **Scaffold** — `mrmr space init`; `mrmr space flow init <id>`; `mrmr space view init <id>`.
-2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/`requires_view`. No `executor.action`, no View identity.
+2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/flow-level view binding. No indexed action binding, no View identity.
 3. **Edit execution** — `handlers.yaml`: bind steps with `on: step.opened::{flow_name}.{step_id}`; map prompt-scope `contract_keys`; bind Views with `view_resolver`.
 4. **Wire keys** — after apply, read `.mrmr/dev/contracts/contract-keys.json`; align handler `contract_keys` with catalog entries.
 5. **Validate** — `mrmr space apply --strict`; `mrmr space doctor`; fix lint warnings.
@@ -43,7 +43,7 @@ Deep dives: [reference/space-directory.md](reference/space-directory.md), [refer
 
 ## Handlers (`handlers.yaml`)
 
-Handlers replace legacy `actions.yaml`, `hooks.yaml`, and per-step `executor.action` for default spaces. A step is bound by its `on::key` alias; `contract_keys` is prompt-scope only.
+Handlers replace legacy split action/hook indexes and per-step indexed action bindings for default spaces. A step is bound by its `on::key` alias; `contract_keys` is prompt-scope only.
 
 ```yaml
 version: 1
@@ -74,7 +74,7 @@ handlers:
 | `complete: explicit` | Handler prompt must instruct agent to call `murrmure_resolve_step` |
 | `complete: cli` | Command must invoke `mrmr step resolve`; lint enforces |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. `view_resolver` forbids `command`/`prompt`/`params`/`cwd`. |
-| `kill_on` | **Removed** — authored `kill_on` is rejected; assignment termination is runtime-owned |
+| kill-on policy | **Removed** — authored kill-on policy is rejected; assignment termination is runtime-owned |
 
 ### Prompt protocol
 
@@ -372,7 +372,7 @@ YAML anchors (`x-agent-cmd`) keep command DRY across handlers.
 
 1. **Index via apply** — editing `.mrmr/flows/` alone does not change runtime until apply succeeds.
 2. **Protocol vs execution** — flows declare branches/schemas; handlers declare commands/prompts.
-3. **No `executor.action`** in manifests — rejected at apply.
+3. **No indexed action binding** in manifests — rejected at apply.
 4. **Human UX lives on steps, not triggers** — a step's human UI is bound by the space (`view_resolver` + Views), never declared in the portable flow.
 5. **Custom views are primary; no fallback forms** — a bound `view_resolver` fills the canvas; the shell synthesizes no built-in form. Unbound steps are observability-only.
 

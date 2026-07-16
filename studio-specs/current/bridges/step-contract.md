@@ -5,14 +5,14 @@
 
 Murrmure flow steps are **resolver-agnostic contracts**. A step is `id`, optional
 `description`, optional `branches`, and optional nested `steps` — nothing else.
-There is no `role`, `presentation`, `deriveRole`, wait kind, or resolver modality on
+There is no `role`, `presentation`, role-derivation field, wait kind, or resolver modality on
 a step: spaces bind resolvers (handlers, views, agents) through
 [handlers.md](./handlers.md) (the `on::key` binding in `.mrmr/space/handlers.yaml`;
 `contract_keys` is prompt-scope only).
 
-Flow manifests declare **protocol only** — no `executor.action`, no `invoke:` /
+Flow manifests declare **protocol only** — no indexed action binding, no `invoke:` /
 `checkpoint:` / `gate:` runtime kinds. **`triggers`** is the only start-condition
-field; the removed `start` and flow-level `requires_view` are rejected by the parser
+field; the removed `start` and flow-level view binding field are rejected by the parser
 with no dual reader and no migration.
 
 ---
@@ -116,7 +116,7 @@ branches:
 | Field | Effect |
 |-------|--------|
 | `route: { step: <id> }` | Engine opens the target step (top-level or qualified nested id) |
-| `route: { run: completed }` | Run ends successfully (canonical terminal success; no `next: null`) |
+| `route: { run: completed }` | Run ends successfully (canonical terminal success; no legacy null terminal routing shorthand) |
 | `route: { run: failed }` | Run fails |
 | `resume: <ancestor_id>` | Yield control back to an already-open ancestor (nested loops); the ancestor stays open and owns its own resolution |
 
@@ -172,7 +172,7 @@ rejected. Only omission receives defaults.
 
 A step is `open` while its memo status is `working`, and advances to `resolved`
 when an authorized protocol client or space-bound handler resolves a branch. There
-is no `awaiting_human` status, no `active_human_step` projection, and no gate row
+is no human-wait run status, no active human-step projection, and no gate row
 for flow steps. Run detail exposes a generic **`open_steps[]`** projection:
 
 ```json
@@ -290,9 +290,9 @@ persist, no `--strict` needed) — the bundle never reaches the index:
 | Code | Meaning |
 |------|---------|
 | `LEGACY_START_KEY` | Top-level `start:` is removed — use `triggers:` (including dual `start` + `triggers`) |
-| `LEGACY_REQUIRES_VIEW` | `requires_view` is removed — bind Views through `handlers.yaml` |
+| `LEGACY_VIEW_BINDING` | Flow-level view binding field is removed — bind Views through `handlers.yaml` |
 | `LEGACY_STEP_KIND` | Step uses deprecated `invoke:` / `checkpoint:` / `gate:` |
-| `REMOVED_FIELD` | Step or branch uses a removed key (`role`, `presentation`, `deriveRole`, `next`, `fail_run`, `goto`, `fail`, `complete`, `continue`, `payload`, `outcome`, …) |
+| `REMOVED_FIELD` | Step or branch uses a removed key (`role`, `presentation`, role-derivation field, legacy step-target routing, run-fail routing field, goto routing, fail flag, parent-completion routing, payload wrapper, outcome wrapper, …) |
 | `INLINE_SCRIPT_STEP` | Flow manifest rejects inline `script` / `run` / `shell` / `command` steps |
 | `EMPTY_BRANCHES` | Step declares `branches: {}` — omit branches for defaults or declare at least one |
 | `CUSTOM_BRANCH_REQUIRES_ROUTE` | Custom top-level branch has no explicit `route` |
@@ -375,7 +375,7 @@ a token without `step:resolve` is denied (403). Journal events:
 `mrmr.step.opened`, `mrmr.step.yielded`, `mrmr.step.resolved`, and
 `mrmr.step.resumed`. Step memos use `working` while assigned, `yielded` while a
 child owns control, and `completed` / `failed` once resolved — there is
-no `awaiting_human` run status and no `active_human_step` projection.
+no human-wait run status and no active human-step projection.
 
 ---
 
@@ -449,10 +449,10 @@ The clean target removes the v2.2 modality and routing fields with **no dual par
 and no migration**:
 
 1. Replace `start: { … }` with `triggers: { … }` (the only start-condition field).
-2. Remove `requires_view`; bind Views through `.mrmr/space/handlers.yaml`.
-3. Remove `role`, `presentation`, `deriveRole` from every step.
-4. Replace `next: <id>` / `next: null` with `route: { step: <id> }` /
-   `route: { run: completed }`; replace `fail_run: true` / `fail: true` with
+2. Remove flow-level view binding; bind Views through `.mrmr/space/handlers.yaml`.
+3. Remove `role`, `presentation`, and role-derivation fields from every step.
+4. Replace legacy step-target routing and null terminal routing with `route: { step: <id> }` /
+   `route: { run: completed }`; replace run-fail routing flags with
    `route: { run: failed }`; replace child-owned sibling/parent completion with
    `resume: <parent>`, then let the resumed parent activate the next direct child
    through `murrmure_open_child_step`.

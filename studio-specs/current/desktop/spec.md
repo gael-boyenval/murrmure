@@ -38,7 +38,7 @@ Hub remains the only HTTP server and serves both static shell content and runtim
 - Bundled shell uses `VITE_MURRMURE_BUNDLED=1`.
 - In bundled mode, hub URL resolution is same-origin (`window.location.origin`).
 - `/connect` auto-redirects to `/spaces/new` when bundled mode already has `murrmure_token` in localStorage.
-- Configure/setup wizards retired; legacy `/configure` and `/setup` redirect to `/spaces/new`.
+- Retired configure shell; legacy `/configure` and `/setup` redirect to `/spaces/new`.
 - Local-tool setup uses `mrmr connection create`; Desktop never exposes connection token material.
 - Flow canvas iframe uses relative URL in bundled mode: `/flows/{packageId}/{version}/ui/shell.html?...`.
 - `hub-fetch` forwarding from canvas is restricted to `/api/{packageId}/...` for the mounted flow.

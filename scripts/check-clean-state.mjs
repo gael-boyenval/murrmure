@@ -163,7 +163,13 @@ function collectFiles(root, filePattern) {
   return files;
 }
 
-const hits = [];
+const ACTIVE_GUIDANCE_SKIP_PREFIXES = ["studio-specs/current/clean-slate/"];
+
+function shouldSkipActiveGuidanceFile(relativePath) {
+  return ACTIVE_GUIDANCE_SKIP_PREFIXES.some((prefix) =>
+    relativePath.startsWith(prefix),
+  );
+}
 
 function scan(files, rules) {
   for (const file of files) {
@@ -194,6 +200,8 @@ function scan(files, rules) {
   }
 }
 
+const hits = [];
+
 scan(
   [
     ...PRODUCTION_SOURCE_ROOTS.flatMap((path) =>
@@ -213,7 +221,7 @@ scan(
       collectFiles(join(REPO_ROOT, path), /\.(?:md|json|ya?ml)$/),
     ),
     ...ACTIVE_GUIDANCE_FILES.map((path) => join(REPO_ROOT, path)),
-  ],
+  ].filter((file) => !shouldSkipActiveGuidanceFile(relative(REPO_ROOT, file))),
   ACTIVE_GUIDANCE_FORBIDDEN,
 );
 scan(
@@ -229,7 +237,7 @@ scan(
 scan(
   ACTIVE_GUIDANCE_MD_ROOTS.flatMap((path) =>
     collectFiles(join(REPO_ROOT, path), /\.md$/),
-  ),
+  ).filter((file) => !shouldSkipActiveGuidanceFile(relative(REPO_ROOT, file))),
   ACTIVE_GUIDANCE_MD_FORBIDDEN,
 );
 

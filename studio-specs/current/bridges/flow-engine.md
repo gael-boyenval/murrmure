@@ -40,7 +40,7 @@ Runs pin `flow_digest` from compiled IR at start.
 
 ## Step contracts (v3, resolver-agnostic)
 
-Flows authored with resolver-agnostic **`step`** blocks compile a **`StepContractCatalog`** at apply time. Runtime progression uses **`POST /v1/runs/{run_id}/steps/{step_id}/resolve`** (MCP: `murrmure_resolve_step`) — not gate resolve or `complete_action`. Start conditions live under **`triggers`** (the only start-condition field); the removed `start` and `requires_view` are rejected.
+Flows authored with resolver-agnostic **`step`** blocks compile a **`StepContractCatalog`** at apply time. Runtime progression uses **`POST /v1/runs/{run_id}/steps/{step_id}/resolve`** (MCP: `murrmure_resolve_step`) — not gate resolve or `complete_action`. Start conditions live under **`triggers`** (the only start-condition field); the removed `start` and flow-level view binding field are rejected.
 
 | Concept | Behavior |
 |---------|----------|
@@ -69,8 +69,8 @@ Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_c
 ## Removed legacy engine surface (historical)
 
 > The v2 `invoke:`, `checkpoint:`, `gate:`, and `wait:` step kinds, the
-> `on_resolve`/`goto` routing, `isDeclarativeCheckpointStep`, and the
-> `checkpoint-dispatch` / `checkpoint-resolve` / `checkpoint-runner` modules
+> legacy checkpoint-on-resolve routing, `goto` routing, `isDeclarativeCheckpointStep`, and the
+> `checkpoint-dispatch` / checkpoint resolution / `checkpoint-runner` modules
 > were removed in the Task 15 Lane A cutover. Flows are resolver-agnostic step
 > contracts only ([step-contract.md](./step-contract.md)); flow steps advance
 > through `step:resolve`, never through gates. The only retained gate surface

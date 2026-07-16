@@ -4,7 +4,7 @@ Flows live in `.mrmr/flows/{name}/flow.manifest.yaml` — indexed via `mrmr spac
 
 ## Triggers (when a run may start)
 
-`triggers:` is the **only** start-condition field. The removed `start:` and `requires_view` are rejected by the parser with no fallback.
+`triggers:` is the **only** start-condition field. The removed `start:` and flow-level view binding field are rejected by the parser with no fallback.
 
 ```yaml
 triggers:
@@ -27,7 +27,7 @@ triggers:
 
 ## Step contracts (resolver-agnostic)
 
-A step is `id`, optional `description`, optional `branches`, and optional nested `steps` — no `role`, `presentation`, `deriveRole`, or resolver modality. A step with no bound handler is valid and externally resolvable (`resolver: null`).
+A step is `id`, optional `description`, optional `branches`, and optional nested `steps` — no `role`, `presentation`, role-derivation field, or resolver modality. A step with no bound handler is valid and externally resolvable (`resolver: null`).
 
 ```yaml
 steps:
@@ -113,7 +113,7 @@ opens, resolves, or branch-validates the parent.
 A step is **open** while its memo status is `working`; a parent is `yielded`
 while one child owns control. Run detail exposes generic `open_steps[]` with
 sanitized resolver, declared children, and returned-child context. There is no
-`awaiting_human` status and no `active_human_step` projection.
+human-wait run status and no active human-step projection.
 
 Agents, views, and authorized protocol clients call **`murrmure_resolve_step`**:
 
@@ -152,7 +152,7 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | Code | Meaning |
 |------|---------|
 | `LEGACY_START_KEY` | Top-level `start:` removed — use `triggers:` (including dual `start` + `triggers`) |
-| `LEGACY_REQUIRES_VIEW` | `requires_view` removed — bind Views through `handlers.yaml` |
+| `LEGACY_VIEW_BINDING` | Flow-level view binding field removed — bind Views through `handlers.yaml` |
 | `LEGACY_STEP_KIND` | Legacy `invoke:` / `checkpoint:` / `gate:` step kind |
 | `REMOVED_FIELD` | Removed step/branch key (`role`, `presentation`, `next`, `fail_run`, `goto`, `fail`, `payload`, `outcome`, …) |
 | `EMPTY_BRANCHES` | `branches: {}` — omit for defaults or declare at least one |
@@ -189,8 +189,8 @@ admission.
 
 - `apiVersion: murrmure.flow/v1` is the sole clean target (no dual parser)
 - **No inline script steps** — rejected at apply
-- **No `executor.action`** — use handlers + `on::key` binding
-- **No `start`, `requires_view`, `role`, `presentation`** — rejected by the strict schema
+- **No indexed action binding** — use handlers + `on::key` binding
+- **No `start`, flow-level view binding, `role`, `presentation`** — rejected by the strict schema
 - Templates: `{{steps.id.output.field}}`, `{{input.*}}` in handler params
 
 See [space-directory.md](space-directory.md) and parent `SKILL.md` for handler wiring, and the [step-contract bridge](../../../../../studio-specs/current/bridges/step-contract.md) for the normative contract.

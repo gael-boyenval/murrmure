@@ -1,4 +1,4 @@
-# Role: optional event hooks — edit and run `mrmr space apply` to index.
+# Role: optional event handlers — edit and run `mrmr space apply` to index.
 version: 1
 hooks: {}
 # Example:
@@ -7,6 +7,6 @@ hooks: {}
 #     on:
 #       event:
 #         type: mrmr.spec.published
-#     do:
-#       - invoke:
-#           action: run_preview_agent
+#     type: shell_spawn
+#     complete: auto
+#     command: mrmr flow run {{FLOW_ID}}

@@ -40,10 +40,6 @@ export type ControlMessage =
         executor_id?: string;
         prompt?: string;
       };
-    }
-  | {
-      method: "murrmure/control.wake_pending";
-      params: { seq: number; wake_label: string; payload: unknown; prompt?: string };
     };
 
 const TTL_MS = 24 * 60 * 60 * 1000;

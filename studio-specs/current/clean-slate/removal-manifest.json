@@ -1,0 +1,719 @@
+{
+  "$schema": "./removal-manifest.schema.json",
+  "version": 1,
+  "description": "Single source of truth for clean-slate removed vocabulary. Drives scripts/check-removal-matrix.mjs. Sources: Tasks 01–15, check-clean-state, Task 15 review findings.",
+  "task_sources": {
+    "00": "contracts + tutorial harness",
+    "01": "clean boot, no seed/catalog/FDK",
+    "02": "connection create/activate, no grant/agent/onboard",
+    "03": "resolver-agnostic steps, no start/requires_view/role/presentation/wait",
+    "04": "view_resolver, no built-in forms/view_ref/GateResolvePanel",
+    "05": "branch artifact contracts",
+    "06": "safe shell handler, no kill_on",
+    "07": "agent prompt protocol",
+    "08": "nested call/return, no complete_parent/goto",
+    "09": "run capacity",
+    "10": "cleanup commit",
+    "11": "artifacts retention",
+    "12": "shared flow page",
+    "13": "clean-slate removal gate",
+    "14": "release acceptance",
+    "15": "legacy v2 runtime + docs"
+  },
+  "rule_path_suppressions": {
+    "mcp-invoke-action": [
+      "packages/cli/skill-agent/SKILL.md",
+      "packages/cli/skill-agent/reference/mcp.md"
+    ],
+    "mcp-complete-action": [
+      "packages/cli/skill-agent/SKILL.md",
+      "packages/cli/skill-agent/reference/mcp.md"
+    ],
+    "mcp-wait-for-gate": [
+      "packages/cli/skill-agent/SKILL.md",
+      "packages/cli/skill-agent/reference/mcp.md"
+    ],
+    "mcp-resolve-gate": [
+      "packages/cli/skill-agent/SKILL.md",
+      "packages/cli/skill-agent/reference/mcp.md"
+    ],
+    "grant-mint-command": ["CHANGELOG.md", "packages/cli/CHANGELOG.md", "packages/hub-daemon/CHANGELOG.md"],
+    "grant-use-command": ["CHANGELOG.md", "packages/cli/CHANGELOG.md"],
+    "capability-action-invoke": [
+      "studio-specs/current/bridges/grants-migration.md",
+      "apps/docs/guide/tutorials/index.md"
+    ],
+    "hub-token-local-export": [
+      "apps/docs/reference/environment.md",
+      "apps/docs/guide/space-handlers.md",
+      "apps/docs/guide/cli.md",
+      "apps/docs/guide/troubleshooting.md",
+      "apps/docs/guide/agents-mcp.md"
+    ],
+    "requires-view-field": [
+      "packages/hub-core/src/index/parse-flow-manifest.ts",
+      "packages/contracts/src/flow/manifest.ts",
+      "packages/hub-core/src/flow-engine/engine-capabilities.ts"
+    ],
+    "derive-role-field": [
+      "packages/hub-core/src/flow-engine/step-contract-compile.ts",
+      "packages/contracts/src/entities/step-contract.ts"
+    ],
+    "flow-view-ref": [
+      "packages/contracts/src/flow/ir.ts",
+      "packages/hub-core/src/index/apply-index.ts",
+      "packages/shell-client/src/types.ts"
+    ],
+    "checkpoint-resolve-command": [
+      "packages/hub-core/src/handlers/hub.ts",
+      "packages/runtime-kernel/src/checkpoint/lifecycle.ts",
+      "packages/runtime-kernel/test/conformance/hardened-golden.test.ts",
+      "packages/hub-core/test/integration/j01.test.ts"
+    ],
+    "legacy-studio-hub-mcp": [
+      "packages/cli/src/lib/space-doctor-mcp.ts"
+    ],
+    "public-action-invoke-route": [
+      "packages/hub-daemon/src/routes/federation/index.ts",
+      "packages/hub-daemon/src/federation-wire.ts"
+    ],
+    "capability-gate-resolve": [
+      "studio-specs/current/bridges/grants-migration.md",
+      "apps/docs/guide/tutorials/index.md"
+    ]
+  },
+  "path_allowlists": {
+    "archive": [
+      "studio-specs/current/clean-slate/**",
+      "studio-specs/archives/**",
+      "studio-specs/plans/**",
+      "CHANGELOG.md",
+      "packages/*/CHANGELOG.md",
+      "apps/docs/CHANGELOG.md"
+    ],
+    "test_and_enforcement": [
+      "**/test/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "scripts/check-clean-state.mjs",
+      "scripts/check-removal-matrix.mjs",
+      "scripts/check-run-scratch-paths.mjs",
+      "scripts/check-nested-call-return.mjs",
+      "packages/cli/test/docs-proof.test.ts"
+    ],
+    "fixtures": [
+      "studio-specs/current/fixtures/**",
+      "test-utils/**",
+      "fixtures/**"
+    ]
+  },
+  "surfaces": {
+    "production": {
+      "blocking": true,
+      "roots": [
+        "packages/contracts/src",
+        "packages/hub-daemon/src",
+        "packages/hub-core/src",
+        "packages/cli/src",
+        "packages/view-sdk/src",
+        "packages/executors/src",
+        "packages/mcp-bridge/src",
+        "packages/runtime-contracts/src",
+        "packages/runtime-kernel/src",
+        "packages/runtime-adapter-http/src",
+        "packages/runtime-persistence/src",
+        "packages/shell-web/src",
+        "packages/shell-client/src",
+        "apps/desktop/src"
+      ],
+      "extra_files": ["apps/desktop/electrobun.config.ts"],
+      "extensions": [".ts", ".tsx", ".js", ".mjs", ".json"]
+    },
+    "active_guidance": {
+      "blocking": true,
+      "roots": [
+        "apps/docs",
+        "studio-specs/current",
+        "packages/cli/skill-agent",
+        "packages/cli/skill-developer",
+        "packages/cli/templates",
+        "README.md",
+        "studio-specs/README.md"
+      ],
+      "extensions": [".md", ".yaml", ".yml", ".json", ".ts"]
+    },
+    "scaffolds": {
+      "blocking": true,
+      "roots": ["packages/cli/templates"],
+      "extensions": [".md", ".yaml", ".yml", ".json", ".ts", ".mjs"]
+    },
+    "flow_manifests": {
+      "blocking": true,
+      "roots": [
+        "test-utils/spaces",
+        "studio-specs/current/fixtures",
+        "packages/cli/templates"
+      ],
+      "extensions": [".yaml", ".yml"],
+      "files_glob": ["**/flow.manifest.yaml", "**/flow.manifest.yml"]
+    },
+    "shell_ui": {
+      "blocking": true,
+      "roots": ["packages/shell-web/src", "packages/shell-client/src"],
+      "extensions": [".ts", ".tsx"]
+    }
+  },
+  "rules": [
+    {
+      "id": "capability-action-invoke",
+      "label": "removed action:invoke capability",
+      "pattern": "action:invoke",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "capability-gate-resolve",
+      "label": "removed gate:resolve capability",
+      "pattern": "gate:resolve",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "cli-action-invoke",
+      "label": "removed mrmr action invoke CLI",
+      "pattern": "mrmr action invoke",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "mcp-invoke-action",
+      "label": "removed murrmure_invoke_action MCP tool",
+      "pattern": "murrmure_invoke_action",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "mcp-complete-action",
+      "label": "removed murrmure_complete_action MCP tool",
+      "pattern": "murrmure_complete_action",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "mcp-wait-for-gate",
+      "label": "removed murrmure_wait_for_gate MCP tool",
+      "pattern": "murrmure_wait_for_gate",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "mcp-resolve-gate",
+      "label": "removed murrmure_resolve_gate MCP tool",
+      "pattern": "murrmure_resolve_gate",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "checkpoint-declarative-step",
+      "label": "removed isDeclarativeCheckpointStep",
+      "pattern": "isDeclarativeCheckpointStep",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "checkpoint-step-schema",
+      "label": "removed FlowCheckpointStepSchema",
+      "pattern": "FlowCheckpointStepSchema",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "checkpoint-on-resolve-schema",
+      "label": "removed FlowCheckpointOnResolve schema",
+      "pattern": "FlowCheckpointOnResolve",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "checkpoint-view-ref",
+      "label": "removed resolveCheckpointViewRef",
+      "pattern": "resolveCheckpointViewRef",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "checkpoint-loopback-hint",
+      "label": "removed CHECKPOINT_LOOPBACK_HINT",
+      "pattern": "CHECKPOINT_LOOPBACK_HINT",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "checkpoint-resolve-command",
+      "label": "removed kernel checkpoint.resolve command",
+      "pattern": "checkpoint\\.resolve(?!d)",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "checkpoint-dispatch-module",
+      "label": "removed checkpoint-dispatch module",
+      "pattern": "checkpoint-dispatch",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "checkpoint-resolve-module",
+      "label": "removed checkpoint-resolve module",
+      "pattern": "checkpoint-resolve",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "checkpoint-runner-module",
+      "label": "removed checkpoint-runner module",
+      "pattern": "checkpoint-runner",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "invoke-from-mcp-wake",
+      "label": "removed invokeFromMcpWake dispatch",
+      "pattern": "invokeFromMcpWake",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "view-submit-export",
+      "label": "removed useViewSubmit View SDK export",
+      "pattern": "useViewSubmit",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "space-home-your-flows",
+      "label": "removed your_flows payload field",
+      "pattern": "your_flows",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "space-home-available-to-run",
+      "label": "removed available_to_run payload field",
+      "pattern": "available_to_run",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "handler-missing-diagnostic",
+      "label": "removed HANDLER_MISSING diagnostic",
+      "pattern": "HANDLER_MISSING",
+      "surfaces": ["production"]
+    },
+    {
+      "id": "grant-mint-command",
+      "label": "removed grant mint command",
+      "pattern": "grant mint",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "grant-use-command",
+      "label": "removed grant use command",
+      "pattern": "grant use",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "agent-connect-command",
+      "label": "removed agent connect command",
+      "pattern": "agent connect",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "agent-activate-command",
+      "label": "removed agent activate command",
+      "pattern": "agent activate",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "space-onboard-command",
+      "label": "removed space onboard command",
+      "pattern": "space onboard",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "artifact-content-base64",
+      "label": "removed content_base64 artifact PUT",
+      "pattern": "content_base64",
+      "surfaces": ["production", "active_guidance"],
+      "paths_only": [
+        "packages/contracts/src/entities/artifact-record.ts",
+        "packages/hub-daemon/src/routes/artifacts/index.ts",
+        "packages/hub-daemon/src/artifact-service.ts"
+      ]
+    },
+    {
+      "id": "awaiting-human-status",
+      "label": "removed awaiting_human run status",
+      "pattern": "awaiting_human",
+      "surfaces": ["active_guidance"]
+    },
+    {
+      "id": "presentation-view-field",
+      "label": "removed presentation.view flow field",
+      "pattern": "presentation\\.view",
+      "surfaces": ["active_guidance", "scaffolds"]
+    },
+    {
+      "id": "contract-keys-dispatch",
+      "label": "removed contract_keys-keyed handler dispatch model",
+      "pattern": "keyed by .{0,20}contract_keys",
+      "surfaces": ["active_guidance"]
+    },
+    {
+      "id": "handler-cutover-deferred",
+      "label": "removed until HANDLER-CUTOVER deferral",
+      "pattern": "until HANDLER-CUTOVER",
+      "surfaces": ["active_guidance", "scaffolds"]
+    },
+    {
+      "id": "unmigrated-spaces",
+      "label": "removed unmigrated spaces acceptance",
+      "pattern": "unmigrated spaces",
+      "surfaces": ["active_guidance"]
+    },
+    {
+      "id": "hooks-yaml-active",
+      "label": "removed murrmure/hooks.yaml as active index",
+      "pattern": "murrmure/hooks\\.yaml",
+      "surfaces": ["active_guidance", "scaffolds"]
+    },
+    {
+      "id": "legacy-actions-yaml",
+      "label": "removed murrmure/actions.yaml scaffold",
+      "pattern": "murrmure/actions\\.yaml",
+      "surfaces": ["active_guidance", "scaffolds"]
+    },
+    {
+      "id": "legacy-executors-yaml",
+      "label": "removed murrmure/executors.yaml scaffold",
+      "pattern": "murrmure/executors\\.yaml",
+      "surfaces": ["active_guidance", "scaffolds"]
+    },
+    {
+      "id": "mcp-wake-wire",
+      "label": "removed mcp_wake trigger/wire",
+      "pattern": "mcp_wake",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "mcp-wake-call",
+      "label": "removed mcpWake() runtime call",
+      "pattern": "mcpWake",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "wake-label-routing",
+      "label": "removed wake_label routing",
+      "pattern": "wake_label",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "control-wake-pending",
+      "label": "removed control.wake_pending",
+      "pattern": "control\\.wake_pending",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "invoke-preflight",
+      "label": "removed invoke preflight",
+      "pattern": "invoke preflight",
+      "surfaces": ["active_guidance"]
+    },
+    {
+      "id": "fdk-vocabulary",
+      "label": "removed FDK vocabulary",
+      "pattern": "\\bFDK\\b|flow-dev-kit",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "package-catalog",
+      "label": "removed PACKAGE_CATALOG seed",
+      "pattern": "PACKAGE_CATALOG",
+      "surfaces": ["production", "active_guidance"]
+    },
+    {
+      "id": "temp-runs-root",
+      "label": "removed .mrmr.temp/runs scratch root",
+      "pattern": "\\.mrmr\\.temp/runs",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "requires-view-field",
+      "label": "removed requires_view flow field",
+      "pattern": "requires_view",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "kill-on-field",
+      "label": "removed authored kill_on",
+      "pattern": "kill_on",
+      "surfaces": ["production", "active_guidance", "scaffolds"]
+    },
+    {
+      "id": "v2-tutorial-active-path",
+      "label": "active link to removed v2 tutorial tree",
+      "pattern": "01-local-preview-review/",
+      "surfaces": ["active_guidance"],
+      "paths_only": ["apps/docs/**"]
+    },
+    {
+      "id": "action-invoke-bridge-doc",
+      "label": "removed action-invoke bridge page",
+      "pattern": "bridges/action-invoke\\.md",
+      "surfaces": ["active_guidance"],
+      "sources": ["13", "15"]
+    },
+
+    {
+      "id": "flow-start-field",
+      "label": "removed flow start: field",
+      "pattern": "(^|\\n)\\s*start:",
+      "surfaces": ["flow_manifests", "active_guidance"],
+      "sources": ["03", "13"]
+    },
+    {
+      "id": "derive-role-field",
+      "label": "removed deriveRole step field",
+      "pattern": "deriveRole",
+      "surfaces": ["production", "active_guidance", "flow_manifests"],
+      "sources": ["03"]
+    },
+    {
+      "id": "step-role-modality",
+      "label": "removed step role: agent|human modality",
+      "pattern": "role:\\s*(agent|human)\\b",
+      "surfaces": ["flow_manifests", "active_guidance"],
+      "sources": ["03"]
+    },
+    {
+      "id": "active-human-step",
+      "label": "removed active_human_step field",
+      "pattern": "active_human_step",
+      "surfaces": ["production", "active_guidance", "flow_manifests"],
+      "sources": ["03"]
+    },
+    {
+      "id": "presentation-step-field",
+      "label": "removed presentation: step field",
+      "pattern": "(^|\\n)\\s*presentation:",
+      "surfaces": ["flow_manifests", "active_guidance", "scaffolds"],
+      "sources": ["03", "04"]
+    },
+    {
+      "id": "step-kind-invoke",
+      "label": "removed invoke: step kind",
+      "pattern": "\\binvoke:",
+      "surfaces": ["flow_manifests"],
+      "sources": ["03", "13"]
+    },
+    {
+      "id": "step-kind-checkpoint",
+      "label": "removed checkpoint: step kind",
+      "pattern": "\\bcheckpoint:",
+      "surfaces": ["flow_manifests"],
+      "sources": ["03", "15"]
+    },
+    {
+      "id": "step-kind-gate-authoring",
+      "label": "removed gate: authored step kind",
+      "pattern": "\\bgate:",
+      "surfaces": ["flow_manifests"],
+      "sources": ["03"]
+    },
+    {
+      "id": "routing-goto",
+      "label": "removed goto: branch routing",
+      "pattern": "\\bgoto:",
+      "surfaces": ["production", "flow_manifests", "active_guidance"],
+      "sources": ["03", "08", "15"]
+    },
+    {
+      "id": "routing-fail-run",
+      "label": "removed fail_run: routing",
+      "pattern": "fail_run:",
+      "surfaces": ["flow_manifests", "active_guidance"],
+      "sources": ["03"]
+    },
+    {
+      "id": "routing-next",
+      "label": "removed next: routing",
+      "pattern": "\\bnext:",
+      "surfaces": ["flow_manifests", "active_guidance"],
+      "sources": ["03"]
+    },
+    {
+      "id": "routing-complete-parent",
+      "label": "removed complete: parent / complete_parent",
+      "pattern": "complete:\\s*parent|complete_parent",
+      "surfaces": ["production", "flow_manifests", "active_guidance"],
+      "sources": ["08"]
+    },
+    {
+      "id": "routing-continue-parent",
+      "label": "removed continue: parent / continue_parent",
+      "pattern": "continue:\\s*parent|continue_parent",
+      "surfaces": ["production", "flow_manifests", "active_guidance"],
+      "sources": ["08"]
+    },
+    {
+      "id": "empty-branches-object",
+      "label": "removed empty branches: {}",
+      "pattern": "branches:\\s*\\{\\s*\\}",
+      "surfaces": ["flow_manifests"],
+      "sources": ["03"]
+    },
+    {
+      "id": "flow-view-ref",
+      "label": "removed flow-level view_ref field",
+      "pattern": "view_ref",
+      "surfaces": ["production", "active_guidance", "scaffolds"],
+      "sources": ["04"]
+    },
+    {
+      "id": "builtin-gate-resolve-panel",
+      "label": "removed built-in GateResolvePanel fallback",
+      "pattern": "GateResolvePanel",
+      "surfaces": ["shell_ui", "active_guidance"],
+      "sources": ["04"]
+    },
+    {
+      "id": "builtin-routes-drawer",
+      "label": "removed BUILTIN_ROUTES / ViewDrawer built-in forms",
+      "pattern": "BUILTIN_ROUTES|ViewDrawer|ViewParamForm|ReviewParamsView|paramsSchemaToGateForm",
+      "surfaces": ["shell_ui", "production"],
+      "sources": ["04"]
+    },
+    {
+      "id": "wrong-murrmure-views-path",
+      "label": "wrong murrmure/views asset path (use .mrmr/views)",
+      "pattern": "murrmure/views",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["04"]
+    },
+    {
+      "id": "lifecycle-contract-keys-dispatch",
+      "label": "removed lifecycle-only contract_keys dispatch",
+      "pattern": "keyed by .{0,20}contract_keys|lifecycle-only.*contract_keys",
+      "surfaces": ["active_guidance"],
+      "sources": ["04", "06"]
+    },
+    {
+      "id": "hub-token-local-export",
+      "label": "removed MURRMURE_HUB_TOKEN local export",
+      "pattern": "MURRMURE_HUB_TOKEN",
+      "surfaces": ["active_guidance", "scaffolds"],
+      "sources": ["02"]
+    },
+    {
+      "id": "mrmr-grant-use",
+      "label": "removed mrmr grant use command",
+      "pattern": "mrmr grant use",
+      "surfaces": ["production", "active_guidance", "scaffolds"],
+      "sources": ["02", "13"]
+    },
+    {
+      "id": "production-fixture-import",
+      "label": "production import of test fixtures",
+      "pattern": "fixtures/hub|test-utils/",
+      "surfaces": ["production"],
+      "sources": ["01"]
+    },
+    {
+      "id": "bundled-seed-contracts",
+      "label": "bundled seed contracts path",
+      "pattern": "Resources/hub/contracts",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["01"]
+    },
+    {
+      "id": "seed-cref-catalog",
+      "label": "seed cref_ package catalog entries",
+      "pattern": "cref_(?:linear_demo|review_loop|feature_spec)",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["01"]
+    },
+    {
+      "id": "legacy-studio-hub-mcp",
+      "label": "legacy studio-hub-mcp package name",
+      "pattern": "studio-hub-mcp",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["01"]
+    },
+    {
+      "id": "docs-examples-tree",
+      "label": "active docs reference examples/ tree",
+      "pattern": "examples/",
+      "surfaces": ["active_guidance"],
+      "paths_only": ["apps/docs/**"],
+      "sources": ["14"]
+    },
+    {
+      "id": "executor-action-binding",
+      "label": "removed executor.action binding",
+      "pattern": "executor\\.action|executor:\\s*[\\r\\n]+\\s*action:",
+      "surfaces": ["production", "active_guidance", "flow_manifests"],
+      "sources": ["13"]
+    },
+    {
+      "id": "triggers-yaml-index",
+      "label": "removed murrmure/triggers.yaml index",
+      "pattern": "murrmure/triggers\\.yaml",
+      "surfaces": ["active_guidance", "scaffolds"],
+      "sources": ["13", "15"]
+    },
+    {
+      "id": "mcp-wake-http-route",
+      "label": "removed POST /v1/mcp/wake route",
+      "pattern": "/v1/mcp/wake|POST.*mcp/wake",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["15"]
+    },
+    {
+      "id": "public-action-invoke-route",
+      "label": "removed public action invoke HTTP route",
+      "pattern": "/actions/[^\\s]*/invoke|actions/:name/invoke",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["15"]
+    },
+    {
+      "id": "retired-config-shell",
+      "label": "retired configure UI / setup wizard shell",
+      "pattern": "Configure UI|/setup wizard|config-shell-v1",
+      "surfaces": ["active_guidance"],
+      "sources": ["01", "13"]
+    },
+    {
+      "id": "v2-tutorial-02-path",
+      "label": "active link to removed v2 tutorial 02",
+      "pattern": "02-multi-agent-brief/",
+      "surfaces": ["active_guidance"],
+      "paths_only": ["apps/docs/**"],
+      "sources": ["15"]
+    },
+    {
+      "id": "v2-tutorial-03-path",
+      "label": "active link to removed v2 tutorial 03",
+      "pattern": "03-daily-brief-trigger/",
+      "surfaces": ["active_guidance"],
+      "paths_only": ["apps/docs/**"],
+      "sources": ["15"]
+    },
+    {
+      "id": "legacy-step-kind-wait",
+      "label": "removed wait step kind",
+      "pattern": "\\bwait:\\s|kind:\\s*wait|step kind.*wait",
+      "surfaces": ["flow_manifests", "active_guidance"],
+      "sources": ["03"]
+    },
+    {
+      "id": "checkpoint-on-resolve-field",
+      "label": "removed checkpoint on_resolve IR field",
+      "pattern": "on_resolve",
+      "surfaces": ["production", "active_guidance", "flow_manifests"],
+      "sources": ["03", "15"]
+    },
+    {
+      "id": "legacy-api-compat-mode",
+      "label": "removed legacy API compatibility mode",
+      "pattern": "compatibility mode|legacy v1 parser|dual-read|deprecation window",
+      "surfaces": ["production", "active_guidance"],
+      "sources": ["03", "13"]
+    }
+  ],
+  "coherence_checks": {
+    "broken_links": {
+      "roots": ["apps/docs/guide"],
+      "extensions": [".md"]
+    }
+  }
+}

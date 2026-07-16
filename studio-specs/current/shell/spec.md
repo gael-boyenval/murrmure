@@ -33,10 +33,10 @@ Shell must **not** import flow install or configure APIs from `@murrmure/hub-cli
 
 ## Observer / admin mode
 
-v2 retires Configure mode and the setup wizard. Default shell routes are **admin/operator** surfaces:
+v2 retires the retired configure shell. Default shell routes are **admin/operator** surfaces:
 
 - Space mutations via CLI (`mrmr space init`, `link`, `apply`)
-- Local connections via `mrmr connection create` (no token-bearing Configure UI)
+- Local connections via `mrmr connection create` (no token-bearing retired configure shell)
 - Legacy `/configure` and `/setup` redirect to `/spaces/new`
 
 ---

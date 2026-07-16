@@ -175,7 +175,7 @@ describe("checkpoint pending creation", () => {
     // The kernel retains checkpoint *creation*: a transition whose rule declares a
     // checkpoint quorum pauses the aggregate (CHECKPOINT_PENDING, 202 Accepted) with
     // no state change. The hub no longer bridges a gate.resolve into a kernel
-    // checkpoint.resolve command — advancing the checkpoint is owned by the
+    // Removed kernel checkpoint-resolve command — advancing the checkpoint is owned by the
     // orchestration gate service on the gates table, so the kernel records only the
     // pending checkpoint and never a checkpoint.resolved event here.
     expect(submit.http_semantic).toBe(HTTP_SEMANTIC.ACCEPTED);

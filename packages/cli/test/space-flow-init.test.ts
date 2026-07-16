@@ -28,8 +28,7 @@ describe("space flow init scaffold", () => {
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
 
     const expected = [
-      "space/actions.yaml",
-      "space/executors.yaml",
+      "space/handlers.yaml",
       "flows/preview-review/flow.manifest.yaml",
       "space/scripts/preview-review-build.mjs",
       "views/preview-review/package.json",
@@ -80,23 +79,20 @@ describe("space flow init scaffold", () => {
     );
   });
 
-  test("hello-gate merges flow-scoped actions for multiple flows", () => {
+  test("hello-gate merges flow-scoped handlers for multiple flows", () => {
     const murrmureRoot = join(targetDir, ".mrmr");
     scaffoldFlowPackage(murrmureRoot, "preview-review", "hello-gate");
     scaffoldFlowPackage(murrmureRoot, "content-review", "hello-gate");
 
-    const actions = parseYaml(readFileSync(join(murrmureRoot, "space/actions.yaml"), "utf-8")) as {
-      actions: Record<string, { command: string }>;
+    const handlers = parseYaml(readFileSync(join(murrmureRoot, "space/handlers.yaml"), "utf-8")) as {
+      handlers: Array<{ id: string; command?: string }>;
     };
 
-    expect(actions.actions["preview-review_run_preview_agent"].command).toContain(
-      "preview-review-build.mjs",
-    );
-    expect(actions.actions["content-review_run_preview_agent"].command).toContain(
-      "content-review-build.mjs",
-    );
-    expect(actions.actions["preview-review_mark_validated"]).toBeDefined();
-    expect(actions.actions["content-review_mark_validated"]).toBeDefined();
+    const byId = Object.fromEntries(handlers.handlers.map((h) => [h.id, h]));
+    expect(byId["preview-review-build"]?.command).toContain("preview-review-build.mjs");
+    expect(byId["content-review-build"]?.command).toContain("content-review-build.mjs");
+    expect(byId["preview-review-done"]).toBeDefined();
+    expect(byId["content-review-done"]).toBeDefined();
   });
 
   test("rejects flow ids with control characters", () => {
@@ -163,7 +159,7 @@ describe("space flow init scaffold", () => {
       scripts?: { build?: string };
     };
 
-    expect(pkg.scripts?.build).toBe("vite build");
+    expect(pkg.scripts?.build).toBe("tsc --noEmit && vite build");
     expect(existsSync(join(viewDir, "vite.config.ts"))).toBe(true);
     expect(existsSync(join(viewDir, "src/App.tsx"))).toBe(true);
   });
@@ -179,7 +175,7 @@ describe("space flow init snapshot paths", () => {
       const root = join(murrmureRoot, ".mrmr");
       const relFiles: string[] = [];
       const walk = (dir: string) => {
-        for (const entry of ["space/actions.yaml", "space/executors.yaml", "space/hooks.yaml"]) {
+        for (const entry of ["space/handlers.yaml", "space/hooks.yaml"]) {
           const p = join(root, entry);
           if (existsSync(p)) relFiles.push(entry);
         }
@@ -196,8 +192,7 @@ describe("space flow init snapshot paths", () => {
       relFiles.sort();
       expect(relFiles).toEqual([
         "flows/preview-review/flow.manifest.yaml",
-        "space/actions.yaml",
-        "space/executors.yaml",
+        "space/handlers.yaml",
         "space/hooks.yaml",
         "space/scripts/preview-review-build.mjs",
         "views/preview-review-intake/view.manifest.yaml",

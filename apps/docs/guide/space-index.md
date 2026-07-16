@@ -69,8 +69,8 @@ List indexed handlers: MCP **`murrmure_list_handlers`** or `mrmr space doctor`.
 
 | v1 / legacy | v2 |
 |-------------|-----|
-| legacy `murrmure/actions.yaml` + `hooks.yaml` | `.mrmr/space/handlers.yaml` |
-| `executor.action` in flow manifest | `on::key` binding in `handlers.yaml` (`contract_keys` is prompt-scope) |
+| legacy split action/hook indexes | `.mrmr/space/handlers.yaml` |
+| indexed action binding in flow manifest | `on::key` binding in `handlers.yaml` (`contract_keys` is prompt-scope) |
 | `mrmr space trigger register` only | Event handlers in `handlers.yaml` + optional trigger templates |
 | Instance-centric URLs | `/sessions/:id`, `/runs/:id` in Desktop shell |
 

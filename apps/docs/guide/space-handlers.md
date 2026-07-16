@@ -2,7 +2,7 @@
 
 Spaces own **execution** — what runs when a step opens, how agents are invoked, how a step is presented, and how completion is signaled. After the handlers cutover, that lives in **`.mrmr/space/handlers.yaml`**. A step handler binds to a resolver-agnostic step with **`on: step.opened::{flow_name}.{qualified_step_id}`** (the `on::key` binding); `contract_keys` is now **prompt-scope only**.
 
-Flow manifests carry **protocol only** — step shape, branches. No `executor.action`, no `role`, no `presentation`, no View identity in portable flow definitions. A space binds a custom View to a step with a **`view_resolver`** handler.
+Flow manifests carry **protocol only** — step shape, branches. No indexed action binding, no `role`, no `presentation`, no View identity in portable flow definitions. A space binds a custom View to a step with a **`view_resolver`** handler.
 
 Normative bridge: [handlers.md](https://github.com/murrmure/agentStudio/blob/main/studio-specs/current/bridges/handlers.md) (`studio-specs/current/bridges/handlers.md`). Boundary decision: [ADR-009](https://github.com/murrmure/agentStudio/blob/main/studio-specs/ADR/ADR-009-space-owned-view-resolver-and-hardened-host.md).
 
@@ -41,7 +41,7 @@ handlers:
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
-| `kill_on` | **Removed.** Authored `kill_on` is rejected; assignment termination is runtime-owned. |
+| kill-on policy | **Removed.** Authored kill-on policy is rejected; assignment termination is runtime-owned. |
 
 **`view_resolver` is executor-free** — it carries `view` and binds `step.opened::…` only, and forbids `command`, `prompt`, `params`, and `cwd`.
 
@@ -144,9 +144,9 @@ values can never become shell fragments and the runtime owns process lifecycle.
   shutdown the runtime sends process-group `SIGTERM`, waits five seconds, then
   `SIGKILL`, and records one terminal result. Shutdown awaits that escalation
   before exiting, and a timeout followed by run-failure cancellation signals the
-  group exactly once. Authored `kill_on` is removed.
+  group exactly once. Authored kill-on policy is removed.
 - **Credentials.** Each spawned handler receives a short-lived
-  run/step/handler-scoped `MURRMURE_HUB_TOKEN` (resolve capability only), never
+  run/step/handler-scoped hub bearer token (resolve capability only), never
   the persistent machine connection. The token expires, is scoped to the one
   run/step/space, and is enforced on every `step:resolve` endpoint (resolve,
   upload-intent creation, file transfer, abandon) — it cannot act for another
@@ -199,11 +199,11 @@ commits unrelated or sensitive files:
 For `complete: cli` handlers, or shell scripts that need hub resolve without MCP:
 
 ```bash
-# Requires MURRMURE_RUN_ID, MURRMURE_STEP_ID, MURRMURE_HUB_URL, MURRMURE_HUB_TOKEN
+# Requires MURRMURE_RUN_ID, MURRMURE_STEP_ID, MURRMURE_HUB_URL, and a hub bearer token
 mrmr step resolve --branch completed --payload-json '{"preview_url":"http://localhost:3000"}'
 ```
 
-Hub injects short-lived run/step/handler-scoped `MURRMURE_HUB_TOKEN` on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one run/step/space, is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a run/step/space scope mismatch or expired/revoked token.
+Hub injects a short-lived run/step/handler-scoped hub bearer token on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one run/step/space, is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a run/step/space scope mismatch or expired/revoked token.
 
 Agents in IDE sessions should prefer **`murrmure_resolve_step`** MCP tool (`step:resolve` capability).
 

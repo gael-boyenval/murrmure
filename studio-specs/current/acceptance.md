@@ -41,7 +41,7 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | `test-utils/spaces/daily-brief-v2/` | Tutorial 3 tree (CI) | `packages/cli/test/docs-proof.test.ts` |
 | `test-utils/spaces/hello-authoring/` | Minimal handlers space (CI) | `packages/cli/test/docs-proof.test.ts` |
 | Human ↔ skill known-gaps sync | 10-U4 | `pnpm check:known-gaps` |
-| Zero retired install guidance in `apps/docs/` | 10-U6 | `pnpm check:fdk-docs` |
+| Zero retired install guidance in `apps/docs/` | 10-U6 | `pnpm check:legacy-install-docs` |
 | Clean first boot and production import boundaries | Tutorial v3 Task 01 | `pnpm check:clean-state` |
 | Tutorial pages (8 — v3 tutorial + tutorials index) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
 
@@ -59,11 +59,11 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | Fixture | Proves | Test |
 |---------|--------|------|
 | `on: event:` handler delivery + dedup by fingerprint | `event:emit` (`spec.published`) → handler delivery; duplicate fingerprint deduped | `…/hooks/dedup.test.ts` |
-| retired `mcp_wake` registration rejected | `from-template` + custom `mcp_wake`/legacy alias actions → 422 `TRIGGER_ACTION_RETIRED` | `…/triggers/dedup-spec-publish.test.ts` |
+| retired trigger-action registration rejected | `from-template` + custom retired wire / legacy alias actions → 422 `TRIGGER_ACTION_RETIRED` | `…/triggers/dedup-spec-publish.test.ts` |
 | event catalog | Event-type catalog endpoint | `…/triggers/event-catalog.test.ts` |
-| trigger register (retired `mcp_wake` rejected) | Custom `mcp_wake` / `wake_mcp_agent` / `tool` → 422 | `…/config/trigger-register.test.ts` |
+| trigger register (retired wire rejected) | Custom retired wire / `wake_mcp_agent` / `tool` → 422 | `…/config/trigger-register.test.ts` |
 
-Historical fixtures (retired `mcp_wake` wire — kept as removal records only; the `POST /v1/mcp/wake` wire is 404 and registration is rejected, Task 15 Lane C):
+Historical fixtures (retired wake wire — kept as removal records only; registration is rejected, Task 15 Lane C):
 
 - `fixtures/triggers/spec-published-wake-dev.json`
 - `fixtures/triggers/dedup-spec-publish.json`

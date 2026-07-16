@@ -35,23 +35,24 @@ export function sanitizeParamShape(params: Record<string, unknown> | undefined):
 
 function walkSteps(steps: FlowStep[], out: OrchestrationStepPreview[]): void {
   for (const step of steps) {
-    const legacyExecutor = (
+    const legacyBinding = (
       step as FlowStep & {
         executor?: {
-          action?: string;
           space?: string;
           params?: Record<string, unknown>;
           artifacts_in?: string[];
+          [key: string]: unknown;
         };
       }
-    ).executor;
-    if (legacyExecutor?.action) {
+    )["executor"];
+    const indexedAction = legacyBinding?.["action"] as string | undefined;
+    if (indexedAction) {
       out.push({
         step_id: step.id,
-        space: legacyExecutor.space,
-        action: legacyExecutor.action,
-        param_shape: sanitizeParamShape(legacyExecutor.params),
-        expect: legacyExecutor.artifacts_in?.[0],
+        space: legacyBinding?.space,
+        action: indexedAction,
+        param_shape: sanitizeParamShape(legacyBinding?.params),
+        expect: legacyBinding?.artifacts_in?.[0],
       });
     }
     if (step.parallel?.lane) walkSteps(step.parallel.lane, out);

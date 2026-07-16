@@ -254,7 +254,7 @@ interface Transaction {
   appendJournal(entry: JournalEntryDraft): Promise<AllocatedSeq>;
   upsertSnapshotIfRevision(aggregate: Aggregate, expectedRevision: number): Promise<"ok" | "conflict">;
   upsertCheckpoint(checkpoint: Checkpoint): Promise<void>;
-  casCheckpointStatus(id: string, expected: Status, next: Status): Promise<boolean>;
+  casCheckpointStatus(id: string, expected: Status, targetStatus: Status): Promise<boolean>;
   insertIdempotency(command_id: string, result: CommandResult): Promise<"inserted" | "exists">;
   getIdempotency(command_id: string): Promise<CommandResult | null>;
   // dedup, projections, wait rows — same TX when journal-coupled

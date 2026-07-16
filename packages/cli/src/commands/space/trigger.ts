@@ -76,10 +76,6 @@ export const triggerRegisterCommand = defineCommand({
       type: "string",
       description: "Target space id for template registration (default: --space)",
     },
-    "wake-label": {
-      type: "string",
-      description: "Wake label override for template registration",
-    },
   },
   async run({ args }) {
     const flags = parseGlobalFlags(args);
@@ -103,9 +99,6 @@ export const triggerRegisterCommand = defineCommand({
           typeof args["target-space"] === "string" ? args["target-space"] : spaceId,
       };
       if (typeof args.name === "string" && args.name) body.name = args.name;
-      if (typeof args["wake-label"] === "string" && args["wake-label"]) {
-        body.wake_label = args["wake-label"];
-      }
 
       const res = await hubFetch(auth, `/v1/spaces/${spaceId}/triggers/from-template`, {
         method: "POST",

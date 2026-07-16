@@ -1,0 +1,21 @@
+# Role: step handlers merged into .mrmr/space/handlers.yaml on scaffold.
+version: 1
+handlers:
+  - id: "{{FLOW_ID}}-intake-view"
+    on: step.opened::{{FLOW_ID}}.intake
+    type: view_resolver
+    view: "{{FLOW_ID}}-intake"
+  - id: "{{FLOW_ID}}-build"
+    on: step.opened::{{FLOW_ID}}.build
+    type: shell_spawn
+    complete: explicit
+    command: node .mrmr/space/scripts/{{FLOW_ID}}-build.mjs
+  - id: "{{FLOW_ID}}-review-view"
+    on: step.opened::{{FLOW_ID}}.review
+    type: view_resolver
+    view: "{{FLOW_ID}}"
+  - id: "{{FLOW_ID}}-done"
+    on: step.opened::{{FLOW_ID}}.done
+    type: shell_spawn
+    complete: auto
+    command: echo '{"status":"validated"}'

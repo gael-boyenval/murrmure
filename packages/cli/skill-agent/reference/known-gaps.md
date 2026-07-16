@@ -31,7 +31,7 @@ Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + `on::key` 
 | Orchestration gates | Gate API for attach approval (operator mode) |
 | Event handlers | `on: event:` in `handlers.yaml` + `murrmure_emit_event` |
 | First-run wizard | `mrmr setup`; granular `space init/link/apply`; `mrmr connection create` |
-| Named-space onboarding | `mrmr setup --yes --json` (creates no agent credential) |
+| Named-space first-run | `mrmr setup --yes --json` (creates no agent credential) |
 | Agent MCP | `murrmure_resolve_step`, `murrmure_wait_for_run`, `murrmure_list_handlers` |
 | Split skills | `mrmr skill install --variant agent\|developer\|all` |
 

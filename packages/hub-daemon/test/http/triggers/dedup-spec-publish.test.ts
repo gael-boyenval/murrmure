@@ -78,7 +78,7 @@ describe("triggers/mcp-wake-rejected", () => {
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.code).toBe("TRIGGER_ACTION_RETIRED");
-    expect(body.message).toContain("mcp_wake");
+    expect(body.message).toContain("retired");
   });
 
   test("retired spec-published-wake-dev template registration is rejected", async () => {

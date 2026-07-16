@@ -28,7 +28,7 @@ export function isCapability(value: unknown): value is Capability {
 }
 
 /** Partition a list into valid capabilities and unknown/removed entries.
- *  Grant routes and mintGrant use this to reject removed capabilities with a
+ *  Routes and mintGrant apply this to reject removed capabilities with a
  *  clear error instead of persisting them unchanged. */
 export function partitionCapabilities(values: unknown[]): {
   valid: Capability[];

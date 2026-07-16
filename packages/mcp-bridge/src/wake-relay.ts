@@ -12,10 +12,7 @@ export interface PendingWakeRecord {
   prompt: string;
 }
 
-const WAKE_METHODS = new Set([
-  "murrmure/control.invoke_action",
-  "murrmure/control.wake_pending",
-]);
+const WAKE_METHODS = new Set(["murrmure/control.invoke_action"]);
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;

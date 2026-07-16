@@ -7,7 +7,7 @@ MCP transport assumption: local tools use the Desktop-bundled
 with `--hub` and `--connection` ID arguments. The bridge reads the credential
 from the OS store. Desktop publishes the launcher command, bundled entry, and
 runtime in shared discovery. Explicit headless CI may inject
-`MURRMURE_HUB_TOKEN` at process runtime.
+Explicit headless CI may inject a hub bearer token at process runtime.
 
 ## HTTP additions
 
@@ -88,12 +88,12 @@ interface ControlBus {
 }
 
 interface McpSessionRegistry {
-  // The wake wire (`POST /v1/mcp/wake`) is retired — 404 (phase 16). The clean
+  // The retired wake HTTP endpoint is gone — 404 (phase 16). The clean
   // protocol uses event handlers + `murrmure_emit_event` + flow triggers
   // (see triggers/spec.md). This registry tracks connected MCP principals
   // per space for the live `mcp_session` executor + handshake — it does not
-  // dispatch wakes (the retired `McpWakeDispatcher` was renamed to clarify
-  // this; `mcpWake(...)` is not a runtime primitive).
+  // dispatch legacy wake calls (the retired wake dispatcher was renamed to clarify
+  // this; legacy wake runtime calls are not a runtime primitive).
   connect(principal: ControlPrincipal): void;
   disconnect(principal: ControlPrincipal): void;
   hasConnectedSession(spaceId: string): boolean;
@@ -114,7 +114,7 @@ Hook `evolution.live.apply` in `packages/hub-daemon` after hub-core commit.
 
 ## SSE (optional)
 
-`event: flow.live_applied` on space channel — configure UI refreshes installed list.
+`event: flow.live_applied` on space channel — retired configure shell would have refreshed installed list (removed).
 
 ## Packages
 

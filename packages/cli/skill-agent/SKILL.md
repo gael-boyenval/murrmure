@@ -29,7 +29,7 @@ Murrmure is an **event-based coordination kernel**: sessions, journal events, au
 | Variable | Where | Purpose |
 |----------|-------|---------|
 | `--hub` + `--connection` | Local MCP descriptor | Hub/connection IDs; bridge resolves the credential from the OS store |
-| `MURRMURE_HUB_TOKEN` | Handler assignment or explicit headless CI | Ephemeral/runtime secret injection; never local config, files, args, prompts, or logs |
+| hub bearer token | Handler assignment or explicit headless CI | Ephemeral/runtime secret injection; never local config, files, args, prompts, or logs |
 | `MURRMURE_RUN_ID` | Handler child env | Current run (shell_spawn dispatch) |
 | `MURRMURE_STEP_ID` | Handler child env | Active step id |
 | `MURRMURE_ASSIGNMENT_SCOPE` | Handler child env | Non-secret run/step/handler assignment marker used by the bundled bridge |
@@ -111,7 +111,7 @@ Parent resolvers with declared `steps:` activate one direct child at a time, yie
 - **`murrmure_open_child_step`** (`{ run_id, parent_step_id, child_step_id, idempotency_key }`) atomically yields your assignment, revokes its mutation credential, and opens one declared child. Only declared children open, one active child per parent, arbitrary input is rejected, and idempotency is parent-scoped.
 - A child branch with neither `route` nor `resume` returns to its immediate parent by default (including `failed`). `resume: <ancestor_step>` returns to an already-open ancestor; self, unknown, non-ancestor, or closed targets are rejected. Immediate run failure needs explicit `route: { run: failed }`. Return never opens, resolves, or re-validates the parent.
 - Child return emits distinct yielded/resolved/resumed events and creates one fresh parent assignment (reason `resumed`) carrying canonical `returned_child` identity, branch, iteration, payload, and promoted artifact references.
-- On resume, re-read `active-step-contract.json` and decide: iterate (open the next declared child) or resolve your own contract. `complete_parent`, `continue_parent`, and `goto` no longer exist.
+- On resume, re-read `active-step-contract.json` and decide: iterate (open the next declared child) or resolve your own contract. Parent completion routing and explicit goto routing no longer exist.
 
 Preview-review pattern: the build resolver opens `review` via `murrmure_open_child_step` and yields; on `changes_required` it iterates (open review again), and on `validated` it resolves `build` as `completed`.
 

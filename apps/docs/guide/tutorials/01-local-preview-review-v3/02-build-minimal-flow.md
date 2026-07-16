@@ -2,7 +2,7 @@
 
 **Concept:** A **flow** is nothing more than a **description** — a shared way to say how work should unfold: an event succession, a loop, or a process. The file does not run code, spawn agents, or open UI. **A flow by itself does nothing.** Humans, the hub, handlers, and views do the work when something else starts a run against that description.
 
-The manifest lives at `.mrmr/flows/my-dev-flow/flow.manifest.yaml`. Execution (handlers) and human UI (views) are space-owned and come later. The manifest stays **protocol only** — no shell commands, no view code, no `executor.action`.
+The manifest lives at `.mrmr/flows/my-dev-flow/flow.manifest.yaml`. Execution (handlers) and human UI (views) are space-owned and come later. The manifest stays **protocol only** — no shell commands, no view code, no indexed action binding.
 
 We build **`my-dev-flow`** in two passes: first the flow shell, then a single **intake** step.
 

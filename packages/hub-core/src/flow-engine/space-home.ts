@@ -86,15 +86,16 @@ function flowRow(
   const localOrigin = bare(entry.origin_space_id) === bare(currentSpaceId);
   const can_run = localOrigin && canExecuteFlow(capabilities, flow_acl, entry.flow_id);
   const can_preview = localOrigin && canReadFlow(capabilities);
+  const triggers = entry.triggers ?? {};
   return {
     flow_id: entry.flow_id,
     origin_space_id: entry.origin_space_id,
     name: entry.name,
     digest: entry.digest,
-    triggers: entry.triggers,
+    triggers,
     can_run,
     can_preview,
-    manual: entry.triggers.manual === true,
+    manual: triggers.manual === true,
     authored_here: localOrigin,
   };
 }

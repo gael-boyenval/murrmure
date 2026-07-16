@@ -105,14 +105,10 @@ export class TriggerDispatcher {
       }
     }
 
-    // The mcp_wake trigger-action wire is retired (Task 15 Lane C): the
-    // POST /v1/mcp/wake wire is 404 and mcpWake(...) is not a runtime primitive.
-    // mcp_wake trigger templates must not dispatch — registration rejects them,
-    // so only legacy rows reach here. Such rows fail-fast with a recorded failed
-    // delivery (and an integration_failure event) instead of dispatching. New
-    // spaces declare event reactions with on: event: handlers in
-    // .mrmr/space/handlers.yaml + murrmure_emit_event.
-    const reason = "mcp_wake_retired";
+    // Retired trigger-action wire: legacy rows fail-fast with a recorded failed
+    // delivery instead of dispatching. New spaces use on: event: handlers +
+    // murrmure_emit_event.
+    const reason = "trigger_action_retired";
     await this.recordDelivery(triggerSpaceId, triggerId, source.event_id, "failed", reason);
     await this.emitIntegrationFailure(action, source, reason);
     return { outcome: "failed", dedup_reason: reason };
@@ -170,7 +166,7 @@ export class TriggerDispatcher {
       },
       event_type: "integration_failure",
       payload: {
-        wake_label: action.wake_label,
+        route_key: action.route_key,
         source_event_id: source.event_id,
         message,
       },

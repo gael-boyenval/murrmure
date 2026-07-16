@@ -1,6 +1,0 @@
-# Role: shell_spawn binding for script actions — merged into murrmure/executors.yaml on scaffold.
-executors:
-  shell:
-    binding:
-      type: shell_spawn
-      executor_id: shell

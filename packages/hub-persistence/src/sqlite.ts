@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
+import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow } from "./port.js";
 
@@ -859,7 +860,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const rows = this.db
       .prepare("SELECT payload_json FROM flow_index WHERE origin_space_id = ? ORDER BY flow_id")
       .all(bare) as Array<{ payload_json: string }>;
-    return rows.map((r) => JSON.parse(r.payload_json) as FlowIndexEntry);
+    return rows.map((r) => normalizeFlowIndexEntry(JSON.parse(r.payload_json) as FlowIndexEntry));
   }
 
   async getFlowIndexEntry(flow_id: string, origin_space_id?: string): Promise<FlowIndexEntry | null> {
@@ -871,7 +872,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
           .prepare("SELECT payload_json FROM flow_index WHERE flow_id = ? LIMIT 1")
           .get(flow_id) as { payload_json?: string } | undefined);
     if (!row?.payload_json) return null;
-    return JSON.parse(row.payload_json) as FlowIndexEntry;
+    return normalizeFlowIndexEntry(JSON.parse(row.payload_json) as FlowIndexEntry);
   }
 
   private rowToArtifact(row: Record<string, string | number>): ArtifactRow {

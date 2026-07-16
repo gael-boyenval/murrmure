@@ -67,7 +67,7 @@ describe("j01/kernel-checkpoint-bridge-removed", () => {
     expect(transition.code).toBe("checkpoint_pending");
     const gateId = transition.body.gate_id as string;
 
-    // But the hub no longer bridges gate.resolve → kernel checkpoint.resolve. The
+    // But the hub no longer bridges gate.resolve → kernel checkpoint-resolve. The
     // gate id returned by a kernel checkpoint has no row in the gates table, so the
     // orchestration gate service denies resolution (gate_not_found, 404) instead of
     // advancing the kernel checkpoint.

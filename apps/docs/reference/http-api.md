@@ -97,10 +97,10 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `POST` | `/v1/spaces/{id}/grants/{id}/revoke` | `space:admin` | Revoke grant |
 | `POST` | `/v1/spaces/{id}/grants/{id}/rotate` | `space:admin` | Rotate grant |
 | `GET` | `/v1/spaces/{id}/triggers` | `space:read` | List triggers |
-| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (custom filter/action; `mcp_wake` actions rejected — 422) |
+| `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (retired trigger-action types rejected — 422) |
 | `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live flow contracts |
-| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Historical trigger templates (retired `mcp_wake` presets — listed only) |
-| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (retired `mcp_wake` templates rejected — 422) |
+| `GET` | `/v1/spaces/{id}/triggers/templates` | `space:read` | Historical retired presets (listed only) |
+| `POST` | `/v1/spaces/{id}/triggers/from-template` | `trigger:register` | Register from template (retired presets rejected — 422) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/test-fire` | `trigger:register` | Synthetic event → delivery (debug) |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/disable` | `trigger:register` | Disable trigger |
 | `POST` | `/v1/spaces/{id}/triggers/{id}/replay` | `space:admin` | Replay a past delivery |
@@ -108,7 +108,7 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `GET` | `/v1/ops/grants/export` | `space:admin` | Hub-wide grant export |
 | `GET` | `/v1/ops/federation/status` | `space:admin` | Relay status |
 
-`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Use **`mrmr space update --query-policy`** or the API — there is no Configure UI.
+`PATCH /v1/spaces/{id}` accepts `query_policy` (e.g. `{ inbound_allowlist: ["spc_dev"] }`) for cross-space query policy. Use **`mrmr space update --query-policy`** or the API — the retired configure shell is gone.
 
 ## Cross-space queries (`/v1/spaces/{id}/queries/*`)
 
@@ -148,7 +148,7 @@ Used by the hub daemon MCP integration (and `@murrmure/cli` when pointed at a se
 | `POST` | `/v1/mcp/tools/call?space_id=` | per-tool scope + ACL | Invoke a tool by name |
 
 ::: warning Retired
-`POST /v1/mcp/wake` returns **404** (phase 16). Downstream work uses event reactions (`on: event:` in `.mrmr/space/handlers.yaml`), **`murrmure_emit_event`** (`event:emit` capability), flow triggers, and indexed hooks/triggers — not `murrmure_invoke_action` (removed, Task 15 Lane A).
+The legacy wake HTTP route returns **404** (phase 16). Downstream work uses event reactions (`on: event:` in `.mrmr/space/handlers.yaml`), **`murrmure_emit_event`** (`event:emit` capability), and flow triggers — not public action-invoke wires (removed, Task 15 Lane A).
 :::
 
 
@@ -258,7 +258,7 @@ Indexed from local `.mrmr/` via apply. See [Space index guide](../guide/space-in
 | `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed hooks |
 
 ::: warning Retired
-`POST /v1/spaces/{id}/actions/{name}/invoke` and the `murrmure_invoke_action` MCP tool return **404 / not-registered** (Task 15 Lane A). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay `POST /v1/federation/relay/spaces/:id/actions/:name/invoke` (`flow:run`-gated).
+The retired public action-invoke HTTP surface and removed public invoke MCP tool return **404 / not-registered** (Task 15 Lane A). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay invoke endpoint (`flow:run`-gated).
 :::
 
 MCP: `murrmure_apply_space`, `murrmure_space_status`.

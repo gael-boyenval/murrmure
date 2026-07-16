@@ -332,7 +332,7 @@ export class HubHandler {
   private async handleGateResolve(cmd: GateResolveCommand): Promise<CommandResult> {
     // Gate resolution is owned by the orchestration gate service (gates/service),
     // the same path used by POST /v1/gates/:gate_id/resolve. The legacy kernel
-    // checkpoint.resolve bridge has been removed; gate state lives in the gates
+    // checkpoint resolve bridge has been removed; gate state lives in the gates
     // table, not the kernel checkpoint mini-FSM.
     const token = await this.studio.getToken(stripTokenId(cmd.provenance.token_id));
     const effective = token

@@ -34,7 +34,7 @@ See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path,
 New flows use a **resolver-agnostic step shape**: `id`, optional `description`,
 optional `branches`, and optional nested `steps` — no `role`, `presentation`, or
 resolver modality. Start conditions live under **`triggers`** (the only
-start-condition field); the removed `start` and `requires_view` are rejected.
+start-condition field); the removed `start` and flow-level view binding fields are rejected.
 
 - **Normative bridge:** [step-contract.md](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)
 - **Apply:** `mrmr space apply` compiles a **StepContractCatalog** and prints a digest; `--strict` rejects removed fields, legacy step kinds, and unknown `&#123;&#123;murrmure.*&#125;&#125;` template tokens.

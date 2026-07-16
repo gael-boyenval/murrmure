@@ -162,20 +162,14 @@ Client on `tools_changed` refreshes cache. Handshake sends `last_ack_seq`; serve
 
 Pre-invoke on `tools/call`: verify tool ∈ catalog; strict Zod per flow leaf.
 
-## mcp_wake semantics (removed)
+## Retired wake-wire semantics
 
-> **Removed (Task 15 Lane C).** The active `mcp_wake` / `wake_label` dispatch
-> flow is no longer part of the protocol. The legacy `POST /v1/mcp/wake` wire
-> returns **404** (phase 16), and the retired `control.wake_pending` pending-wake queue
-> and `mcp.wake_delivered` / `mcp.wake_pending` journal events are gone —
-> `mcpWake(...)` is not a runtime primitive. The clean protocol uses **event
-> handlers** (`.mrmr/space/handlers.yaml` `on: event: { type, source? }`),
-> **`murrmure_emit_event`** (`event:emit` capability), and **flow start
-> conditions** (flow manifest `triggers`; `mrmr flow run`) — see
-> [product/spec.md §5.3](../product/spec.md#53-event-handlers) and
-> [triggers/spec.md](../triggers/spec.md). Legacy `mcp_wake` *trigger-action
-> templates* are retained as historical presets only in
-> [triggers/spec.md](../triggers/spec.md); their wire is retired.
+> **Removed (Task 15 Lane C).** Legacy wake-wire trigger dispatch is no longer part
+> of the protocol. The clean protocol uses **event handlers** (`.mrmr/space/handlers.yaml`
+> `on: event: { type, source? }`), **`murrmure_emit_event`** (`event:emit` capability),
+> and **flow start conditions** — see [product/spec.md §5.3](../product/spec.md#53-event-handlers)
+> and [triggers/spec.md](../triggers/spec.md). Historical removal records:
+> [../../archives/triggers-legacy-wake-wire.md](../../archives/triggers-legacy-wake-wire.md).
 
 ## Journal events (new)
 

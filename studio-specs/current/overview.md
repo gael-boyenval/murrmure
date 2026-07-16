@@ -2,7 +2,7 @@
 
 ## What Murrmure is
 
-A **local-first hub runtime** where humans and agents coordinate through **sessions**, **runs**, **gates**, and an append-only **journal**. Agents connect via MCP; humans use **Murrmure Desktop** (observer shell webview). Operators configure spaces via **CLI** (`mrmr`) and the **`.mrmr/` space index** — there is no Configure UI.
+A **local-first hub runtime** where humans and agents coordinate through **sessions**, **runs**, **gates**, and an append-only **journal**. Agents connect via MCP; humans use **Murrmure Desktop** (observer shell webview). Operators configure spaces via **CLI** (`mrmr`) and the **`.mrmr/` space index** — the retired configure shell is gone.
 
 ## Product surfaces (shipped)
 
@@ -61,7 +61,7 @@ Legacy v1 **`instance_id`** (`ins_*`) is an install id only — prefer **`run_id
 ## Non-goals (v2)
 
 - Murrmure Cloud (hosted SaaS, signup, multi-tenant accounts)
-- Configure UI / setup wizard (`/configure`, `/setup` retired)
+- Retired configure shell (`/configure`, `/setup` retired)
 - Browser-as-standalone-product without Desktop
 - Agent LLM loop inside hub
 - Flow marketplace / third-party package store
