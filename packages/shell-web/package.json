@@ -24,6 +24,8 @@
     "@xyflow/react": "^12.4.4"
   },
   "devDependencies": {
+    "@storybook/react": "^8.6.14",
+    "@storybook/test": "^8.6.14",
     "@tailwindcss/vite": "^4.0.9",
     "@testing-library/react": "^16.2.0",
     "@types/react": "^18.3.11",

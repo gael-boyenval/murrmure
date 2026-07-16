@@ -477,6 +477,12 @@ importers:
         specifier: ^6.26.2
         version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
+      '@storybook/react':
+        specifier: ^8.6.14
+        version: 8.6.18(@storybook/test@8.6.15(storybook@8.6.18(prettier@2.8.8)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.6.18(prettier@2.8.8))(typescript@5.9.3)
+      '@storybook/test':
+        specifier: ^8.6.14
+        version: 8.6.15(storybook@8.6.18(prettier@2.8.8))
       '@tailwindcss/vite':
         specifier: ^4.0.9
         version: 4.3.2(vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0))
