@@ -24,7 +24,7 @@ handlers:
     prompt: |
       Copy the intake spec and implement the requested change.
       Propose a conventional commit subject and a one-sentence description.
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
     cwd: "{{space_root}}"
 
   # Bind a locally built View to the intake step.
@@ -36,6 +36,8 @@ handlers:
 
 | Field | Notes |
 |-------|-------|
+| `id` | Stable handler id (unique within the space) |
+| `description` | Optional human-facing summary shown in space home |
 | `on` | `step.opened::{flow_name}.{qualified_step_id}` \| `step.resolved::…` \| `event: { type, source? }`. Bare `step.opened` is rejected. |
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
@@ -119,6 +121,11 @@ values can never become shell fragments and the runtime owns process lifecycle.
   symlinked destination parent, or a pre-existing symlink at the destination
   filename is rejected, and a traversal or digest mismatch refuses the copy
   before any consumer bytes are written.
+- **Prior-step output tokens** like
+  <code v-pre>{{murrmure.step.{id}.output.{field}}}</code> bind fields from that
+  step’s resolve / completion payload. Legacy <code v-pre>{{steps.*}}</code> is
+  rejected at apply (no alias). Use env such as `MURRMURE_RUN_ID` when you need a
+  run id inside a path (do not embed `{{…}}` mid-filename).
 - **Multi-file collections.** A slot with `max_files > 1` is a bounded, ordered
   collection (`min_files`, `max_total_bytes` optional). Bind it with the
   <code v-pre>{{murrmure.step.{producer}.artifact.{slot}.directory}}</code>
@@ -164,35 +171,16 @@ values can never become shell fragments and the runtime owns process lifecycle.
 
 A handler that commits to the space repository owns its own Git policy —
 Murrmure has no platform Git-cleanliness contract. Keep that policy in the
-handler script, not in the portable flow, and follow a few rules so a run never
-commits unrelated or sensitive files:
+handler (or omit it), not in the portable flow:
 
-- **Preflight a clean worktree before the first mutation.** The first
-  repository-mutating handler should fail before mutating when the tree is dirty
-  — staged, unstaged, or non-ignored untracked:
-  `git diff --quiet`, `git diff --cached --quiet`, and
-  `test -z "$(git ls-files --others --exclude-standard)"`. Run serialization
-  (`run_policies`) then guarantees no second run can race the mutation.
-- **Stage an explicit allowlist, never the whole tree.** Derive the exact
-  workflow-owned paths and `git add -- <path>…` only those. Never `git add -A`
-  or `git add .` — a stray file, a credential, or `.mrmr/dev` scratch would
-  otherwise enter the index. Reject any changed path outside the allowlist and
-  fail the run rather than committing it.
-- **List individual files.** `git status --porcelain -z --untracked-files=all`
-  lists each untracked file; without `--untracked-files=all` Git collapses a new
-  untracked directory to a single entry and the allowlist match misses the
-  archived file.
+- **Stage what the workflow owns.** Prefer an explicit path list when you care;
+  tutorial-style handlers may use a simple `git add .` if `.mrmr/dev` stays
+  gitignored and the space is disposable.
 - **Keep scratch outside Git.** `.mrmr/dev` stays gitignored; run scratch and
-  the original uploaded artifact never enter the index and are not deleted by
-  cleanup.
-- **Validate commit data before mutating.** Check the run id, commit subject
-  (no newlines), and description before any `git commit`, and pass them as
-  separate arguments so shell metacharacters and multiline bodies stay literal.
+  the original uploaded artifact never enter the index.
 - **Failures are ordinary handler failures.** Missing identity, a non-Git
-  directory, an archive collision, a no-op, or a commit failure exits nonzero
-  through the normal handler/run path — no rollback, retry, or second recovery
-  engine. Document the simple recovery (configure identity, clean the tree,
-  re-run).
+  directory, or a commit failure exits nonzero through the normal handler/run
+  path — no rollback, retry, or second recovery engine.
 
 ## `mrmr step resolve` (operator / shell path)
 
@@ -230,7 +218,7 @@ handlers:
     complete: explicit
     prompt: |
       Spec published — read and implement …
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 ```
 
 Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability).

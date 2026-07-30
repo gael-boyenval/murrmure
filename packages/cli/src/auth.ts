@@ -128,13 +128,16 @@ export function resolveHubAuth(overrides?: AuthOverrides): HubAuth | { error: st
   const activeConnection = activeConnectionAuth();
   const credentials = credentialsAuth();
   const shared = sharedJsonAuth();
-  const hubSources = [flagSource, env, credentials, shared];
-  const tokenSources = [flagSource, env, activeConnection, credentials, shared];
+  // Operator CLI prefers login credentials over the local-tools connection.
+  // Active connection remains available for MCP (bridge reads it directly) and
+  // as a CLI fallback when the operator has not logged in yet.
+  const hubSources = [flagSource, env, credentials, shared, activeConnection];
+  const tokenSources = [flagSource, env, credentials, activeConnection, shared];
 
   const hubUrl = pickField(hubSources, (source) => source.hubUrl);
   const token = pickField(tokenSources, (source) => source.token);
   const defaultSpaceId = pickField(
-    [env, activeConnection, credentials, shared],
+    [env, credentials, activeConnection, shared],
     (source) => source?.defaultSpaceId,
   );
 

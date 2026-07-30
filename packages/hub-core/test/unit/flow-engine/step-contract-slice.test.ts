@@ -193,6 +193,8 @@ describe("flow-engine/step-contract-slice", () => {
       contract_key_count: 1,
     });
     expect(single.startsWith("Protocol: murrmure.agent/v1\n")).toBe(true);
+    expect(single).toContain("Operating rule: This is a handler assignment");
+    expect(single).toContain("Do not call murrmure_get_pending_wake");
     expect(single).not.toContain("## Session");
     expect(single).not.toContain("## MCP tools");
     expect(single).not.toContain("## Resolve API");

@@ -21,10 +21,11 @@ import { globalArgs } from "../lib/flags.js";
 
 function readCliVersion(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [join(here, "..", "VERSION"), join(here, "..", "..", "VERSION")];
-  for (const path of candidates) {
+  const packageFiles = [join(here, "..", "package.json"), join(here, "..", "..", "package.json")];
+  for (const path of packageFiles) {
     try {
-      return readFileSync(path, "utf-8").trim();
+      const pkg = JSON.parse(readFileSync(path, "utf-8")) as { version?: string };
+      if (pkg.version?.trim()) return pkg.version.trim();
     } catch {
       /* try next */
     }

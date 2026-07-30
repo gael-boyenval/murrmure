@@ -53,10 +53,34 @@ describe("resolveAuthSource", () => {
         hub_id: "http://127.0.0.1:8787",
         connection_id: "con_local",
         space_id: "spc_ui_sandbox",
-        profile: "tutorial-builder/v1",
+        profile: "local-tools/v1",
       }),
     );
     expect(resolveAuthSource()).toBe("active-connection");
+  });
+
+  test("prefers credentials over active connection", () => {
+    const murrmureDir = join(testHomeRef.value, ".murrmure");
+    mkdirSync(join(murrmureDir, "connections"), { recursive: true });
+    writeFileSync(
+      join(murrmureDir, "credentials"),
+      JSON.stringify({
+        version: 1,
+        hubUrl: "http://127.0.0.1:8787",
+        token: "tok_cred",
+        savedAt: new Date().toISOString(),
+      }),
+    );
+    writeFileSync(
+      join(murrmureDir, "connections", "active.json"),
+      JSON.stringify({
+        hub_id: "http://127.0.0.1:8787",
+        connection_id: "con_local",
+        space_id: "spc_ui_sandbox",
+        profile: "local-tools/v1",
+      }),
+    );
+    expect(resolveAuthSource()).toBe("credentials");
   });
 });
 
@@ -83,19 +107,72 @@ describe("runDoctor", () => {
     expect(result.profile.spaces).toEqual([]);
   });
 
-  test("formatDoctorHuman includes profile section", () => {
+  test("formatDoctorHuman is scannable and collapses MCP notes", () => {
     const text = formatDoctorHuman({
-      ok: false,
-      issues: [{ code: "AUTH_MISSING", message: "Missing hub auth" }],
+      ok: true,
+      issues: [
+        {
+          code: "MCP_CONNECTION_SET",
+          severity: "warning",
+          message: "Local tools are not connected yet",
+          fix: "Open Murrmure Desktop and connect tools, or finish mrmr setup — then reload MCP",
+          paths: [
+            "/Users/test/.cursor/mcp.json",
+            "/repo/.cursor/mcp.json",
+          ],
+        },
+        {
+          code: "MCP_CONNECTION_SET",
+          severity: "warning",
+          message: "Local tools are not connected yet",
+          paths: ["/Users/test/.cursor/mcp.json"],
+        },
+      ],
       profile: {
-        auth_source: null,
-        hub_reachable: false,
-        token_valid: false,
-        bootstrap_token: false,
-        spaces: [],
+        auth_source: "credentials",
+        hub_url: "http://127.0.0.1:8787",
+        hub_reachable: true,
+        token_valid: true,
+        bootstrap_token: true,
+        whoami: {
+          actor_id: "actor_bootstrap",
+          kind: "human",
+          token_id: "tok_x",
+          spaces: [],
+        },
+        spaces: [
+          {
+            space_id: "spc_demo",
+            slug: "demo",
+            name: "Demo",
+            scopes: ["space:admin", "space:read"],
+            capabilities: {
+              can_apply_space: true,
+              can_mint_grants: true,
+              can_register_triggers: true,
+            },
+            executors: [
+              {
+                name: "cursor-mcp",
+                type: "mcp_session",
+                reachable: null,
+                detail: "needs connected MCP session",
+              },
+            ],
+          },
+        ],
       },
     });
-    expect(text).toContain("Profile");
-    expect(text).toContain("Issues");
+    expect(text).toContain("Hub     http://127.0.0.1:8787  ✓");
+    expect(text).toContain("Spaces  (1)");
+    expect(text).toContain("demo  (spc_demo)");
+    expect(text).toContain("admin · apply · triggers");
+    expect(text).toContain("Notes");
+    expect(text).toContain("Local tools are not connected yet");
+    expect(text).toContain("Open Murrmure Desktop and connect tools");
+    expect(text).not.toContain("MCP_CONNECTION_SET");
+    expect(text).not.toContain("--hub");
+    expect(text).not.toContain("SCOPES");
+    expect(text.match(/Local tools are not connected yet/g)?.length).toBe(1);
   });
 });

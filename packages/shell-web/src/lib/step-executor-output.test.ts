@@ -136,4 +136,49 @@ describe("step-executor-output", () => {
       expect(agent.events[1]?.toolName).toBe("read");
     }
   });
+
+  test("working step with spawn shows pid and waiting copy", () => {
+    const workingRun: RunDetailPayload = {
+      ...run,
+      steps: [{ step_id: "write_spec", status: "working" }],
+      exec_context: {
+        steps: {
+          write_spec: {
+            dispatch: {
+              command: "cursor agent -p --force",
+              prompt: "build",
+              cwd: "/tmp",
+              dispatched_at: "2026-07-08T12:00:30.000Z",
+            },
+            spawn: { pid: 4242, spawned_at: "2026-07-08T12:00:31.000Z" },
+          },
+        },
+      },
+    };
+    const sections = buildStepExecutorOutputSections(workingRun, "write_spec");
+    const spawn = sections.find((s) => s.kind === "data" && s.label === "spawn");
+    expect(spawn?.kind).toBe("data");
+    if (spawn?.kind === "data") {
+      expect(spawn.value).toMatchObject({ pid: 4242 });
+    }
+    expect(
+      sections.some(
+        (s) => s.kind === "text" && s.text.includes("process started pid 4242"),
+      ),
+    ).toBe(true);
+  });
+
+  test("working step without dispatch warns handler missing", () => {
+    const workingRun: RunDetailPayload = {
+      ...run,
+      steps: [{ step_id: "build", status: "working" }],
+      exec_context: { steps: {} },
+    };
+    const sections = buildStepExecutorOutputSections(workingRun, "build");
+    expect(
+      sections.some(
+        (s) => s.kind === "text" && s.text.includes("no handler dispatched"),
+      ),
+    ).toBe(true);
+  });
 });

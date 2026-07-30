@@ -1,126 +1,67 @@
 import { useState } from "react";
-import { useViewContract, isViewContractError, type ViewContractError } from "@murrmure/view-sdk/app";
+import { isViewContractError, useViewContract } from "@murrmure/view-sdk/app";
 
+/**
+ * Minimal intake scaffold — file input, Submit, Cancel.
+ * Edit this file; the branch contract comes from the host (fixtures in view dev).
+ */
 export function App() {
-  const { context: ctx, ready, submitBranch, cancel, submission } = useViewContract();
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<ViewContractError | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { submitBranch, cancel, submission } = useViewContract();
+  const [specFile, setSpecFile] = useState<File | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const busy = ["validating", "uploading", "resolving"].includes(submission.status);
 
-  if (!ctx) {
-    return (
-      <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", color: "#64748b" }}>
-        Waiting for view context…
-      </main>
-    );
-  }
-
-  const branches = ctx.step?.branches ?? [];
-
-  async function onSubmitBranch(branch: string) {
-    setError(null);
-    setBusy(true);
+  async function handleSubmit() {
+    if (!specFile) return;
+    setErrors([]);
     try {
-      const params = note.trim() ? { note: note.trim() } : {};
-      await submitBranch(branch, { payload: params });
+      await submitBranch("continue", { files: { spec: specFile } });
     } catch (err) {
-      if (isViewContractError(err)) setError(err);
-      else setError({ code: "VIEW_BRANCH_VALIDATION_FAILED", message: String(err), errors: [] });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onCancel() {
-    setError(null);
-    setBusy(true);
-    try {
-      await cancel();
-    } catch (err) {
-      if (isViewContractError(err)) setError(err);
-      else setError({ code: "VIEW_CANCEL_REJECTED", message: String(err), errors: [] });
-    } finally {
-      setBusy(false);
+      if (isViewContractError(err)) {
+        setErrors(err.errors.map((e) => e.message));
+      } else {
+        setErrors([err instanceof Error ? err.message : "Submit failed"]);
+      }
     }
   }
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", maxWidth: 640 }}>
-      <h1 style={{ marginTop: 0 }}>{ctx.step?.step_id ?? ctx.flow_id}</h1>
-      <p style={{ color: "#64748b" }}>
-        Custom view scaffold — edit <code>src/App.tsx</code> and run{" "}
-        <code>mrmr view dev {ctx.flow_id}</code>. {ready ? "" : "(waiting for host…)"}
-      </p>
-
-      {ctx.input ? (
-        <pre
-          style={{
-            background: "#f8fafc",
-            padding: "0.75rem",
-            borderRadius: "0.5rem",
-            fontSize: "0.875rem",
-            overflow: "auto",
-          }}
-        >
-          {JSON.stringify(ctx.input, null, 2)}
-        </pre>
+    <main style={{ fontFamily: "system-ui", padding: "1.5rem", maxWidth: 480 }}>
+      <h1 style={{ marginTop: 0 }}>Attach file</h1>
+      <p style={{ color: "#64748b" }}>Choose one file to attach, then Submit or Cancel.</p>
+      <input
+        type="file"
+        accept=".md,.markdown,.txt,text/markdown,text/plain"
+        onChange={(e) => {
+          setSpecFile(e.target.files?.[0] ?? null);
+          setErrors([]);
+        }}
+      />
+      {errors.length > 0 ? (
+        <ul style={{ color: "#b91c1c", margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+          {errors.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
       ) : null}
-
-      <label style={{ display: "block", marginTop: "1rem", color: "#334155" }}>
-        Note
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          style={{ display: "block", marginTop: "0.25rem", width: "100%", padding: "0.4rem" }}
-          placeholder="optional note"
-        />
-      </label>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "1rem" }}>
-        {branches.length > 0 ? (
-          branches.map((b) => (
-            <button
-              key={b.branch}
-              type="button"
-              disabled={busy}
-              onClick={() => onSubmitBranch(b.branch)}
-              style={{ padding: "0.4rem 0.8rem" }}
-            >
-              {b.branch}
-            </button>
-          ))
-        ) : (
-          <button type="button" disabled={busy} onClick={() => onSubmitBranch("continue")}>
-            Submit
-          </button>
-        )}
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+        <button type="button" disabled={!specFile || busy} onClick={handleSubmit}>
+          {busy ? `${submission.status}…` : "Submit"}
+        </button>
         <button
           type="button"
-          disabled={busy}
-          onClick={onCancel}
-          style={{ padding: "0.4rem 0.8rem", color: "#64748b" }}
+          onClick={() => (busy ? submission.cancel() : cancel())}
+          disabled={submission.status === "resolving"}
         >
-          Cancel
+          {busy ? "Cancel upload" : "Cancel"}
         </button>
       </div>
-
-      {submission.status !== "idle" ? (
-        <div style={{ marginTop: "1rem" }}>
-          <progress value={submission.uploadedBytes} max={submission.totalBytes || 1} />
-          <span style={{ marginLeft: "0.5rem" }}>{submission.status}</span>
-          {submission.status === "uploading" ? (
-            <button type="button" onClick={submission.cancel} style={{ marginLeft: "0.5rem" }}>
-              Cancel upload
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {error ? (
-        <p role="alert" style={{ marginTop: "1rem", color: "#b91c1c", fontSize: "0.875rem" }}>
-          {error.code}: {error.message}
-        </p>
+      {submission.totalBytes > 0 ? (
+        <progress
+          value={submission.uploadedBytes}
+          max={submission.totalBytes}
+          style={{ width: "100%", marginTop: "1rem" }}
+        />
       ) : null}
     </main>
   );

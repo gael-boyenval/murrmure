@@ -266,11 +266,15 @@ export function applyIndexDiff(
 }
 
 export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
+  const handlersCount = snapshot.hooks.length;
+  const handlersDigest = snapshot.hooks[0]?.digest;
   return {
     counts: {
       actions: snapshot.actions.length,
       executors: snapshot.executors.length,
-      hooks: snapshot.hooks.length,
+      handlers: handlersCount,
+      /** @deprecated Alias of handlers — hub storage bucket is still named hooks. */
+      hooks: handlersCount,
       events: (snapshot.events ?? []).length,
       flows: snapshot.flows.length,
       views: (snapshot.views ?? []).length,
@@ -279,7 +283,9 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
     digests: {
       actions: snapshot.actions[0]?.digest,
       executors: snapshot.executors[0]?.digest,
-      hooks: snapshot.hooks[0]?.digest,
+      handlers: handlersDigest,
+      /** @deprecated Alias of handlers. */
+      hooks: handlersDigest,
       events: snapshot.events?.[0]?.digest,
       flows: snapshot.flows.map((f) => ({
         flow_id: f.flow_id,

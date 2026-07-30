@@ -119,13 +119,19 @@ describe("Tutorial v3 packaged Desktop conformance", () => {
     const spaceHome = readFileSync(join(SHELL_SRC, "routes/SpaceHomePage.tsx"), "utf8");
     expect(spaceHome).not.toMatch(/ViewDrawer|view_ref|requires_view/);
 
-    // The hardened host iframe uses the opaque-origin sandbox (allow-scripts only,
-    // no allow-same-origin); the host-bridge addresses the opaque origin via "*".
+    // The hardened host iframe uses the opaque-origin sandbox (allow-scripts only
+    // in production — no allow-same-origin). Do NOT set the iframe `csp` attribute
+    // (CSP Embedded Enforcement blanks the frame). Document CSP is a hub header.
+    // Electrobun/WebKit rejects unknown sandbox tokens (e.g. allow-same-site-none-cookies).
     const hostFrame = readFileSync(join(REPO_ROOT, "packages/view-sdk/src/ViewHostFrame.tsx"), "utf8");
-    expect(hostFrame).toContain('sandbox="allow-scripts"');
-    expect(hostFrame).not.toContain("allow-same-origin");
+    expect(hostFrame).toContain('isDev ? "allow-scripts allow-same-origin allow-forms" : "allow-scripts"');
+    expect(hostFrame).not.toContain("allow-same-site-none-cookies");
+    expect(hostFrame).not.toMatch(/\bcsp:\s*VIEW_/);
+    expect(hostFrame).toContain("VIEW_DOCUMENT_CSP");
+    expect(hostFrame).toContain("http: https:");
     const hostBridge = readFileSync(join(REPO_ROOT, "packages/view-sdk/src/host-bridge.ts"), "utf8");
     expect(hostBridge).toContain("isSandboxedOpaqueOrigin");
+    expect(hostBridge).toContain("accessToken");
   });
 
   test("Task 04 — exact tutorial intake View opens in production via the packaged hub", async () => {
@@ -229,7 +235,9 @@ describe("Tutorial v3 packaged Desktop conformance", () => {
       expect(entryRes.headers.get("content-type")).toBe("text/html; charset=utf-8");
       const entryBody = await entryRes.text();
       expect(entryBody).toContain('data-view="spec-intake"');
-      expect(entryBody).toContain('<script type="module" src="./assets/intake.js"></script>');
+      expect(entryBody).toMatch(
+        /<script type="module" src="\.\/assets\/intake\.js\?access_token=tok_[^"]+"><\/script>/,
+      );
 
       // The Vite bundle asset the entry references resolves under the same root.
       const assetRes = await fetch(

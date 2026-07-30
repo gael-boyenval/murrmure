@@ -53,6 +53,11 @@ describe("index/parse-flow-manifest", () => {
       bogus: true,
     });
     expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INVALID_FLOW_MANIFEST");
+      expect(result.message).toMatch(/flow\.manifest\.yaml failed validation/);
+      expect(result.message).toMatch(/bogus|unrecognized/i);
+    }
   });
 
   test("rejects step role/presentation/deriveRole", () => {

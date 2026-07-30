@@ -25,6 +25,41 @@ describe("clean-state configuration", () => {
     expect(result.body.space_id).not.toContain("my-first-space");
   });
 
+  test("creating with an archived slug reactivates the space", async () => {
+    const studio = new MemoryStudioPersistence();
+    const handler = new ConfigHandler(
+      studio,
+      { ulid: () => "01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+      { nowIso: () => "2026-07-14T00:00:00.000Z" },
+    );
+
+    const created = await handler.handleSpaceCreate({
+      name: "My First Space",
+      slug: "my-first-space",
+    });
+    const spaceId = String(created.body.space_id);
+    await handler.archiveSpace(spaceId);
+
+    const again = await handler.handleSpaceCreate({
+      name: "My First Space Again",
+      slug: "my-first-space",
+    });
+
+    expect(again).toMatchObject({
+      outcome: "success",
+      code: "space_created",
+    });
+    expect(again.body).toMatchObject({
+      space_id: spaceId,
+      slug: "my-first-space",
+      name: "My First Space Again",
+      reactivated: true,
+    });
+    const stored = await studio.getSpace(spaceId.replace(/^spc_/, ""));
+    expect(stored?.status).toBe("active");
+    expect(stored?.name).toBe("My First Space Again");
+  });
+
   test("catalog names cannot install without an explicit bundle", async () => {
     const studio = new MemoryStudioPersistence();
     const handler = new ConfigHandler(

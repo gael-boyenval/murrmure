@@ -1,6 +1,7 @@
 import { defineCommand, type CommandDef } from "citty";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { colors } from "consola/utils";
 import { hubFetch } from "../../auth.js";
 import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { mapHubDenial } from "../../lib/hub-request.js";
@@ -94,7 +95,7 @@ export const spaceApplyCommand = defineCommand({
     const localWarnings = lintSpaceApplyBundle(bundle);
     for (const warning of localWarnings) {
       const label = warning.step_id ? `${warning.flow_id}/${warning.step_id}` : warning.flow_id;
-      cliConsola.warn(`[${warning.code}] ${label}: ${warning.message}`);
+      cliConsola.warn(colors.yellow(`[${warning.code}] ${label}: ${warning.message}`));
     }
     if (strict && strictLintFailures(localWarnings).length > 0) {
       printErr(

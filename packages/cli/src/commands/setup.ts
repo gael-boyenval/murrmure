@@ -143,9 +143,16 @@ export async function runSetupWizard(options: {
         detail: { created: [space.space_id], name: identity.name, slug: identity.slug },
       });
     } catch (error) {
-      const collision = error instanceof WizardHubError && error.code === "space_exists";
+      const collision =
+        (error instanceof WizardHubError && error.code === "space_exists") ||
+        (error instanceof Error && /already exists/i.test(error.message));
       if (!collision || json || yes) {
-        pushStep(steps, { id: "spaces", ok: false, error: wizardStepError(error) });
+        const stepError = wizardStepError(error);
+        pushStep(steps, { id: "spaces", ok: false, error: stepError });
+        if (!json) {
+          p.log.error(`${stepError.code}: ${stepError.message}`);
+          p.outro("Setup failed — fix the error above and re-run `mrmr setup`");
+        }
         return { ok: false, project_path: projectPath, steps };
       }
       p.log.warn(`Slug "${identity.slug}" is already used`);

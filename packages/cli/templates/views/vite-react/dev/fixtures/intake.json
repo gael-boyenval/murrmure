@@ -1,5 +1,5 @@
 {
-  "flow_id": "preview-review",
+  "flow_id": "{{VIEW_ID}}",
   "space_id": "spc_local",
   "hub_base_url": "http://127.0.0.1:8787",
   "mode": "dev",
@@ -11,17 +11,18 @@
     "step_id": "intake",
     "branches": [
       {
-        "branch": "approve",
-        "schema": { "type": "object", "required": ["note"] },
+        "branch": "continue",
+        "schema": { "type": "object", "required": ["spec"] },
         "artifact_slots": {
           "spec": {
-            "description": "Approved spec markdown",
-            "media_types": ["text/markdown"],
-            "extensions": [".md"]
+            "description": "The file to attach",
+            "max_bytes": 1048576,
+            "media_types": ["text/markdown", "text/plain"],
+            "extensions": [".md", ".markdown", ".txt"]
           }
         }
       },
-      { "branch": "request_changes" }
+      { "branch": "cancel", "schema": { "type": "object" } }
     ]
   },
   "input": {}

@@ -12,6 +12,8 @@ export type FlowStepNodeData = {
   selected?: boolean;
   highlighted?: boolean;
   compact?: boolean;
+  /** Terminal outcome emphasis after the run finishes. */
+  terminalVariant?: "success-reached" | "failure-reached" | "dim";
   onActivate?: () => void;
 };
 
@@ -49,6 +51,11 @@ export function FlowchartStepNode({ data }: NodeProps<FlowStepNode>) {
         "relative box-border flex h-full w-full flex-col rounded-md border bg-zinc-950/95 px-2.5 py-2 text-xs",
         data.selected && "border-blue-500 ring-1 ring-blue-500/50",
         data.highlighted && !data.selected && "bg-blue-950/25",
+        data.terminalVariant === "success-reached" &&
+          "border-2 bg-emerald-950/55 shadow-[0_0_0_1px_rgba(34,197,94,0.35)]",
+        data.terminalVariant === "failure-reached" &&
+          "border-2 bg-red-950/55 shadow-[0_0_0_1px_rgba(239,68,68,0.35)]",
+        data.terminalVariant === "dim" && "opacity-40",
       )}
       style={{ borderColor: data.selected ? undefined : data.borderColor }}
       onKeyDown={(event) => {

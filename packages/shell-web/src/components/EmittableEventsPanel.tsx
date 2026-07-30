@@ -5,7 +5,7 @@ function ListenerRow({
 }: {
   listener: SpaceHomeEmittableEventRow["listeners"][number];
 }) {
-  const target = listener.action ?? listener.flow_id ?? listener.hook_id;
+  const target = listener.action ?? listener.flow_id ?? listener.handler_id;
   return (
     <li className="text-xs text-muted-foreground">
       {listener.space_id} → {target}
@@ -35,7 +35,7 @@ function EmittableEventRow({ event }: { event: SpaceHomeEmittableEventRow }) {
       {event.listeners.length > 0 && (
         <ul className="mt-1 space-y-0.5">
           {event.listeners.map((listener) => (
-            <ListenerRow key={`${listener.space_id}-${listener.hook_id}`} listener={listener} />
+            <ListenerRow key={`${listener.space_id}-${listener.handler_id}`} listener={listener} />
           ))}
         </ul>
       )}

@@ -48,14 +48,14 @@ export interface SpaceDoctorWorkspaceContext {
 export interface SpaceDoctorDigestCounts {
   actions: number;
   executors: number;
-  hooks: number;
+  handlers: number;
   flows: number;
 }
 
 export interface SpaceDoctorDigestMap {
   actions?: string;
   executors?: string;
-  hooks?: string;
+  handlers?: string;
   flows: Array<{ flow_id: string; digest: string }>;
 }
 
@@ -86,10 +86,11 @@ export interface SpaceDoctorResult {
 }
 
 interface HubIndexStatusResponse {
-  counts?: SpaceDoctorDigestCounts;
+  counts?: SpaceDoctorDigestCounts & { hooks?: number };
   digests?: {
     actions?: string;
     executors?: string;
+    handlers?: string;
     hooks?: string;
     flows?: Array<{ flow_id: string; digest: string }>;
   };
@@ -406,6 +407,8 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
       "MCP_FAT_ENV_KEYS",
       "MCP_MISSING_TOKEN",
       "MCP_PLACEHOLDER_TOKEN",
+      "MCP_LEGACY_HUB_ARG",
+      "MCP_CONNECTION_ARG_MISSING",
     ];
 
     if (mcpCodes.has("MCP_CONFIG_MISSING")) {
@@ -423,7 +426,7 @@ export function buildSpaceDoctorFixPlan(result: SpaceDoctorResult): SpaceDoctorF
     if (shapeIssueCodes.some((code) => mcpCodes.has(code))) {
       addUniqueStep({
         command: "mrmr space doctor --fix",
-        why: "rewrite mcp.json to thin murrmure-mcp shape",
+        why: "rewrite mcp.json to murrmure-mcp + --connection (no --hub)",
       });
     }
 
@@ -710,13 +713,13 @@ function localSnapshotFromBundle(
     counts: {
       actions: Object.keys(bundle.actions?.file.actions ?? {}).length,
       executors: Object.keys(bundle.executors?.file.executors ?? {}).length,
-      hooks: Object.keys(bundle.hooks?.file.hooks ?? {}).length,
+      handlers: bundle.handlers?.file.handlers.length ?? 0,
       flows: bundle.flows?.length ?? 0,
     },
     digests: {
       actions: bundle.actions?.digest,
       executors: bundle.executors?.digest,
-      hooks: bundle.hooks?.digest,
+      handlers: bundle.handlers?.digest,
       flows: (bundle.flows ?? []).map((flow) => ({
         flow_id: flow.flow_id,
         digest: flow.digest,
@@ -730,13 +733,13 @@ function hubSnapshotFromStatus(body: HubIndexStatusResponse): SpaceDoctorSnapsho
     counts: {
       actions: body.counts?.actions ?? 0,
       executors: body.counts?.executors ?? 0,
-      hooks: body.counts?.hooks ?? 0,
+      handlers: body.counts?.handlers ?? body.counts?.hooks ?? 0,
       flows: body.counts?.flows ?? 0,
     },
     digests: {
       actions: body.digests?.actions,
       executors: body.digests?.executors,
-      hooks: body.digests?.hooks,
+      handlers: body.digests?.handlers ?? body.digests?.hooks,
       flows: body.digests?.flows ?? [],
     },
   };
@@ -747,10 +750,14 @@ function compareIndexDigests(
   hub: SpaceDoctorSnapshot,
   issues: SpaceDoctorIssue[],
 ): void {
-  const sections = ["actions", "executors", "hooks"] as const;
+  const sections = [
+    { key: "actions" as const, path: ".mrmr/space/actions.yaml" },
+    { key: "executors" as const, path: ".mrmr/space/executors.yaml" },
+    { key: "handlers" as const, path: ".mrmr/space/handlers.yaml" },
+  ];
   for (const section of sections) {
-    const localDigest = local.digests[section];
-    const hubDigest = hub.digests[section];
+    const localDigest = local.digests[section.key];
+    const hubDigest = hub.digests[section.key];
     if (!localDigest || !hubDigest) {
       continue;
     }
@@ -758,8 +765,8 @@ function compareIndexDigests(
       pushIssue(issues, {
         code: "INDEX_DRIFT",
         severity: "warning",
-        message: `Hub index is stale for ${section} — run \`mrmr space apply\``,
-        path: `murrmure/${section}.yaml`,
+        message: `Hub index is stale for ${section.key} — run \`mrmr space apply\``,
+        path: section.path,
       });
     }
   }
@@ -923,6 +930,7 @@ export async function runSpaceDoctor(options: {
     projectPath,
     cwd: discovered.cwd,
     authToken: auth?.token,
+    linkedSpaceId: workspace.linked_space_id,
   });
   issues.push(...mcpScan.issues);
   issues.push(
@@ -1033,7 +1041,7 @@ export async function runSpaceDoctor(options: {
     if (
       local.counts.actions === 0 &&
       local.counts.executors === 0 &&
-      local.counts.hooks === 0 &&
+      local.counts.handlers === 0 &&
       local.counts.flows === 0 &&
       legacyStudioDetected
     ) {
@@ -1074,12 +1082,12 @@ export async function runSpaceDoctor(options: {
           const localHasContent =
             local.counts.actions > 0 ||
             local.counts.executors > 0 ||
-            local.counts.hooks > 0 ||
+            local.counts.handlers > 0 ||
             local.counts.flows > 0;
           const hubEmpty =
             hub.counts.actions === 0 &&
             hub.counts.executors === 0 &&
-            hub.counts.hooks === 0 &&
+            hub.counts.handlers === 0 &&
             hub.counts.flows === 0;
           if (localHasContent && hubEmpty) {
             pushIssue(issues, {
@@ -1237,14 +1245,14 @@ export function formatSpaceDoctorHuman(result: SpaceDoctorResult): string {
   if (result.local) {
     const { counts } = result.local;
     lines.push(
-      `Local    ${counts.flows} flow(s), ${counts.actions} action(s), ${counts.hooks} hook(s)`,
+      `Local    ${counts.flows} flow(s), ${counts.actions} action(s), ${counts.handlers} handler(s)`,
     );
   }
 
   if (result.hub) {
     const { counts } = result.hub;
     lines.push(
-      `Indexed  ${counts.flows} flow(s), ${counts.actions} action(s), ${counts.hooks} hook(s)`,
+      `Indexed  ${counts.flows} flow(s), ${counts.actions} action(s), ${counts.handlers} handler(s)`,
     );
   }
 

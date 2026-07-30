@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { parseBearer, parseCookieToken, parseSessionToken } from "../../src/auth.js";
+import {
+  parseAccessTokenQuery,
+  parseBearer,
+  parseCookieToken,
+  parseSessionToken,
+  viewAssetAuthCookieHeader,
+} from "../../src/auth.js";
 
 describe("parseCookieToken", () => {
   test("reads murrmure_token from Cookie header", () => {
@@ -18,6 +24,19 @@ describe("parseCookieToken", () => {
     });
     expect(parseSessionToken(req)).toBe("tok_bearer");
     expect(parseBearer(req)).toBe("tok_bearer");
+  });
+
+  test("reads access_token query for iframe view assets", () => {
+    const req = new Request(
+      "http://127.0.0.1/v1/spaces/spc_a/views/v/dist/index.html?access_token=tok_query",
+    );
+    expect(parseAccessTokenQuery(req)).toBe("tok_query");
+    expect(parseSessionToken(req)).toBe("tok_query");
+  });
+
+  test("viewAssetAuthCookieHeader uses SameSite=None for opaque iframes", () => {
+    expect(viewAssetAuthCookieHeader("tok_abc")).toContain("SameSite=None");
+    expect(viewAssetAuthCookieHeader("tok_abc")).toContain("Secure");
   });
 
   test("returns undefined when cookie missing", () => {

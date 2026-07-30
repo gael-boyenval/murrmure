@@ -18,6 +18,7 @@ import {
   parseHandlersFile,
   parseViewManifest,
 } from "@murrmure/hub-core";
+import type { ZodError } from "zod";
 
 const EMPTY_ACTIONS_FILE = { version: 1 as const, actions: {} };
 const EMPTY_EXECUTORS_FILE = { executors: {} };
@@ -40,6 +41,21 @@ function stableFlowId(relPath: string): string {
 
 function readYamlFile(path: string): unknown {
   return parseYaml(readFileSync(path, "utf-8"));
+}
+
+function formatParseFailure(
+  parsed: { ok: false; code: string; message: string; details?: ZodError },
+  fileLabel: string,
+): Error {
+  const issues = parsed.details?.issues ?? [];
+  if (issues.length === 0) {
+    return new Error(`${parsed.code}: ${fileLabel} — ${parsed.message}`);
+  }
+  const lines = issues.map((issue) => {
+    const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+    return `  - ${path}: ${issue.message}`;
+  });
+  return new Error(`${parsed.code}: ${fileLabel} — ${parsed.message}\n${lines.join("\n")}`);
 }
 
 function parseActionsFile(raw: unknown) {
@@ -143,7 +159,7 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
   if (existsSync(handlersPath)) {
     const raw = readYamlFile(handlersPath);
     const parsed = parseHandlersFile(raw);
-    if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+    if (!parsed.ok) throw formatParseFailure(parsed, "handlers.yaml");
     bundle.handlers = { digest: fileDigest(handlersPath), file: parsed.value };
   } else {
     bundle.handlers = {
@@ -167,7 +183,7 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
   if (existsSync(bindingsPath)) {
     const raw = readYamlFile(bindingsPath);
     const parsed = parseBindingsFile(raw);
-    if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+    if (!parsed.ok) throw formatParseFailure(parsed, "bindings.yaml");
     bundle.bindings = { digest: fileDigest(bindingsPath), file: parsed.value };
   } else {
     bundle.bindings = {
@@ -185,7 +201,7 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
       if (!existsSync(manifestPath)) continue;
       const raw = readYamlFile(manifestPath);
       const parsed = parseFlowManifest(raw);
-      if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+      if (!parsed.ok) throw formatParseFailure(parsed, relative(root, manifestPath));
       const relPath = relative(root, manifestPath);
       const flowId = stableFlowId(relPath);
       if (seenFlowIds.has(flowId)) {
@@ -213,7 +229,7 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
       if (!existsSync(manifestPath)) continue;
       const raw = readYamlFile(manifestPath);
       const parsed = parseViewManifest(raw);
-      if (!parsed.ok) throw new Error(`${parsed.code}: ${parsed.message}`);
+      if (!parsed.ok) throw formatParseFailure(parsed, relative(root, manifestPath));
       (bundle.views ??= []).push({
         view_id: parsed.value.id || entry,
         rel_path: relative(root, manifestPath),

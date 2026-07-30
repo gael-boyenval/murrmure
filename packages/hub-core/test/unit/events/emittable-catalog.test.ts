@@ -83,13 +83,13 @@ describe("emittable-catalog", () => {
           event_type: "a.event",
           listeners: [],
           payload_hints: [],
-          origins: ["hook"],
+          origins: ["handler"],
         },
         {
           event_type: "b.event",
           listeners: [],
           payload_hints: [],
-          origins: ["hook"],
+          origins: ["handler"],
         },
       ],
     };

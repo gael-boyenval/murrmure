@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import type { HubAuth } from "../auth.js";
@@ -6,6 +6,7 @@ import { fetchWhoami } from "./auth-context.js";
 import { readCredentials } from "./auth-store.js";
 import {
   CredentialStoreError,
+  listStoredConnections,
   readActiveConnection,
   readConnectionToken,
 } from "./connection-store.js";
@@ -114,23 +115,23 @@ export function resolveMcpBridgeCommand(options?: { homePath?: string }): string
 
 export function buildMcpConfigSnippet(options?: {
   command?: string;
+  /** @deprecated Ignored. Hub is resolved from Desktop discovery. */
   hubId?: string;
+  /** Connection id pinned in MCP args (`--connection`). */
   connectionId?: string;
   /** @deprecated Ignored. Local descriptors never embed credentials. */
   token?: string;
 }): string {
   const command = options?.command ?? resolveMcpBridgeCommand();
-  const args =
-    options?.hubId && options?.connectionId
-      ? ["--hub", options.hubId, "--connection", options.connectionId]
-      : undefined;
+  const connectionId = options?.connectionId?.trim();
+  const server: Record<string, unknown> = { command };
+  if (connectionId?.startsWith("con_")) {
+    server.args = ["--connection", connectionId];
+  }
   return JSON.stringify(
     {
       mcpServers: {
-        murrmure: {
-          command,
-          ...(args ? { args } : {}),
-        },
+        murrmure: server,
       },
     },
     null,
@@ -356,14 +357,15 @@ function validateMurrmureServer(server: McpServerEntry): SpaceDoctorIssue[] {
 
   const connectionArgIndex = args.indexOf("--connection");
   const hubArgIndex = args.indexOf("--hub");
-  const hasLocalConnectionDescriptor =
-    connectionArgIndex >= 0 &&
-    Boolean(args[connectionArgIndex + 1]) &&
-    hubArgIndex >= 0 &&
-    Boolean(args[hubArgIndex + 1]);
+  const connectionId =
+    connectionArgIndex >= 0 && typeof args[connectionArgIndex + 1] === "string"
+      ? args[connectionArgIndex + 1]!.trim()
+      : "";
+  const hasHubArg = hubArgIndex >= 0 && Boolean(args[hubArgIndex + 1]);
+  const hasConnectionArg = connectionId.startsWith("con_");
   const isHeadlessCi = args.includes("--headless-ci");
   const token = server.env.MURRMURE_HUB_TOKEN;
-  if (hasLocalConnectionDescriptor && token) {
+  if ((hasHubArg || hasConnectionArg) && token) {
     pushIssue(issues, {
       code: "MCP_TOKEN_EXPOSED",
       severity: "error",
@@ -371,13 +373,21 @@ function validateMurrmureServer(server: McpServerEntry): SpaceDoctorIssue[] {
       path: relConfig,
       fix: `Remove the env block from ${relConfig}; the bridge reads the credential from the OS store`,
     });
-  } else if (!hasLocalConnectionDescriptor && !isHeadlessCi) {
+  } else if (hasHubArg && !isHeadlessCi) {
     pushIssue(issues, {
-      code: "MCP_CONNECTION_DESCRIPTOR_MISSING",
+      code: "MCP_LEGACY_HUB_ARG",
       severity: "warning",
-      message: `${label} is missing --hub and --connection arguments`,
+      message: `${label} still embeds --hub — local bridge resolves the Hub from Desktop discovery`,
       path: relConfig,
-      fix: "Run mrmr connection create and reinstall this integration context",
+      fix: `Keep only --connection <con_…> in ${relConfig} (no --hub), then reload MCP`,
+    });
+  } else if (!hasConnectionArg && !isHeadlessCi && !token) {
+    pushIssue(issues, {
+      code: "MCP_CONNECTION_ARG_MISSING",
+      severity: "warning",
+      message: `${label} is missing --connection <con_…> — MCP cannot pin the project space`,
+      path: relConfig,
+      fix: "Run mrmr connection create --space <spc_…> (or connection grant) and reload MCP",
     });
   } else if (isHeadlessCi && !token) {
     pushIssue(issues, {
@@ -400,24 +410,91 @@ function validateMurrmureServer(server: McpServerEntry): SpaceDoctorIssue[] {
   return issues;
 }
 
-function shouldRewriteToThinShape(server: RawMcpServer): boolean {
+function isCanonicalConnectionArgs(args: string[] | undefined): boolean {
+  return (
+    Array.isArray(args) &&
+    args.length === 2 &&
+    args[0] === "--connection" &&
+    typeof args[1] === "string" &&
+    args[1].startsWith("con_")
+  );
+}
+
+function extractConnectionIdFromArgs(args: string[] | undefined): string | undefined {
+  if (!args) return undefined;
+  const index = args.indexOf("--connection");
+  const value = index >= 0 ? args[index + 1]?.trim() : undefined;
+  return value?.startsWith("con_") ? value : undefined;
+}
+
+export function extractConnectionIdFromMcpSnippet(snippet: string | undefined): string | undefined {
+  if (!snippet?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(snippet) as {
+      mcpServers?: Record<string, { args?: unknown; command?: unknown }>;
+    };
+    const murrmure = parsed.mcpServers?.murrmure;
+    if (!murrmure) return undefined;
+    return extractConnectionIdFromArgs(sanitizeArgs(murrmure.args));
+  } catch {
+    return undefined;
+  }
+}
+
+export function extractCommandFromMcpSnippet(snippet: string | undefined): string | undefined {
+  if (!snippet?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(snippet) as {
+      mcpServers?: Record<string, { command?: unknown }>;
+    };
+    const command = parsed.mcpServers?.murrmure?.command;
+    return typeof command === "string" && command.trim() ? command.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveRewriteCommand(server: RawMcpServer, fallback?: string): string {
+  const command = typeof server.command === "string" ? server.command.trim() : "";
+  if (
+    command &&
+    (commandBasename(command) === "murrmure-mcp" || command.endsWith("/murrmure-mcp"))
+  ) {
+    return command;
+  }
+  const fromFallback = fallback?.trim();
+  if (
+    fromFallback &&
+    (commandBasename(fromFallback) === "murrmure-mcp" ||
+      fromFallback.endsWith("/murrmure-mcp"))
+  ) {
+    return fromFallback;
+  }
+  return resolveMcpBridgeCommand();
+}
+
+/** True when the murrmure server is not yet the canonical launcher + --connection shape. */
+export function shouldRewriteMcpServer(server: RawMcpServer): boolean {
   const command = typeof server.command === "string" ? server.command : undefined;
   const args = sanitizeArgs(server.args);
   const env = asStringRecord(server.env);
   const base = commandBasename(command);
   const usesCanonicalBridge =
     base === "murrmure-mcp" || (command?.endsWith("/murrmure-mcp") ?? false);
-  const usesFatCliShape = (base === "murrmure" || base === "mrmr") && args?.length === 1 && args[0] === "mcp";
+  const usesFatCliShape =
+    (base === "murrmure" || base === "mrmr") && args?.length === 1 && args[0] === "mcp";
   const aliasPattern = /^mrmr[-_]mcp$/;
-  const usesForbiddenAlias = aliasPattern.test(base) || aliasPattern.test(command?.split(/[/\\]/).pop() ?? "");
+  const usesForbiddenAlias =
+    aliasPattern.test(base) || aliasPattern.test(command?.split(/[/\\]/).pop() ?? "");
   const hasFatEnvKeys = FAT_MCP_ENV_KEYS.some((key) => Boolean(env[key]));
-  const hasConnectionDescriptor =
-    Boolean(args?.includes("--hub")) && Boolean(args?.includes("--connection"));
+  const hasHubArg = Boolean(args?.includes("--hub"));
   const hasHeadlessCi = Boolean(args?.includes("--headless-ci"));
+  const missingConnectionArg =
+    usesCanonicalBridge && !hasHeadlessCi && !isCanonicalConnectionArgs(args);
   const hasUnexpectedArgs =
     (Array.isArray(server.args) ? server.args.length > 0 : server.args !== undefined) &&
-    !hasConnectionDescriptor &&
-    !hasHeadlessCi;
+    !hasHeadlessCi &&
+    !isCanonicalConnectionArgs(args);
   const hasUnexpectedCommand =
     Boolean(command) &&
     /murrmure|mrmr/.test(base) &&
@@ -427,48 +504,77 @@ function shouldRewriteToThinShape(server: RawMcpServer): boolean {
     usesForbiddenAlias ||
     commandLooksLegacy(command, args) ||
     hasFatEnvKeys ||
+    hasHubArg ||
+    missingConnectionArg ||
     hasUnexpectedArgs ||
     hasUnexpectedCommand ||
     !usesCanonicalBridge
   );
 }
 
-function normalizeToThinShape(
+function normalizeToCanonicalMcpServer(
   server: RawMcpServer,
-  _options?: { tokenFallback?: string },
+  options?: { connectionId?: string; command?: string },
 ): RawMcpServer {
-  return {
-    command: "murrmure-mcp",
+  const connectionId =
+    extractConnectionIdFromArgs(sanitizeArgs(server.args)) ?? options?.connectionId;
+  const next: RawMcpServer = {
+    command: resolveRewriteCommand(server, options?.command),
   };
+  if (connectionId?.startsWith("con_")) {
+    next.args = ["--connection", connectionId];
+  }
+  return next;
 }
 
 export function rewriteFatMcpConfigFiles(options: {
   configPaths: string[];
+  /** @deprecated unused — tokens never belong in local MCP config */
   tokenFallback?: string;
+  connectionId?: string;
+  command?: string;
+  /** Prefer creating/updating this project path when murrmure is missing. */
+  preferredConfigPath?: string;
 }): {
   rewritten: string[];
   errors: Array<{ path: string; message: string }>;
 } {
   const rewritten: string[] = [];
   const errors: Array<{ path: string; message: string }> = [];
+  const paths = [...options.configPaths];
+  if (
+    options.preferredConfigPath &&
+    !paths.includes(options.preferredConfigPath)
+  ) {
+    paths.unshift(options.preferredConfigPath);
+  }
 
-  for (const configPath of options.configPaths) {
+  for (const configPath of paths) {
     let parsed: RawMcpConfig;
-    try {
-      parsed = JSON.parse(readFileSync(configPath, "utf-8")) as RawMcpConfig;
-    } catch (error) {
-      errors.push({
-        path: configPath,
-        message: error instanceof Error ? error.message : "invalid JSON",
-      });
-      continue;
+    const existed = existsSync(configPath);
+    if (!existed) {
+      if (configPath !== options.preferredConfigPath) {
+        continue;
+      }
+      parsed = { mcpServers: {} };
+    } else {
+      try {
+        parsed = JSON.parse(readFileSync(configPath, "utf-8")) as RawMcpConfig;
+      } catch (error) {
+        errors.push({
+          path: configPath,
+          message: error instanceof Error ? error.message : "invalid JSON",
+        });
+        continue;
+      }
     }
 
     if (!parsed.mcpServers || typeof parsed.mcpServers !== "object") {
-      continue;
+      parsed.mcpServers = {};
     }
 
     let changed = false;
+    let sawMurrmure = false;
     for (const [name, raw] of Object.entries(parsed.mcpServers)) {
       if (!raw || typeof raw !== "object") {
         continue;
@@ -476,12 +582,35 @@ export function rewriteFatMcpConfigFiles(options: {
       if (!isMurrmureRelatedServer(raw)) {
         continue;
       }
-      if (!shouldRewriteToThinShape(raw)) {
+      sawMurrmure = true;
+      if (!shouldRewriteMcpServer(raw)) {
         continue;
       }
-      parsed.mcpServers[name] = normalizeToThinShape(raw, {
-        tokenFallback: options.tokenFallback,
+      const next = normalizeToCanonicalMcpServer(raw, {
+        connectionId: options.connectionId,
+        command: options.command,
       });
+      if (!extractConnectionIdFromArgs(sanitizeArgs(next.args))) {
+        errors.push({
+          path: configPath,
+          message:
+            "Cannot rewrite MCP config without a connection id — run mrmr connection create --space <spc_…> first",
+        });
+        continue;
+      }
+      parsed.mcpServers[name] = next;
+      changed = true;
+    }
+
+    const isPreferred = configPath === options.preferredConfigPath;
+    if (!sawMurrmure && isPreferred && options.connectionId?.startsWith("con_")) {
+      parsed.mcpServers.murrmure = normalizeToCanonicalMcpServer(
+        { command: options.command ?? resolveMcpBridgeCommand() },
+        {
+          connectionId: options.connectionId,
+          command: options.command,
+        },
+      );
       changed = true;
     }
 
@@ -489,8 +618,16 @@ export function rewriteFatMcpConfigFiles(options: {
       continue;
     }
 
-    writeFileSync(configPath, `${JSON.stringify(parsed, null, 2)}\n`);
-    rewritten.push(configPath);
+    try {
+      mkdirSync(dirname(configPath), { recursive: true });
+      writeFileSync(configPath, `${JSON.stringify(parsed, null, 2)}\n`);
+      rewritten.push(configPath);
+    } catch (error) {
+      errors.push({
+        path: configPath,
+        message: error instanceof Error ? error.message : "write failed",
+      });
+    }
   }
 
   return { rewritten, errors };
@@ -500,6 +637,7 @@ export function scanMcpConfig(options: {
   projectPath: string;
   cwd: string;
   authToken?: string;
+  linkedSpaceId?: string | null;
 }): { issues: SpaceDoctorIssue[]; context: SpaceDoctorMcpContext } {
   const issues: SpaceDoctorIssue[] = [];
   const configPaths = discoverMcpConfigPaths(options.projectPath, options.cwd);
@@ -512,7 +650,7 @@ export function scanMcpConfig(options: {
       severity: "warning",
       message: `No MCP config found (.cursor/mcp.json or ~/.cursor/mcp.json)`,
       path: relative(options.projectPath, suggestedConfigPath),
-      fix: `Create ${relative(options.projectPath, suggestedConfigPath)} with the thin bridge shape`,
+      fix: `Create ${relative(options.projectPath, suggestedConfigPath)} with murrmure-mcp + --connection`,
     });
   }
 
@@ -550,10 +688,14 @@ export function scanMcpConfig(options: {
   }
 
   const primaryServer = servers[0];
+  const suggestedConnectionId = resolveSuggestedConnectionId({
+    servers,
+    linkedSpaceId: options.linkedSpaceId,
+    active: activeConnection,
+  });
   const snippet = buildMcpConfigSnippet({
-    command: primaryServer?.command,
-    hubId: activeConnection?.hub_id,
-    connectionId: activeConnection?.connection_id,
+    command: primaryServer?.command ?? resolveMcpBridgeCommand(),
+    connectionId: suggestedConnectionId,
   });
 
   return {
@@ -565,6 +707,30 @@ export function scanMcpConfig(options: {
       suggested_snippet: snippet,
     },
   };
+}
+
+function resolveSuggestedConnectionId(options: {
+  servers: McpServerEntry[];
+  linkedSpaceId?: string | null;
+  active: ReturnType<typeof readActiveConnection>;
+}): string | undefined {
+  for (const server of options.servers) {
+    const fromArgs = extractConnectionIdFromArgs(server.args);
+    if (fromArgs) return fromArgs;
+  }
+  const linked = options.linkedSpaceId?.trim();
+  if (linked) {
+    const forSpace = listStoredConnections()
+      .filter((entry) => entry.space_id === linked)
+      .at(-1);
+    if (forSpace) return forSpace.connection_id;
+  }
+  if (options.active?.connection_id.startsWith("con_")) {
+    if (!linked || options.active.space_id === linked) {
+      return options.active.connection_id;
+    }
+  }
+  return undefined;
 }
 
 function normalizeHubEndpoint(endpoint: string | undefined): string | null {
@@ -831,8 +997,8 @@ export async function probeMcpLiveHealth(
     pushIssue(issues, {
       code: "MCP_CONNECTION_SET",
       severity: "warning",
-      message: "No active local connection is available for MCP.",
-      fix: "Run mrmr connection create, then reload the selected integration context",
+      message: "No local connection for tools on this computer",
+      fix: "Open Murrmure Desktop and connect tools, or finish mrmr setup — then reload MCP",
     });
   }
 

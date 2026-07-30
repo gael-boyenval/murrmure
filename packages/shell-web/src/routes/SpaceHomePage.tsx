@@ -15,6 +15,8 @@ import { setActiveSpaceId } from "../hooks.js";
 import { useEffect } from "react";
 import { DismissRunButton } from "../components/DismissRunButton.js";
 import { DeleteSpaceButton } from "../components/DeleteSpaceButton.js";
+import { SpaceIndexPanel } from "../components/SpaceIndexPanel.js";
+import { EmittableEventsPanel } from "../components/EmittableEventsPanel.js";
 
 function FlowRow({
   flow,
@@ -122,6 +124,15 @@ export function SpaceHomePage() {
     enabled: Boolean(client && spaceId),
   });
 
+  const viewDevQuery = useQuery({
+    queryKey: ["view-dev-session", spaceId],
+    queryFn: () => client!.dev.viewSession(spaceId!),
+    enabled: Boolean(client && spaceId),
+    refetchInterval: 5_000,
+    retry: false,
+  });
+  const viewDevSession = viewDevQuery.data?.session ?? null;
+
   const runMutation = useMutation({
     mutationFn: ({
       flow_id,
@@ -163,13 +174,47 @@ export function SpaceHomePage() {
           <h1 className="text-2xl font-semibold tracking-tight">
             {space?.name ?? space?.slug ?? spaceId}
           </h1>
-          {spaceId ? (
-            <DeleteSpaceButton
-              spaceId={spaceId}
-              spaceLabel={space?.name ?? space?.slug ?? spaceId}
-            />
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {viewDevSession?.view_id ? (
+              <Button
+                size="sm"
+                onClick={() => navigate(`/spaces/${spaceId}/dev/views/${viewDevSession.view_id}`)}
+              >
+                Open view dev ({viewDevSession.view_id})
+              </Button>
+            ) : null}
+            {spaceId ? (
+              <DeleteSpaceButton
+                spaceId={spaceId}
+                spaceLabel={space?.name ?? space?.slug ?? spaceId}
+              />
+            ) : null}
+          </div>
         </div>
+
+        {viewDevSession?.view_id ? (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">View dev is running</CardTitle>
+              <CardDescription>
+                <code className="font-mono text-xs">{viewDevSession.view_id}</code>
+                {viewDevSession.dev_url ? (
+                  <>
+                    {" "}
+                    · Vite at <span className="font-mono text-xs">{viewDevSession.dev_url}</span>
+                  </>
+                ) : null}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={() => navigate(`/spaces/${spaceId}/dev/views/${viewDevSession.view_id}`)}
+              >
+                Open preview in Desktop
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {homeQuery.isLoading && (
           <p className="text-sm text-muted-foreground">Loading space home…</p>
@@ -238,6 +283,30 @@ export function SpaceHomePage() {
             )}
           </CardContent>
         </Card>
+
+        {home?.index ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Space index</CardTitle>
+              <CardDescription>Handlers and indexed resources for this space</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SpaceIndexPanel index={home.index} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {home && home.emittable_events.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Emittable events</CardTitle>
+              <CardDescription>Events other spaces can send into listeners that accept this space as source</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EmittableEventsPanel events={home.emittable_events} />
+            </CardContent>
+          </Card>
+        ) : null}
 
         {home && home.receiving_from.length > 0 && (
           <Card>

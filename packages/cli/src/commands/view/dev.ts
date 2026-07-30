@@ -1,8 +1,11 @@
 import { defineCommand, type CommandDef } from "citty";
 import { resolve } from "node:path";
+import { colors } from "consola/utils";
 import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
+import { readSpaceLink } from "../../lib/space-link-file.js";
 import {
+  clearViewDevSession,
   listViewFixtures,
   resolveInitialFixture,
   resolveViewDevPaths,
@@ -25,7 +28,7 @@ export const viewDevCommand = defineCommand({
     },
     fixture: {
       type: "string",
-      description: "Initial fixture tab name (e.g. gate-round-1)",
+      description: "Initial fixture tab name (e.g. intake)",
     },
     "space-root": {
       type: "string",
@@ -64,6 +67,8 @@ export const viewDevCommand = defineCommand({
         started_at: new Date().toISOString(),
       });
 
+      const spaceId = readSpaceLink(resolvedSpaceRoot)?.space_id;
+
       if (isJsonMode() || flags.json) {
         printOk({
           view_id: viewId,
@@ -71,29 +76,49 @@ export const viewDevCommand = defineCommand({
           fixtures: fixtures.map((f) => f.name),
           initial_fixture: initialFixture.name,
           session_path: sessionPath,
+          space_id: spaceId,
         });
         handle.stop();
+        clearViewDevSession(resolvedSpaceRoot);
         return;
       }
 
       printOk({}, `✓ View dev server ${devUrl}`);
-      cliConsola.info(`Fixtures: ${fixtures.map((f) => f.name).join(", ")}`);
-      cliConsola.info(`Initial tab: ${initialFixture.name}`);
-      cliConsola.info(`Session: ${sessionPath}`);
       cliConsola.info(
-        `ViewCanvasHost dev route: /spaces/<space_id>/dev/views/${viewId} (open in Desktop after linking space)`,
+        `${colors.bold("Open:")} ${colors.cyan(devUrl)} ${colors.dim("(Vite — Waiting for view context until Desktop injects)")}`,
       );
+      if (spaceId) {
+        cliConsola.info(
+          `${colors.bold("Desktop:")} ${colors.cyan(`/spaces/${spaceId}/dev/views/${viewId}`)} ${colors.dim("(link space in Desktop, then open this route)")}`,
+        );
+      } else {
+        cliConsola.info(
+          `${colors.bold("Desktop:")} ${colors.cyan(`/spaces/<space_id>/dev/views/${viewId}`)} ${colors.dim("(run mrmr space link first for a concrete space id)")}`,
+        );
+      }
+      cliConsola.info(
+        `${colors.bold("Fixtures:")} ${fixtures.map((f) => f.name).join(", ")} ${colors.dim("— sample step contexts for Desktop tabs (edit under .mrmr/views/" + viewId + "/dev/fixtures/)")}`,
+      );
+      cliConsola.info(`Initial tab: ${initialFixture.name}`);
+      cliConsola.info(colors.dim(`Session: ${sessionPath}`));
       cliConsola.info("Submit logs here in dev mode — no gate resolve until a real run.");
       cliConsola.info("Press Ctrl+C to stop.");
 
       await new Promise<void>((resolvePromise) => {
+        const cleanup = () => {
+          clearViewDevSession(resolvedSpaceRoot);
+        };
         const onSignal = () => {
           handle.stop();
+          cleanup();
           resolvePromise();
         };
         process.once("SIGINT", onSignal);
         process.once("SIGTERM", onSignal);
-        handle.child.on("exit", () => resolvePromise());
+        handle.child.on("exit", () => {
+          cleanup();
+          resolvePromise();
+        });
       });
     } catch (error) {
       printErr("VIEW_DEV_FAILED", error instanceof Error ? error.message : "View dev failed");

@@ -158,6 +158,7 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           `${base}/v1/spaces/${encodeURIComponent(space_id)}/dev/view-session`,
           { headers: authHeaders(token) },
         );
+        if (res.status === 404) return { session: null };
         if (!res.ok) throw new Error(`dev.viewSession failed: ${res.status}`);
         return res.json() as Promise<{ session: import("./types.js").ViewDevSessionPayload }>;
       },

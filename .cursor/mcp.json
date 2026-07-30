@@ -1,10 +1,11 @@
 {
   "mcpServers": {
     "murrmure": {
-      "command": "murrmure-mcp",
-      "env": {
-        "MURRMURE_HUB_TOKEN": "${env:MURRMURE_HUB_TOKEN}"
-      }
+      "command": "/Users/gaelboyenval/.murrmure/bin/murrmure-mcp",
+      "args": [
+        "--connection",
+        "con_01KXNH3M53RHJPXAXRHHKVK3P0"
+      ]
     }
   }
 }

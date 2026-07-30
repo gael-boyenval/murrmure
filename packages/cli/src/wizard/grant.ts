@@ -10,8 +10,8 @@ import {
   writeStoredConnection,
 } from "../lib/connection-store.js";
 import {
-  TUTORIAL_BUILDER_CAPABILITIES,
-  TUTORIAL_BUILDER_PROFILE,
+  LOCAL_TOOLS_CAPABILITIES,
+  LOCAL_TOOLS_PROFILE,
 } from "./capabilities.js";
 import { WizardHubError } from "./space-ops.js";
 
@@ -19,7 +19,7 @@ export interface WizardConnectionResult {
   connection_id: string;
   label: string;
   capabilities: readonly string[];
-  profile: typeof TUTORIAL_BUILDER_PROFILE.id;
+  profile: typeof LOCAL_TOOLS_PROFILE.id;
   descriptor: ConnectionDescriptor;
 }
 
@@ -46,8 +46,8 @@ export async function wizardCreateConnection(
     json: {
       label,
       harness,
-      scopes: [...TUTORIAL_BUILDER_CAPABILITIES],
-      profile: TUTORIAL_BUILDER_PROFILE.id,
+      scopes: [...LOCAL_TOOLS_CAPABILITIES],
+      profile: LOCAL_TOOLS_PROFILE.id,
     },
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -79,13 +79,13 @@ export async function wizardCreateConnection(
     hub_id: auth.hubUrl,
     connection_id,
     space_id: spaceId,
-    profile: TUTORIAL_BUILDER_PROFILE.id,
+    profile: LOCAL_TOOLS_PROFILE.id,
   });
   (options?.register ?? writeStoredConnection)({
     hub_id: auth.hubUrl,
     connection_id,
     space_id: spaceId,
-    profile: TUTORIAL_BUILDER_PROFILE.id,
+    profile: LOCAL_TOOLS_PROFILE.id,
     status: "active",
   });
   const descriptor = buildConnectionDescriptor({
@@ -97,8 +97,8 @@ export async function wizardCreateConnection(
   return {
     connection_id,
     label,
-    capabilities: TUTORIAL_BUILDER_CAPABILITIES,
-    profile: TUTORIAL_BUILDER_PROFILE.id,
+    capabilities: LOCAL_TOOLS_CAPABILITIES,
+    profile: LOCAL_TOOLS_PROFILE.id,
     descriptor,
   };
 }

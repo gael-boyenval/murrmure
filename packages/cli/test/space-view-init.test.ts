@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { assertSafeViewId, resolveViewDir, scaffoldViewPackage } from "../src/lib/view-scaffold.js";
@@ -26,10 +26,15 @@ describe("space view init scaffold", () => {
     expect(existsSync(join(viewDir, "src", "App.tsx"))).toBe(true);
     expect(existsSync(join(viewDir, "src", "main.tsx"))).toBe(true);
     expect(existsSync(join(viewDir, "vite.config.ts"))).toBe(true);
+    expect(readFileSync(join(viewDir, "vite.config.ts"), "utf-8")).toContain('base: "./"');
     expect(existsSync(join(viewDir, "dev", "fixtures", "intake.json"))).toBe(true);
-    expect(existsSync(join(viewDir, "dev", "fixtures", "gate-round-1.json"))).toBe(true);
-    expect(existsSync(join(viewDir, "dev", "fixtures", "gate-round-2.json"))).toBe(true);
+    expect(existsSync(join(viewDir, "dev", "fixtures", "gate-round-1.json"))).toBe(false);
     expect(existsSync(join(viewDir, "view.manifest.yaml"))).toBe(true);
+
+    const pkg = JSON.parse(readFileSync(join(viewDir, "package.json"), "utf-8")) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies["@murrmure/view-sdk"]).toMatch(/\^0\.3/);
   });
 
   test("rejects path traversal in view id", () => {

@@ -42,8 +42,28 @@ export function parseCookieToken(req: Request): string | undefined {
   }
 }
 
+/** Query token for iframe view-asset navigations (shell may be cross-origin). */
+export function parseAccessTokenQuery(req: Request): string | undefined {
+  try {
+    const url = new URL(req.url);
+    const raw = (url.searchParams.get("access_token") ?? url.searchParams.get("murrmure_token"))?.trim();
+    if (!raw) return undefined;
+    return raw.startsWith("tok_") ? raw : addTokenId(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseSessionToken(req: Request): string | undefined {
-  return parseBearer(req) ?? parseCookieToken(req);
+  return parseBearer(req) ?? parseCookieToken(req) ?? parseAccessTokenQuery(req);
+}
+
+/** Cookie so nested relative view assets authenticate after an access_token entry load.
+ * SameSite=None is required: opaque sandboxed iframes treat subresource requests as
+ * cross-site, so Lax cookies are omitted. Secure is valid on loopback Chromium. */
+export function viewAssetAuthCookieHeader(tokenId: string): string {
+  const value = encodeURIComponent(tokenId);
+  return `murrmure_token=${value}; Path=/; SameSite=None; Secure`;
 }
 
 export async function requireToken(

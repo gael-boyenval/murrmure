@@ -9,6 +9,9 @@ import { hasScope } from "./scope.js";
 export interface DoctorIssue {
   code: string;
   message: string;
+  severity?: "error" | "warning" | "info";
+  fix?: string;
+  paths?: string[];
 }
 
 export interface SpaceCapabilities {
@@ -27,6 +30,8 @@ export interface DoctorExecutorReachability {
 
 export interface DoctorSpaceProfile {
   space_id: string;
+  slug?: string;
+  name?: string;
   scopes: string[];
   capabilities: SpaceCapabilities;
   executors?: DoctorExecutorReachability[];
@@ -79,6 +84,29 @@ async function fetchExecutorPollStatus(
   }
 }
 
+async function fetchSpaceLabels(
+  hubUrl: string,
+  token: string,
+): Promise<Map<string, { slug?: string; name?: string }>> {
+  try {
+    const res = await fetch(`${hubUrl}/v1/spaces`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return new Map();
+    const body = (await res.json()) as {
+      spaces?: Array<{ space_id: string; slug?: string; name?: string }>;
+    };
+    return new Map(
+      (body.spaces ?? []).map((space) => [
+        space.space_id,
+        { slug: space.slug, name: space.name },
+      ]),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
 async function fetchExecutorReachability(
   hubUrl: string,
   token: string,
@@ -101,18 +129,18 @@ async function fetchExecutorReachability(
       let detail: string | undefined;
       let last_poll_at: string | null | undefined;
       if (type === "shell_spawn") {
-        detail = "requires linked space root path";
+        detail = "needs linked space root";
       } else if (type === "mcp_session") {
-        detail = "requires connected MCP session (invoke preflight)";
+        detail = "needs connected MCP session";
       } else if (type === "queue_poll") {
         const poll = pollStatus.get(executorId);
         last_poll_at = poll?.last_poll_at ?? null;
         reachable = poll?.reachable ?? false;
         detail = last_poll_at
-          ? `last poll ${last_poll_at}${reachable ? " (reachable)" : " (stale)"}`
+          ? `last poll ${last_poll_at}${reachable ? "" : " · stale"}`
           : "no worker poll yet";
       } else {
-        detail = "reachability varies by executor type";
+        detail = undefined;
       }
       return { name: String(row.name ?? ""), type, reachable, detail, last_poll_at };
     });
@@ -123,65 +151,119 @@ async function fetchExecutorReachability(
 
 function capabilityLine(capabilities: SpaceCapabilities): string {
   const parts = [
-    `apply space ${capabilities.can_apply_space ? "✓" : "✗"}`,
-    `mint grants ${capabilities.can_mint_grants ? "✓" : "✗"}`,
-    `register triggers ${capabilities.can_register_triggers ? "✓" : "✗"}`,
-  ];
-  return parts.join(" · ");
+    capabilities.can_mint_grants ? "admin" : null,
+    capabilities.can_apply_space ? "apply" : null,
+    capabilities.can_register_triggers ? "triggers" : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : "limited";
+}
+
+function shortenHomePath(path: string): string {
+  const home = process.env.HOME?.trim();
+  if (home && path.startsWith(`${home}/`)) {
+    return `~${path.slice(home.length)}`;
+  }
+  return path;
+}
+
+function issueSeverity(issue: DoctorIssue): "error" | "warning" | "info" {
+  return issue.severity ?? "error";
+}
+
+/** Merge duplicate codes (e.g. user + project mcp.json) into one human row. */
+export function coalesceDoctorIssues(issues: DoctorIssue[]): DoctorIssue[] {
+  const order: string[] = [];
+  const byCode = new Map<string, DoctorIssue>();
+  for (const issue of issues) {
+    const existing = byCode.get(issue.code);
+    if (!existing) {
+      byCode.set(issue.code, {
+        ...issue,
+        paths: issue.paths ? [...issue.paths] : undefined,
+      });
+      order.push(issue.code);
+      continue;
+    }
+    const paths = new Set([...(existing.paths ?? []), ...(issue.paths ?? [])]);
+    if (paths.size > 0) {
+      existing.paths = [...paths];
+    }
+    if (issueSeverity(issue) === "error") {
+      existing.severity = "error";
+    }
+    if (!existing.fix && issue.fix) {
+      existing.fix = issue.fix;
+    }
+  }
+  return order.map((code) => byCode.get(code)!);
 }
 
 export function formatDoctorHuman(result: DoctorResult): string {
-  const { profile, issues } = result;
+  const { profile } = result;
+  const issues = coalesceDoctorIssues(result.issues);
   const lines: string[] = [];
 
-  if (profile.auth_source) {
-    lines.push(`Auth source: ${profile.auth_source}`);
-  }
   if (profile.hub_url) {
     lines.push(
-      `Hub: ${profile.hub_url} (${profile.hub_reachable ? "reachable" : "unreachable"})`,
+      `Hub     ${profile.hub_url}  ${profile.hub_reachable ? "✓" : "✗ unreachable"}`,
     );
   }
-  lines.push(`Token: ${profile.token_valid ? "valid" : "invalid"}`);
-
+  const authBits = [
+    profile.auth_source ?? "none",
+    profile.token_valid ? "token ok" : "token invalid",
+    profile.bootstrap_token ? "bootstrap" : null,
+  ].filter((bit): bit is string => Boolean(bit));
+  lines.push(`Auth    ${authBits.join(" · ")}`);
   if (profile.whoami) {
-    const expires = profile.whoami.expires_at ?? "—";
-    lines.push(
-      `Actor: ${profile.whoami.actor_id} · token ${profile.whoami.token_id} · kind ${profile.whoami.kind} · expires ${expires}`,
-    );
+    lines.push(`Actor   ${profile.whoami.actor_id} (${profile.whoami.kind})`);
   }
 
-  if (profile.bootstrap_token) {
-    lines.push("(bootstrap token — hub bypasses scope name checks)");
-  }
-
-  lines.push("", "Profile");
-
+  lines.push("");
   if (profile.spaces.length === 0) {
-    lines.push("  (no spaces — bootstrap token on empty hub, or token not bound to a space yet)");
+    lines.push("Spaces  (none)");
   } else {
-    const spaceWidth = Math.max(5, ...profile.spaces.map((entry) => entry.space_id.length));
-    lines.push(
-      `  ${"SPACE".padEnd(spaceWidth)}  SCOPES`.padEnd(spaceWidth + 2) + "  CAPABILITIES",
-    );
+    lines.push(`Spaces  (${profile.spaces.length})`);
     for (const entry of profile.spaces) {
-      const scopes = entry.scopes.length > 0 ? entry.scopes.join(", ") : "(none)";
-      lines.push(
-        `  ${entry.space_id.padEnd(spaceWidth)}  ${scopes}`.padEnd(spaceWidth + 2 + scopes.length) +
-          `  ${capabilityLine(entry.capabilities)}`,
-      );
+      const label = entry.slug ?? entry.name;
+      lines.push(label ? `  ${label}  (${entry.space_id})` : `  ${entry.space_id}`);
+      lines.push(`    ${capabilityLine(entry.capabilities)}`);
       if (entry.executors?.length) {
         for (const ex of entry.executors) {
-          lines.push(`    executor ${ex.name} (${ex.type}) — ${ex.detail ?? "—"}`);
+          const mark =
+            ex.reachable === true ? "✓" : ex.reachable === false ? "✗" : "·";
+          const detail = ex.detail ? ` — ${ex.detail}` : "";
+          lines.push(`    ${mark} ${ex.name}${detail}`);
         }
       }
     }
   }
 
-  if (issues.length > 0) {
+  const blocking = issues.filter((issue) => issueSeverity(issue) === "error");
+  const notes = issues.filter((issue) => issueSeverity(issue) === "warning");
+
+  if (blocking.length > 0) {
     lines.push("", "Issues");
-    for (const issue of issues) {
-      lines.push(`  ✗ ${issue.code}: ${issue.message}`);
+    for (const issue of blocking) {
+      lines.push(`  ✗ ${issue.message}`);
+      for (const path of issue.paths ?? []) {
+        lines.push(`      ${shortenHomePath(path)}`);
+      }
+      if (issue.fix) {
+        lines.push(`      → ${issue.fix}`);
+      }
+    }
+  }
+
+  if (notes.length > 0) {
+    lines.push("", "Notes");
+    for (const issue of notes) {
+      lines.push(`  · ${issue.message}`);
+      for (const path of issue.paths ?? []) {
+        lines.push(`      ${shortenHomePath(path)}`);
+      }
+      if (issue.fix) {
+        lines.push(`      → ${issue.fix}`);
+      }
     }
   } else if (result.ok) {
     lines.push("", "✓ All checks passed");
@@ -246,9 +328,15 @@ export async function runDoctor(options?: {
       if (whoami.spaces.length === 0) {
         const scopes = ctx.tokenScopes;
         if (!bootstrapToken && !hasScope(scopes, "space:write")) {
+          // Local-tools connections are intentionally least-privilege.
           issues.push({
             code: "SCOPE_MISSING",
+            severity: authSource === "active-connection" ? "warning" : "error",
             message: "Missing space:write scope (cannot apply murrmure/)",
+            fix:
+              authSource === "active-connection"
+                ? "Local tools connections are read/run only — run mrmr login for operator apply"
+                : undefined,
           });
         }
         spaces.push({
@@ -257,13 +345,17 @@ export async function runDoctor(options?: {
           capabilities: summarizeCapabilities(scopes),
         });
       } else {
+        const labels = await fetchSpaceLabels(auth.hubUrl, auth.token);
         for (const entry of whoami.spaces) {
           const executors =
             hasScope(entry.scopes, "space:read") || bootstrapToken
               ? await fetchExecutorReachability(auth.hubUrl, auth.token, entry.space_id)
               : undefined;
+          const label = labels.get(entry.space_id);
           spaces.push({
             space_id: entry.space_id,
+            slug: label?.slug,
+            name: label?.name,
             scopes: entry.scopes,
             capabilities: summarizeCapabilities(entry.scopes),
             executors,
@@ -271,7 +363,12 @@ export async function runDoctor(options?: {
           if (!bootstrapToken && !hasScope(entry.scopes, "space:write")) {
             issues.push({
               code: "SCOPE_MISSING",
-              message: `Missing space:write on ${entry.space_id} (cannot apply murrmure/)`,
+              severity: authSource === "active-connection" ? "warning" : "error",
+              message: `Missing space:write on ${label?.slug ?? entry.space_id} (cannot apply murrmure/)`,
+              fix:
+                authSource === "active-connection"
+                ? "Local tools connections are read/run only — run mrmr login for operator apply"
+                : undefined,
             });
           }
         }
@@ -285,6 +382,7 @@ export async function runDoctor(options?: {
     projectPath: discovered.projectPath,
     cwd: discovered.cwd,
     authToken: auth.token,
+    linkedSpaceId: discovered.link?.space_id,
   });
   const mcpLive = await probeMcpLiveHealth({
     projectPath: discovered.projectPath,
@@ -300,6 +398,9 @@ export async function runDoctor(options?: {
     issues.push({
       code: issue.code,
       message: issue.message,
+      severity: issue.severity,
+      fix: issue.fix,
+      paths: issue.path ? [issue.path] : undefined,
     });
   }
 
@@ -313,8 +414,12 @@ export async function runDoctor(options?: {
     spaces,
   };
 
+  const hasBlocking = coalesceDoctorIssues(issues).some(
+    (issue) => issueSeverity(issue) === "error",
+  );
+
   return {
-    ok: issues.length === 0,
+    ok: !hasBlocking,
     issues,
     profile,
   };

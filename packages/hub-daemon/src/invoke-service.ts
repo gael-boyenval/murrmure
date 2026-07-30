@@ -17,6 +17,7 @@ import {
   registerShellProcessCancel,
   buildFlowInvokeStepContract,
   mergeDispatchAuditIntoRun,
+  mergeSpawnAuditIntoRun,
   appendShellStreamToRun,
   mergeActionResultIntoRun,
   registerResolveCredential,
@@ -81,6 +82,14 @@ export class InvokeService {
     this.registry = createExecutorRegistry({
       shellSpawn: {
         onProcessStart: ({ run_id, step_id, child }) => {
+          if (run_id && typeof child.pid === "number") {
+            void mergeSpawnAuditIntoRun(this.studio, {
+              run_id,
+              step_id,
+              pid: child.pid,
+              spawned_at: new Date().toISOString(),
+            });
+          }
           // Register the cancel handle and return its unregister so the
           // executor can deregister on finish (once-only termination).
           return registerShellProcessCancel(run_id, step_id, child);

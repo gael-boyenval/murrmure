@@ -1,24 +1,66 @@
 import { describe, expect, test } from "vitest";
-import { collectFlowStartEvents, parseHookRow } from "../../../src/flow-engine/space-home-index.js";
+import {
+  collectFlowStartEvents,
+  parseHandlerRow,
+} from "../../../src/flow-engine/space-home-index.js";
 
 describe("space-home-index", () => {
-  test("parseHookRow supports source arrays", () => {
-    const hook = parseHookRow({
-      name: "on-dev-failure",
+  test("parseHandlerRow reads HandlerSpec event handlers", () => {
+    const handler = parseHandlerRow({
+      id: "on-dev-failure",
+      description: "Handle failure feedback from my_space",
+      contract_keys: [],
       on: {
         event: {
           type: "murrmure.feedback.failure",
           source: ["/spaces/spc_my_space", "/spaces/spc_dev"],
         },
       },
+      type: "shell_spawn",
+      complete: "auto",
+      command: "echo hi",
+    });
+
+    expect(handler).toEqual({
+      handler_id: "on-dev-failure",
+      event_type: "murrmure.feedback.failure",
+      source: ["/spaces/spc_my_space", "/spaces/spc_dev"],
+      type: "shell_spawn",
+      summary: "echo hi",
+      description: "Handle failure feedback from my_space",
+    });
+  });
+
+  test("parseHandlerRow ignores step lifecycle handlers", () => {
+    expect(
+      parseHandlerRow({
+        id: "gate-view",
+        contract_keys: [],
+        on: "step.opened::demo.review",
+        type: "view_resolver",
+        view: "review-canvas",
+      }),
+    ).toBeNull();
+  });
+
+  test("parseHandlerRow still accepts legacy hook rows", () => {
+    const handler = parseHandlerRow({
+      name: "on-dev-failure",
+      on: {
+        event: {
+          type: "murrmure.feedback.failure",
+          source: ["/spaces/spc_my_space"],
+        },
+      },
       do: [{ invoke: { action: "write_failure_feedback" } }],
     });
 
-    expect(hook).toEqual({
-      hook_id: "on-dev-failure",
+    expect(handler).toEqual({
+      handler_id: "on-dev-failure",
       event_type: "murrmure.feedback.failure",
-      source: ["/spaces/spc_my_space", "/spaces/spc_dev"],
-      actions: [{ kind: "invoke", label: "write_failure_feedback" }],
+      source: ["/spaces/spc_my_space"],
+      type: "legacy_hook",
+      summary: "write_failure_feedback",
     });
   });
 

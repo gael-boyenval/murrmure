@@ -105,6 +105,14 @@ export async function connectDevHmrServices(): Promise<HubSidecarHandle> {
   const env = process.env;
   const paths = resolveDesktopPaths({ mode: "dev-hmr", env });
 
+  // HMR attaches to a hub spawned by run-hmr-hub.ts; still install the stable
+  // launcher so discovery's ~/.murrmure/bin/murrmure-mcp path is real.
+  installMcpLauncher({
+    dataDir: paths.dataDir,
+    bridgeEntry: paths.mcpBridgeEntry,
+    nodeBinary: paths.nodeBinary,
+  });
+
   // run-dev-hmr.ts already waits for hub + Vite before spawning the native window.
   // Do not fetch from the Electrobun process — Bun fetch to 127.0.0.1 hangs there.
   const session = resolveDevHmrBootstrapSession(env);

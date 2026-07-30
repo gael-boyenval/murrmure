@@ -34,4 +34,8 @@ export {
   validateHostBranchResolve,
   viewSubmitFileName,
 } from "./host-bridge.js";
-export { ViewHostFrame, type ViewHostFrameProps } from "./ViewHostFrame.js";
+export {
+  ViewHostFrame,
+  VIEW_DOCUMENT_CSP,
+  type ViewHostFrameProps,
+} from "./ViewHostFrame.js";

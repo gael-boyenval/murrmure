@@ -1,17 +1,15 @@
-import type { FlowIndexEntry, HookSpec } from "@murrmure/contracts";
+import type { FlowIndexEntry, HandlerSpec } from "@murrmure/contracts";
+import { HandlerSpecSchema } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { buildIndexStatus } from "../index/apply-index.js";
 
-export interface SpaceHomeHookActionRow {
-  kind: "ensure_session" | "invoke" | "start_flow";
-  label: string;
-}
-
-export interface SpaceHomeHookRow {
-  hook_id: string;
+export interface SpaceHomeHandlerRow {
+  handler_id: string;
   event_type: string;
   source?: string | string[];
-  actions: SpaceHomeHookActionRow[];
+  type: string;
+  summary: string;
+  description?: string;
 }
 
 export interface SpaceHomeActionRow {
@@ -21,8 +19,8 @@ export interface SpaceHomeActionRow {
 
 export interface SpaceHomeEventRow {
   event_type: string;
-  kind: "hook_listener" | "flow_start";
-  hook_id?: string;
+  kind: "handler_listener" | "flow_start";
+  handler_id?: string;
   flow_id?: string;
   source?: string | string[];
 }
@@ -31,13 +29,13 @@ export interface SpaceHomeIndexSection {
   counts: {
     actions: number;
     executors: number;
-    hooks: number;
+    handlers: number;
     events: number;
     flows: number;
     declared_events: number;
   };
   actions: SpaceHomeActionRow[];
-  hooks: SpaceHomeHookRow[];
+  handlers: SpaceHomeHandlerRow[];
   events: SpaceHomeEventRow[];
 }
 
@@ -45,36 +43,73 @@ function bareSpaceId(space_id: string): string {
   return space_id.startsWith("spc_") ? space_id.slice(4) : space_id;
 }
 
-function summarizeHookAction(action: Record<string, unknown>): SpaceHomeHookActionRow {
-  if ("ensure_session" in action) {
-    const cfg = action.ensure_session as { title?: string };
-    return { kind: "ensure_session", label: cfg.title ?? "session" };
+function summarizeHandler(spec: HandlerSpec): string {
+  if (spec.type === "view_resolver") {
+    return `view:${spec.view}`;
   }
-  if ("invoke" in action) {
-    const cfg = action.invoke as { action?: string; space?: string };
-    const target = cfg.space ? ` → ${cfg.space}` : "";
-    return { kind: "invoke", label: `${cfg.action ?? "action"}${target}` };
+  if (spec.command?.trim()) {
+    return spec.command.trim();
   }
-  if ("start_flow" in action) {
-    const cfg = action.start_flow as { flow_id?: string };
-    return { kind: "start_flow", label: cfg.flow_id ?? "flow" };
+  if (spec.prompt?.trim()) {
+    return "prompt";
   }
-  return { kind: "invoke", label: "unknown" };
+  return spec.type;
 }
 
-export function parseHookRow(raw: Record<string, unknown>): SpaceHomeHookRow | null {
-  const hook_id = String(raw.name ?? "");
-  const spec = raw as HookSpec & { name?: string };
-  const eventType = spec.on?.event?.type;
-  if (!hook_id || !eventType) return null;
+/** Parse an indexed row as an event handler (HandlerSpec) or legacy hook shape. */
+export function parseHandlerRow(raw: Record<string, unknown>): SpaceHomeHandlerRow | null {
+  const parsed = HandlerSpecSchema.safeParse(raw);
+  if (parsed.success) {
+    const on = parsed.data.on;
+    if (typeof on === "string" || !on.event?.type) {
+      return null;
+    }
+    return {
+      handler_id: parsed.data.id,
+      event_type: on.event.type,
+      source: on.event.source,
+      type: parsed.data.type,
+      summary: summarizeHandler(parsed.data),
+      description: parsed.data.description,
+    };
+  }
+
+  // Legacy hooks.yaml rows (name + on.event + do[]) — display only until purged.
+  const handler_id = String(raw.name ?? raw.id ?? "");
+  const eventType =
+    raw.on &&
+    typeof raw.on === "object" &&
+    (raw.on as { event?: { type?: unknown } }).event &&
+    typeof (raw.on as { event: { type?: unknown } }).event.type === "string"
+      ? String((raw.on as { event: { type: string } }).event.type)
+      : "";
+  if (!handler_id || !eventType) return null;
+
+  const steps = Array.isArray(raw.do) ? raw.do : [];
+  let summary = "legacy-hook";
+  for (const step of steps) {
+    if (step && typeof step === "object" && "invoke" in step) {
+      const invoke = (step as { invoke?: { action?: string } }).invoke;
+      summary = invoke?.action ?? "invoke";
+      break;
+    }
+  }
 
   return {
-    hook_id,
+    handler_id,
     event_type: eventType,
-    source: spec.on?.event?.source,
-    actions: (spec.do ?? []).map((step) => summarizeHookAction(step as Record<string, unknown>)),
+    source:
+      raw.on && typeof raw.on === "object"
+        ? (raw.on as { event?: { source?: string | string[] } }).event?.source
+        : undefined,
+    type: "legacy_hook",
+    summary,
+    description: typeof raw.description === "string" ? raw.description : undefined,
   };
 }
+
+/** @deprecated Use parseHandlerRow. */
+export const parseHookRow = parseHandlerRow;
 
 export function collectFlowStartEvents(flows: FlowIndexEntry[]): SpaceHomeEventRow[] {
   const rows: SpaceHomeEventRow[] = [];
@@ -99,10 +134,10 @@ export async function buildSpaceHomeIndex(
   const snapshot = await studio.getSpaceIndexSnapshot(bare);
   const status = buildIndexStatus(snapshot);
 
-  const rawHooks = await studio.listIndexedHooks(bare);
-  const hooks = rawHooks
-    .map((row) => parseHookRow(row))
-    .filter((row): row is SpaceHomeHookRow => row != null);
+  const rawRows = await studio.listIndexedHooks(bare);
+  const handlers = rawRows
+    .map((row) => parseHandlerRow(row))
+    .filter((row): row is SpaceHomeHandlerRow => row != null);
 
   const rawActions = await studio.listIndexedActions(bare);
   const actions = rawActions.map((row) => ({
@@ -112,23 +147,26 @@ export async function buildSpaceHomeIndex(
 
   const flows = await studio.listFlowIndex(bare);
   const events: SpaceHomeEventRow[] = [
-    ...hooks.map((hook) => ({
-      event_type: hook.event_type,
-      kind: "hook_listener" as const,
-      hook_id: hook.hook_id,
-      source: hook.source,
+    ...handlers.map((handler) => ({
+      event_type: handler.event_type,
+      kind: "handler_listener" as const,
+      handler_id: handler.handler_id,
+      source: handler.source,
     })),
     ...collectFlowStartEvents(flows),
   ];
 
   return {
     counts: {
-      ...status.counts,
+      actions: status.counts.actions,
+      executors: status.counts.executors,
+      handlers: status.counts.handlers,
       events: events.length,
+      flows: status.counts.flows,
       declared_events: (snapshot.events ?? []).length,
     },
     actions,
-    hooks,
+    handlers,
     events,
   };
 }

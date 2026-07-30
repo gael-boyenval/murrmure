@@ -1,15 +1,20 @@
 export interface McpSnippetOptions {
   command?: string;
-  hubId: string;
-  connectionId: string;
+  /** @deprecated Ignored. Hub is resolved from Desktop discovery. */
+  hubId?: string;
+  /** Connection id to pin in MCP args (required for space-correct local tools). */
+  connectionId?: string;
 }
 
-export function buildThinMcpSnippet(opts: McpSnippetOptions): Record<string, unknown> {
+export function buildThinMcpSnippet(opts: McpSnippetOptions = {}): Record<string, unknown> {
+  const connectionId = opts.connectionId?.trim();
   return {
     mcpServers: {
       murrmure: {
         command: opts.command ?? "murrmure-mcp",
-        args: ["--hub", opts.hubId, "--connection", opts.connectionId],
+        ...(connectionId?.startsWith("con_")
+          ? { args: ["--connection", connectionId] }
+          : {}),
       },
     },
   };

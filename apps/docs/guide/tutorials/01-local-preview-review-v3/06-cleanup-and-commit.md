@@ -86,60 +86,10 @@ steps:
 
 ## Step 2 — Handler: archive and commit
 
-`write_spec` is the first repository-mutating handler, so update its command to
-fail before mutation when the repository already has staged, unstaged, or
-non-ignored untracked changes:
-
-```diff
-     command: |
-+      git diff --quiet
-+      git diff --cached --quiet
-+      test -z "$(git ls-files --others --exclude-standard)"
-       mkdir -p specs/current
-       cp {{murrmure.step.intake.artifact.spec.path}} specs/current/spec.md
-```
-
-Create `.mrmr/space/scripts/cleanup.mjs`. It checks the run ID and commit
-message, archives to `specs/archive/{run_id}.md`, rejects changed paths outside
-the tutorial allowlist, stages only accepted paths, and prints structured output:
-
-<!-- tutorial-v3-fence:part-6-cleanup-script -->
-```javascript
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, renameSync } from "node:fs";
-import { dirname, join } from "node:path";
-
-const [runId, subject, description] = process.argv.slice(2);
-if (!/^run_[A-Za-z0-9]+$/.test(runId ?? "")) throw new Error("invalid run id");
-if (!subject?.trim() || /[\r\n]/.test(subject)) throw new Error("invalid commit subject");
-if (!description?.trim()) throw new Error("invalid commit description");
-
-const archive = join("specs", "archive", `${runId}.md`);
-if (existsSync(archive)) throw new Error(`archive already exists: ${archive}`);
-mkdirSync(dirname(archive), { recursive: true });
-renameSync(join("specs", "current", "spec.md"), archive);
-
-const status = execFileSync("git", ["status", "--porcelain", "-z", "--untracked-files=all"], { encoding: "utf8" });
-const changed = status.split("\0").filter(Boolean).map((entry) => entry.slice(3));
-const allowed = changed.filter((path) =>
-  path === archive ||
-  path === "package.json" ||
-  path === "pnpm-lock.yaml" ||
-  path.startsWith("src/") ||
-  path.startsWith("test/") ||
-  path.startsWith("tests/")
-);
-const rejected = changed.filter((path) => path !== "specs/current/spec.md" && !allowed.includes(path));
-if (rejected.length > 0) throw new Error(`workflow does not own changed paths: ${rejected.join(", ")}`);
-if (allowed.length === 0) throw new Error("no workflow-owned outputs to commit");
-
-execFileSync("git", ["add", "--", ...allowed], { stdio: "inherit" });
-execFileSync("git", ["commit", "-m", subject, "-m", description], { stdio: "inherit" });
-const commitSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-process.stdout.write(`${JSON.stringify({ commit_sha: commitSha, staged_paths: allowed, archive_path: archive })}\n`);
-```
-
-Append this handler to `.mrmr/space/handlers.yaml`:
+Append this handler to `.mrmr/space/handlers.yaml`. It moves the live spec into
+`specs/archive/` (named with the run id from the environment), then commits
+using the **`build`** resolve payload — each dynamic value is one **unquoted**
+placeholder argument (the runtime shell-quotes it once):
 
 <!-- tutorial-v3-fence:part-6-cleanup-handler -->
 ```yaml
@@ -147,7 +97,11 @@ Append this handler to `.mrmr/space/handlers.yaml`:
     on: step.opened::my-dev-flow.cleanup
     type: shell_spawn
     complete: auto
-    command: node .mrmr/space/scripts/cleanup.mjs {{murrmure.run.id}} {{steps.build.output.commit_message}} {{steps.build.output.description}}
+    command: |
+      mkdir -p specs/archive
+      mv specs/current/spec.md "specs/archive/${MURRMURE_RUN_ID}.md"
+      git add .
+      git commit -m {{murrmure.step.build.output.commit_message}} -m {{murrmure.step.build.output.description}}
     timeout_ms: 10000
 ```
 
@@ -155,12 +109,15 @@ Append this handler to `.mrmr/space/handlers.yaml`:
 
 | Piece | Role |
 |-------|------|
-| **`cleanup.mjs`** | Checks the changed-path allowlist, archives the spec under this run ID, stages only owned outputs, and commits. |
-| **`steps.build.output.commit_message`** | Subject line the agent passed on **`build`** resolve — from [Part 5](./05-extend-flow-and-handlers). Token form: <code v-pre>{{steps.build.output.commit_message}}</code> |
-| **`steps.build.output.description`** | Body line from the same resolve payload. Token form: <code v-pre>{{steps.build.output.description}}</code> |
-| **`complete: auto`** | The script exits 0 → hub resolves **`cleanup`** on **`completed`** and journals its structured output. |
+| **`MURRMURE_RUN_ID`** | Injected by `shell_spawn` — same run id as Desktop / journal (use it in paths; do not embed placeholders inside a filename token). |
+| **`murrmure.step.build.output.commit_message`** | Subject from the agent's **`build`** resolve — <code v-pre>{{murrmure.step.build.output.commit_message}}</code> |
+| **`murrmure.step.build.output.description`** | Body from the same resolve — <code v-pre>{{murrmure.step.build.output.description}}</code> |
+| **`complete: auto`** | Exit 0 → hub resolves **`cleanup`** on **`completed`**. |
 
-Handlers read prior step output through <code v-pre>{{steps.{step_id}.output.{field}}}</code> tokens — here, fields from **`build`**'s resolve payload.
+Prior-step fields use the pattern
+<code v-pre>{{murrmure.step.STEP_ID.output.FIELD}}</code>
+(same `murrmure.step…` family as artifact paths). Legacy
+<code v-pre>{{steps.STEP_ID.output.FIELD}}</code> is rejected at apply.
 
 Re-apply:
 
@@ -200,17 +157,16 @@ step.resolved(intake, continue)
 Verify:
 
 ```bash
-ls specs/archive/run_<id>.md
-cat specs/archive/run_<id>.md
+ls specs/archive/run_YOUR_RUN_ID.md
+cat specs/archive/run_YOUR_RUN_ID.md
 git log -1 --format=%B
-ls .mrmr/dev/runs/run_<id>/steps/intake/spec/spec.md
+ls .mrmr/dev/runs/run_YOUR_RUN_ID/steps/intake/spec/spec.md
 ```
 
 You should see:
 
 - Spec under **`specs/archive/{run_id}.md`** (not **`specs/current/`**)
 - Git log subject and body matching the agent's **`build`** payload
-- The cleanup journal output includes `commit_sha`, `staged_paths`, and `archive_path`
 
 Run scratch is under gitignored **`.mrmr/dev/runs/{run_id}/…`**.
 
@@ -226,7 +182,8 @@ Run scratch is under gitignored **`.mrmr/dev/runs/{run_id}/…`**.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `git commit` failed with empty `-m` | Build resolve missing payload | Re-run; ensure Part 5 agent passes `commit_message` + `description` |
+| `git commit` failed with empty `-m` | Missing build output binding / wrong token | Use <code v-pre>{{murrmure.step.build.output.commit_message}}</code> (not legacy <code v-pre>{{steps.build.output.commit_message}}</code>); ensure **`build`** resolved with those fields |
+| `Unknown placeholder` at apply/spawn | Legacy or typo token | Prefer <code v-pre>{{murrmure.step.STEP_ID.output.FIELD}}</code>, <code v-pre>{{murrmure.step.STEP_ID.artifact.SLOT.path}}</code>, <code v-pre>{{murrmure.run_id}}</code> |
 | `mv` failed | No `specs/current/spec.md` | Confirm **`write_spec`** ran in the same run |
 | `git commit` failed (user/email) | Git not configured | `git init` (Part 1); set `user.name` / `user.email` |
 | Wrong commit message | Stale run / wrong step output | Check journal: **`build`** resolve payload for this `run_id` |
@@ -234,7 +191,7 @@ Run scratch is under gitignored **`.mrmr/dev/runs/{run_id}/…`**.
 ## Checkpoint
 
 - [ ] Manifest: full chain `intake` → `write_spec` → `build` → `cleanup`
-- [ ] **`cleanup_archive_commit`** uses <code v-pre>{{steps.build.output.commit_message}}</code> and <code v-pre>{{steps.build.output.description}}</code>
+- [ ] **`cleanup_archive_commit`** uses <code v-pre>{{murrmure.step.build.output.commit_message}}</code> and <code v-pre>{{murrmure.step.build.output.description}}</code> (unquoted)
 - [ ] Spec archived; git log shows agent's commit subject + description
 
 ## Done

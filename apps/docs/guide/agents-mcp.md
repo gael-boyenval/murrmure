@@ -20,7 +20,7 @@ mrmr connection create --space spc_…
 Creation automatically stores the credential in macOS Keychain, activates the
 connection, installs the bundled bridge and agent skill through each selected
 adapter, and saves one reload/resume step. The default
-`tutorial-builder/v1` profile contains exactly:
+`local-tools/v1` profile contains exactly:
 
 - `space:read`
 - `flow:read`
@@ -32,28 +32,25 @@ Raw journal access is an advanced permission and is not in this profile.
 
 ## Generated MCP shape
 
-Local configuration contains the stable launcher and IDs only:
+Local configuration pins the connection (space) and never embeds a Hub URL or
+token:
 
 ```json
 {
   "mcpServers": {
     "murrmure": {
       "command": "~/.murrmure/bin/murrmure-mcp",
-      "args": [
-        "--hub",
-        "http://127.0.0.1:8787",
-        "--connection",
-        "con_…"
-      ]
+      "args": ["--connection", "con_…"]
     }
   }
 }
 ```
 
-No token belongs in MCP JSON, project files, shell exports, logs, or command
-arguments. The launcher resolves the current Desktop bundle at invocation; the
-bridge then reads the credential from Keychain. Relaunch Desktop after moving
-or upgrading it so discovery and the launcher refresh.
+The launcher resolves the current Desktop bundle at invocation; the bridge
+resolves the Hub from discovery and the credential from Keychain for that
+connection id. Prefer project-level `.cursor/mcp.json` when the workspace has
+`.cursor/`. Relaunch Desktop after moving or upgrading it so discovery and the
+launcher refresh.
 
 Unknown tools use the generic adapter. It writes no tool configuration and
 prints portable MCP/skill instructions using the same descriptor.
@@ -87,8 +84,37 @@ mrmr connection revoke con_… --space spc_…
 Revoked entries remain Hub audit history; they cannot be reactivated. Rotation
 creates a replacement identity and removes the old local credential.
 
-Advanced restricted creation may use `--flow-acl` with canonical flow IDs that
-are already applied to the space. Unknown, future, or stale aliases fail.
+### Custom capability grants
+
+`mrmr connection create` always mints the fixed `local-tools/v1` set. To add
+capabilities such as `event:emit`, use:
+
+```bash
+mrmr connection grant --space spc_…
+```
+
+In a TTY this opens a checklist of grantable capabilities (local-tools caps
+pre-selected). Headless / `--json` mode requires an explicit list:
+
+```bash
+mrmr connection grant --space spc_… \
+  --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit
+```
+
+When the selected set is not exactly `local-tools/v1`, the Hub mint omits that
+profile so custom capabilities are stored. Reload local tools afterward so MCP
+picks up the new active connection.
+
+If project `.cursor/mcp.json` is missing `--connection`, run:
+
+```bash
+mrmr space doctor --fix
+```
+
+That rewrites to the launcher + `--connection <con_…>` for the linked space
+(no Hub URL). Advanced restricted creation may use `--flow-acl` with canonical
+flow IDs that are already applied to the space. Unknown, future, or stale
+aliases fail.
 
 ## Headless CI
 

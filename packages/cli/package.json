@@ -14,8 +14,7 @@
     "dist",
     "templates",
     "skill-agent",
-    "skill-developer",
-    "VERSION"
+    "skill-developer"
   ],
   "scripts": {
     "build": "tsup",

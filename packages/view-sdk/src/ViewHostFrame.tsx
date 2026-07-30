@@ -22,29 +22,34 @@ export interface ViewHostFrameProps {
 }
 
 /**
- * Restrictive CSP for the embedded View. Blocks network fetch/XHR/connect,
- * form submission, popups, plugins, and external resources; allows only
- * same-origin scripts/styles and inline styles for the Vite bundle.
+ * CSP for hub-served View HTML responses (Content-Security-Policy header).
+ * Do NOT put this on the iframe `csp` attribute — that is CSP Embedded
+ * Enforcement and refuses the frame unless the response sends Allow-CSP-From
+ * (blank canvas). Isolation comes from sandbox + this response header.
+ *
+ * Under `sandbox="allow-scripts"` (opaque origin), `'self'` matches nothing,
+ * so script/style must allow http(s) for hub-served relative assets.
  */
-const VIEW_CSP = [
+export const VIEW_DOCUMENT_CSP = [
   "default-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "font-src 'self' data:",
+  "script-src 'unsafe-inline' http: https:",
+  "style-src 'unsafe-inline' http: https:",
+  "img-src http: https: data:",
+  "font-src http: https: data:",
   "connect-src 'none'",
   "frame-src 'none'",
   "child-src 'none'",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
-  "navigate-to 'none'",
 ].join("; ");
 
 /** Embeds a custom view iframe and wires the versioned, nonce-bound murrmure
- * view host postMessage protocol. Sandbox is `allow-scripts` only — no
- * same-origin, forms, popups, downloads, or top navigation — so the View
- * cannot access Hub credentials, storage, or mutate orchestration directly. */
+ * view host postMessage protocol. Production sandbox is `allow-scripts` only —
+ * no same-origin, forms, popups, downloads, or top navigation — so the View
+ * cannot access Hub credentials, storage, or mutate orchestration directly.
+ * Dev mode relaxes sandbox so a local Vite server can load modules and
+ * accept file inputs. */
 export function ViewHostFrame({
   src,
   context,
@@ -57,6 +62,7 @@ export function ViewHostFrame({
   title,
 }: ViewHostFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const isDev = context.mode === "dev";
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -80,10 +86,9 @@ export function ViewHostFrame({
       src={src}
       title={title ?? "Custom view"}
       className={className ?? "h-full w-full border-0 bg-background"}
-      sandbox="allow-scripts"
-      // `csp` restricts the embedded document (HTML spec); React does not type
-      // it, so spread it as a raw attribute.
-      {...({ csp: VIEW_CSP } as Record<string, string>)}
+      sandbox={
+        isDev ? "allow-scripts allow-same-origin allow-forms" : "allow-scripts"
+      }
     />
   );
 }

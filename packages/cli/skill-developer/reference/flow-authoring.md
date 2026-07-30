@@ -177,7 +177,7 @@ mrmr flow run flw_my_flow --input '{"topic":"news"}'
 | `flow:read` | Applied/live/history graph contracts + safe resolver identity — no Run without `flow:run` |
 | `step:resolve` | Resolve open steps (required to call `murrmure_resolve_step`) |
 
-Create a local connection with the default `tutorial-builder/v1` profile: `mrmr connection create --space spc_…`.
+Create a local connection with the default `local-tools/v1` profile: `mrmr connection create --space spc_…`.
 
 Desktop uses one digest-aware flow page for the current applied preview, live
 run, and history. The Hub normalizes default branches and matches handlers; UI
@@ -191,6 +191,8 @@ admission.
 - **No inline script steps** — rejected at apply
 - **No indexed action binding** — use handlers + `on::key` binding
 - **No `start`, flow-level view binding, `role`, `presentation`** — rejected by the strict schema
-- Templates: `{{steps.id.output.field}}`, `{{input.*}}` in handler params
+- Templates in handlers: `{{murrmure.step.id.output.field}}`,
+  `{{murrmure.step.id.artifact.slot.path}}`, `{{murrmure.run_id}}`, `{{input.*}}`
+  in flow params. Legacy `{{steps.id.output.field}}` is rejected at apply.
 
 See [space-directory.md](space-directory.md) and parent `SKILL.md` for handler wiring, and the [step-contract bridge](../../../../../studio-specs/current/bridges/step-contract.md) for the normative contract.

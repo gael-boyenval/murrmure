@@ -1,4 +1,5 @@
 import { createConsola } from "consola";
+import { colors } from "consola/utils";
 import type { ScopeError } from "./scope.js";
 
 export const cliConsola = createConsola({ stdout: process.stderr });
@@ -46,21 +47,27 @@ export function printOk(data: Record<string, unknown> = {}, humanLine?: string):
     console.log(formatJsonOk(data));
     return;
   }
-  if (humanLine) console.log(humanLine);
+  if (humanLine) consola.log(colors.green(humanLine));
 }
 
 export function printErr(code: string, message: string, hint?: unknown): never {
   if (jsonMode) {
     console.log(formatJsonError(code, message, hint));
   } else {
-    consola.error(`✗ ${message}`);
+    const lines = message.split("\n");
+    consola.error(colors.red(`✗ ${lines[0]}`));
+    for (const line of lines.slice(1)) {
+      if (line.length > 0) consola.log(colors.dim(line));
+    }
     if (hint && typeof hint === "object" && Array.isArray((hint as { errors?: unknown }).errors)) {
       for (const error of (hint as { errors: Array<{ path?: string; message?: string }> }).errors) {
-        consola.info(`${error.path ?? ""} ${error.message ?? "validation failed"}`.trim());
+        consola.info(
+          colors.yellow(`${error.path ?? ""} ${error.message ?? "validation failed"}`.trim()),
+        );
       }
     }
     if (hint && typeof hint === "object" && hint && "tip" in hint) {
-      consola.info(String((hint as { tip: string }).tip));
+      consola.info(colors.cyan(String((hint as { tip: string }).tip)));
     }
   }
   process.exit(1);
@@ -70,7 +77,7 @@ export function printScopeError(err: ScopeError): never {
   switch (err.code) {
     case "SCOPE_MISSING":
       printErr(err.code, `${err.message} (${err.requiredScope})`, {
-        tip: "Run mrmr whoami · create a local connection with mrmr connection create",
+        tip: "Run mrmr whoami · for operator commands use mrmr login (local tools connections are read/run only)",
         required_scope: err.requiredScope,
         space_id: err.spaceId,
       });

@@ -48,9 +48,19 @@ if [ "$ENTRY" != "$EXPECTED_ENTRY" ] || [ "$NODE" != "$EXPECTED_NODE" ]; then
   echo "murrmure-mcp: bundled bridge discovery failed validation; restart Murrmure Desktop" >&2
   exit 66
 fi
-if [ ! -f "$ENTRY" ] || [ ! -x "$NODE" ]; then
+if [ ! -f "$ENTRY" ]; then
   echo "murrmure-mcp: bundled bridge binary is unavailable; reinstall Murrmure Desktop" >&2
   exit 67
+fi
+# Dev/HMR discovery may advertise a PATH command (e.g. "node") rather than an absolute runtime.
+if [ ! -x "$NODE" ]; then
+  RESOLVED=$(command -v "$NODE" 2>/dev/null || true)
+  if [ -n "$RESOLVED" ] && [ -x "$RESOLVED" ]; then
+    NODE="$RESOLVED"
+  else
+    echo "murrmure-mcp: bundled bridge binary is unavailable; reinstall Murrmure Desktop" >&2
+    exit 67
+  fi
 fi
 
 exec "$NODE" "$ENTRY" "$@"

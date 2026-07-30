@@ -17,14 +17,21 @@ identity and made one credential per integration context appear normal.
 1. The public resource is a **connection**. One persistent connection represents
    one machine/trust boundary and may be installed into several local
    integration contexts. Murrmure does not store an agent entity.
-2. Tutorial setup uses the named profile `tutorial-builder/v1`, containing
+2. Local tools setup uses the named profile `local-tools/v1`, containing
    exactly `space:read`, `flow:read`, `flow:run`, and `step:resolve`.
+   (`tutorial-builder/v1` remains a hub-accepted legacy alias.)
 3. Local connection tokens live only in the operating-system credential store,
    keyed by Hub identity plus connection ID. Activation, descriptors, generated
-   configuration, logs, project files, and reload state contain IDs only.
-4. Local bridge startup requires `--hub` and `--connection` and fails closed
-   when credential lookup is unavailable. It never falls back to an environment
-   token. Explicit `--headless-ci` mode may consume `MURRMURE_HUB_TOKEN` as a
+   configuration, logs, project files, and reload state never contain tokens.
+   Hub URL stays out of client MCP JSON (Desktop discovery). Connection ID is
+   pinned in MCP args as `--connection <con_…>` so each project binds a space.
+4. Local bridge startup resolves the Hub endpoint from Desktop discovery
+   (`~/.murrmure/hubs/shared.json`) and the connection identity from
+   `--connection` (preferred) or `~/.murrmure/connections/active.json` as
+   fallback, then reads the OS credential store and fails closed when lookup is
+   unavailable. It never falls back to an environment token. Explicit `--hub`
+   remains accepted only as a transitional override; adapters do not write it.
+   Explicit `--headless-ci` mode may consume `MURRMURE_HUB_TOKEN` as a
    process-runtime secret supplied by a CI secret manager.
 5. Desktop atomically maintains the user-only launcher
    `~/.murrmure/bin/murrmure-mcp`. The launcher resolves the current bundled

@@ -15,6 +15,12 @@ export {
 export { lintHandlerCatalogCoverage } from "./handler-catalog-lint.js";
 export { validateHandlerBindings } from "./validate-handler-bindings.js";
 export {
+  validateHandlerPlaceholders,
+  placeholderQuickFixHint,
+  collectTemplatePlaceholderKeys,
+  isAllowedHandlerPlaceholderKey,
+} from "./validate-handler-placeholders.js";
+export {
   resolveRunPolicies,
   buildRunPolicyRows,
   type RunPolicyFlow,

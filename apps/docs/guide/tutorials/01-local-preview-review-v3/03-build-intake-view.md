@@ -6,16 +6,14 @@ You scaffold a minimal intake UI — file picker, **Submit**, **Cancel** — wir
 
 ## Step 1 — Scaffold the view package
 
-From your space root:
+From your space root (stay here for later `mrmr` commands):
 
 ```bash
 cd ~/work/my-first-space
 mrmr space view init spec-intake
-cd .mrmr/views/spec-intake
-npm install
 ```
 
-This creates `.mrmr/views/spec-intake/` — a small Vite + React app with `view.manifest.yaml` and `src/App.tsx`.
+This creates `.mrmr/views/spec-intake/` — a minimal Vite + React app with `view.manifest.yaml` and `src/App.tsx` — and runs `npm install` in that package for you. Do **not** `cd` into the view to run `mrmr` commands; those need the linked space root (the directory that contains `.mrmr/`).
 
 | Piece | Role |
 |-------|------|
@@ -44,7 +42,7 @@ a built-in operator form.
 
 ## Step 3 — Implement the view (file only)
 
-Replace `src/App.tsx` with a minimal form: **one file input**, **Submit**, **Cancel**. No reviewer field, no filename text box — the file name travels with the upload.
+Open **`.mrmr/views/spec-intake/src/App.tsx`** (path relative to your **space root** — the directory that contains `.mrmr/`). The scaffold already ships a minimal form: **one file input**, **Submit**, **Cancel**. No reviewer field, no filename text box — the file name travels with the upload. Confirm it matches the snippet below (or paste over it).
 
 The view does **not** hardcode what `continue` requires. The shell passes the compiled **branch contract** from your flow manifest in `ViewAppContext.step.branches`. The SDK validates against that contract **before** calling resolve — so a missing file shows an inline error instead of failing the run on the hub.
 
@@ -53,6 +51,10 @@ The view does **not** hardcode what `continue` requires. The shell passes the co
 import { useState } from "react";
 import { isViewContractError, useViewContract } from "@murrmure/view-sdk/app";
 
+/**
+ * Minimal intake scaffold — file input, Submit, Cancel.
+ * Edit this file; the branch contract comes from the host (fixtures in view dev).
+ */
 export function App() {
   const { submitBranch, cancel, submission } = useViewContract();
   const [specFile, setSpecFile] = useState<File | null>(null);
@@ -75,8 +77,8 @@ export function App() {
 
   return (
     <main style={{ fontFamily: "system-ui", padding: "1.5rem", maxWidth: 480 }}>
-      <h1 style={{ marginTop: 0 }}>Attach spec</h1>
-      <p style={{ color: "#64748b" }}>Choose one markdown file to attach.</p>
+      <h1 style={{ marginTop: 0 }}>Attach file</h1>
+      <p style={{ color: "#64748b" }}>Choose one file to attach, then Submit or Cancel.</p>
       <input
         type="file"
         accept=".md,.markdown,.txt,text/markdown,text/plain"
@@ -98,7 +100,7 @@ export function App() {
         </button>
         <button
           type="button"
-          onClick={() => busy ? submission.cancel() : cancel()}
+          onClick={() => (busy ? submission.cancel() : cancel())}
           disabled={submission.status === "resolving"}
         >
           {busy ? "Cancel upload" : "Cancel"}
@@ -144,15 +146,15 @@ to failure. No file validation on cancel.
 
 ## Step 4 — Dev loop (optional)
 
-Iterate on the view before a production run. You work inside the view package — Vite hot-reloads `src/App.tsx` on save.
+Iterate on the view before a production run. Prefer **Option B** from the space root — it starts Vite for you and prints the URLs to open.
 
 ### Option A — Vite only (layout and compile)
 
-In the view package:
+From the space root (deps were installed by `view init`):
 
 ```bash
-cd .mrmr/views/spec-intake
-npm run dev
+cd ~/work/my-first-space
+npm run dev --prefix .mrmr/views/spec-intake
 ```
 
 Open the URL Vite prints (usually `http://localhost:5173`). The app shows **Waiting for view context…** until the shell posts context — that is expected when you open Vite directly. Use this loop to confirm the view compiles and to tweak markup/styles quickly.
@@ -166,26 +168,32 @@ cd ~/work/my-first-space
 mrmr view dev spec-intake
 ```
 
-This command **starts `npm run dev` in the view package for you** (same Vite server as Option A) and writes `.mrmr/dev/view-dev.json` with the dev URL. Do **not** run Option A at the same time — both use the same port.
+This command **starts `npm run dev` in the view package for you** (same Vite server as Option A) and writes `.mrmr/dev/view-dev.json` with the dev URL. It prints:
 
-Then in Desktop, open your space → **dev view** route (`/spaces/{space_id}/dev/views/spec-intake`). Desktop loads the Vite URL and injects fixture context — including `step.branches` from `dev/fixtures/*.json` — so `useViewContract()` behaves like a real run.
+- **Open:** the Vite URL (layout-only until Desktop injects context)
+- **Desktop:** `/spaces/{space_id}/dev/views/spec-intake` — link the space in Desktop, then open this route
+- **Fixtures:** sample step contexts under `.mrmr/views/spec-intake/dev/fixtures/` (Desktop tabs). The scaffold ships `intake.json` with `continue` / `cancel` branches.
 
-In `.mrmr/views/spec-intake/dev/fixtures/*.json`, add **`step.branches`** inside the existing `step` object. `branches` is a **server-style array** of branch contracts — the same wire shape the shell projects in production, never an object map:
+Do **not** run Option A at the same time — both use the same port.
 
-```diff
-   "step": {
-     "step_id": "intake",
-+    "branches": [
-+      {
-+        "branch": "continue",
-+        "schema": { "type": "object", "required": ["spec"] },
-+        "artifact_slots": {
-+          "spec": { "description": "The spec markdown file", "max_bytes": 1048576 }
-+        }
-+      },
-+      { "branch": "cancel", "schema": { "type": "object" } }
-+    ]
-   }
+When a view-dev session is active, Desktop **Space Home** shows **Open preview in Desktop** — use that button instead of pasting a URL. Desktop loads the Vite URL and injects fixture context so `useViewContract()` behaves like a real run.
+
+The scaffold’s `intake` fixture already includes `step.branches` like this:
+
+```json
+"step": {
+  "step_id": "intake",
+  "branches": [
+    {
+      "branch": "continue",
+      "schema": { "type": "object", "required": ["spec"] },
+      "artifact_slots": {
+        "spec": { "description": "The file to attach", "max_bytes": 1048576 }
+      }
+    },
+    { "branch": "cancel", "schema": { "type": "object" } }
+  ]
+}
 ```
 
 The **`branches`** array must match your flow manifest's branch names and schemas from [Part 2](./02-build-minimal-flow). The host merges this `step` over a runtime base context (real hub origin + fresh nonce), so the fixture only carries the projected contract — never `hub_base_url` or `nonce`.
@@ -194,17 +202,21 @@ Submit in dev mode exercises validation and logs the resolve body — **no real 
 
 ## Step 5 — Build and apply
 
+From the **space root**:
+
 ```bash
-npm run build
-cd ../../..
+cd ~/work/my-first-space
+npm run build --prefix .mrmr/views/spec-intake
 mrmr space apply
 ```
 
-`mrmr space apply --strict` requires `dist/index.html`. After apply, Desktop can load the view on the next run.
+`mrmr space apply --strict` requires `dist/index.html`. After apply, Desktop can load the view on the next run. The view Vite config uses `base: "./"` so hub-served assets resolve under `/v1/spaces/.../views/.../dist/` (not hub-root `/assets/`).
+
+If an older build left absolute `/assets/` paths, rebuild once after updating `vite.config.ts`, then re-apply.
 
 ## Checkpoint
 
-- [ ] `.mrmr/views/spec-intake/` exists with `npm install` done
+- [ ] `.mrmr/views/spec-intake/` exists (`view init` ran `npm install`)
 - [ ] `handlers.yaml` binds `my-dev-flow.intake` through `type: view_resolver`
 - [ ] `App.tsx` uses `useViewContract` + `submitBranch` — file input + Submit + Cancel only
 - [ ] `npm run build` succeeded

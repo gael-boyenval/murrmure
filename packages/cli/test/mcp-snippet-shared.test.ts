@@ -22,8 +22,6 @@ describe("MCP snippet shared shape", () => {
         "mcpServers": {
           "murrmure": {
             "args": [
-              "--hub",
-              "http://127.0.0.1:8787",
               "--connection",
               "con_test",
             ],

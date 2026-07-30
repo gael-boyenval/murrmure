@@ -1,9 +1,10 @@
 import { defineCommand, type CommandDef } from "citty";
 import { resolve } from "node:path";
+import { colors } from "consola/utils";
 import { hubFetch } from "../../auth.js";
 import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { mapHubDenial } from "../../lib/hub-request.js";
-import { isJsonMode, printErr, printOk } from "../../lib/output.js";
+import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { runScopePreflight } from "../../lib/preflight.js";
 import { readSpaceLink } from "../../lib/space-link-file.js";
 
@@ -52,26 +53,48 @@ export const spaceStatusCommand = defineCommand({
           }>;
         }
       | undefined;
-    console.log(`Space ${spaceId}`);
-    console.log(`  actions:   ${counts?.actions ?? 0}`);
-    console.log(`  executors: ${counts?.executors ?? 0}`);
-    console.log(`  hooks:     ${counts?.hooks ?? 0}`);
-    console.log(`  flows:     ${counts?.flows ?? 0}`);
+
+    const indent = "  ";
+    const row = (label: string, value: string) => {
+      cliConsola.log(`${indent}${colors.dim(label.padEnd(10))} ${value}`);
+    };
+
+    cliConsola.log("");
+    cliConsola.info(colors.bold("Space status"));
+    row("Space", `${colors.bold(spaceId)}`);
+
+    const actionCount = counts?.actions ?? 0;
+    const executorCount = counts?.executors ?? 0;
+    const handlerCount = counts?.handlers ?? counts?.hooks ?? 0;
+    const flowCount = counts?.flows ?? 0;
+    row("Actions", actionCount > 0 ? colors.green(String(actionCount)) : colors.dim("0"));
+    row("Executors", executorCount > 0 ? colors.green(String(executorCount)) : colors.dim("0"));
+    row("Handlers", handlerCount > 0 ? colors.green(String(handlerCount)) : colors.dim("0"));
+    row("Flows", flowCount > 0 ? colors.green(String(flowCount)) : colors.dim("0"));
+
     if (digests?.flows?.length) {
-      console.log("  flow digests:");
+      cliConsola.log("");
+      cliConsola.info(colors.bold("Flow digests"));
       for (const f of digests.flows) {
+        const shortDigest = f.digest.replace(/^sha256:/, "").slice(0, 12);
         const catalog =
           f.step_contract_catalog_digest != null
-            ? ` · catalog ${f.step_contract_catalog_digest.replace(/^sha256:/, "").slice(0, 12)}… (${f.step_contract_step_count ?? 0} steps)`
+            ? colors.dim(
+                ` · catalog ${f.step_contract_catalog_digest.replace(/^sha256:/, "").slice(0, 12)}… (${f.step_contract_step_count ?? 0} steps)`,
+              )
             : "";
-        console.log(`    ${f.flow_id}: ${f.digest.replace(/^sha256:/, "").slice(0, 12)}…${catalog}`);
+        cliConsola.log(
+          `${indent}${colors.cyan(f.flow_id)}  ${colors.dim(`${shortDigest}…`)}${catalog}`,
+        );
       }
     }
+
     const bindings = body.bindings as Array<{ host: string; path: string }> | undefined;
     if (bindings?.length) {
-      console.log("  bindings:");
+      cliConsola.log("");
+      cliConsola.info(colors.bold("Bindings"));
       for (const b of bindings) {
-        console.log(`    ${b.host}:${b.path}`);
+        cliConsola.log(`${indent}${colors.dim(`${b.host}:`)}${b.path}`);
       }
     }
   },

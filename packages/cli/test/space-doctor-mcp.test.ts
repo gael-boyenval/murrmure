@@ -40,15 +40,12 @@ describe("scanMcpConfig", () => {
     expect(issues.some((issue) => issue.code === "MCP_CONFIG_MISSING")).toBe(true);
   });
 
-  test("accepts canonical murrmure-mcp thin config", () => {
+  test("accepts canonical murrmure-mcp config with --connection", () => {
     const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });
     writeFileSync(
       join(cursorDir, "mcp.json"),
-      buildMcpConfigSnippet({
-        hubId: "http://127.0.0.1:8787",
-        connectionId: "con_test",
-      }),
+      buildMcpConfigSnippet({ connectionId: "con_local" }),
     );
 
     const { issues } = scanMcpConfig({
@@ -58,6 +55,51 @@ describe("scanMcpConfig", () => {
 
     const blocking = issues.filter((issue) => issue.severity !== "info");
     expect(blocking).toHaveLength(0);
+  });
+
+  test("flags leftover --hub arg", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    writeFileSync(
+      join(cursorDir, "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          murrmure: {
+            command: "murrmure-mcp",
+            args: ["--hub", "http://127.0.0.1:8787", "--connection", "con_legacy"],
+          },
+        },
+      }),
+    );
+
+    const { issues } = scanMcpConfig({
+      projectPath: projectDir,
+      cwd: projectDir,
+    });
+
+    expect(issues.some((issue) => issue.code === "MCP_LEGACY_HUB_ARG")).toBe(true);
+  });
+
+  test("flags missing --connection", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    writeFileSync(
+      join(cursorDir, "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          murrmure: {
+            command: "murrmure-mcp",
+          },
+        },
+      }),
+    );
+
+    const { issues } = scanMcpConfig({
+      projectPath: projectDir,
+      cwd: projectDir,
+    });
+
+    expect(issues.some((issue) => issue.code === "MCP_CONNECTION_ARG_MISSING")).toBe(true);
   });
 
   test("treats murrmure + args mcp as fat-shape error", () => {
@@ -98,10 +140,7 @@ describe("scanMcpConfig", () => {
     mkdirSync(globalCursor, { recursive: true });
     writeFileSync(
       join(globalCursor, "mcp.json"),
-      buildMcpConfigSnippet({
-        hubId: "http://127.0.0.1:8787",
-        connectionId: "con_global",
-      }),
+      buildMcpConfigSnippet(),
     );
 
     const { context, issues } = scanMcpConfig({
@@ -115,13 +154,15 @@ describe("scanMcpConfig", () => {
 });
 
 describe("buildMcpConfigSnippet", () => {
-  test("emits thin bridge shape only", () => {
+  test("emits launcher + --connection (no hub)", () => {
     const snippet = buildMcpConfigSnippet({
       hubId: "http://127.0.0.1:8787",
       connectionId: "con_agent",
     });
     expect(snippet).toContain("\"command\": \"murrmure-mcp\"");
-    expect(snippet).toContain("\"args\"");
+    expect(snippet).toContain("--connection");
+    expect(snippet).toContain("con_agent");
+    expect(snippet).not.toContain("--hub");
     expect(snippet).not.toContain("tok_agent");
     expect(snippet).not.toContain("MURRMURE_HUB_URL");
     expect(snippet).not.toContain("MURRMURE_SPACE_ID");
@@ -189,28 +230,94 @@ describe("rewriteFatMcpConfigFiles", () => {
       ),
     );
 
-    const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });
+    const rewrite = rewriteFatMcpConfigFiles({
+      configPaths: [configPath],
+      connectionId: "con_from_fix",
+    });
     expect(rewrite.errors).toEqual([]);
     expect(rewrite.rewritten).toEqual([configPath]);
 
     const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
       mcpServers: {
-        murrmure: { command: string; args?: unknown; env?: Record<string, string> };
+        murrmure: { command: string; args?: string[]; env?: Record<string, string> };
       };
     };
     expect(parsed.mcpServers.murrmure.command).toBe("murrmure-mcp");
-    expect(parsed.mcpServers.murrmure.args).toBeUndefined();
+    expect(parsed.mcpServers.murrmure.args).toEqual(["--connection", "con_from_fix"]);
     expect(parsed.mcpServers.murrmure.env).toBeUndefined();
   });
 
-  test("keeps already-thin config unchanged", () => {
+  test("rewrites command-only config by pinning --connection", () => {
     const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });
     const configPath = join(cursorDir, "mcp.json");
-    const before = buildMcpConfigSnippet({
-      hubId: "http://127.0.0.1:8787",
-      connectionId: "con_test",
+    writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            murrmure: {
+              command: "/Users/test/.murrmure/bin/murrmure-mcp",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const rewrite = rewriteFatMcpConfigFiles({
+      configPaths: [configPath],
+      preferredConfigPath: configPath,
+      connectionId: "con_fix_me",
+      command: "/Users/test/.murrmure/bin/murrmure-mcp",
     });
+    expect(rewrite.errors).toEqual([]);
+    expect(rewrite.rewritten).toEqual([configPath]);
+    const after = JSON.parse(readFileSync(configPath, "utf-8")) as {
+      mcpServers: { murrmure: { command: string; args?: string[] } };
+    };
+    expect(after.mcpServers.murrmure).toEqual({
+      command: "/Users/test/.murrmure/bin/murrmure-mcp",
+      args: ["--connection", "con_fix_me"],
+    });
+  });
+
+  test("rewrites legacy --hub away but keeps --connection", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    const configPath = join(cursorDir, "mcp.json");
+    const before = JSON.stringify(
+      {
+        mcpServers: {
+          murrmure: {
+            command: "murrmure-mcp",
+            args: ["--hub", "http://127.0.0.1:8787", "--connection", "con_test"],
+          },
+        },
+      },
+      null,
+      2,
+    );
+    writeFileSync(configPath, before);
+
+    const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });
+    expect(rewrite.errors).toEqual([]);
+    expect(rewrite.rewritten).toEqual([configPath]);
+    const after = JSON.parse(readFileSync(configPath, "utf-8")) as {
+      mcpServers: { murrmure: { command: string; args?: string[] } };
+    };
+    expect(after.mcpServers.murrmure).toEqual({
+      command: "murrmure-mcp",
+      args: ["--connection", "con_test"],
+    });
+  });
+
+  test("keeps connection-pinned config unchanged", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    const configPath = join(cursorDir, "mcp.json");
+    const before = buildMcpConfigSnippet({ connectionId: "con_keep" });
     writeFileSync(configPath, before);
 
     const rewrite = rewriteFatMcpConfigFiles({ configPaths: [configPath] });

@@ -51,6 +51,7 @@ export const HandlerCompleteSchema = z.enum(["auto", "cli", "explicit"]);
 /** Fields shared by every handler. `contract_keys` is prompt scope only. */
 const HandlerCommonFields = {
   id: z.string().min(1),
+  description: z.string().optional(),
   contract_keys: z.array(z.string()).default([]),
   on: HandlerOnSchema,
 };

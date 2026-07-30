@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { fetchCatalog, callTool, performHandshake } from "../src/hub-client.js";
-import { resolveBridgeConfig } from "../src/main.js";
+import { bridgeInstructions, resolveBridgeConfig } from "../src/main.js";
 
 const tempDirs: string[] = [];
 const envSnapshot = { ...process.env };
@@ -22,6 +22,22 @@ function writeSharedDiscovery(homePath: string, endpoint: string): void {
   );
 }
 
+function writeActiveConnection(
+  homePath: string,
+  active: {
+    hub_id: string;
+    connection_id: string;
+    space_id: string;
+    profile: string;
+  },
+): void {
+  mkdirSync(join(homePath, ".murrmure", "connections"), { recursive: true });
+  writeFileSync(
+    join(homePath, ".murrmure", "connections", "active.json"),
+    JSON.stringify(active),
+  );
+}
+
 afterEach(() => {
   process.env = { ...envSnapshot };
   for (const dir of tempDirs.splice(0, tempDirs.length)) {
@@ -30,28 +46,29 @@ afterEach(() => {
 });
 
 describe("bridge error surfaces", () => {
-  test("local mode requires a connection descriptor and does not use env fallback", () => {
+  test("local mode requires an active connection and does not use env fallback", () => {
     const homePath = makeTempHome("mcp-bridge-errors-config-");
     writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
     process.env.MURRMURE_HUB_TOKEN = "tok_must_not_be_used";
 
     expect(() => resolveBridgeConfig({ homePath, argv: [] })).toThrow(
-      /requires --hub .* --connection/,
+      /requires --connection/,
     );
   });
 
-  test("local mode resolves the OS credential by Hub and connection ID", () => {
+  test("local mode resolves hub from discovery and credential from active connection", () => {
     const homePath = makeTempHome("mcp-bridge-errors-local-");
     writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    writeActiveConnection(homePath, {
+      hub_id: "http://127.0.0.1:8787",
+      connection_id: "con_local",
+      space_id: "spc_local",
+      profile: "local-tools/v1",
+    });
     process.env.MURRMURE_HUB_TOKEN = "tok_must_not_be_used";
     const config = resolveBridgeConfig({
       homePath,
-      argv: [
-        "--hub",
-        "http://127.0.0.1:8787",
-        "--connection",
-        "con_local",
-      ],
+      argv: [],
       readCredential: (hubId, connectionId) => {
         expect(hubId).toBe("http://127.0.0.1:8787");
         expect(connectionId).toBe("con_local");
@@ -59,17 +76,80 @@ describe("bridge error surfaces", () => {
       },
     });
     expect(config.authMode).toBe("local");
+    expect(config.hubUrl).toBe("http://127.0.0.1:8787");
+    expect(config.connectionId).toBe("con_local");
     expect(config.token).toBe("tok_from_store");
   });
 
-  test("handler assignment mode uses ephemeral authority without reading the connection", () => {
+  test("local mode prefers --connection over active pointer", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-pin-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    writeActiveConnection(homePath, {
+      hub_id: "http://127.0.0.1:8787",
+      connection_id: "con_active",
+      space_id: "spc_other",
+      profile: "local-tools/v1",
+    });
+    mkdirSync(join(homePath, ".murrmure", "connections", "by-id"), { recursive: true });
+    writeFileSync(
+      join(homePath, ".murrmure", "connections", "by-id", "con_pinned.json"),
+      JSON.stringify({
+        hub_id: "http://127.0.0.1:8787",
+        connection_id: "con_pinned",
+        space_id: "spc_local",
+        profile: "local-tools/v1",
+        status: "active",
+      }),
+    );
     const config = resolveBridgeConfig({
+      homePath,
+      argv: ["--connection", "con_pinned"],
+      readCredential: (hubId, connectionId) => {
+        expect(hubId).toBe("http://127.0.0.1:8787");
+        expect(connectionId).toBe("con_pinned");
+        return "tok_pinned";
+      },
+    });
+    expect(config.authMode).toBe("local");
+    expect(config.hubUrl).toBe("http://127.0.0.1:8787");
+    expect(config.connectionId).toBe("con_pinned");
+    expect(config.token).toBe("tok_pinned");
+  });
+
+  test("local mode still accepts explicit --hub/--connection overrides", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-override-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    writeActiveConnection(homePath, {
+      hub_id: "http://127.0.0.1:8787",
+      connection_id: "con_active",
+      space_id: "spc_local",
+      profile: "local-tools/v1",
+    });
+    const config = resolveBridgeConfig({
+      homePath,
       argv: [
         "--hub",
-        "http://127.0.0.1:8787",
+        "http://127.0.0.1:9999",
         "--connection",
-        "con_local",
+        "con_override",
       ],
+      readCredential: (hubId, connectionId) => {
+        expect(hubId).toBe("http://127.0.0.1:9999");
+        expect(connectionId).toBe("con_override");
+        return "tok_override";
+      },
+    });
+    expect(config.authMode).toBe("local");
+    expect(config.hubUrl).toBe("http://127.0.0.1:9999");
+    expect(config.token).toBe("tok_override");
+  });
+
+  test("handler assignment mode uses ephemeral authority without reading the connection", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-assignment-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
+    const config = resolveBridgeConfig({
+      homePath,
+      argv: [],
       env: {
         MURRMURE_ASSIGNMENT_SCOPE: "run_live:build:dev_build",
         MURRMURE_HUB_TOKEN: "tok_ephemeral",
@@ -79,18 +159,19 @@ describe("bridge error surfaces", () => {
       },
     });
     expect(config.authMode).toBe("assignment");
+    expect(config.hubUrl).toBe("http://127.0.0.1:8787");
     expect(config.token).toBe("tok_ephemeral");
+    expect(bridgeInstructions("assignment")).toContain("Do not call murrmure_get_pending_wake");
+    expect(bridgeInstructions("local")).toContain("murrmure_get_pending_wake");
   });
 
   test("handler assignment mode fails closed without its ephemeral token", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-assignment-missing-");
+    writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
     expect(() =>
       resolveBridgeConfig({
-        argv: [
-          "--hub",
-          "http://127.0.0.1:8787",
-          "--connection",
-          "con_local",
-        ],
+        homePath,
+        argv: [],
         env: { MURRMURE_ASSIGNMENT_SCOPE: "run_live:build:dev_build" },
       }),
     ).toThrow(/requires MURRMURE_HUB_TOKEN/);

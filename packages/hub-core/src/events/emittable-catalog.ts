@@ -1,10 +1,10 @@
-import { type EventDeclaration, type HookSpec } from "@murrmure/contracts";
+import { type EventDeclaration, HandlerSpecSchema, type HandlerSpec } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { hookSourceMatches } from "../hooks/matcher.js";
 
 export interface EmittableEventListener {
   space_id: string;
-  hook_id: string;
+  handler_id: string;
   action?: string;
   flow_id?: string;
 }
@@ -20,7 +20,7 @@ export interface EmittableEventEntry {
   listeners: EmittableEventListener[];
   payload_hints: string[];
   payload_schema?: EmittableEventPayloadSchema;
-  origins: Array<"hook" | "declaration" | "flow_start">;
+  origins: Array<"handler" | "declaration" | "flow_start">;
 }
 
 export interface EmittableEventsCatalog {
@@ -40,11 +40,28 @@ function prefixedSpaceId(space_id: string): string {
   return bare.startsWith("spc_") ? bare : `spc_${bare}`;
 }
 
-function extractPayloadHintsFromHook(spec: HookSpec): string[] {
+function extractPayloadHintsFromHandler(spec: HandlerSpec): string[] {
   const hints = new Set<string>();
-  for (const step of spec.do ?? []) {
-    if ("invoke" in step && step.invoke.params) {
-      const json = JSON.stringify(step.invoke.params);
+  if (spec.type === "view_resolver") return [];
+  const json = JSON.stringify({
+    prompt: spec.prompt,
+    command: spec.command,
+    params: spec.params,
+  });
+  for (const match of json.matchAll(PARAM_TEMPLATE)) {
+    hints.add(match[1]!);
+  }
+  return [...hints].sort();
+}
+
+function extractPayloadHintsFromLegacyHook(raw: Record<string, unknown>): string[] {
+  const hints = new Set<string>();
+  const steps = Array.isArray(raw.do) ? raw.do : [];
+  for (const step of steps) {
+    if (step && typeof step === "object" && "invoke" in step) {
+      const params = (step as { invoke?: { params?: unknown } }).invoke?.params;
+      if (!params) continue;
+      const json = JSON.stringify(params);
       for (const match of json.matchAll(PARAM_TEMPLATE)) {
         hints.add(match[1]!);
       }
@@ -53,11 +70,56 @@ function extractPayloadHintsFromHook(spec: HookSpec): string[] {
   return [...hints].sort();
 }
 
-function invokeActionFromHook(spec: HookSpec): string | undefined {
-  for (const step of spec.do ?? []) {
-    if ("invoke" in step) return step.invoke.action;
+function listenerActionFromRow(raw: Record<string, unknown>): string | undefined {
+  const parsed = HandlerSpecSchema.safeParse(raw);
+  if (parsed.success) {
+    return parsed.data.type === "view_resolver" ? `view:${parsed.data.view}` : parsed.data.type;
+  }
+  const steps = Array.isArray(raw.do) ? raw.do : [];
+  for (const step of steps) {
+    if (step && typeof step === "object" && "invoke" in step) {
+      return (step as { invoke?: { action?: string } }).invoke?.action;
+    }
   }
   return undefined;
+}
+
+function eventHandlerFromRow(raw: Record<string, unknown>): {
+  handler_id: string;
+  event_type: string;
+  source?: string | string[];
+  hints: string[];
+} | null {
+  const parsed = HandlerSpecSchema.safeParse(raw);
+  if (parsed.success) {
+    const on = parsed.data.on;
+    if (typeof on === "string" || !on.event?.type) return null;
+    return {
+      handler_id: parsed.data.id,
+      event_type: on.event.type,
+      source: on.event.source,
+      hints: extractPayloadHintsFromHandler(parsed.data),
+    };
+  }
+
+  const handler_id = String(raw.name ?? raw.id ?? "");
+  const eventType =
+    raw.on &&
+    typeof raw.on === "object" &&
+    (raw.on as { event?: { type?: unknown } }).event &&
+    typeof (raw.on as { event: { type?: unknown } }).event.type === "string"
+      ? String((raw.on as { event: { type: string } }).event.type)
+      : "";
+  if (!handler_id || !eventType) return null;
+  return {
+    handler_id,
+    event_type: eventType,
+    source:
+      raw.on && typeof raw.on === "object"
+        ? (raw.on as { event?: { source?: string | string[] } }).event?.source
+        : undefined,
+    hints: extractPayloadHintsFromLegacyHook(raw),
+  };
 }
 
 function mergePayloadSchema(
@@ -157,22 +219,20 @@ export async function buildEmittableEventsCatalog(
   for (const space of spaces) {
     const listenerSpaceId = prefixedSpaceId(space.space_id);
 
-    const rawHooks = await studio.listIndexedHooks(space.space_id);
-    for (const raw of rawHooks) {
-      const hook_id = String(raw.name ?? "");
-      const spec = raw as HookSpec & { name?: string };
-      const eventType = spec.on?.event?.type;
-      if (!hook_id || !eventType) continue;
-      if (!hookSourceMatches(spec.on?.event?.source, callerSource)) continue;
+    const rawRows = await studio.listIndexedHooks(space.space_id);
+    for (const raw of rawRows) {
+      const handler = eventHandlerFromRow(raw);
+      if (!handler) continue;
+      if (!hookSourceMatches(handler.source, callerSource)) continue;
 
-      const entry = upsertEntry(byType, eventType);
-      if (!entry.origins.includes("hook")) entry.origins.push("hook");
+      const entry = upsertEntry(byType, handler.event_type);
+      if (!entry.origins.includes("handler")) entry.origins.push("handler");
       entry.listeners.push({
         space_id: listenerSpaceId,
-        hook_id,
-        action: invokeActionFromHook(spec),
+        handler_id: handler.handler_id,
+        action: listenerActionFromRow(raw),
       });
-      for (const hint of extractPayloadHintsFromHook(spec)) {
+      for (const hint of handler.hints) {
         if (!entry.payload_hints.includes(hint)) entry.payload_hints.push(hint);
       }
       entry.payload_hints.sort();
@@ -200,7 +260,7 @@ export async function buildEmittableEventsCatalog(
         if (!entry.origins.includes("flow_start")) entry.origins.push("flow_start");
         entry.listeners.push({
           space_id: listenerSpaceId,
-          hook_id: `flow:${flow.flow_id}`,
+          handler_id: `flow:${flow.flow_id}`,
           flow_id: flow.flow_id,
         });
       }

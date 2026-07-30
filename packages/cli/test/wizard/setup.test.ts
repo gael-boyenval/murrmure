@@ -22,7 +22,7 @@ import {
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
-  log: { success: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  log: { success: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   note: vi.fn(),
   cancel: vi.fn(),
   isCancel: (value: unknown) => value === Symbol.for("clack:cancel"),
@@ -231,13 +231,10 @@ describe("wizard space ops", () => {
     );
     expect(grant.connection_id).toBe("con_test");
     expect(JSON.stringify(grant.descriptor)).not.toContain("tok_agent");
-    expect(grant.descriptor.bridge.args).toEqual([
-      "--hub",
-      "http://127.0.0.1:8787",
-      "--connection",
-      "con_test",
-    ]);
+    expect(grant.descriptor.bridge.args).toEqual(["--connection", "con_test"]);
     expect(buildMcpConfigSnippet({ token: "tok_agent" })).not.toContain("tok_agent");
+    expect(buildMcpConfigSnippet({ connectionId: "con_test" })).not.toContain("--hub");
+    expect(buildMcpConfigSnippet({ connectionId: "con_test" })).toContain("--connection");
   });
 });
 
@@ -315,6 +312,87 @@ describe("setup naming interaction", () => {
     });
 
     expect(createdSlugs).toEqual(["existing-space", "available-space"]);
+  });
+
+  test("treats message-only already-exists 409 as a slug collision", async () => {
+    vi.mocked(clack.confirm)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false);
+    vi.mocked(clack.text)
+      .mockResolvedValueOnce("My Space")
+      .mockResolvedValueOnce("my-first-space")
+      .mockResolvedValueOnce("my-first-space-2");
+    const createdSlugs: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/v1/auth/whoami")) {
+        return new Response(JSON.stringify({
+          actor_id: "actor_admin",
+          kind: "human",
+          token_id: "tok_admin",
+          spaces: [],
+        }));
+      }
+      if (String(url).endsWith("/v1/spaces") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { slug: string; name: string };
+        createdSlugs.push(body.slug);
+        if (body.slug === "my-first-space") {
+          // Legacy body shape: message only (no code) — previously caused silent exit.
+          return new Response(JSON.stringify({
+            message: "Space slug 'my-first-space' already exists",
+          }), { status: 409 });
+        }
+        return new Response(JSON.stringify({
+          space_id: "spc_01JAVAILABLESPACE00000000",
+          slug: body.slug,
+          name: body.name,
+        }), { status: 201 });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+
+    await (setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: projectDir },
+      rawArgs: [],
+    });
+
+    expect(vi.mocked(clack.log.warn)).toHaveBeenCalled();
+    expect(createdSlugs).toEqual(["my-first-space", "my-first-space-2"]);
+  });
+
+  test("surfaces a clear error when space create fails for a non-collision reason", async () => {
+    vi.mocked(clack.text)
+      .mockResolvedValueOnce("My Space")
+      .mockResolvedValueOnce("my-first-space");
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/v1/auth/whoami")) {
+        return new Response(JSON.stringify({
+          actor_id: "actor_admin",
+          kind: "human",
+          token_id: "tok_admin",
+          spaces: [],
+        }));
+      }
+      if (String(url).endsWith("/v1/spaces") && init?.method === "POST") {
+        return new Response(JSON.stringify({
+          code: "HUB_ERROR",
+          message: "database locked",
+        }), { status: 500 });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    vi.spyOn(process, "exit").mockImplementation((code?: string | number | null) => {
+      throw new Error(`process.exit:${code ?? 0}`);
+    });
+
+    await expect((setupCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: { path: projectDir },
+      rawArgs: [],
+    })).rejects.toThrow("process.exit:1");
+
+    expect(vi.mocked(clack.log.error)).toHaveBeenCalled();
+    expect(String(vi.mocked(clack.log.error).mock.calls[0]?.[0])).toMatch(/database locked/);
+    expect(vi.mocked(clack.outro)).toHaveBeenCalled();
   });
 
   test("cancellation before naming creates no Hub space or scaffold", async () => {

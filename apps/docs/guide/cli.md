@@ -240,13 +240,17 @@ mrmr me set-landing --space spc_ui_sandbox
 
 Set per-user landing space. Requires **`space:enter`**. HTTP: `PATCH /v1/me`.
 
-### `mrmr view init`
+### `mrmr space view init`
 
 ```bash
-mrmr view init review-params
+mrmr space view init review-params
+# runs npm install in .mrmr/views/review-params (use --skip-install to skip)
+mrmr view dev review-params
 ```
 
-Scaffold `.mrmr/views/{id}/` locally. See [View SDK](../reference/view-sdk).
+Scaffold `.mrmr/views/{id}/` locally (minimal Vite+React app). Stay at the linked space root for subsequent `mrmr` commands. See [View SDK](../reference/view-sdk).
+
+`mrmr view init` is deprecated — use `mrmr space view init`.
 
 ### `mrmr worker poll`
 

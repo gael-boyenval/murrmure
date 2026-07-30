@@ -17,25 +17,37 @@ function getMenuAction(payload: unknown): string | null {
   return typeof candidate === "string" ? candidate : null;
 }
 
+function readActiveConnectionId(dataDir: string): string | undefined {
+  const activePath = join(dataDir, "connections", "active.json");
+  if (!existsSync(activePath)) return undefined;
+  try {
+    const value = JSON.parse(readFileSync(activePath, "utf8")) as {
+      connection_id?: unknown;
+    };
+    return typeof value.connection_id === "string" &&
+      value.connection_id.startsWith("con_")
+      ? value.connection_id
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildMcpConfigSnippet(options?: {
   command?: string;
+  /** @deprecated Ignored. Hub is resolved from Desktop discovery. */
   hubId?: string;
+  /** Connection id pinned as `--connection` (space). */
   connectionId?: string;
 }): string {
+  const connectionId = options?.connectionId?.trim();
   return JSON.stringify(
     {
       mcpServers: {
         murrmure: {
           command: options?.command ?? "murrmure-mcp",
-          ...(options?.hubId && options.connectionId
-            ? {
-                args: [
-                  "--hub",
-                  options.hubId,
-                  "--connection",
-                  options.connectionId,
-                ],
-              }
+          ...(connectionId?.startsWith("con_")
+            ? { args: ["--connection", connectionId] }
             : {}),
         },
       },
@@ -78,30 +90,19 @@ export function installDesktopMenu(
       return;
     }
     if (action === "desktop.copyMcpConfig") {
-      const activePath = join(options.dataDir, "connections", "active.json");
-      if (!existsSync(activePath)) {
+      const connectionId = readActiveConnectionId(options.dataDir);
+      if (!connectionId) {
         runtime.clipboardWriteText(
           "Run `mrmr connection create --space <spc_…>` before copying MCP config.",
         );
         return;
       }
-      try {
-        const active = JSON.parse(readFileSync(activePath, "utf8")) as {
-          hub_id?: string;
-          connection_id?: string;
-        };
-        runtime.clipboardWriteText(
-          buildMcpConfigSnippet({
-            command: options.mcpBridgeCommand ?? undefined,
-            hubId: active.hub_id,
-            connectionId: active.connection_id,
-          }),
-        );
-      } catch {
-        runtime.clipboardWriteText(
-          "Active connection state is invalid. Run `mrmr connection activate` and retry.",
-        );
-      }
+      runtime.clipboardWriteText(
+        buildMcpConfigSnippet({
+          command: options.mcpBridgeCommand ?? undefined,
+          connectionId,
+        }),
+      );
       return;
     }
     if (action === "desktop.openDataDir") {

@@ -11,6 +11,7 @@ import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { useRunStepInspector } from "../hooks/useRunStepInspector.js";
 import { activeRunRefetchInterval } from "../lib/invalidate-run-queries.js";
 import { Button } from "@murrmure/shell-ui";
+import { AppShell } from "../layout/AppShell.js";
 
 export function SessionPage() {
   const { sessionId } = useParams();
@@ -59,6 +60,7 @@ export function SessionPage() {
     queryFn: () => client!.runs.graph(focusRunId!),
     enabled: Boolean(client && focusRunId),
     refetchInterval: () => activeRunRefetchInterval(runQuery.data?.lifecycle),
+    placeholderData: (previous) => previous,
   });
 
   const gatesQuery = useQuery({
@@ -106,7 +108,7 @@ export function SessionPage() {
   });
 
   if (showCanvas && canvas && !operatorMode) {
-    return canvas;
+    return <AppShell canvasMode>{canvas}</AppShell>;
   }
 
   return (

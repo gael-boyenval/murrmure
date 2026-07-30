@@ -3,8 +3,10 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -73,6 +75,15 @@ export function storeConnectionToken(
   token: string,
 ): void {
   assertMacOs();
+  if (!token.trim()) {
+    throw new CredentialStoreError(
+      "credential_store_error",
+      "Refusing to store an empty connection credential.",
+    );
+  }
+  // `security add-generic-password -w` takes the password as the next argv
+  // (stdin is ignored). Passing via stdin left empty Keychain items that
+  // made MCP fail with "Credential is missing".
   const result = spawnSync(
     "/usr/bin/security",
     [
@@ -85,11 +96,11 @@ export function storeConnectionToken(
       "-l",
       `Murrmure ${connectionId}`,
       "-w",
+      token,
     ],
     {
       encoding: "utf8",
-      input: token,
-      stdio: ["pipe", "ignore", "pipe"],
+      stdio: ["ignore", "ignore", "pipe"],
     },
   );
   if (result.status !== 0) {
@@ -198,6 +209,26 @@ export function readStoredConnection(
   } catch {
     return null;
   }
+}
+
+/** Active (non-revoked) stored connections, oldest → newest by mtime. */
+export function listStoredConnections(homePath: string = homedir()): StoredConnection[] {
+  const dir = join(homePath, ".murrmure", "connections", "by-id");
+  if (!existsSync(dir)) return [];
+  const entries = readdirSync(dir)
+    .filter((name) => name.startsWith("con_") && name.endsWith(".json"))
+    .map((name) => {
+      const path = join(dir, name);
+      return { path, name, mtime: statSync(path).mtimeMs };
+    })
+    .sort((a, b) => a.mtime - b.mtime);
+  const out: StoredConnection[] = [];
+  for (const entry of entries) {
+    const connectionId = entry.name.replace(/\.json$/, "");
+    const stored = readStoredConnection(connectionId, homePath);
+    if (stored && stored.status === "active") out.push(stored);
+  }
+  return out;
 }
 
 export function writeActiveConnection(

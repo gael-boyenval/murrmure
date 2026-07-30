@@ -19,9 +19,9 @@ export function createMockShellClient(
       receiving_from: [],
       recent_completed: [],
       index: {
-        counts: { actions: 0, executors: 0, hooks: 0, events: 0, flows: 0, declared_events: 0 },
+        counts: { actions: 0, executors: 0, handlers: 0, events: 0, flows: 0, declared_events: 0 },
         actions: [],
-        hooks: [],
+        handlers: [],
         events: [],
       },
       emittable_events: [],

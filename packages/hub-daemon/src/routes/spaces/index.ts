@@ -19,6 +19,7 @@ import {
   lintSpaceApplyBundle,
   resolveBindingsFile,
   validateHandlerBindings,
+  validateHandlerPlaceholders,
   resolveRunPolicies,
   buildRunPolicyRows,
   assertSpaceQuiescent,
@@ -370,6 +371,20 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
       if (!handlerBindings.ok) {
         return c.json(
           { code: handlerBindings.code, message: handlerBindings.message, handler_id: handlerBindings.handler_id },
+          400,
+        );
+      }
+      const handlerPlaceholders = validateHandlerPlaceholders({
+        handlers: parsed.data.handlers?.file.handlers ?? [],
+        step_ids: bindingFlows.flatMap((flow) => flow.step_ids),
+      });
+      if (!handlerPlaceholders.ok) {
+        return c.json(
+          {
+            code: handlerPlaceholders.code,
+            message: handlerPlaceholders.message,
+            handler_id: handlerPlaceholders.handler_id,
+          },
           400,
         );
       }

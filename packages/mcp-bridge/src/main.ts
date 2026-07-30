@@ -7,10 +7,12 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { readActiveConnection } from "./active-connection.js";
 import {
   discoverHubEndpoint,
   resolveSharedDiscoveryPath,
 } from "./discovery.js";
+import { readStoredConnection } from "./stored-connection.js";
 import {
   callTool,
   fetchCatalog,
@@ -29,12 +31,26 @@ import { readMacOsConnectionToken } from "./credential-store.js";
 const PENDING_WAKE_TOOL = "murrmure_get_pending_wake";
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 
+const LOCAL_BRIDGE_INSTRUCTIONS =
+  "Murrmure MCP bridge. Call murrmure_get_pending_wake at session start only when you were woken by a Murrmure hook/control message — not for ordinary chat.";
+
+const ASSIGNMENT_BRIDGE_INSTRUCTIONS =
+  "Murrmure MCP bridge (handler assignment). Execute the Task in your prompt, then call murrmure_resolve_step using the Contracts block. Do not call murrmure_get_pending_wake. Do not run space_health / list_handlers bootstrap first.";
+
 export interface BridgeConfig {
   hubUrl: string;
   token: string;
   discoveryPath: string;
   connectionId?: string;
   authMode: "local" | "assignment" | "headless-ci";
+}
+
+export function bridgeInstructions(authMode: BridgeConfig["authMode"]): string {
+  if (authMode === "assignment") return ASSIGNMENT_BRIDGE_INSTRUCTIONS;
+  if (authMode === "headless-ci") {
+    return "Murrmure MCP bridge (headless CI). Use hub tools as needed for the scripted job. Do not call murrmure_get_pending_wake.";
+  }
+  return LOCAL_BRIDGE_INSTRUCTIONS;
 }
 
 export interface StartMcpBridgeOptions {
@@ -57,7 +73,7 @@ function argumentValue(argv: string[], name: string): string | undefined {
 function normalizeHubId(value: string): string {
   const parsed = new URL(value);
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("Local --hub must be an http(s) Hub URL.");
+    throw new Error("Hub must be an http(s) URL.");
   }
   return parsed.toString().replace(/\/$/, "");
 }
@@ -121,17 +137,13 @@ export function resolveBridgeConfig(options?: {
     };
   }
 
-  const hubId = argumentValue(argv, "--hub");
-  const connectionId = argumentValue(argv, "--connection");
-  if (!hubId || !connectionId) {
-    throw new Error(
-      "Local mode requires --hub <hub-id> and --connection <connection-id>; run mrmr connection create.",
-    );
-  }
-  if (!connectionId.startsWith("con_")) {
-    throw new Error("Local --connection must begin with con_.");
-  }
-  const hubUrl = normalizeHubId(hubId);
+  // Local MCP clients pin --connection (space). Hub comes from Desktop
+  // discovery — never from mcp.json. Explicit --hub remains accepted only as a
+  // transitional/override; adapters do not write it.
+  const explicitHub = argumentValue(argv, "--hub");
+  const explicitConnection = argumentValue(argv, "--connection");
+  const discovery = discoverHubEndpoint({ homePath: options?.homePath });
+  const hubUrl = explicitHub ? normalizeHubId(explicitHub) : discovery.endpoint;
   const assignmentScope = env.MURRMURE_ASSIGNMENT_SCOPE?.trim();
   const assignmentToken = env.MURRMURE_HUB_TOKEN?.trim();
   if (assignmentScope) {
@@ -149,19 +161,34 @@ export function resolveBridgeConfig(options?: {
     return {
       hubUrl,
       token: assignmentToken,
-      discoveryPath: resolveSharedDiscoveryPath(options?.homePath),
-      connectionId,
+      discoveryPath: discovery.sharedPath,
+      connectionId: explicitConnection,
       authMode: "assignment",
     };
   }
+
+  const active = readActiveConnection(options?.homePath);
+  const connectionId = explicitConnection ?? active?.connection_id;
+  if (!connectionId) {
+    throw new Error(
+      "Local mode requires --connection <con_…> (or an active connection). Run mrmr connection create.",
+    );
+  }
+  if (!connectionId.startsWith("con_")) {
+    throw new Error("Local connection id must begin with con_.");
+  }
+  const stored = readStoredConnection(connectionId, options?.homePath);
+  const credentialHubId = explicitHub
+    ? normalizeHubId(explicitHub)
+    : (stored?.hub_id ?? active?.hub_id ?? hubUrl);
   const token = (options?.readCredential ?? readMacOsConnectionToken)(
-    hubUrl,
+    credentialHubId,
     connectionId,
   );
   return {
     hubUrl,
     token,
-    discoveryPath: resolveSharedDiscoveryPath(options?.homePath),
+    discoveryPath: discovery.sharedPath,
     connectionId,
     authMode: "local",
   };
@@ -225,22 +252,28 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
     { name: "murrmure-mcp-bridge", version: "0.1.0" },
     {
       capabilities: { tools: {}, logging: {} },
-      instructions:
-        "Murrmure MCP bridge. Call murrmure_get_pending_wake at session start to read the last relayed wake prompt.",
+      instructions: bridgeInstructions(config.authMode),
     },
   );
 
+  const exposePendingWake = config.authMode === "local";
+
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: [
-      {
-        name: PENDING_WAKE_TOOL,
-        description: "Returns the latest relayed Murrmure wake prompt.",
-        inputSchema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {},
-        },
-      },
+      ...(exposePendingWake
+        ? [
+            {
+              name: PENDING_WAKE_TOOL,
+              description:
+                "Returns the latest relayed Murrmure wake prompt (hook/control wake only — skip during handler assignments).",
+              inputSchema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {},
+              },
+            },
+          ]
+        : []),
       ...mapCatalogTools(catalogTools),
     ],
   }));
@@ -248,6 +281,17 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     if (name === PENDING_WAKE_TOOL) {
+      if (!exposePendingWake) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Pending wake is not used in assignment mode. Execute the Task and call murrmure_resolve_step.",
+            },
+          ],
+          isError: true,
+        };
+      }
       return {
         content: [
           {
@@ -312,6 +356,10 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
           continue;
         }
         if (isWakeMessage(message.method)) {
+          // Assignment / headless children must not receive hook wakes mid-task.
+          if (config.authMode !== "local") {
+            continue;
+          }
           const relayed = await relayWakePrompt(server, message);
           if (relayed) {
             pendingWake = relayed;

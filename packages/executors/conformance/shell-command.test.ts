@@ -159,6 +159,20 @@ describe("shell-command prompt placeholder", () => {
       resolveSafeShellCommand("cursor agent -p --force '{{prompt}}'", {}, { stripPrompt: true }),
     ).toThrow(HandlerBindingError);
   });
+
+  test("unknown placeholder message includes quick-fix for legacy steps.*", () => {
+    expect(() =>
+      resolveSafeShellCommand("git commit -m {{steps.build.output.commit_message}}", {}),
+    ).toThrow(/murrmure\.step\.build\.output\.commit_message/);
+  });
+
+  test("murrmure.step output binding substitutes and quotes", () => {
+    const script = resolveSafeShellCommand(
+      "git commit -m {{murrmure.step.build.output.commit_message}}",
+      { "murrmure.step.build.output.commit_message": "feat: x" },
+    ).script;
+    expect(script).toBe("git commit -m 'feat: x'");
+  });
 });
 
 describe("shell-command tokenizer", () => {

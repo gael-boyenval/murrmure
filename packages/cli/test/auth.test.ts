@@ -75,6 +75,30 @@ describe("resolveHubAuth", () => {
     });
   });
 
+  test("prefers operator credentials over active connection token", async () => {
+    const { writeActiveConnection } = await import("../src/lib/connection-store.js");
+    writeCredentials({
+      version: 1,
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_cred",
+      defaultSpaceId: "spc_cred",
+      savedAt: new Date().toISOString(),
+    });
+    writeActiveConnection({
+      hub_id: "http://127.0.0.1:8787",
+      connection_id: "con_local",
+      space_id: "spc_tools",
+      profile: "local-tools/v1",
+    });
+    // Active connection Keychain lookup may fail in tests; credentials must win
+    // even when an active pointer exists.
+    expect(resolveHubAuth()).toEqual({
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_cred",
+      defaultSpaceId: "spc_cred",
+    });
+  });
+
   test("reads hub endpoint from shared.json hubs[] shape", () => {
     const hubsDir = join(testHomeRef.value, ".murrmure", "hubs");
     const sharedPath = join(testHomeRef.value, ".murrmure", "hubs", "shared.json");

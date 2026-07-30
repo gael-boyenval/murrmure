@@ -68,7 +68,7 @@ The Hub assigns a separate immutable `spc_…` ID.
 
 **Connection** — when asked **Connect tools on this computer?**, choose **Yes**.
 Select your detected integration context (or the generic portable-instructions
-option). Setup creates one `tutorial-builder/v1` connection for this computer
+option). Setup creates one `local-tools/v1` connection for this computer
 and reuses it in every selected context. It stores the credential in macOS
 Keychain; generated configuration and project files contain only a `con_…` ID.
 

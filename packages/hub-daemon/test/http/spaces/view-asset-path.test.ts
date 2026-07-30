@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addTokenId } from "@murrmure/hub-core";
 import { createTemporaryHub } from "../../../../../test-utils/tutorial-v3/helpers.js";
+import {
+  injectAccessTokenIntoAssetRefs,
+  rewriteAbsoluteViteAssetRefs,
+} from "../../../src/routes/views/index.js";
 
 /**
  * Mirror of `resolveViewEntryUrl` (`packages/view-sdk/src/host-bridge.ts`) — the
@@ -17,6 +21,20 @@ function viewAssetUrl(base: string, spaceId: string, viewId: string, entry: stri
 }
 
 describe("http/spaces/view-asset-path", () => {
+  test("rewriteAbsoluteViteAssetRefs converts root-absolute assets to relative", () => {
+    const html = '<script type="module" src="/assets/index.js"></script><link href="/assets/x.css">';
+    expect(rewriteAbsoluteViteAssetRefs(html)).toBe(
+      '<script type="module" src="./assets/index.js"></script><link href="./assets/x.css">',
+    );
+  });
+
+  test("injectAccessTokenIntoAssetRefs appends query to relative assets", () => {
+    const html = '<script src="./assets/index.js"></script>';
+    expect(injectAccessTokenIntoAssetRefs(html, "tok_abc")).toContain(
+      'src="./assets/index.js?access_token=tok_abc"',
+    );
+  });
+
   test("production View assets resolve from <space>/.mrmr/views (not murrmure/views)", async () => {
     const hub = await createTemporaryHub();
     const spaceRoot = mkdtempSync(join(tmpdir(), "murrmure-view-assets-"));
@@ -41,7 +59,11 @@ describe("http/spaces/view-asset-path", () => {
       const decoyEntry = join(spaceRoot, "murrmure", "views", "intake", "dist", "index.html");
       mkdirSync(join(spaceRoot, ".mrmr", "views", "intake", "dist", "assets"), { recursive: true });
       mkdirSync(join(spaceRoot, "murrmure", "views", "intake", "dist"), { recursive: true });
-      writeFileSync(realEntry, "<!doctype html><main data-testid=TUTORIAL-INTAKE></main>", "utf8");
+      writeFileSync(
+        realEntry,
+        '<!doctype html><main data-testid=TUTORIAL-INTAKE></main><script src="/assets/intake.js"></script>',
+        "utf8",
+      );
       writeFileSync(realAsset, "console.info('intake');", "utf8");
       writeFileSync(decoyEntry, "WRONG-PATH-DECOY", "utf8");
 
@@ -61,14 +83,19 @@ describe("http/spaces/view-asset-path", () => {
       const readAuth = { Authorization: `Bearer ${readToken}` };
 
       // The exact tutorial intake entry opens from .mrmr/views, never the decoy.
+      // Absolute Vite /assets/ refs are rewritten + access_token injected.
       const entryRes = await fetch(viewAssetUrl(hub.baseUrl, spaceId, "intake", "./dist/index.html"), {
         headers: readAuth,
       });
       expect(entryRes.status).toBe(200);
       expect(entryRes.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(entryRes.headers.get("set-cookie")).toMatch(/SameSite=None/);
       const entryBody = await entryRes.text();
       expect(entryBody).toContain("TUTORIAL-INTAKE");
       expect(entryBody).not.toContain("WRONG-PATH-DECOY");
+      expect(entryBody).toContain('src="./assets/intake.js?access_token=');
+      expect(entryBody).not.toContain('src="/assets/');
+      expect(entryRes.headers.get("access-control-allow-origin")).toBe("null");
 
       // Nested built assets (the Vite bundle) resolve under the same root.
       const assetRes = await fetch(viewAssetUrl(hub.baseUrl, spaceId, "intake", "./dist/assets/intake.js"), {
@@ -76,6 +103,13 @@ describe("http/spaces/view-asset-path", () => {
       });
       expect(assetRes.status).toBe(200);
       expect(assetRes.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+
+      // Query-token auth (cross-origin Desktop HMR) opens the same entry.
+      const queryRes = await fetch(
+        `${viewAssetUrl(hub.baseUrl, spaceId, "intake", "./dist/index.html")}?access_token=${encodeURIComponent(readToken)}`,
+      );
+      expect(queryRes.status).toBe(200);
+      expect(await queryRes.text()).toContain("TUTORIAL-INTAKE");
 
       // Missing asset fails with the typed code; no partial content is served.
       const missingRes = await fetch(viewAssetUrl(hub.baseUrl, spaceId, "intake", "./dist/missing.js"), {

@@ -164,7 +164,7 @@ Append to `.mrmr/space/handlers.yaml`:
 +      Read specs/current/spec.md and implement what it asks for in this repo.
 +      Make the requested code changes and propose a conventional commit subject
 +      plus a one-sentence description of what you built.
-+    command: cursor agent -p --force {{prompt}}
++    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 +    timeout_ms: 3600000
 ```
 
@@ -174,6 +174,7 @@ Append to `.mrmr/space/handlers.yaml`:
 | **`contract_keys`** | **Prompt API only** — which catalog keys to compile into contract markdown appended to the agent prompt. Here one key: **`my-dev-flow.build`** (must match `contract-keys.json`). Dispatch uses **`on`**; keys do not select the handler. |
 | **`complete: explicit`** | The agent decides when work is done and **must** call **`murrmure_resolve_step`**. |
 | **`prompt`** | Your **Task** — the work and deliverable the agent should produce. Keep Murrmure mechanics out of it; the protocol block carries branches, schemas, live IDs, and calls. |
+| **`command`** | Prefer **`stream-json`** + **`--stream-partial-output`** so Desktop **Executor output** shows live agent logs. Plain `-p --force` often looks “stuck” with empty stdout until exit. |
 
 ### How the hub builds the full agent prompt
 
@@ -211,9 +212,11 @@ Abbreviated; single-key handler (`contract_keys: [my-dev-flow.build]`):
 <!-- MURRMURE_TASK_BEGIN -->
 # Task
 
-Read specs/current/spec.md and implement what it asks for in this repo.
-Make the requested code changes and propose a conventional commit subject
-plus a one-sentence description of what you built.
+Read specs/current/spec.md and implement it by editing the repo-root index.html
+(the page with the Hello heading). Do not search or edit under
+.mrmr/views/**/node_modules or other dependency trees — glob only the root
+HTML/CSS/JS you need. Then propose a conventional commit subject plus a
+one-sentence description of what you built, and resolve the build step.
 
 <!-- MURRMURE_TASK_END -->
 
@@ -329,10 +332,12 @@ handlers:
     type: shell_spawn
     complete: explicit
     prompt: |
-      Read specs/current/spec.md and implement what it asks for in this repo.
-      Make the requested code changes and propose a conventional commit subject
-      plus a one-sentence description of what you built.
-    command: cursor agent -p --force {{prompt}}
+      Read specs/current/spec.md and implement it by editing the repo-root index.html
+      (the page with the Hello heading). Do not search or edit under
+      .mrmr/views/**/node_modules or other dependency trees — glob only the root
+      HTML/CSS/JS you need. Then propose a conventional commit subject plus a
+      one-sentence description of what you built, and resolve the build step.
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
     timeout_ms: 3600000
 ```
 
@@ -356,6 +361,12 @@ mrmr space apply --strict
 ## Step 6 — Run through build
 
 Same **`~/Documents/spec.md`** from Part 4. Desktop → **Run** → Submit. Let the agent finish and resolve **`build`**.
+
+While **`build`** is open, open the flow page → select the **build** step → **Inspector**
+tab. With `--output-format stream-json --stream-partial-output`, Cursor NDJSON lines
+stream into **Executor output** (not only after exit). You should also see **Dispatch**
+(command + prompt) and **Spawn** (`pid`) once the process starts — if Dispatch is
+missing, the handler did not fire (`on:` / `mrmr space apply`).
 
 ```text
 step.resolved(intake, continue)

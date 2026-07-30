@@ -19,9 +19,8 @@ mkdir -p ~/work/my-flow && cd ~/work/my-flow
 mrmr space init
 # remove flows/example — write your own under .mrmr/flows/{name}/
 # edit .mrmr/space/handlers.yaml + flow.manifest.yaml
-mrmr space view init my-view    # if you need checkpoint UI
-cd .mrmr/views/my-view && npm install && npm run build
-cd ../../..
+mrmr space view init my-view    # scaffolds + npm install
+npm run build --prefix .mrmr/views/my-view
 mrmr space link --path . --create
 mrmr space apply --strict
 mrmr connection create --space spc_…

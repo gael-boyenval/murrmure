@@ -1,9 +1,32 @@
 # @murrmure/cli
 
+## Unreleased
+
+### Patch Changes
+
+- `space view init` runs `npm install` by default, ships a minimal App +
+  `intake` fixture, pins `@murrmure/view-sdk` to `^0.3.0`, and prints
+  space-root Next steps (no `cd` trap). Vite scaffold uses `base: "./"` for
+  hub-served production assets.
+- `view dev` explains fixtures, prints Vite + Desktop URLs, fails early when
+  Vite is missing, clears `view-dev.json` on stop, and pins port 5199.
+- Richer `INVALID_FLOW_MANIFEST` / apply validation detail and colored success
+  / error lines for human output.
+
 ## 1.1.0
 
 ### Minor Changes
 
+- Fixed `mrmr space doctor --fix`: it now rewrites command-only / fat MCP
+  configs to `murrmure-mcp` + `--connection <con_…>` (no `--hub`), using the
+  linked-space connection when available.
+- Added `mrmr connection grant`: interactive capability checklist (or
+  `--capabilities`) to mint a connection with custom caps such as `event:emit`.
+  Omits the `local-tools/v1` profile when the selected set differs so the Hub
+  does not force least-privilege.
+- Renamed the default local MCP connection profile from `tutorial-builder/v1`
+  to `local-tools/v1` (same capabilities). Hub still accepts the legacy id as
+  an alias.
 - 82c78fc: Space-owned view resolvers, hardened host, no built-in fallback forms
 
   Tutorial v3 Task 04 ships the space-owned View binding and hardened host
@@ -83,7 +106,7 @@
   `space grant`, `space onboard`, and legacy action command paths without
   aliases. Local MCP files contain Hub/connection IDs only, while credentials
   are stored in macOS Keychain.
-- Added exact `tutorial-builder/v1` defaults, multi-context adapter installation,
+- Added exact `local-tools/v1` defaults, multi-context adapter installation,
   generic no-write instructions, reload/resume state, connection rotation and
   revocation, and stable bundled-launcher descriptors.
 - Flow manifests use `triggers` as the only start-condition field. The legacy
@@ -100,7 +123,8 @@
   offline, and scaffolds no credential or MCP configuration.
 - Removed legacy `murrmure mcp` / `mrmr mcp` onboarding shape from docs and setup flows.
 - MCP onboarding targets Desktop's stable
-  `~/.murrmure/bin/murrmure-mcp` launcher with ID-only arguments.
+  `~/.murrmure/bin/murrmure-mcp` launcher with command-only client config
+  (Hub from discovery, connection from `active.json` + Keychain).
 
 ## 1.0.1
 

@@ -3,10 +3,11 @@
 Maps [spec.md](../flow-runtime/spec.md) to daemon packages. Phase 1 product bridge unchanged — these are **additions**.
 
 MCP transport assumption: local tools use the Desktop-bundled
-`murrmure-mcp` bridge (`@murrmure/mcp-bridge`) through its stable launcher,
-with `--hub` and `--connection` ID arguments. The bridge reads the credential
-from the OS store. Desktop publishes the launcher command, bundled entry, and
-runtime in shared discovery. Explicit headless CI may inject
+`murrmure-mcp` bridge (`@murrmure/mcp-bridge`) through its stable launcher.
+Client config pins `--connection <con_…>`; the bridge resolves the Hub endpoint
+from Desktop discovery and the credential from the OS store for that connection.
+Desktop publishes the launcher command, bundled entry, and runtime in shared
+discovery.
 Explicit headless CI may inject a hub bearer token at process runtime.
 
 ## HTTP additions

@@ -57,7 +57,7 @@ handlers:
     prompt: |
       Read the specification and implement the requested change.
       Propose a conventional commit subject and one-sentence description.
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
     timeout_ms: 3600000
 
   # Bind a locally built View to a step (executor-free).
@@ -108,6 +108,9 @@ never become shell fragments:
   resolve to a verified, digest-checked consumer copy under
   `.mrmr/dev/runs/{run_id}/steps/{consumer_step}/inputs/{slot}/{filename}` —
   the original artifact is never mutated.
+- **Prior-step output tokens** (`{{murrmure.step.{id}.output.{field}}}`) bind
+  fields from that step’s resolve / completion payload. Legacy `{{steps.*}}` is
+  rejected (no alias). Each `{{…}}` must be one complete unquoted argument.
 - Multiline commands run as `/bin/sh -e -c "<script>"` (no login profile, no
   silent fallback); omitted `cwd` defaults to the space root, omitted
   `delivery` defaults to `fail_fast`. `timeout_ms` caps the run; on timeout the
@@ -127,28 +130,16 @@ never become shell fragments:
 ### Safe repository automation
 
 A handler that commits to the space repository owns its Git policy — Murrmure
-has no platform Git-cleanliness contract, so keep it in the handler script, not
-the portable flow:
+has no platform Git-cleanliness contract, so keep it in the handler (or omit
+it), not the portable flow:
 
-- **Preflight before the first mutation.** The first repository-mutating
-  handler fails before mutating when the tree is dirty (staged, unstaged, or
-  non-ignored untracked): `git diff --quiet`, `git diff --cached --quiet`,
-  `test -z "$(git ls-files --others --exclude-standard)"`. Pair with a
-  `run_policies` `max_concurrent_runs: 1` so no second run races the mutation.
-- **Stage an explicit allowlist only.** Derive the workflow-owned paths and
-  `git add -- <path>…` only those. Never `git add -A` or `git add .` — reject
-  any changed path outside the allowlist and fail the run instead of committing
-  it. List individual files with `git status --porcelain -z
-  --untracked-files=all` (without `--untracked-files=all` Git collapses a new
-  untracked directory and the allowlist match misses the archived file).
+- **Stage what the workflow owns** (explicit paths, or a simple `git add .` when
+  `.mrmr/dev` is gitignored and the space is disposable).
 - **Keep scratch outside Git.** `.mrmr/dev` stays gitignored; run scratch and
   the original uploaded artifact never enter the index and are not deleted.
-- **Validate commit data before mutating.** Check the run id, commit subject
-  (no newlines), and description before `git commit`, and pass them as separate
-  arguments so shell metacharacters and multiline bodies stay literal.
 - **Failures are ordinary handler failures.** Missing identity, a non-Git
-  directory, an archive collision, a no-op, or a commit failure exits nonzero
-  through the normal handler/run path — no rollback, retry, or recovery engine.
+  directory, or a commit failure exits nonzero through the normal handler/run
+  path — no rollback, retry, or recovery engine.
 
 ### Artifact collections and retention
 

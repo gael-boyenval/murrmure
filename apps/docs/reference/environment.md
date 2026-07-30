@@ -4,13 +4,15 @@ Desktop users usually do not set env vars manually (bootstrap is automatic). Thi
 
 ## Local MCP connections
 
-Local MCP config uses the stable launcher plus ID arguments:
+Local MCP config uses the stable launcher with no Hub or connection arguments:
 
 ```text
-~/.murrmure/bin/murrmure-mcp --hub <hub-id> --connection <con-id>
+~/.murrmure/bin/murrmure-mcp
 ```
 
-No environment variable carries a persistent local connection token. The bridge
+The bridge resolves the Hub endpoint from `~/.murrmure/hubs/shared.json` and
+the connection identity from `~/.murrmure/connections/active.json`. No
+environment variable carries a persistent local connection token. The bridge
 normally reads it from macOS Keychain. Inside a Hub-spawned handler,
 `MURRMURE_ASSIGNMENT_SCOPE` makes the same descriptor use the injected
 short-lived assignment token instead; outside assignments,
@@ -45,9 +47,13 @@ After `mrmr login`, credentials are stored in `~/.murrmure/credentials` (mode `0
 
 Auth resolution order:
 
-`--hub-url/--token` flags → explicit headless env → active connection
-(`~/.murrmure/connections/active.json`) + OS credential store → operator
-credentials → discovery
+`--hub-url/--token` flags → explicit headless env → operator
+credentials (`~/.murrmure/credentials`) → active connection
+(`~/.murrmure/connections/active.json`) + OS credential store →
+discovery
+
+Local MCP (`murrmure-mcp`) reads the active connection directly and does not
+use this CLI order.
 
 ## `shell_spawn` child env (handlers + legacy actions)
 

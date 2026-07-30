@@ -1,4 +1,9 @@
 /** Render an invoke param as inline prompt text (not shell-quoted). */
+import {
+  HandlerBindingError,
+  placeholderQuickFixHint,
+} from "./shell-command.js";
+
 export function formatTemplateValue(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value;
@@ -58,12 +63,27 @@ export function buildInvokeTemplateBindings(context: InvokeTemplateContext): Rec
   return bindings;
 }
 
-/** Replace `{{key}}` placeholders using string bindings (empty when missing). */
+/** Replace `{{key}}` placeholders; unknown or missing keys hard-fail. */
 export function resolveActionTemplate(
   template: string,
-  bindings: Record<string, string>,
+  bindings: Record<string, string | null | undefined>,
 ): string {
-  return template.replace(/\{\{([\w.]+)\}\}/g, (_match, key: string) => bindings[key] ?? "");
+  return template.replace(/\{\{([\w.-]+)\}\}/g, (_match, key: string) => {
+    if (!(key in bindings)) {
+      throw new HandlerBindingError(
+        "HANDLER_UNKNOWN_PLACEHOLDER",
+        `Unknown placeholder '{{${key}}}' has no binding.${placeholderQuickFixHint(key)}`,
+      );
+    }
+    const value = bindings[key];
+    if (value === null || value === undefined) {
+      throw new HandlerBindingError(
+        "HANDLER_BINDING_VALUE_MISSING",
+        `Binding '{{${key}}}' is missing or null.${placeholderQuickFixHint(key)}`,
+      );
+    }
+    return value;
+  });
 }
 
 /** Strip protocol placeholders authors may still embed; hub injects protocol separately. */
@@ -119,6 +139,8 @@ function defaultMurrmureProtocolRender(ctx: MurrmureProtocolRenderInput): string
   if (murrmureProtocolRenderer) return murrmureProtocolRenderer(ctx);
   const lines = [
     "Protocol: murrmure.agent/v1",
+    "",
+    "Operating rule: This is a handler assignment. Execute the Task above now, then call murrmure_resolve_step using the Contracts below. Do not call murrmure_get_pending_wake. Do not run space_health / list_handlers bootstrap first.",
     "",
     "## Contracts",
     ctx.contract_markdown,

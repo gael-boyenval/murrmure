@@ -12,8 +12,12 @@ const GRANT_TEMPLATES: Record<string, Capability[]> = {
   worker: ["space:read", "journal:read", "flow:run", "space:write"],
   admin: ["hub:admin", "space:read", "space:enter", "space:write", "flow:read"],
 };
-const TUTORIAL_BUILDER_PROFILE = "tutorial-builder/v1";
-const TUTORIAL_BUILDER_CAPABILITIES: Capability[] = [
+const LOCAL_TOOLS_PROFILE = "local-tools/v1";
+const LOCAL_TOOLS_PROFILE_ALIASES = new Set([
+  LOCAL_TOOLS_PROFILE,
+  "tutorial-builder/v1", // legacy Tutorial v3 id
+]);
+const LOCAL_TOOLS_CAPABILITIES: Capability[] = [
   "space:read",
   "flow:read",
   "flow:run",
@@ -37,7 +41,37 @@ export class ConfigHandler {
   }): Promise<CommandResult> {
     const existing = await this.studio.getSpaceBySlug(cmd.slug);
     if (existing) {
-      return denialResult("space_exists", { message: `Space slug '${cmd.slug}' already exists` }, HTTP_SEMANTIC.CONFLICT);
+      // Soft-deleted spaces keep their slug; recreating the same slug reactivates.
+      if (existing.status === "archived") {
+        await this.studio.updateSpace(existing.space_id, {
+          name: cmd.name ?? existing.name ?? cmd.slug,
+          status: "active",
+          install_policy:
+            (cmd.install_policy as "human_only" | "authorized_agents" | "allow_list" | undefined) ??
+            existing.install_policy ??
+            "human_only",
+          preview_policy:
+            (cmd.preview_policy as "same_origin_only" | "allowlist" | undefined) ??
+            existing.preview_policy ??
+            "same_origin_only",
+          description: cmd.description ?? existing.description,
+          parent_space_id: cmd.parent_space_id ?? existing.parent_space_id,
+        });
+        const reactivated = await this.studio.getSpace(existing.space_id);
+        return successResult("space_created", {
+          space_id: addSpaceId(existing.space_id),
+          slug: cmd.slug,
+          name: reactivated?.name ?? cmd.name ?? cmd.slug,
+          install_policy: reactivated?.install_policy ?? cmd.install_policy ?? "human_only",
+          preview_policy: reactivated?.preview_policy ?? cmd.preview_policy ?? "same_origin_only",
+          reactivated: true,
+        });
+      }
+      return denialResult(
+        "space_exists",
+        { message: `Space slug '${cmd.slug}' already exists` },
+        HTTP_SEMANTIC.CONFLICT,
+      );
     }
 
     const space_id = this.ids.ulid();
@@ -371,7 +405,7 @@ export class ConfigHandler {
     },
     provenance: StudioProvenance,
   ): Promise<CommandResult> {
-    if (body.profile !== undefined && body.profile !== TUTORIAL_BUILDER_PROFILE) {
+    if (body.profile !== undefined && !LOCAL_TOOLS_PROFILE_ALIASES.has(body.profile)) {
       return denialResult(
         "unknown_connection_profile",
         { message: `Unknown connection profile: ${body.profile}` },
@@ -423,7 +457,7 @@ export class ConfigHandler {
     const token_id = this.ids.ulid();
     const templateCaps = GRANT_TEMPLATES[body.template ?? "worker"] ?? GRANT_TEMPLATES.worker;
     const capabilities = body.profile
-      ? [...TUTORIAL_BUILDER_CAPABILITIES]
+      ? [...LOCAL_TOOLS_CAPABILITIES]
       : body.capabilities ??
         (body.scopes?.length
           ? resolveEffectiveCapabilities({ scopes: body.scopes })

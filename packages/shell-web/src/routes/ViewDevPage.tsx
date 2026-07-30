@@ -1,13 +1,35 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { VIEW_TRANSPORT_VERSION, type ViewAppContext, type ViewContractError } from "@murrmure/view-sdk";
+import { Button } from "@murrmure/shell-ui";
 import { AppShell } from "../layout/AppShell.js";
 import { ViewCanvasHost, type ViewCanvasFixtureTab } from "../components/ViewCanvasHost.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { getHubBaseUrl } from "../hooks.js";
 
 type Ack = { ok: true } | { ok: false; error: ViewContractError };
+
+function ViewDevFallback({
+  spaceId,
+  children,
+}: {
+  spaceId?: string;
+  children: ReactNode;
+}) {
+  return (
+    <AppShell canvasMode>
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div>{children}</div>
+        {spaceId ? (
+          <Button variant="outline" size="sm" className="w-fit" asChild>
+            <Link to={`/spaces/${spaceId}`}>← Back to space</Link>
+          </Button>
+        ) : null}
+      </div>
+    </AppShell>
+  );
+}
 
 export function ViewDevPage() {
   const { spaceId, viewId } = useParams();
@@ -20,6 +42,7 @@ export function ViewDevPage() {
     queryKey: ["view-dev-session", spaceId],
     queryFn: () => client!.dev.viewSession(spaceId!),
     enabled: Boolean(client && spaceId),
+    refetchInterval: 5_000,
   });
 
   const session = sessionQuery.data?.session;
@@ -34,8 +57,12 @@ export function ViewDevPage() {
     void (async () => {
       const next: Record<string, ViewAppContext> = {};
       for (const fixture of fixtures) {
-        const { context } = await client.dev.viewFixture(spaceId, viewId, fixture.name);
-        next[fixture.name] = context as unknown as ViewAppContext;
+        try {
+          const { context } = await client.dev.viewFixture(spaceId, viewId, fixture.name);
+          next[fixture.name] = context as unknown as ViewAppContext;
+        } catch {
+          /* skip broken fixture */
+        }
       }
       if (!cancelled) setFixtureContexts(next);
     })();
@@ -83,20 +110,31 @@ export function ViewDevPage() {
 
   if (sessionQuery.isLoading) {
     return (
-      <AppShell canvasMode>
-        <p className="p-6 text-sm text-muted-foreground">Loading view dev session…</p>
-      </AppShell>
+      <ViewDevFallback spaceId={spaceId}>
+        <p className="text-sm text-muted-foreground">Loading view dev session…</p>
+      </ViewDevFallback>
     );
   }
 
   if (sessionQuery.isError || !session?.dev_url) {
     return (
-      <AppShell canvasMode>
-        <p className="p-6 text-sm text-muted-foreground">
+      <ViewDevFallback spaceId={spaceId}>
+        <p className="text-sm text-muted-foreground">
           No active view dev session — run <code className="font-mono">mrmr view dev {viewId}</code>{" "}
-          from your space root.
+          from your space root, then return here from Space Home.
         </p>
-      </AppShell>
+      </ViewDevFallback>
+    );
+  }
+
+  if (viewId && session.view_id && session.view_id !== viewId) {
+    return (
+      <ViewDevFallback spaceId={spaceId}>
+        <p className="text-sm text-muted-foreground">
+          Active session is for <code className="font-mono">{session.view_id}</code>, not{" "}
+          <code className="font-mono">{viewId}</code>.
+        </p>
+      </ViewDevFallback>
     );
   }
 
@@ -112,6 +150,8 @@ export function ViewDevPage() {
         fixtureTabs={fixtureTabs}
         activeFixture={initialFixture}
         onFixtureChange={setActiveFixture}
+        homeHref={spaceId ? `/spaces/${spaceId}` : undefined}
+        homeLabel="← Back to space"
       />
     </AppShell>
   );

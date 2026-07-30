@@ -58,21 +58,6 @@ For this tutorial, **`manual: true`** is enough.
 Human UI does **not** belong under `triggers` or the portable flow. Spaces bind
 Views to steps through `handlers.yaml` ([Part 3](./03-build-intake-view)).
 
-### Default branches (linear steps)
-
-For a normal pipeline step, you only need **`id`** and **`description`**. The compiler adds two branches:
-
-| Branch | Meaning |
-|--------|---------|
-| **`completed`** | Success — opens the **next step** in the `steps` list (last step ends the run) |
-| **`failed`** | Failure — compiles to the canonical run-failed route |
-
-You will use default branches for **`write_spec`** and **`cleanup`** in [Part 5](./05-extend-flow-and-handlers) and [Part 6](./06-cleanup-and-commit). **`build`** declares explicit **`branches`** because its **`completed`** resolve must carry **`commit_message`** and **`description`** in the payload.
-
-**Intake is different** — it is a human checkpoint with **Submit** / **Cancel** and a file upload, so you declare **`continue`** and **`cancel`** explicitly (not `completed` / `failed`).
-
-Human steps with custom outcomes still declare **`branches`** explicitly (intake uses **`continue`** / **`cancel`** in [Part 2](./02-build-minimal-flow)).
-
 ## Step 2 — One step: intake only
 
 Open the file from Step 1 and make it match this complete manifest:
@@ -133,6 +118,17 @@ Each key under `branches` is an **outcome name** — what gets passed to `resolv
 - `schema: { type: object }` — no extra fields required.
 
 That is all you need for this step. Loops and richer routing appear in the archived v2 tutorial (non-normative), superseded by this v3 path.
+
+### Default branches (linear steps)
+
+Intake declared **`continue`** / **`cancel`** because it is a human checkpoint. For a normal pipeline step later, you often only need **`id`** and **`description`** — the compiler adds two branches:
+
+| Branch | Meaning |
+|--------|---------|
+| **`completed`** | Success — opens the **next step** in the `steps` list (last step ends the run) |
+| **`failed`** | Failure — compiles to the canonical run-failed route |
+
+You will use those defaults for **`write_spec`** and **`cleanup`** in [Part 5](./05-extend-flow-and-handlers) and [Part 6](./06-cleanup-and-commit). **`build`** declares explicit **`branches`** because its **`completed`** resolve must carry **`commit_message`** and **`description`** in the payload.
 
 ## Checkpoint
 

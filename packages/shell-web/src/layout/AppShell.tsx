@@ -19,9 +19,12 @@ import { useShellClient } from "../providers/ShellClientProvider.js";
 export function AppShell({
   children,
   canvasMode = false,
+  /** Fill the main pane without page scroll — used by run/session flowcharts. */
+  fillMain = false,
 }: {
   children: ReactNode;
   canvasMode?: boolean;
+  fillMain?: boolean;
 }) {
   const location = useLocation();
   const client = useShellClient();
@@ -96,7 +99,16 @@ export function AppShell({
             </Button>
           </SidebarFooter>
         </Sidebar>
-        <main className="scrollbar-subtle flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-6">{children}</main>
+        <main
+          className={cn(
+            "flex min-h-0 flex-1 flex-col p-6",
+            fillMain
+              ? "overflow-hidden"
+              : "scrollbar-subtle overflow-y-auto overflow-x-hidden",
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

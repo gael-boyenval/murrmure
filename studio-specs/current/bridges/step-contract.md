@@ -72,7 +72,7 @@ handlers:
     on: step.opened::my-dev-flow.write_spec
     type: shell_spawn
     complete: explicit
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
     prompt: |
       … then murrmure_resolve_step({ run_id, step_id: "write_spec", branch: "completed" })
 ```

@@ -230,7 +230,7 @@ Deployables (later):
 
 ### MCP platform tools (rev-1)
 
-Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Local participants connect through the stable `murrmure-mcp` launcher with `--hub` and `--connection` ID arguments; the bridge resolves the credential from the OS store. Desktop discovery records the stable launcher at `mcp_bridge.command` plus the bundled bridge entry and runtime (see Part 13). Hub bearer token is reserved for explicit headless CI runtime injection.
+Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-tools-normative). Local participants connect through the stable `murrmure-mcp` launcher with `--connection <con_…>`; the bridge resolves Hub from discovery and the credential from the OS store. Desktop discovery records the stable launcher at `mcp_bridge.command` plus the bundled bridge entry and runtime (see Part 13). Hub bearer token is reserved for explicit headless CI runtime injection.
 
 | Tool | Required capability | HTTP / behavior |
 |------|---------------------|-----------------|

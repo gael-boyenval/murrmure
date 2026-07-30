@@ -457,6 +457,48 @@ export function buildArtifactMurrmureBindings(artifacts: RunArtifactsBag): Recor
 }
 
 /**
+ * Flatten prior-step resolve/output fields into prompt_bindings keys.
+ * Authored form after `murrmure.` prefix: `{{murrmure.step.{id}.output.{field}}}`.
+ * Nested objects become dotted field paths. Null/undefined fields are omitted
+ * (unknown at resolve) rather than bound as empty.
+ */
+export function buildStepOutputMurrmureBindings(
+  execContext: Record<string, unknown>,
+): Record<string, string> {
+  const bindings: Record<string, string> = {};
+  const steps = (execContext.steps ?? {}) as Record<string, { output?: unknown }>;
+  for (const [stepId, record] of Object.entries(steps)) {
+    const output = record?.output;
+    if (!output || typeof output !== "object" || Array.isArray(output)) continue;
+    flattenStepOutputFields(stepId, output as Record<string, unknown>, "", bindings);
+  }
+  return bindings;
+}
+
+function flattenStepOutputFields(
+  stepId: string,
+  value: Record<string, unknown>,
+  prefix: string,
+  out: Record<string, string>,
+): void {
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (child === null || child === undefined) continue;
+    if (typeof child === "object" && !Array.isArray(child)) {
+      flattenStepOutputFields(stepId, child as Record<string, unknown>, path, out);
+      continue;
+    }
+    if (typeof child === "string" || typeof child === "number" || typeof child === "boolean") {
+      out[`step.${stepId}.output.${path}`] = String(child);
+      continue;
+    }
+    if (Array.isArray(child)) {
+      out[`step.${stepId}.output.${path}`] = JSON.stringify(child);
+    }
+  }
+}
+
+/**
  * Project artifact references for `inputs_from_run` (read by agents and remote
  * consumers). A singleton projects `.path` + `.transfer_id`; a collection
  * projects `.directory` plus an ordered `.files` array of immutable references

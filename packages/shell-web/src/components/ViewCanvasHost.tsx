@@ -14,6 +14,7 @@ import {
   viewSubmitFileName,
 } from "@murrmure/view-sdk";
 import { Badge, Button, cn } from "@murrmure/shell-ui";
+import { getShellToken } from "../hooks.js";
 import type { ViewRefLike } from "../lib/view-app-context.js";
 import { DataTableView } from "./DataTableView.js";
 
@@ -85,11 +86,15 @@ export function ViewCanvasHost({
   const iframeSrc =
     iframeSrcProp ??
     (viewRef?.entry_url && viewRef.origin_space_id
-      ? resolveViewEntryUrl(context.hub_base_url, {
-          view_id: viewRef.view_id,
-          origin_space_id: viewRef.origin_space_id,
-          entry_url: viewRef.entry_url,
-        })
+      ? resolveViewEntryUrl(
+          context.hub_base_url,
+          {
+            view_id: viewRef.view_id,
+            origin_space_id: viewRef.origin_space_id,
+            entry_url: viewRef.entry_url,
+          },
+          { accessToken: getShellToken() || undefined },
+        )
       : undefined);
 
   const [devLog, setDevLog] = useState<string | null>(null);
@@ -148,7 +153,7 @@ export function ViewCanvasHost({
   return (
     <div
       data-testid="view-canvas-host"
-      className="flex min-h-[calc(100vh-3rem)] w-full flex-col"
+      className="flex h-full min-h-0 w-full flex-col"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
@@ -159,22 +164,19 @@ export function ViewCanvasHost({
             <p className="truncate text-sm text-muted-foreground">{context.gate.step_id}</p>
           ) : null}
         </div>
-        {devMode ? (
-          <Badge variant="outline">Dev</Badge>
-        ) : (
-          <div className="flex shrink-0 items-center gap-2">
-            {homeHref ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link to={homeHref}>{homeLabel}</Link>
-              </Button>
-            ) : null}
-            {adminHref ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link to={adminHref}>{adminLabel}</Link>
-              </Button>
-            ) : null}
-          </div>
-        )}
+        {devMode ? <Badge variant="outline">Dev</Badge> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {homeHref ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={homeHref}>{homeLabel}</Link>
+            </Button>
+          ) : null}
+          {!devMode && adminHref ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={adminHref}>{adminLabel}</Link>
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       {devMode && fixtureTabs && fixtureTabs.length > 0 ? (

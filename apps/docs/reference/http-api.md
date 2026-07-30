@@ -255,7 +255,7 @@ Indexed from local `.mrmr/` via apply. See [Space index guide](../guide/space-in
 | `GET` | `/v1/flows/{flow_id}` | `space:read` | Single flow index entry |
 | `GET` | `/v1/spaces/{id}/actions` | `space:read` | Indexed actions |
 | `GET` | `/v1/spaces/{id}/executors` | `space:read` | Indexed executors |
-| `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed hooks |
+| `GET` | `/v1/spaces/{id}/hooks` | `space:read` | Indexed event handlers (legacy path name; handlers live in the hooks index bucket) |
 
 ::: warning Retired
 The retired public action-invoke HTTP surface and removed public invoke MCP tool return **404 / not-registered** (Task 15 Lane A). Action execution is internal flow/hook/scheduler dispatch only; the sole remaining invoke wire is the peer-only federation relay invoke endpoint (`flow:run`-gated).

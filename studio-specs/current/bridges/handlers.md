@@ -36,7 +36,7 @@ handlers:
     complete: explicit
     prompt: |
       … resolve via murrmure_resolve_step …
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 
   # View resolver — binds the intake step to a locally built View.
   - id: intake_view
@@ -47,6 +47,8 @@ handlers:
 
 | Field | Notes |
 |-------|-------|
+| `id` | Stable handler id (unique within the space) |
+| `description` | Optional human-facing summary shown in space home / operator UI |
 | `on` | `step.opened::{flow_name}.{qualified_step_id}` \| `step.resolved::…` \| `event: { type, source? }`. Bare `step.opened` is rejected. |
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
@@ -198,6 +200,11 @@ runtime owns process lifecycle. See
 - `{{prompt}}` is stripped (delivered via stdin) when the handler uses prompt
   delivery, otherwise substituted as one quoted argument. `{{space_root}}` is
   resolved in the `cwd` field as a path, not shell-quoted.
+- **Prior-step output:** `{{murrmure.step.{id}.output.{field}}}` binds fields from
+  that step’s resolve / completion payload (same `murrmure.step…` family as
+  artifacts). Legacy `{{steps.{id}.output.{field}}}` is **rejected** at apply and
+  spawn (no alias) with a quick-fix hint. Apply also rejects quoted placeholders
+  and unknown `murrmure.*` keys.
 
 ### Artifact consumer copy
 

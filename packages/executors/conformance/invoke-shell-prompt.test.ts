@@ -82,4 +82,17 @@ describe("invoke-shell-prompt", () => {
     );
     expect(prompt).toContain("## Discovery");
   });
+
+  test("hard-fails unknown prompt placeholders with quick-fix", () => {
+    expect(() =>
+      resolveInvokePrompt(
+        {
+          action_name: "cleanup",
+          space_id: "spc_demo",
+          run_id: "run_1",
+        },
+        "Subject: {{steps.build.output.commit_message}}",
+      ),
+    ).toThrow(/murrmure\.step\.build\.output\.commit_message/);
+  });
 });

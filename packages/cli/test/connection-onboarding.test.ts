@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("local connection onboarding", () => {
-  test("locks the exact tutorial-builder/v1 profile", () => {
+  test("locks the exact local-tools/v1 profile", () => {
     const descriptor = buildConnectionDescriptor({
       hubId: "http://127.0.0.1:8787",
       connectionId: "con_local",
@@ -43,7 +43,7 @@ describe("local connection onboarding", () => {
       command: "/Users/test/.murrmure/bin/murrmure-mcp",
     });
     expect(descriptor.profile).toEqual({
-      id: "tutorial-builder/v1",
+      id: "local-tools/v1",
       capabilities: [
         "space:read",
         "flow:read",
@@ -54,15 +54,25 @@ describe("local connection onboarding", () => {
     expect(JSON.stringify(descriptor)).not.toMatch(/token|action:invoke|gate:resolve|journal:read/);
   });
 
-  test("cursor adapter preserves unrelated config and writes no token", () => {
+  test("cursor adapter prefers project mcp.json and strips the user duplicate", () => {
     const homePath = temporaryDirectory();
     const projectPath = temporaryDirectory();
     mkdirSync(join(homePath, ".cursor"), { recursive: true });
+    mkdirSync(join(projectPath, ".cursor"), { recursive: true });
     writeFileSync(
       join(homePath, ".cursor", "mcp.json"),
       JSON.stringify({
-        mcpServers: { existing: { command: "existing-mcp" } },
+        mcpServers: {
+          existing: { command: "existing-mcp" },
+          murrmure: { command: "stale-murrmure-mcp" },
+        },
         unrelated: true,
+      }),
+    );
+    writeFileSync(
+      join(projectPath, ".cursor", "mcp.json"),
+      JSON.stringify({
+        mcpServers: { other: { command: "other-mcp" } },
       }),
     );
     const descriptor = buildConnectionDescriptor({
@@ -73,19 +83,34 @@ describe("local connection onboarding", () => {
     });
     const adapter = findConnectionAdapter("cursor");
     expect(adapter).toBeDefined();
-    adapter!.install(descriptor, { projectPath, homePath });
-    adapter!.install(descriptor, { projectPath, homePath });
+    const installed = adapter!.install(descriptor, { projectPath, homePath });
 
-    const content = readFileSync(join(homePath, ".cursor", "mcp.json"), "utf8");
-    const parsed = JSON.parse(content) as {
-      unrelated: boolean;
+    expect(installed.paths).toContain(join(projectPath, ".cursor", "mcp.json"));
+
+    const projectParsed = JSON.parse(
+      readFileSync(join(projectPath, ".cursor", "mcp.json"), "utf8"),
+    ) as {
       mcpServers: Record<string, { command: string; args?: string[]; env?: unknown }>;
     };
-    expect(parsed.unrelated).toBe(true);
-    expect(parsed.mcpServers.existing.command).toBe("existing-mcp");
-    expect(parsed.mcpServers.murrmure.args).toContain("con_local");
-    expect(parsed.mcpServers.murrmure.env).toBeUndefined();
-    expect(content).not.toContain("tok_");
+    expect(projectParsed.mcpServers.other.command).toBe("other-mcp");
+    expect(projectParsed.mcpServers.murrmure.command).toBe(
+      join(homePath, ".murrmure", "bin", "murrmure-mcp"),
+    );
+    expect(projectParsed.mcpServers.murrmure.args).toEqual([
+      "--connection",
+      "con_local",
+    ]);
+    expect(projectParsed.mcpServers.murrmure.env).toBeUndefined();
+
+    const userParsed = JSON.parse(
+      readFileSync(join(homePath, ".cursor", "mcp.json"), "utf8"),
+    ) as {
+      unrelated: boolean;
+      mcpServers: Record<string, { command: string }>;
+    };
+    expect(userParsed.unrelated).toBe(true);
+    expect(userParsed.mcpServers.existing.command).toBe("existing-mcp");
+    expect(userParsed.mcpServers.murrmure).toBeUndefined();
   });
 
   test("activation and reload resume files contain IDs only", () => {
@@ -94,7 +119,7 @@ describe("local connection onboarding", () => {
       hub_id: "http://127.0.0.1:8787",
       connection_id: "con_local",
       space_id: "spc_local",
-      profile: "tutorial-builder/v1",
+      profile: "local-tools/v1",
     };
     const activePath = writeActiveConnection(active, homePath);
     expect(readActiveConnection(homePath)).toEqual(active);
@@ -122,7 +147,7 @@ describe("local connection onboarding", () => {
       hub_id: "http://127.0.0.1:8787",
       connection_id: "con_local",
       space_id: "spc_local",
-      profile: "tutorial-builder/v1",
+      profile: "local-tools/v1",
       status: "active" as const,
     };
     const path = writeStoredConnection(connection, homePath);

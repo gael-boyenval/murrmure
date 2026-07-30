@@ -74,13 +74,6 @@
       "compare": "yaml"
     },
     {
-      "id": "part-6-cleanup-script",
-      "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
-      "part": 6,
-      "file": ".mrmr/space/scripts/cleanup.mjs",
-      "compare": "exact"
-    },
-    {
       "id": "part-6-cleanup-handler",
       "page": "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
       "part": 6,

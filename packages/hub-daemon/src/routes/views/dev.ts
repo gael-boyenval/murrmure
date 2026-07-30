@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join, normalize, resolve } from "node:path";
 import type { Hono } from "hono";
 import { isLocalSpaceBinding, type SpaceBinding } from "@murrmure/contracts";
@@ -25,6 +25,23 @@ async function readSpaceRoot(ctx: DaemonContext, space_id: string): Promise<stri
   return spaceRoot;
 }
 
+/** True when the Vite URL from view-dev.json still answers. */
+export async function isViewDevUrlAlive(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const res = await fetchImpl(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(1_500),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function mountViewDevRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence } = ctx;
 
@@ -41,11 +58,24 @@ export function mountViewDevRoutes(app: Hono, ctx: DaemonContext): void {
 
     const sessionPath = join(spaceRoot, ".mrmr", "dev", "view-dev.json");
     if (!existsSync(sessionPath)) {
-      return c.json({ code: "VIEW_DEV_SESSION_MISSING", message: "No active view dev session" }, 404);
+      // 200 + null (not 404) so Space Home polling does not spam the browser console.
+      return c.json({ session: null });
     }
 
     try {
       const session = JSON.parse(readFileSync(sessionPath, "utf-8")) as Record<string, unknown>;
+      const devUrl = typeof session.dev_url === "string" ? session.dev_url : undefined;
+      if (devUrl) {
+        const alive = await isViewDevUrlAlive(devUrl);
+        if (!alive) {
+          try {
+            unlinkSync(sessionPath);
+          } catch {
+            /* ignore */
+          }
+          return c.json({ session: null });
+        }
+      }
       return c.json({ session });
     } catch {
       return c.json({ code: "VIEW_DEV_SESSION_INVALID", message: "Invalid view-dev.json" }, 500);

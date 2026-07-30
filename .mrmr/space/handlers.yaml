@@ -32,12 +32,14 @@ x-feedback-prompt: &feedback_prompt |
 
 handlers:
   - id: on-dev-failure
+    description: Write a failure feedback report when spc_my_space reports a Murrmure failure
     contract_keys: []
     on:
       event:
         type: murrmure.feedback.failure
         source:
           - "/spaces/spc_my_space"
+          - "/spaces/spc_murrmure"
     type: shell_spawn
     complete: auto
     params:
@@ -60,12 +62,14 @@ handlers:
     timeout_ms: 600000
 
   - id: on-dev-improvement
+    description: Write an improvement request when spc_my_space asks for a Murrmure DX change
     contract_keys: []
     on:
       event:
         type: murrmure.feedback.requestImprovement
         source:
           - "/spaces/spc_my_space"
+          - "/spaces/spc_murrmure"
     type: shell_spawn
     complete: auto
     params:
@@ -86,3 +90,5 @@ handlers:
     cwd: "{{space_root}}"
     delivery: fail_fast
     timeout_ms: 600000
+
+    

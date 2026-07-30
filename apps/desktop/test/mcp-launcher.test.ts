@@ -49,4 +49,14 @@ describe("stable bundled MCP launcher", () => {
       }).supported,
     ).toBe(false);
   });
+
+  test("resolves PATH runtimes such as bare node for HMR discovery", () => {
+    const script = buildMcpLauncherScript({
+      discoveryPath: "/Users/test/.murrmure/hubs/shared.json",
+      bridgeEntry: "/repo/packages/mcp-bridge/dist/main.js",
+      nodeBinary: "node",
+    });
+    expect(script).toContain('command -v "$NODE"');
+    expect(script).toContain("EXPECTED_NODE='node'");
+  });
 });

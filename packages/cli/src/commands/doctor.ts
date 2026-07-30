@@ -1,6 +1,7 @@
 import { defineCommand, type CommandDef } from "citty";
 import { globalArgs, parseGlobalFlags } from "../lib/flags.js";
-import { formatDoctorHuman, runDoctor } from "../lib/doctor.js";
+import { runDoctor } from "../lib/doctor.js";
+import { printDoctorHuman } from "../lib/doctor-print.js";
 import { printErr } from "../lib/output.js";
 
 export const doctorCommand = defineCommand({
@@ -20,7 +21,7 @@ export const doctorCommand = defineCommand({
     if (flags.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      console.log(formatDoctorHuman(result));
+      printDoctorHuman(result);
     }
 
     if (!result.ok) {

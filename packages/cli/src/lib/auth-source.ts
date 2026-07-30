@@ -41,8 +41,8 @@ function sharedJsonAuthPresent(): boolean {
 export function resolveAuthSource(overrides?: AuthOverrides): AuthSource | null {
   if (overrides?.hubUrl || overrides?.token) return "flags";
   if (envAuthPresent()) return "env";
-  if (activeConnectionAuthPresent()) return "active-connection";
   if (credentialsAuthPresent()) return "credentials";
+  if (activeConnectionAuthPresent()) return "active-connection";
   if (sharedJsonAuthPresent()) return "shared.json";
   return null;
 }

@@ -19,6 +19,7 @@ import { catalogEntryForStep, flowStepContractCatalog, nestedCatalogChildren } f
 import {
   artifactPathsForInputs,
   buildArtifactMurrmureBindings,
+  buildStepOutputMurrmureBindings,
   buildRemoteArtifactReferences,
   runArtifactsFromExecContext,
   sanitizeRunArtifactsBagForRemote,
@@ -155,6 +156,8 @@ export function renderMurrmureProtocolEnvelope(input: {
 }): string {
   const lines: string[] = [
     "Protocol: murrmure.agent/v1",
+    "",
+    "Operating rule: This is a handler assignment. Execute the Task above now, then call murrmure_resolve_step using the Contracts below. Do not call murrmure_get_pending_wake. Do not run space_health / list_handlers bootstrap first.",
     "",
     "## Contracts",
     input.contract_markdown,
@@ -471,6 +474,7 @@ export function buildMurrmurePromptBindings(input: {
   }
   if (input.exec_context) {
     Object.assign(bindings, buildArtifactMurrmureBindings(runArtifactsFromExecContext(input.exec_context)));
+    Object.assign(bindings, buildStepOutputMurrmureBindings(input.exec_context));
   }
   return bindings;
 }

@@ -12,12 +12,7 @@ describe("McpSnippetCard", () => {
       mcpServers: {
         murrmure: {
           command: "murrmure-mcp",
-          args: [
-            "--hub",
-            "http://127.0.0.1:8787",
-            "--connection",
-            "con_test",
-          ],
+          args: ["--connection", "con_test"],
         },
       },
     });
@@ -25,6 +20,7 @@ describe("McpSnippetCard", () => {
     const serialized = JSON.stringify(snippet);
     expect(serialized).not.toContain("MURRMURE_HUB_URL");
     expect(serialized).not.toContain("MURRMURE_SPACE_ID");
+    expect(serialized).not.toContain("--hub");
   });
 
   test("buildMcpSnippet supports the stable launcher command", () => {
@@ -37,12 +33,7 @@ describe("McpSnippetCard", () => {
       mcpServers: {
         murrmure: {
           command: "/Users/test/.murrmure/bin/murrmure-mcp",
-          args: [
-            "--hub",
-            "http://127.0.0.1:8787",
-            "--connection",
-            "con_test",
-          ],
+          args: ["--connection", "con_test"],
         },
       },
     });

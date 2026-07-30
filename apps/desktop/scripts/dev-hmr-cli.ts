@@ -167,7 +167,18 @@ export function linkCliGlobal(repoRoot: string): void {
   }
 
   writeDevLinkState(repoRoot, state);
-  console.log(`[desktop:dev:hmr] linked mrmr, murrmure, murrmure-mcp (${binDir})`);
+  let linkedVersion = "unknown";
+  try {
+    const pkg = JSON.parse(
+      readFileSync(join(cliPackageDir(repoRoot), "package.json"), "utf-8"),
+    ) as { version?: string };
+    linkedVersion = pkg.version?.trim() || "unknown";
+  } catch {
+    // Best-effort version in the link log only.
+  }
+  console.log(
+    `[desktop:dev:hmr] linked mrmr@${linkedVersion}, murrmure, murrmure-mcp (${binDir})`,
+  );
 }
 
 /** Remove dev global symlinks created by linkCliGlobal. */

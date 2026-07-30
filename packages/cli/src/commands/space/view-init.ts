@@ -1,8 +1,14 @@
 import { defineCommand, type CommandDef } from "citty";
 import { resolve } from "node:path";
+import { colors } from "consola/utils";
 import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
-import { isJsonMode, printErr, printOk } from "../../lib/output.js";
-import { resolveMurrmureRootFromCwd, scaffoldViewPackage } from "../../lib/view-scaffold.js";
+import { cliConsola, isJsonMode, printErr, printOk } from "../../lib/output.js";
+import {
+  installViewDependencies,
+  resolveMurrmureRootFromCwd,
+  resolveViewDir,
+  scaffoldViewPackage,
+} from "../../lib/view-scaffold.js";
 
 export const spaceViewInitCommand = defineCommand({
   meta: {
@@ -20,6 +26,11 @@ export const spaceViewInitCommand = defineCommand({
       type: "string",
       description: "Space root containing .mrmr/ (default: cwd)",
     },
+    "skip-install": {
+      type: "boolean",
+      description: "Skip npm install after scaffolding",
+      default: false,
+    },
   },
   async run({ args }) {
     const flags = parseGlobalFlags(args);
@@ -35,15 +46,36 @@ export const spaceViewInitCommand = defineCommand({
           : undefined;
       const murrmureRoot = resolveMurrmureRootFromCwd(process.cwd(), spaceRootArg);
       const created = scaffoldViewPackage(murrmureRoot, viewId);
+      const viewDir = resolveViewDir(murrmureRoot, viewId);
+      const skipInstall = Boolean(args["skip-install"]) || isJsonMode() || flags.json;
+
+      let installed = false;
+      if (!skipInstall) {
+        cliConsola.info(`Installing dependencies in .mrmr/views/${viewId} …`);
+        installViewDependencies(viewDir);
+        installed = true;
+      }
+
       if (isJsonMode() || flags.json) {
-        printOk({ view_id: viewId, created });
+        printOk({ view_id: viewId, created, installed });
         return;
       }
+
       printOk({}, `✓ Created view '${viewId}' (${created.length} files)`);
-      console.log("Next:");
-      console.log(`  cd .mrmr/views/${viewId} && npm install`);
-      console.log(`  mrmr view dev ${viewId}`);
-      console.log("  npm run build && mrmr space apply");
+      if (installed) {
+        cliConsola.success(colors.green("✓ npm install complete"));
+      }
+
+      cliConsola.info(colors.bold("Next — stay at the linked space root:"));
+      cliConsola.log(`  ${colors.cyan(`mrmr view dev ${viewId}`)}`);
+      cliConsola.log(
+        `  ${colors.cyan(`npm run build --prefix .mrmr/views/${viewId}`)} ${colors.dim("&&")} ${colors.cyan("mrmr space apply")}`,
+      );
+      if (skipInstall) {
+        cliConsola.log(
+          `  ${colors.dim("(deps not installed)")} ${colors.cyan(`npm install --prefix .mrmr/views/${viewId}`)}`,
+        );
+      }
     } catch (error) {
       printErr("SCAFFOLD_FAILED", error instanceof Error ? error.message : "View scaffold failed");
     }

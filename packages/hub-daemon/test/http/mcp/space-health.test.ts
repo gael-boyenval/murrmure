@@ -110,11 +110,11 @@ describe("http/mcp/space-health", () => {
         healthy: boolean;
         warnings: string[];
         handlers: { count: number; contract_key_count: number };
-        index: { counts: { hooks: number } };
+        index: { counts: { handlers: number } };
       };
     };
     expect(body.result.space_id).toBe(spaceId);
-    expect(body.result.index.counts.hooks).toBe(1);
+    expect(body.result.index.counts.handlers).toBe(1);
     expect(body.result.handlers.count).toBe(1);
     expect(body.result.handlers.contract_key_count).toBe(1);
     expect(Array.isArray(body.result.warnings)).toBe(true);

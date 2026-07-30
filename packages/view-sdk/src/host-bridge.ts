@@ -62,10 +62,15 @@ export function validateHostBranchResolve(
 }
 
 /** Resolve relative view entry paths to hub-served asset URLs. External View
- * URLs are rejected — production Views are locally built and shell-hosted. */
+ * URLs are rejected — production Views are locally built and shell-hosted.
+ *
+ * When `accessToken` is set, it is appended as `access_token` so the hub can
+ * authenticate the iframe navigation (and Set-Cookie for nested assets) when
+ * the shell and hub are cross-origin — e.g. Desktop HMR on :5174 vs hub :8787. */
 export function resolveViewEntryUrl(
   hubBaseUrl: string,
   viewRef: { view_id: string; origin_space_id: string; entry_url?: string },
+  options?: { accessToken?: string },
 ): string | undefined {
   if (!viewRef.entry_url) return undefined;
   if (/^https?:\/\//i.test(viewRef.entry_url) || viewRef.entry_url.startsWith("//")) {
@@ -75,7 +80,12 @@ export function resolveViewEntryUrl(
   const entry = viewRef.entry_url.replace(/^\.\//, "");
   const spaceId = encodeURIComponent(viewRef.origin_space_id);
   const viewId = encodeURIComponent(viewRef.view_id);
-  return `${base}/v1/spaces/${spaceId}/views/${viewId}/${entry.split("/").map(encodeURIComponent).join("/")}`;
+  const path = `${base}/v1/spaces/${spaceId}/views/${viewId}/${entry.split("/").map(encodeURIComponent).join("/")}`;
+  const token = options?.accessToken?.trim();
+  if (!token) return path;
+  const url = new URL(path);
+  url.searchParams.set("access_token", token);
+  return url.toString();
 }
 
 export interface ViewHostBridgeHandlers {

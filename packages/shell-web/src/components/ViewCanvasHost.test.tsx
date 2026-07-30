@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { ViewCanvasHost } from "./ViewCanvasHost.js";
 import { VIEW_TRANSPORT_VERSION, type ViewAppContext } from "@murrmure/view-sdk";
 
@@ -70,18 +71,39 @@ describe("ViewCanvasHost", () => {
     expect(container.querySelector("form")).toBeNull();
   });
 
+  it("dev mode shows back link when homeHref is set", () => {
+    render(
+      <MemoryRouter>
+        <ViewCanvasHost
+          title="Dev view"
+          iframeSrc="http://localhost:5173/"
+          context={{ ...baseContext, mode: "dev" }}
+          onSubmitBranch={vi.fn(okAck)}
+          devMode
+          homeHref="/spaces/spc_demo"
+          homeLabel="← Back to space"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "← Back to space" })).toBeTruthy();
+    expect(screen.getByText("Dev")).toBeTruthy();
+  });
+
   it("dev mode logs submit_branch without calling onSubmitBranch", () => {
     const onSubmitBranch = vi.fn(okAck);
     render(
-      <ViewCanvasHost
-        title="Dev view"
-        iframeSrc="http://localhost:5173/"
-        context={{ ...baseContext, mode: "dev" }}
-        onSubmitBranch={onSubmitBranch}
-        devMode
-        fixtureTabs={[{ name: "gate-round-1", context: baseContext }]}
-        activeFixture="gate-round-1"
-      />,
+      <MemoryRouter>
+        <ViewCanvasHost
+          title="Dev view"
+          iframeSrc="http://localhost:5173/"
+          context={{ ...baseContext, mode: "dev" }}
+          onSubmitBranch={onSubmitBranch}
+          devMode
+          fixtureTabs={[{ name: "gate-round-1", context: baseContext }]}
+          activeFixture="gate-round-1"
+        />
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "gate-round-1" }));

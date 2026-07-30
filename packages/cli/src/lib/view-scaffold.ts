@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { cliResourcePath } from "./cli-package-root.js";
@@ -63,6 +64,22 @@ export function scaffoldViewPackage(targetMurrmureRoot: string, viewId: string):
   }
 
   return created;
+}
+
+/** Run package-manager install in a scaffolded view directory. */
+export function installViewDependencies(viewDir: string): void {
+  const result = spawnSync("npm", ["install"], {
+    cwd: viewDir,
+    encoding: "utf-8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    const detail = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
+    throw new Error(
+      `npm install failed in ${viewDir}${detail ? `:\n${detail}` : ""} — fix the error, then retry: npm install --prefix ${viewDir}`,
+    );
+  }
 }
 
 export function resolveMurrmureRootFromCwd(cwd: string, spaceRoot?: string): string {

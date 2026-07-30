@@ -14,6 +14,7 @@ Requires a token with **`space:admin`** scope. Desktop bootstrap token works for
 | Apply space index | `mrmr space apply` |
 | Index a flow from `.mrmr/flows/` | `mrmr space apply` (see [Quick start](./quick-start)) |
 | Create local connection | `mrmr connection create --space spc_…` |
+| Grant custom capabilities | `mrmr connection grant --space spc_…` (checklist UI) |
 
 See [Quick start](./quick-start) for the full first-review path.
 
@@ -61,7 +62,7 @@ mrmr connection revoke con_… --space spc_ui_sandbox
 | Field | Notes |
 |-------|-------|
 | Label | Machine/trust boundary this connection represents |
-| Profile | `tutorial-builder/v1` is the exact default |
+| Profile | `local-tools/v1` is the exact default |
 | Capabilities | `space:read`, `flow:read`, `flow:run`, `step:resolve` |
 
 Local credentials are written only to macOS Keychain. MCP config and activation

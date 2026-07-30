@@ -1,6 +1,22 @@
+import { installMcpLauncher } from "../src/mcp-launcher.js";
 import { buildHubSpawnEnv, resolveDesktopPaths } from "../src/paths.js";
 
 const paths = resolveDesktopPaths({ mode: "dev-hmr" });
+
+// Advertise + install the stable launcher before (or while attaching to) the hub
+// so shared.json's mcp_bridge.command path exists for local tool connections.
+const launcher = installMcpLauncher({
+  dataDir: paths.dataDir,
+  bridgeEntry: paths.mcpBridgeEntry,
+  nodeBinary: paths.nodeBinary,
+});
+if (launcher.supported) {
+  console.log(`[desktop:dev:hmr:hub] MCP launcher ready at ${launcher.command}`);
+} else {
+  console.warn(
+    "[desktop:dev:hmr:hub] MCP launcher not installed (missing bridge entry or unsupported platform)",
+  );
+}
 
 async function hubAlreadyHealthy(): Promise<boolean> {
   try {

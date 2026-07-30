@@ -13,6 +13,10 @@
  * `shell-spawn.ts`). Multiline commands preserve their newlines.
  */
 
+import { placeholderQuickFixHint } from "@murrmure/hub-core";
+
+export { placeholderQuickFixHint };
+
 export class HandlerBindingError extends Error {
   constructor(
     public readonly code:
@@ -37,6 +41,7 @@ export function shellQuote(value: string): string {
 // when unbound) instead of silently passing through as a literal fragment.
 const PLACEHOLDER_EXACT_RE = /^\{\{([\w.-]+)\}\}$/;
 const CONTAINS_PLACEHOLDER_RE = /\{\{[\w.-]+\}\}/;
+const PLACEHOLDER_ANY_RE = /\{\{([\w.-]+)\}\}/g;
 
 interface TokenSegment {
   /** true if this segment came from a quoted string (author quotes). */
@@ -254,15 +259,53 @@ function substitutePlaceholder(
   if (!(key in bindings)) {
     throw new HandlerBindingError(
       "HANDLER_UNKNOWN_PLACEHOLDER",
-      `Unknown placeholder '{{${key}}}' has no binding`,
+      `Unknown placeholder '{{${key}}}' has no binding.${placeholderQuickFixHint(key)}`,
     );
   }
   const value = bindings[key];
   if (value === null || value === undefined) {
     throw new HandlerBindingError(
       "HANDLER_BINDING_VALUE_MISSING",
-      `Binding '{{${key}}}' is missing or null`,
+      `Binding '{{${key}}}' is missing or null.${placeholderQuickFixHint(key)}`,
     );
   }
   return shellQuote(value);
+}
+
+/**
+ * Validate handler command/prompt grammar without substituting values.
+ * Rejects quoted and embedded placeholders the same way as resolveSafeShellCommand.
+ */
+export function assertHandlerTemplateGrammar(template: string, fieldLabel = "command"): void {
+  const tokens = tokenizeShellCommand(template);
+  for (const token of tokens) {
+    const placeholderInToken = token.segments.some((seg) =>
+      CONTAINS_PLACEHOLDER_RE.test(seg.text),
+    );
+    if (!placeholderInToken) continue;
+
+    if (token.segments.length === 1 && !token.segments[0]!.quoted) {
+      const exact = PLACEHOLDER_EXACT_RE.exec(token.segments[0]!.text);
+      if (exact) continue;
+    }
+    if (token.segments.length === 1 && token.segments[0]!.quoted) {
+      throw new HandlerBindingError(
+        "HANDLER_PLACEHOLDER_QUOTED",
+        `Placeholder '${token.segments[0]!.text}' in ${fieldLabel} must not be quoted; remove the surrounding quotes`,
+      );
+    }
+    throw new HandlerBindingError(
+      "HANDLER_PLACEHOLDER_EMBEDDED",
+      `Placeholder in ${fieldLabel} token '${token.raw}' must occupy one complete argument`,
+    );
+  }
+}
+
+/** Collect unique `{{key}}` names from a template (grammar not validated). */
+export function collectTemplatePlaceholderKeys(template: string): string[] {
+  const keys = new Set<string>();
+  for (const match of template.matchAll(PLACEHOLDER_ANY_RE)) {
+    if (match[1]) keys.add(match[1]);
+  }
+  return [...keys];
 }

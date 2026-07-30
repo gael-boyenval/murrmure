@@ -10,7 +10,7 @@
   "expect": {
     "ok": true,
     "link_present": true,
-    "connection_profile": "tutorial-builder/v1",
+    "connection_profile": "local-tools/v1",
     "token_exposed": false,
     "step_ids": ["spaces", "init", "link", "apply", "skill", "connection"]
   },

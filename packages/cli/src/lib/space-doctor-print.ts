@@ -94,7 +94,7 @@ function renderOverview(result: SpaceDoctorResult): void {
     const localLine = [
       countBadge(counts.flows, "flow"),
       countBadge(counts.actions, "action"),
-      countBadge(counts.hooks, "hook"),
+      countBadge(counts.handlers, "handler"),
     ].join(colors.dim(" · "));
     row("Local", localLine);
   }
@@ -104,6 +104,7 @@ function renderOverview(result: SpaceDoctorResult): void {
     const hubLine = [
       countBadge(counts.flows, "indexed flow"),
       countBadge(counts.actions, "indexed action"),
+      countBadge(counts.handlers, "handler"),
     ].join(colors.dim(" · "));
     row("Hub index", hubLine);
   }

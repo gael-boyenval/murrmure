@@ -102,7 +102,7 @@ export function createTemporaryGitRepository(
 export interface TemporaryTutorialGitRepository extends TemporaryResource {
   spaceRoot: string;
   git: (...args: string[]) => string;
-  /** Run the exact Part 6 cleanup script as the hub would (cwd = space root). */
+  /** Run the Part 6 cleanup shell command as the hub would (cwd = space root). */
   runCleanup: (
     runId: string,
     subject: string,
@@ -145,7 +145,6 @@ export function createTemporaryTutorialGitRepository(
   git("add", "--", ".gitignore", ".mrmr/flows", ".mrmr/space", ".mrmr/views");
   git("commit", "--quiet", "-m", "chore: configure tutorial flow");
 
-  const cleanupScript = join(spaceRoot, ".mrmr", "space", "scripts", "cleanup.mjs");
   const handlersYaml = readFileSync(
     join(spaceRoot, ".mrmr", "space", "handlers.yaml"),
     "utf8",
@@ -162,16 +161,33 @@ export function createTemporaryTutorialGitRepository(
         .join("\n")
     : "";
 
+  const cleanupMatch = handlersYaml.match(
+    /id:\s*cleanup_archive_commit[\s\S]*?command:\s*\|\n([\s\S]*?)\n(?= {4}\S)/,
+  );
+  const cleanupCommandTemplate = cleanupMatch
+    ? cleanupMatch[1]
+        .split("\n")
+        .map((l) => l.replace(/^      /, ""))
+        .filter((l) => l.trim().length > 0)
+        .join("\n")
+    : "";
+
+  /** Match hub shellQuote for substituted commit message args. */
+  const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`;
+
   const runCleanup = (
     runId: string,
     subject: string,
     description: string,
     options?: { env?: NodeJS.ProcessEnv },
   ) => {
-    const result = spawnSync("node", [cleanupScript, runId, subject, description], {
+    const command = cleanupCommandTemplate
+      .replaceAll("{{murrmure.step.build.output.commit_message}}", shellQuote(subject))
+      .replaceAll("{{murrmure.step.build.output.description}}", shellQuote(description));
+    const result = spawnSync("/bin/sh", ["-e", "-c", command], {
       cwd: spaceRoot,
       encoding: "utf8",
-      env: { ...process.env, ...options?.env },
+      env: { ...process.env, MURRMURE_RUN_ID: runId, ...options?.env },
     });
     return {
       status: result.status,

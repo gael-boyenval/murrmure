@@ -19,7 +19,7 @@ Layout: `.mrmr/space/` (handlers, events), `.mrmr/flows/`, `.mrmr/views/`. Legac
 | `POST /v1/spaces/{id}/apply` | Re-index `.mrmr/` bundle from CLI |
 | `GET /v1/spaces/{id}/index/status` | Counts + digests for MCP `murrmure_space_status` |
 | `GET /v1/spaces/{id}/index/flows` | Flow index entries (includes `step_contract_catalog`) |
-| `GET /v1/spaces/{id}/hooks` | Indexed handlers + legacy hooks (handlers stored in hooks index) |
+| `GET /v1/spaces/{id}/hooks` | Indexed **event handlers** (legacy route name; storage bucket still `hooks`) |
 | `GET /v1/spaces/{id}/actions` | **Legacy** — indexed `actions.yaml` entries |
 | `GET /v1/spaces/{id}/executors` | **Legacy** — indexed `executors.yaml` |
 | `GET /v1/flows/{flow_id}` | Single flow index row |

@@ -1,5 +1,12 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { resolveViewDir } from "./view-scaffold.js";
@@ -41,6 +48,22 @@ export function packageManagerRunArgs(pm: PackageManager, script: string): [stri
   }
 }
 
+/** Dedicated port so view Vite never collides with Desktop shell (5174) or docs (5173). */
+export const VIEW_DEV_DEFAULT_PORT = 5199;
+
+/** Extra args forwarded to the view package's `dev` script (Vite). */
+export function viewDevScriptExtraArgs(port = VIEW_DEV_DEFAULT_PORT): string[] {
+  return ["--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"];
+}
+
+export function packageManagerViewDevArgs(
+  pm: PackageManager,
+  port = VIEW_DEV_DEFAULT_PORT,
+): [string, string[]] {
+  const [cmd, baseArgs] = packageManagerRunArgs(pm, "dev");
+  return [cmd, [...baseArgs, ...viewDevScriptExtraArgs(port)]];
+}
+
 export function readViewPackageJson(viewDir: string): { scripts?: Record<string, string> } {
   const pkgPath = join(viewDir, "package.json");
   if (!existsSync(pkgPath)) {
@@ -74,11 +97,67 @@ export function validateViewDevPackage(viewDir: string): void {
   listViewFixtures(viewDir);
 }
 
+/** Fail early when Vite is missing (common after skipping npm install). */
+export function assertViewDevDependencies(viewDir: string): void {
+  const binDir = join(viewDir, "node_modules", ".bin");
+  const viteUnix = join(binDir, "vite");
+  const viteWin = join(binDir, "vite.cmd");
+  if (!existsSync(viteUnix) && !existsSync(viteWin)) {
+    throw new Error(
+      `Vite not found in ${viewDir}/node_modules — run: npm install --prefix ${viewDir}`,
+    );
+  }
+}
+
 export function parseViteDevUrl(line: string): string | undefined {
   const match =
     line.match(/Local:\s+(https?:\/\/[^\s]+)/) ??
     line.match(/➜\s+Local:\s+(https?:\/\/[^\s]+)/);
   return match?.[1]?.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/** Reject URLs that are clearly the Desktop shell / docs, not a view package. */
+export async function assertViewDevServerUrl(
+  url: string,
+  viewId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  let html: string;
+  try {
+    const res = await fetch(url, { redirect: "follow" });
+    html = await res.text();
+  } catch (error) {
+    return {
+      ok: false,
+      message: `View dev URL ${url} is not reachable — ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  const looksLikeShell =
+    /Create your first space/i.test(html) ||
+    (/Murrmure/i.test(html) && /Observer/i.test(html)) ||
+    /No spaces linked yet/i.test(html);
+  if (looksLikeShell) {
+    return {
+      ok: false,
+      message:
+        `View dev URL ${url} is serving Murrmure Desktop/shell, not view '${viewId}'. ` +
+        `Stop other Vite servers on that port and re-run \`mrmr view dev ${viewId}\` ` +
+        `(views use port ${VIEW_DEV_DEFAULT_PORT}).`,
+    };
+  }
+
+  const looksLikeView =
+    html.includes('id="root"') || html.includes("/src/main") || html.includes(viewId);
+  if (!looksLikeView) {
+    return {
+      ok: false,
+      message:
+        `View dev URL ${url} does not look like a view package (missing #root / main entry). ` +
+        `Re-run \`mrmr view dev ${viewId}\` from the linked space root.`,
+    };
+  }
+
+  return { ok: true };
 }
 
 export function writeViewDevSession(spaceRoot: string, session: ViewDevSession): string {
@@ -87,6 +166,14 @@ export function writeViewDevSession(spaceRoot: string, session: ViewDevSession):
   const path = join(dir, "view-dev.json");
   writeFileSync(path, `${JSON.stringify(session, null, 2)}\n`, "utf-8");
   return path;
+}
+
+/** Remove session file so Desktop Space Home drops the view-dev affordance. */
+export function clearViewDevSession(spaceRoot: string): void {
+  const path = join(spaceRoot, ".mrmr", "dev", "view-dev.json");
+  if (existsSync(path)) {
+    unlinkSync(path);
+  }
 }
 
 export function resolveInitialFixture(
@@ -111,8 +198,9 @@ export interface ViewDevProcessHandle {
 
 export function startViewDevProcess(viewDir: string): ViewDevProcessHandle {
   validateViewDevPackage(viewDir);
+  assertViewDevDependencies(viewDir);
   const pm = detectPackageManager(viewDir);
-  const [cmd, args] = packageManagerRunArgs(pm, "dev");
+  const [cmd, args] = packageManagerViewDevArgs(pm);
 
   let resolveUrl: (url: string) => void;
   let rejectUrl: (error: Error) => void;
@@ -131,10 +219,22 @@ export function startViewDevProcess(viewDir: string): ViewDevProcessHandle {
   const tryResolve = (chunk: string) => {
     if (settled) return;
     const url = parseViteDevUrl(chunk);
-    if (url) {
-      settled = true;
+    if (!url) return;
+    settled = true;
+    void (async () => {
+      const viewId = viewDir.split(/[/\\]/).filter(Boolean).pop() ?? "view";
+      const check = await assertViewDevServerUrl(url, viewId);
+      if (!check.ok) {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          /* ignore */
+        }
+        rejectUrl!(new Error(check.message));
+        return;
+      }
       resolveUrl!(url);
-    }
+    })();
   };
 
   child.stdout.on("data", (buf: Buffer) => {

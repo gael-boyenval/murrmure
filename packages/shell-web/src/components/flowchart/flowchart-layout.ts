@@ -227,12 +227,15 @@ function isActiveStatus(status: string | undefined): boolean {
 
 export interface BuildFlowEdgesOptions {
   selectedStepId?: string;
+  /** When the run is terminal, brighten the taken success/failure path. */
+  runLifecycle?: string;
 }
 
 function edgeEmphasis(input: {
   sourceNode: RunGraphNode | undefined;
   targetNode: RunGraphNode | undefined;
   selectedStepId?: string;
+  runLifecycle?: string;
   isLoop: boolean;
   toFailure: boolean;
   toSuccess: boolean;
@@ -252,13 +255,20 @@ function edgeEmphasis(input: {
   );
   const relatedRunning =
     isActiveStatus(input.sourceNode?.status) || isActiveStatus(input.targetNode?.status);
-  const emphasized = relatedSelected || relatedRunning;
+  const runSucceeded = input.runLifecycle === "completed";
+  const runFailed = input.runLifecycle === "failed" || input.runLifecycle === "cancelled";
+  const terminalPath =
+    (runSucceeded && input.toSuccess) || (runFailed && (input.toFailure || input.tone === "failure"));
+  const untakenTerminal =
+    (runSucceeded && (input.toFailure || input.tone === "failure")) ||
+    (runFailed && input.toSuccess);
+  const emphasized = relatedSelected || relatedRunning || terminalPath;
 
   if (input.isLoop) {
     return {
       stroke: emphasized ? "#f59e0b" : "#b45309",
       strokeWidth: emphasized ? 2.5 : 1,
-      opacity: emphasized ? 1 : 0.5,
+      opacity: untakenTerminal ? 0.25 : emphasized ? 1 : 0.5,
       animated: relatedRunning,
       labelFill: emphasized ? "#fbbf24" : "#a1a1aa",
       labelSize: emphasized ? 11 : 9,
@@ -269,7 +279,7 @@ function edgeEmphasis(input: {
     return {
       stroke: emphasized ? "#ef4444" : "#7f1d1d",
       strokeWidth: emphasized ? 2.5 : 1,
-      opacity: emphasized ? 1 : 0.5,
+      opacity: untakenTerminal ? 0.25 : emphasized ? 1 : 0.5,
       animated: relatedRunning,
       labelFill: emphasized ? "#f87171" : "#71717a",
       labelSize: emphasized ? 11 : 9,
@@ -280,7 +290,7 @@ function edgeEmphasis(input: {
     return {
       stroke: emphasized ? "#22c55e" : "#14532d",
       strokeWidth: emphasized ? 2.5 : 1,
-      opacity: emphasized ? 1 : 0.5,
+      opacity: untakenTerminal ? 0.25 : emphasized ? 1 : 0.5,
       animated: relatedRunning,
       labelFill: emphasized ? "#4ade80" : "#71717a",
       labelSize: emphasized ? 11 : 9,
@@ -290,7 +300,7 @@ function edgeEmphasis(input: {
   return {
     stroke: emphasized ? "#93c5fd" : "#52525b",
     strokeWidth: emphasized ? 2.5 : 1,
-    opacity: emphasized ? 1 : 0.5,
+    opacity: emphasized ? 1 : runSucceeded || runFailed ? 0.45 : 0.5,
     animated: relatedRunning,
     labelFill: emphasized ? "#e4e4e7" : "#71717a",
     labelSize: emphasized ? 11 : 9,
@@ -304,6 +314,7 @@ export function buildFlowEdges(
 ): BuiltInEdge[] {
   const nodes = nodeById(graph);
   const selectedStepId = options.selectedStepId;
+  const runLifecycle = options.runLifecycle;
   const orderByParent = siblingOrderByParent(graph);
 
   const siblingIndexBySource = new Map<string, number>();
@@ -353,6 +364,7 @@ export function buildFlowEdges(
       sourceNode,
       targetNode,
       selectedStepId,
+      runLifecycle,
       isLoop,
       toFailure,
       toSuccess,

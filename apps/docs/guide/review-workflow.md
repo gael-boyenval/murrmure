@@ -15,9 +15,8 @@ Humans work in a space-bound `view_resolver` through **ViewCanvasHost**.
 ## Setup
 
 ```bash
-cd .mrmr/views/preview-review-intake && npm install && npm run build
-cd ../preview-review && npm install && npm run build
-cd ../..
+npm run build --prefix .mrmr/views/preview-review-intake
+npm run build --prefix .mrmr/views/preview-review
 mrmr space link --path . --space spc_ui_sandbox
 mrmr space apply --strict
 mrmr connection create --space spc_ui_sandbox

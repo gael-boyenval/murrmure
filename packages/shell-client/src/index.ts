@@ -18,7 +18,7 @@ export type {
   SpaceHomeEmittableEventRow,
   SpaceHomeEventRow,
   SpaceHomeFlowRow,
-  SpaceHomeHookRow,
+  SpaceHomeHandlerRow,
   SpaceHomeIndexSection,
   SpaceHomeRunRow,
   RunGraphBranchMetadata,
@@ -28,5 +28,7 @@ export type {
   UploadIntentFileInput,
   UploadIntentResponse,
 } from "./types.js";
+/** @deprecated Use SpaceHomeHandlerRow. */
+export type { SpaceHomeHandlerRow as SpaceHomeHookRow } from "./types.js";
 export { parseSseMessage, JOURNAL_SSE_EVENTS } from "./sse.js";
 export { createShellClient, ShellClientHttpError } from "./client.js";

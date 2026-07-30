@@ -73,6 +73,7 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `space update` | impl | requireScope · space:admin |
 | `space archive` | impl | requireScope · space:admin |
 | `connection create/list/rotate/revoke` | impl | requireScope · space:admin |
+| `connection grant` | impl | requireScope · space:admin · interactive capability checklist (or `--capabilities`) |
 | `connection activate` | impl | local credential-store lookup only |
 | `space member *` | impl | requireScope · space:admin |
 | `space trigger *` | impl | requireScope · varies |
@@ -109,7 +110,7 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `skill version` | impl | none |
 | `step resolve` | impl | env bindings (see below) |
 
-**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge using a connection-ID-only local descriptor.
+**Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge. Local client config pins `--connection <con_…>`; Hub comes from discovery; credential from the OS store.
 
 **Install / command resolution:**
 
@@ -119,18 +120,18 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | Explicit headless CI | `"murrmure-mcp"` on PATH plus `--headless-ci`; runtime secret injection from the CI provider |
 
 `connection create` emits a neutral descriptor with Hub ID, connection ID,
-stable command, `tutorial-builder/v1`, skill bundle/version, and verification
-requirements. Local MCP config has `command` plus `args: [--hub, …,
---connection, …]` and no token/env block. The bridge resolves Keychain at
-startup and fails closed. Legacy `mrmr mcp` and env-token local config are
-removed.
+stable command, `local-tools/v1`, skill bundle/version, and verification
+requirements. Local MCP config has `command` plus `--connection <con_…>` (no
+`--hub`, no token/env block). The bridge resolves Hub from discovery and the
+credential from Keychain for that connection id, and fails closed. Legacy
+`mrmr mcp` and env-token local config are removed.
 
 ## Auth resolution order
 
 CLI flags (`--hub-url`, `--token`) → explicit headless runtime env →
-ID-only active connection + OS credential store → `~/.murrmure/credentials` →
-`~/.murrmure/hubs/shared.json`. Local MCP mode never consumes env token
-fallback.
+`~/.murrmure/credentials` (operator login) → ID-only active connection + OS
+credential store → `~/.murrmure/hubs/shared.json`. Local MCP mode never
+consumes env token fallback and reads the active connection directly.
 
 ## Auth commands (§5.2)
 
@@ -276,12 +277,13 @@ reload/verify resume step. Generic fallback writes no target configuration.
 | Command | HTTP | Notes |
 |---------|------|-------|
 | `connection create` | POST `/v1/spaces/:id/grants` | Public result is `con_…`; auto-stores in Keychain, activates, and installs adapters |
+| `connection grant` | POST `/v1/spaces/:id/grants` | Checklist (or `--capabilities`) mint; omits `local-tools/v1` profile when caps differ so custom capabilities (e.g. `event:emit`) stick |
 | `connection list` | GET `/v1/spaces/:id/grants` | Active/revoked connection history; no token |
 | `connection activate <con_id>` | local only | Validates Keychain entry and writes an ID-only active pointer |
 | `connection revoke <con_id>` | POST `…/grants/:id/revoke` | Removes local credential; audit history remains |
 | `connection rotate <con_id>` | POST `…/grants/:id/rotate` | Stores replacement credential and removes old one |
 
-The default named/versioned profile is `tutorial-builder/v1` and contains
+The default named/versioned profile is `local-tools/v1` and contains
 exactly `space:read`, `flow:read`, `flow:run`, and `step:resolve`. Setup
 connections are space-wide. Advanced `--flow-acl` accepts only already-applied
 canonical flow IDs; unknown/future/stale aliases fail.
@@ -367,19 +369,17 @@ Roles: `admin`, `editor`, `viewer`.
 ```text
 .mrmr/views/{id}/
   view.manifest.yaml
-  package.json             # scripts.dev + scripts.build
+  package.json             # scripts.dev + scripts.build; @murrmure/view-sdk ^0.3
   vite.config.ts
   index.html
   src/main.tsx             # createViewMount({ App })
-  src/App.tsx
+  src/App.tsx              # minimal file input + Submit + Cancel
   schemas/params.json
   dev/fixtures/
-    intake.json
-    gate-round-1.json
-    gate-round-2.json
+    intake.json            # sample step context (continue / cancel)
 ```
 
-After scaffold: `npm install` in view dir, then `mrmr view dev {id}` or `npm run build` + `mrmr space apply`.
+After scaffold: `space view init` runs `npm install` in the view dir (unless `--skip-install` / `--json`). The Vite scaffold sets `base: "./"` so production `dist/` assets resolve when the hub serves them under `/v1/spaces/.../views/.../dist/`. Stay at the linked space root for `mrmr view dev {id}` or `npm run build --prefix .mrmr/views/{id}` + `mrmr space apply`. Stopping `mrmr view dev` clears `.mrmr/dev/view-dev.json`.
 
 ## Worker commands
 

@@ -49,16 +49,21 @@ describe("http/spaces/home", () => {
             digest: "sha256:home-actions",
             file: { version: 1, actions: { ping: { executor: "shell" } } },
           },
-          hooks: {
-            digest: "sha256:home-hooks",
+          handlers: {
+            digest: "sha256:home-handlers",
             file: {
               version: 1,
-              hooks: {
-                "on-work-ready": {
+              run_policies: [],
+              handlers: [
+                {
+                  id: "on-work-ready",
+                  contract_keys: [],
                   on: { event: { type: "mrmr.work.ready" } },
-                  do: [{ ensure_session: { title: "Work ready" } }],
+                  type: "shell_spawn",
+                  complete: "auto",
+                  command: "true",
                 },
-              },
+              ],
             },
           },
           flows: [
@@ -111,8 +116,8 @@ describe("http/spaces/home", () => {
     expect(body).toHaveProperty("index");
     expect(body).toHaveProperty("emittable_events");
     expect(Array.isArray(body.emittable_events)).toBe(true);
-    expect(body.index.counts.hooks).toBe(1);
-    expect(body.index.hooks[0].hook_id).toBe("on-work-ready");
+    expect(body.index.counts.handlers).toBe(1);
+    expect(body.index.handlers[0].handler_id).toBe("on-work-ready");
     expect(body.index.events.some((e: { event_type: string }) => e.event_type === "mrmr.work.ready")).toBe(
       true,
     );

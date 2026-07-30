@@ -125,6 +125,21 @@ describe("view-sdk host protocol", () => {
     );
   });
 
+  it("resolveViewEntryUrl appends access_token for cross-origin iframe auth", () => {
+    const url = resolveViewEntryUrl(
+      "http://127.0.0.1:8787",
+      {
+        view_id: "review-params",
+        origin_space_id: "spc_demo",
+        entry_url: "./dist/index.html",
+      },
+      { accessToken: "tok_test" },
+    );
+    expect(url).toBe(
+      "http://127.0.0.1:8787/v1/spaces/spc_demo/views/review-params/dist/index.html?access_token=tok_test",
+    );
+  });
+
   it("resolveViewEntryUrl rejects external View URLs", () => {
     expect(() =>
       resolveViewEntryUrl("http://127.0.0.1:8787", {

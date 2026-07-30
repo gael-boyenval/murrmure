@@ -100,10 +100,11 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const next = { ...current, ...patch };
     this.db
       .prepare(
-        `UPDATE spaces SET name = ?, install_policy = ?, preview_policy = ?, description = ?, parent_space_id = ?, query_policy_json = ? WHERE space_id = ?`,
+        `UPDATE spaces SET name = ?, status = ?, install_policy = ?, preview_policy = ?, description = ?, parent_space_id = ?, query_policy_json = ? WHERE space_id = ?`,
       )
       .run(
         next.name ?? next.slug,
+        next.status ?? "active",
         next.install_policy ?? "human_only",
         next.preview_policy ?? "same_origin_only",
         next.description ?? null,

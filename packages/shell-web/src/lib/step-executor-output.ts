@@ -28,6 +28,10 @@ type StepExecRecord = {
     cwd: string;
     dispatched_at?: string;
   };
+  spawn?: {
+    pid: number;
+    spawned_at?: string;
+  };
 };
 
 function findDispatchAudit(
@@ -197,6 +201,24 @@ export function buildStepExecutorOutputSections(
         prompt: dispatchAudit.prompt,
       },
     });
+  } else if (memo?.status === "working") {
+    sections.push({ kind: "heading", text: "Dispatch" });
+    sections.push({
+      kind: "text",
+      text: "(no handler dispatched for this open step — check handlers.yaml on: step.opened::{flow}.{step} and re-apply)",
+    });
+  }
+
+  if (exec?.spawn) {
+    sections.push({ kind: "heading", text: "Spawn" });
+    sections.push({
+      kind: "data",
+      label: "spawn",
+      value: {
+        pid: exec.spawn.pid,
+        ...(exec.spawn.spawned_at ? { spawned: formatDateTime(exec.spawn.spawned_at) } : {}),
+      },
+    });
   }
 
   const events = filterStepJournalEntries(run.run_id, stepId, journalEntries);
@@ -256,10 +278,22 @@ export function buildStepExecutorOutputSections(
       }
     }
   } else if (memo?.status === "working") {
-    sections.push({
-      kind: "text",
-      text: "(executor running — output appears when the action completes)",
-    });
+    if (exec?.spawn) {
+      sections.push({
+        kind: "text",
+        text: `(process started pid ${exec.spawn.pid} — waiting for first stdout chunk; use stream-json agent flags for live logs)`,
+      });
+    } else if (dispatchAudit) {
+      sections.push({
+        kind: "text",
+        text: "(dispatched — waiting for process spawn / first stdout chunk)",
+      });
+    } else {
+      sections.push({
+        kind: "text",
+        text: "(step is open — no executor output yet)",
+      });
+    }
   } else {
     sections.push({
       kind: "text",

@@ -14,13 +14,13 @@ import {
 } from "../events/emittable-catalog.js";
 
 export type {
-  SpaceHomeHookActionRow,
-  SpaceHomeHookRow,
+  SpaceHomeHandlerRow,
   SpaceHomeActionRow,
   SpaceHomeEventRow,
   SpaceHomeIndexSection,
 } from "./space-home-index.js";
 export type { EmittableEventEntry } from "../events/emittable-catalog.js";
+export type { SpaceHomeHandlerRow as SpaceHomeHookRow } from "./space-home-index.js";
 
 export interface SpaceHomeFlowRow {
   flow_id: string;

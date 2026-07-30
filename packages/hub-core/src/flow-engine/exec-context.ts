@@ -10,6 +10,10 @@ export interface StepOutputRecord {
     cwd: string;
     dispatched_at: string;
   };
+  spawn?: {
+    pid: number;
+    spawned_at: string;
+  };
 }
 
 const MAX_STREAM_CHARS = 256_000;
@@ -63,6 +67,31 @@ export async function mergeDispatchAuditIntoRun(
       prompt: input.audit.prompt,
       cwd: input.audit.cwd,
       dispatched_at: input.dispatched_at,
+    },
+  };
+  await persistRunExecContext(studio, input.run_id, { ...run.exec_context, steps });
+}
+
+export async function mergeSpawnAuditIntoRun(
+  studio: StudioPersistencePort,
+  input: {
+    run_id: string;
+    step_id: string;
+    pid: number;
+    spawned_at: string;
+  },
+): Promise<void> {
+  const bare = bareRunId(input.run_id);
+  const run = await studio.getRun(bare);
+  if (!run) return;
+  const steps = {
+    ...((run.exec_context.steps ?? {}) as Record<string, StepOutputRecord>),
+  };
+  steps[input.step_id] = {
+    ...steps[input.step_id],
+    spawn: {
+      pid: input.pid,
+      spawned_at: input.spawned_at,
     },
   };
   await persistRunExecContext(studio, input.run_id, { ...run.exec_context, steps });

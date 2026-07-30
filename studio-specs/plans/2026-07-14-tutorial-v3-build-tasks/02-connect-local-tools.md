@@ -21,7 +21,7 @@ Complete Tutorial Part 1 by creating one least-privilege connection for the loca
 
 - Public vocabulary is `connection`: `mrmr connection create` and local-only `mrmr connection activate <id>`. Remove `grant mint`, `grant use`, `agent connect`, `agent activate`, and `space onboard` without aliases.
 - One persistent connection represents one machine/trust boundary and may be installed in multiple local contexts.
-- Default profile is named and versioned `tutorial-builder/v1` and contains exactly `space:read`, `flow:read`, `flow:run`, and `step:resolve`; `journal:read` remains advanced.
+- Default profile is named and versioned `local-tools/v1` and contains exactly `space:read`, `flow:read`, `flow:run`, and `step:resolve`; `journal:read` remains advanced.
 - Remove legacy `action:invoke` and `gate:resolve` default capabilities and public tool paths when no clean-system use remains; do not map them to the new profile.
 - Setup-created connection is space-wide for current/future flows. Advanced restricted creation may reference only already-applied canonical flow identities; unknown/future aliases fail.
 - Local tokens live only in the OS credential store keyed by Hub + connection ID. Config, activation state, logs, arguments, project files, and normal environment guidance contain IDs only.
@@ -50,7 +50,7 @@ Complete Tutorial Part 1 by creating one least-privilege connection for the loca
 - CLI absence tests for every removed command and help path.
 - Connection create/activate, revoked/unknown activation, multiple trust boundaries, and one-connection/multi-adapter reuse.
 - Capability authorization matrix proves default graph/read/run/resolve behavior and denies journal/legacy actions.
-- Profile tests lock the exact `tutorial-builder/v1` name, version, and capability set.
+- Profile tests lock the exact `local-tools/v1` name, version, and capability set.
 - Advanced ACL tests prove restricted creation accepts selected applied canonical flow identities and rejects unknown, future, stale, or cross-origin aliases.
 - Credential leak tests cover config, activation files, logs, process arguments, generated instructions, project files, and environment output.
 - OS-store locked/missing behavior fails closed; explicit CI mode works and redacts.

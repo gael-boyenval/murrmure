@@ -3,9 +3,26 @@ import { join, normalize, relative, resolve } from "node:path";
 import type { Hono } from "hono";
 import { isLocalSpaceBinding } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
-import { requireToken } from "../../auth.js";
+import { parseAccessTokenQuery, requireToken, viewAssetAuthCookieHeader } from "../../auth.js";
 import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
 import { bareSpaceId } from "../../space-id.js";
+
+/** Same policy as view-sdk VIEW_DOCUMENT_CSP — applied as a response header
+ * (not iframe `csp`, which is CSP Embedded Enforcement and blanks the frame).
+ * Opaque-origin sandboxes make `'self'` match nothing, so script/style allow http(s). */
+export const VIEW_ASSET_DOCUMENT_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' http: https:",
+  "style-src 'unsafe-inline' http: https:",
+  "img-src http: https: data:",
+  "font-src http: https: data:",
+  "connect-src 'none'",
+  "frame-src 'none'",
+  "child-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join("; ");
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -17,6 +34,35 @@ const MIME: Record<string, string> = {
 function contentType(filePath: string): string {
   const ext = filePath.slice(filePath.lastIndexOf("."));
   return MIME[ext] ?? "application/octet-stream";
+}
+
+/**
+ * Older Vite builds emit absolute `/assets/...` URLs which 404 when the HTML is
+ * served under `/v1/spaces/.../views/.../dist/`. Rewrite to relative paths so
+ * existing spaces keep working after `base: "./"` landed in the scaffold.
+ */
+export function rewriteAbsoluteViteAssetRefs(html: string): string {
+  return html
+    .replaceAll('src="/assets/', 'src="./assets/')
+    .replaceAll("src='/assets/", "src='./assets/")
+    .replaceAll('href="/assets/', 'href="./assets/')
+    .replaceAll("href='/assets/", "href='./assets/");
+}
+
+/** Append access_token to relative asset URLs so opaque-sandbox loads auth without cookies. */
+export function injectAccessTokenIntoAssetRefs(html: string, tokenId: string): string {
+  const bare = tokenId.startsWith("tok_") ? tokenId : `tok_${tokenId}`;
+  const q = `access_token=${encodeURIComponent(bare)}`;
+  return html.replace(
+    /(src|href)=(["'])(\.\/assets\/[^"'?#]+)([^"']*)\2/g,
+    (_match, attr: string, quote: string, path: string, rest: string) => {
+      if (rest.includes("access_token=")) {
+        return `${attr}=${quote}${path}${rest}${quote}`;
+      }
+      const sep = rest.includes("?") ? "&" : "?";
+      return `${attr}=${quote}${path}${rest}${sep}${q}${quote}`;
+    },
+  );
 }
 
 export function mountViewAssetRoutes(app: Hono, ctx: DaemonContext): void {
@@ -58,13 +104,30 @@ export function mountViewAssetRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: "PATH_TRAVERSAL", message: "Invalid view asset path" }, 400);
     }
 
-    const bytes = readFileSync(target);
+    let bytes = readFileSync(target);
+    const type = contentType(target);
+    const headers: Record<string, string> = {
+      "content-type": type,
+      "cache-control": "no-store",
+      "set-cookie": viewAssetAuthCookieHeader(auth.token_id),
+      // Module scripts always use CORS; sandboxed opaque iframes send Origin: null.
+      "access-control-allow-origin": "null",
+    };
+
+    if (type.startsWith("text/html")) {
+      let html = rewriteAbsoluteViteAssetRefs(bytes.toString("utf-8"));
+      html = injectAccessTokenIntoAssetRefs(html, auth.token_id);
+      bytes = Buffer.from(html, "utf-8");
+      headers["content-security-policy"] = VIEW_ASSET_DOCUMENT_CSP;
+    }
+
+    if (parseAccessTokenQuery(c.req.raw)) {
+      headers["referrer-policy"] = "no-referrer";
+    }
+
     return new Response(bytes, {
       status: 200,
-      headers: {
-        "content-type": contentType(target),
-        "cache-control": "no-store",
-      },
+      headers,
     });
   });
 }

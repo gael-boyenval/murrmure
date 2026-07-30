@@ -32,7 +32,7 @@ The wizard walks through:
 4. **Connection** — consent, select one or more contexts, then reload and verify
 
 Setup uses the already-running Desktop Hub authorization. If you accept the
-connection step, it creates one `tutorial-builder/v1` connection, stores its
+connection step, it creates one `local-tools/v1` connection, stores its
 credential in macOS Keychain, and installs the same connection ID in every
 selected context. It never writes token material to project or MCP files.
 

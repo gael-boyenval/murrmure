@@ -70,6 +70,7 @@ function stepNodeData(input: {
   selected?: boolean;
   highlighted?: boolean;
   compact?: boolean;
+  terminalVariant?: "success-reached" | "failure-reached" | "dim";
   onActivate?: () => void;
 }) {
   return {
@@ -82,13 +83,42 @@ function stepNodeData(input: {
     selected: input.selected,
     highlighted: input.highlighted,
     compact: input.compact,
+    terminalVariant: input.terminalVariant,
     onActivate: input.onActivate,
   };
+}
+
+function terminalVariantFor(
+  kind: "success_terminal" | "failure_terminal",
+  runLifecycle?: string,
+): "success-reached" | "failure-reached" | "dim" | undefined {
+  const succeeded = runLifecycle === "completed";
+  const failed = runLifecycle === "failed" || runLifecycle === "cancelled";
+  if (!succeeded && !failed) return undefined;
+  if (kind === "success_terminal") return succeeded ? "success-reached" : "dim";
+  return failed ? "failure-reached" : "dim";
+}
+
+function terminalBorderColor(
+  kind: "success_terminal" | "failure_terminal",
+  runLifecycle?: string,
+): string {
+  const variant = terminalVariantFor(kind, runLifecycle);
+  if (kind === "success_terminal") {
+    if (variant === "success-reached") return "#22c55e";
+    if (variant === "dim") return "#14532d";
+    return "#166534";
+  }
+  if (variant === "failure-reached") return "#ef4444";
+  if (variant === "dim") return "#7f1d1d";
+  return "#7f1d1d";
 }
 
 export interface RunFlowchartViewProps {
   graph: RunGraphPayload;
   execContext?: Record<string, unknown>;
+  /** Root run lifecycle — drives terminal success/failure emphasis. */
+  runLifecycle?: string;
   selectedRunId?: string;
   selectedStepId?: string;
   onSelectLane?: (runId: string) => void;
@@ -98,6 +128,7 @@ export interface RunFlowchartViewProps {
 
 export const RunFlowchartView = memo(function RunFlowchartView({
   graph,
+  runLifecycle,
   execContext,
   selectedRunId,
   selectedStepId,
@@ -317,7 +348,8 @@ export const RunFlowchartView = memo(function RunFlowchartView({
           kind:
             kind === "success_terminal" ? "shared success terminal" : "shared failure terminal",
           metaLines: [],
-          borderColor: kind === "success_terminal" ? "#166534" : "#7f1d1d",
+          borderColor: terminalBorderColor(kind, runLifecycle),
+          terminalVariant: terminalVariantFor(kind, runLifecycle),
         });
       const successHeight = successTerminal
         ? estimateStepNodeHeight(terminalData("success_terminal"))
@@ -363,8 +395,11 @@ export const RunFlowchartView = memo(function RunFlowchartView({
       }
     }
 
-    return { nodes: flowNodes, edges: buildFlowEdges(graph, idRemap, { selectedStepId }) };
-  }, [graph, execContext, selectedRunId, selectedStepId, onSelectStep]);
+    return {
+      nodes: flowNodes,
+      edges: buildFlowEdges(graph, idRemap, { selectedStepId, runLifecycle }),
+    };
+  }, [graph, execContext, runLifecycle, selectedRunId, selectedStepId, onSelectStep]);
 
   const selectNode = (node: Node) => {
     if (node.id.startsWith("group:")) {
@@ -384,8 +419,14 @@ export const RunFlowchartView = memo(function RunFlowchartView({
   };
 
   return (
-    <div className={cn("min-h-0 w-full flex-1 rounded-md border border-border bg-background", className)}>
+    <div
+      className={cn(
+        "h-full min-h-[20rem] w-full flex-1 rounded-md border border-border bg-background",
+        className,
+      )}
+    >
       <ReactFlow
+        key={`${graph.run_id}:${graph.mode ?? "live"}:${runLifecycle ?? "unknown"}`}
         className="bg-transparent!"
         colorMode="dark"
         nodes={nodes}

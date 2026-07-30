@@ -30,6 +30,9 @@ const QUALIFIED_STEP_TOKEN_PATTERN =
 const QUALIFIED_ARTIFACT_TOKEN_PATTERN =
   /^step\.([a-zA-Z0-9_.-]+)\.artifact\.([a-zA-Z0-9_-]+)\.(path|directory|transfer_id)$/;
 
+const QUALIFIED_OUTPUT_TOKEN_PATTERN =
+  /^step\.([a-zA-Z0-9_.-]+)\.output\.([a-zA-Z0-9_.-]+)$/;
+
 /** Artifact slot cardinality: a singleton binds `.path`, a collection binds `.directory`. */
 type SlotCardinality = "singleton" | "collection";
 
@@ -390,6 +393,8 @@ function isKnownMurrmureToken(tokenPath: string, knownStepIds: Set<string>): boo
   if (stepMatch && knownStepIds.has(stepMatch[1]!)) return true;
   const artifactMatch = tokenPath.match(QUALIFIED_ARTIFACT_TOKEN_PATTERN);
   if (artifactMatch && knownStepIds.has(artifactMatch[1]!)) return true;
+  const outputMatch = tokenPath.match(QUALIFIED_OUTPUT_TOKEN_PATTERN);
+  if (outputMatch && knownStepIds.has(outputMatch[1]!)) return true;
   return false;
 }
 

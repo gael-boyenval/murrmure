@@ -124,7 +124,7 @@ handlers:
     prompt: |
       A spec was published in the orchestrator space. Use query_ask (spec_summary@1)
       then get_spec if a read grant exists, and write specs/<slug>-v1.md locally.
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 ```
 
 ```bash

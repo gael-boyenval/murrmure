@@ -1,5 +1,143 @@
 # Changelog
 
+## Tutorial feedback — murrmure.step output placeholders (2026-07-17)
+
+### Fixed
+
+- Prior-step resolve fields in `shell_spawn` now bind as
+  `{{murrmure.step.<id>.output.<field>}}` (same family as artifact tokens).
+  Legacy `{{steps.*}}` / `{{murrmure.steps.*}}` are rejected with a quick-fix hint.
+- Apply validates handler `command` / `prompt` / `cwd` for quoted placeholders,
+  unknown keys, and common typos before replacing the space index.
+- Prompt template substitution hard-fails on unknown/missing keys (parity with
+  command resolution).
+- Tutorial Part 6 cleanup is a plain shell command (archive under `specs/archive/`
+  via `MURRMURE_RUN_ID`, then `git commit` with build output tokens) — no script.
+
+## Tutorial feedback — keep flowchart visible after run completes (2026-07-16)
+
+### Fixed
+
+- Completed runs looked like they “lost” the flow graph: AppShell’s scrollable main
+  let the inspector (large agent streams) expand and collapse the React Flow pane
+  to zero height. Flow pages now use `fillMain` (overflow hidden + flex fill), the
+  chart keeps a minimum height, remounts/fitView on terminal lifecycle, and graph
+  queries keep previous data while refetching.
+
+## Tutorial feedback — murrmure-agent skill assignment-first (2026-07-16)
+
+### Fixed
+
+- Rewrote `murrmure-agent` skill (v1.3.2): mode table first, assignment = do Task →
+  resolve and stop; pending-wake / space_health bootstrap demoted to interactive-only.
+  MCP reference “typical flow” no longer lists pre-flight as step 1 for assignments.
+
+## Tutorial feedback — assignment agents skip wake ritual (2026-07-16)
+
+### Fixed
+
+- Handler-dispatched Cursor agents were burning turns on “read skill / check
+  pending wake” instead of the Task. Assignment-mode MCP bridge instructions now
+  say execute Task → `murrmure_resolve_step` and hide wake relay / pending-wake
+  tool; protocol envelope adds the same operating rule; murrmure-agent skill
+  marks Bootstrap as interactive-only.
+- Tutorial `dev_build` prompt now points at repo-root `index.html` and tells the
+  agent not to glob `.mrmr/views/**/node_modules` (a `**/*` glob there hung the
+  agent for minutes with no edits).
+
+## Tutorial feedback — flow graph, inspector tabs, agent spawn (2026-07-16)
+
+### Fixed
+
+- Flowchart **Success** / **Run failed** terminals now emphasize the taken
+  outcome when a run completes (bright fill/border) and dim the untaken path;
+  terminal edges follow the same hierarchy.
+- Run/session side panel uses **Inspector | Contract** tabs (Inspector default)
+  so selecting a step no longer buries executor output under contract schemas.
+- Tutorial / handler docs recommend Cursor
+  `--output-format stream-json --stream-partial-output` so agent logs stream into
+  Desktop Executor output.
+- `shell_spawn` records **Spawn** (`pid`) in step exec context; Inspector shows
+  dispatch-vs-missing-handler and “waiting for first stdout” instead of implying
+  output only appears on completion.
+
+## Tutorial feedback — empty run view + view-dev cleanup (2026-07-16)
+
+### Fixed
+
+- Production intake views rendered blank after **Run**: the iframe `csp`
+  attribute is CSP Embedded Enforcement — without `Allow-CSP-From` on the hub
+  response, Chrome refuses to display the frame. Removed the attribute; document
+  CSP is sent as a hub `Content-Security-Policy` header with `http:`/`https:`
+  script/style sources (opaque-origin sandboxes make `'self'` match nothing).
+  Hub view assets also send `Access-Control-Allow-Origin: null` so module
+  scripts (CORS) can load. Production sandbox is `allow-scripts` only —
+  Electrobun/WebKit rejects `allow-same-site-none-cookies`. Run/session canvas
+  uses `AppShell canvasMode` for full height. `GET …/dev/view-session` returns
+  `{ session: null }` (200) when idle so Space Home polling does not 404-spam.
+- Vite default `base: '/'` emitted `/assets/...` URLs that 404 under the hub
+  nested path. Scaffold now uses `base: "./"`; the hub rewrites absolute
+  `/assets/` refs on serve and injects `access_token` into asset URLs for
+  opaque-sandbox auth.
+- Desktop HMR (shell ≠ hub origin) could not authenticate iframe assets; entry
+  URLs now carry `access_token`, and the hub sets `SameSite=None; Secure`
+  cookies plus `allow-same-site-none-cookies` on the production sandbox.
+- Stopping `mrmr view dev` clears `.mrmr/dev/view-dev.json`; the hub also probes
+  `dev_url` and returns 404 when Vite is dead so Space Home drops the
+  “View dev is running” block.
+
+## Tutorial feedback — view-dev Desktop entry + CLI polish (2026-07-16)
+
+### Fixed
+
+- Registered Desktop route `/spaces/:spaceId/dev/views/:viewId` (`ViewDevPage`) —
+  the path CLI printed was previously a dead end in the app.
+- Space Home polls for an active view-dev session and shows **Open preview in
+  Desktop** so operators do not need to paste a URL into a native app.
+- View-dev chrome always shows **← Back to space** (was hidden in `devMode`).
+- Dev iframe relaxes sandbox/CSP so local Vite can load (production stays
+  locked down); canvas host uses full height so the view is not clipped.
+- View Vite is pinned to **port 5199** (`strictPort`); `mrmr view dev` rejects
+  a URL that serves Desktop shell (the prior bug embedding the full app).
+- `mrmr doctor` leads with space **slug** (id dimmed); `mrmr space status` uses
+  colored structured output.
+- Tutorial Part 2 moves “Default branches” to after the first step is written.
+
+## Setup silent failure after UI space delete (2026-07-16)
+
+### Fixed
+
+- Soft-deleted (archived) spaces kept their slug reserved; `mrmr setup` then
+  hit a 409 whose body omitted `code`, so the wizard exited silently after the
+  name/slug prompts. Creating the same slug now **reactivates** the archived
+  space; denial responses include `code`; setup prints a clear error + outro
+  on non-collision failures.
+
+## Tutorial feedback remediation — view init / view dev / apply DX (2026-07-16)
+
+### Fixed
+
+- View scaffold pinned `@murrmure/view-sdk` to `^0.3.0` (was `^0.2.0`), which
+  caused blank pages and build failures (`useViewContract` /
+  `isViewContractError` missing; contracts `FlowViewRef` TS2484).
+- `mrmr view dev` fails early when Vite is not installed, with an
+  `npm install --prefix` hint instead of opaque exit code 127.
+- `INVALID_FLOW_MANIFEST` now includes Zod field paths in the message (and
+  `space apply` prints multiline details).
+
+### Changed
+
+- `mrmr space view init` runs `npm install` by default; prints Next steps that
+  stay at the space root; `--skip-install` / `--json` skip install.
+- Scaffold `App.tsx` is a minimal file-input form; default fixture is only
+  `intake.json` (continue/cancel). Gate-round fixtures removed from the
+  template.
+- `mrmr view dev` explains fixtures, prints the Vite URL and Desktop route
+  (with real `space_id` when linked).
+- CLI success/error output for apply / view init uses color via consola.
+- Tutorial v3 Part 3 and related docs/specs updated for paths, install, and
+  view-dev UX.
+
 ## Task 15 Lane C — build: v2 tutorial and bridge documentation cutover (2026-07-15)
 
 ### Removed
@@ -605,7 +743,7 @@
 
 ### Added
 
-- Named least-privilege `tutorial-builder/v1` profile with exactly
+- Named least-privilege `local-tools/v1` profile with exactly
   `space:read`, `flow:read`, `flow:run`, and `step:resolve`.
 - Neutral multi-context adapter descriptor, idempotent Cursor MCP/skill install,
   generic no-write instructions, and reload/resume state.

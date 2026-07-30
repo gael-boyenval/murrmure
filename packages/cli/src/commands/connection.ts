@@ -22,9 +22,15 @@ import { emitHubConfigJson, parseCommaList } from "../lib/space-output.js";
 import { printErr, printOk, cliConsola, exitUsage } from "../lib/output.js";
 import { runScopePreflight } from "../lib/preflight.js";
 import {
-  TUTORIAL_BUILDER_CAPABILITIES,
-  TUTORIAL_BUILDER_PROFILE,
+  CUSTOM_CONNECTION_PROFILE,
+  LOCAL_TOOLS_CAPABILITIES,
+  LOCAL_TOOLS_PROFILE,
+  isLocalToolsCapabilitySet,
+  parseGrantableCapabilities,
+  type GrantableCapability,
 } from "../wizard/capabilities.js";
+import { promptCapabilityChecklist } from "../wizard/capability-checklist.js";
+import * as p from "@clack/prompts";
 
 function toConnectionId(grantId: string): string {
   return grantId.replace(/^grt_/, "con_");
@@ -83,8 +89,8 @@ const createCommand = defineCommand({
           ? args.label.trim()
           : `Local tools on ${hostname()}`,
       harness: "local-tools",
-      scopes: [...TUTORIAL_BUILDER_CAPABILITIES],
-      profile: TUTORIAL_BUILDER_PROFILE.id,
+      scopes: [...LOCAL_TOOLS_CAPABILITIES],
+      profile: LOCAL_TOOLS_PROFILE.id,
       ...(flowAcl ? { flow_acl: flowAcl } : {}),
     };
     const response = await hubFetch(auth, `/v1/spaces/${spaceId}/grants`, {
@@ -111,13 +117,13 @@ const createCommand = defineCommand({
       hub_id: auth.hubUrl,
       connection_id: connectionId,
       space_id: spaceId,
-      profile: TUTORIAL_BUILDER_PROFILE.id,
+      profile: LOCAL_TOOLS_PROFILE.id,
     });
     writeStoredConnection({
       hub_id: auth.hubUrl,
       connection_id: connectionId,
       space_id: spaceId,
-      profile: TUTORIAL_BUILDER_PROFILE.id,
+      profile: LOCAL_TOOLS_PROFILE.id,
       status: "active",
     });
     const descriptor = buildConnectionDescriptor({
@@ -148,8 +154,8 @@ const createCommand = defineCommand({
       connection_id: connectionId,
       space_id: spaceId,
       label: body.label,
-      profile: TUTORIAL_BUILDER_PROFILE.id,
-      capabilities: [...TUTORIAL_BUILDER_CAPABILITIES],
+      profile: LOCAL_TOOLS_PROFILE.id,
+      capabilities: [...LOCAL_TOOLS_CAPABILITIES],
       contexts: installed.map((entry) => ({
         adapter_id: entry.adapter_id,
         mode: entry.mode,
@@ -164,7 +170,7 @@ const createCommand = defineCommand({
       return;
     }
     cliConsola.success(`Connection created: ${connectionId}`);
-    cliConsola.info(`Profile: ${TUTORIAL_BUILDER_PROFILE.id}`);
+    cliConsola.info(`Profile: ${LOCAL_TOOLS_PROFILE.id}`);
     for (const entry of installed) {
       if (entry.instructions) {
         console.log(entry.instructions);
@@ -173,6 +179,221 @@ const createCommand = defineCommand({
       }
     }
     cliConsola.info("Reload the selected tools, then call murrmure_space_status.");
+  },
+}) as CommandDef;
+
+const grantCommand = defineCommand({
+  meta: {
+    name: "grant",
+    description:
+      "Create a connection grant with selected capabilities (checklist UI; Requires: space:admin)",
+  },
+  args: {
+    ...globalArgs,
+    label: {
+      type: "string",
+      description: "Trust-boundary label (default: Connection grant on this computer)",
+    },
+    capabilities: {
+      type: "string",
+      description:
+        "Comma-separated capabilities (skips checklist; required for --json / non-TTY)",
+    },
+    contexts: {
+      type: "string",
+      description: "Comma-separated integration context ids (detected by default)",
+    },
+    "flow-acl": {
+      type: "string",
+      description: "Advanced: comma-separated already-applied canonical flow ids",
+    },
+    path: {
+      type: "string",
+      description: "Project path used for integration-context detection",
+    },
+    "no-activate": {
+      type: "boolean",
+      description: "Store the credential without making it the active connection",
+      default: false,
+    },
+    "no-install": {
+      type: "boolean",
+      description: "Skip writing local MCP / adapter config",
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const flags = parseGlobalFlags(args);
+    const { auth, spaceId } = await runScopePreflight(flags, "space:admin");
+    const projectPath = resolve(typeof args.path === "string" ? args.path : process.cwd());
+    const flowAcl = parseCommaList(
+      typeof args["flow-acl"] === "string" ? args["flow-acl"] : undefined,
+    );
+
+    let capabilities: GrantableCapability[];
+    try {
+      capabilities = parseGrantableCapabilities(
+        typeof args.capabilities === "string" ? args.capabilities : undefined,
+      );
+    } catch (error) {
+      exitUsage(error instanceof Error ? error.message : String(error));
+    }
+
+    const interactive = !flags.json && Boolean(process.stdin.isTTY);
+    if (capabilities.length === 0) {
+      if (!interactive) {
+        exitUsage(
+          "Pass --capabilities=space:read,event:emit,… or run interactively in a TTY for the checklist.",
+        );
+      }
+      p.intro("Murrmure connection grant");
+      capabilities = await promptCapabilityChecklist({
+        initialValues: LOCAL_TOOLS_CAPABILITIES,
+      });
+    }
+
+    const useLocalToolsProfile = isLocalToolsCapabilitySet(capabilities);
+    const profile = useLocalToolsProfile
+      ? LOCAL_TOOLS_PROFILE.id
+      : CUSTOM_CONNECTION_PROFILE;
+    const label =
+      typeof args.label === "string" && args.label.trim()
+        ? args.label.trim()
+        : useLocalToolsProfile
+          ? `Local tools on ${hostname()}`
+          : `Connection grant on ${hostname()}`;
+
+    const body: Record<string, unknown> = {
+      label,
+      harness: "local-tools",
+      capabilities: [...capabilities],
+      scopes: [...capabilities],
+      ...(useLocalToolsProfile ? { profile: LOCAL_TOOLS_PROFILE.id } : {}),
+      ...(flowAcl ? { flow_acl: flowAcl } : {}),
+    };
+
+    const response = await hubFetch(auth, `/v1/spaces/${spaceId}/grants`, {
+      method: "POST",
+      json: body,
+    });
+    const responseBody = await emitHubConfigJson(response);
+    const { connectionId, token } = parseConnectionResponse(responseBody);
+    const returnedCapabilities = Array.isArray(responseBody.capabilities)
+      ? responseBody.capabilities.filter((entry): entry is string => typeof entry === "string")
+      : [...capabilities];
+
+    try {
+      storeConnectionToken(auth.hubUrl, connectionId, token);
+    } catch (error) {
+      await hubFetch(
+        auth,
+        `/v1/spaces/${spaceId}/grants/${toGrantId(connectionId)}/revoke`,
+        { method: "POST" },
+      ).catch(() => undefined);
+      printErr(
+        "CREDENTIAL_STORE_WRITE_FAILED",
+        error instanceof Error ? error.message : "Could not store connection credential",
+      );
+    }
+
+    writeStoredConnection({
+      hub_id: auth.hubUrl,
+      connection_id: connectionId,
+      space_id: spaceId,
+      profile,
+      status: "active",
+    });
+
+    let activePath: string | undefined;
+    if (!args["no-activate"]) {
+      activePath = writeActiveConnection({
+        hub_id: auth.hubUrl,
+        connection_id: connectionId,
+        space_id: spaceId,
+        profile,
+      });
+    }
+
+    const descriptor = buildConnectionDescriptor({
+      hubId: auth.hubUrl,
+      connectionId,
+      spaceId,
+    });
+
+    let installed: Array<{
+      adapter_id: string;
+      mode: string;
+      paths: string[];
+      reload_required: boolean;
+      instructions?: string;
+    }> = [];
+    let resumePath: string | undefined;
+    if (!args["no-install"]) {
+      const requested = parseCommaList(
+        typeof args.contexts === "string" ? args.contexts : undefined,
+      );
+      const adapters = requested?.length
+        ? requested.map((id) => {
+            const adapter = findConnectionAdapter(id);
+            if (!adapter) exitUsage(`Unknown integration context: ${id}`);
+            return adapter;
+          })
+        : detectedConnectionAdapters({ projectPath });
+      installed = adapters.map((adapter) =>
+        adapter.install(descriptor, { projectPath, homePath: homedir() }),
+      );
+      resumePath = writeSetupResume({
+        descriptor,
+        adapters: adapters.map((adapter) => adapter.id),
+        next: "reload-and-verify",
+      });
+    }
+
+    const result = {
+      connection_id: connectionId,
+      space_id: spaceId,
+      label,
+      profile,
+      capabilities: returnedCapabilities,
+      activated: !args["no-activate"],
+      contexts: installed.map((entry) => ({
+        adapter_id: entry.adapter_id,
+        mode: entry.mode,
+        paths: entry.paths,
+        reload_required: entry.reload_required,
+      })),
+      active_path: activePath,
+      resume_path: resumePath,
+    };
+
+    if (flags.json) {
+      printOk(result);
+      return;
+    }
+
+    if (interactive && typeof args.capabilities !== "string") {
+      p.outro(`Grant created: ${connectionId}`);
+    } else {
+      cliConsola.success(`Connection grant created: ${connectionId}`);
+    }
+    cliConsola.info(`Profile: ${profile}`);
+    cliConsola.info(`Capabilities: ${returnedCapabilities.join(", ")}`);
+    if (!args["no-activate"]) {
+      cliConsola.info("Active connection updated.");
+    }
+    for (const entry of installed) {
+      if (entry.instructions) {
+        console.log(entry.instructions);
+      } else {
+        cliConsola.info(`Configured ${entry.adapter_id}: ${entry.paths.join(", ")}`);
+      }
+    }
+    if (installed.length > 0) {
+      cliConsola.info("Reload local tools, then call murrmure_space_status.");
+    }
+    if (returnedCapabilities.includes("event:emit")) {
+      cliConsola.info("murrmure_emit_event is available after reload.");
+    }
   },
 }) as CommandDef;
 
@@ -356,7 +577,7 @@ function lifecycleCommand(action: "revoke" | "rotate"): CommandDef {
           hub_id: auth.hubUrl,
           connection_id: connectionId,
           space_id: spaceId,
-          profile: TUTORIAL_BUILDER_PROFILE.id,
+          profile: LOCAL_TOOLS_PROFILE.id,
           status: "revoked",
         });
         printOk({ connection_id: connectionId, status: "revoked" });
@@ -369,21 +590,21 @@ function lifecycleCommand(action: "revoke" | "rotate"): CommandDef {
         hub_id: auth.hubUrl,
         connection_id: connectionId,
         space_id: spaceId,
-        profile: TUTORIAL_BUILDER_PROFILE.id,
+        profile: LOCAL_TOOLS_PROFILE.id,
         status: "revoked",
       });
       writeStoredConnection({
         hub_id: auth.hubUrl,
         connection_id: rotated.connectionId,
         space_id: spaceId,
-        profile: TUTORIAL_BUILDER_PROFILE.id,
+        profile: LOCAL_TOOLS_PROFILE.id,
         status: "active",
       });
       writeActiveConnection({
         hub_id: auth.hubUrl,
         connection_id: rotated.connectionId,
         space_id: spaceId,
-        profile: TUTORIAL_BUILDER_PROFILE.id,
+        profile: LOCAL_TOOLS_PROFILE.id,
       });
       printOk({ connection_id: rotated.connectionId, status: "active" });
     },
@@ -397,6 +618,7 @@ export const connectionCommand = defineCommand({
   },
   subCommands: {
     create: createCommand,
+    grant: grantCommand,
     activate: activateCommand,
     verify: verifyCommand,
     list: listCommand,

@@ -4,7 +4,7 @@ Hub persistence and wire compatibility may retain grant rows, but the public
 local lifecycle is **connection**. A connection is authorization for one
 machine/trust boundary, not an agent entity.
 
-The default profile `tutorial-builder/v1` is fixed to `space:read`,
+The default profile `local-tools/v1` is fixed to `space:read`,
 `flow:read`, `flow:run`, and `step:resolve`. `event:emit` and `journal:read`
 are not defaults. The removed `action:invoke` / `gate:resolve` capabilities and
 their MCP paths (removed public invoke MCP tool, gate tools) are absent — action
@@ -56,6 +56,7 @@ Space-scoped routes remain: `POST /v1/spaces/{id}/grants` (phase 02).
 
 ```bash
 mrmr connection create --space spc_…
+mrmr connection grant --space spc_…   # checklist / --capabilities for event:emit etc.
 mrmr connection activate con_… --space spc_…
 ```
 
@@ -63,6 +64,10 @@ Creation auto-activates. Legacy grant lifecycle commands, legacy agent pairing c
 only in the OS store keyed by Hub + connection ID. Generated descriptors,
 activation state, files, logs, arguments, and normal environment guidance carry
 IDs only.
+
+`connection grant` mints with an explicit capability checklist (or
+`--capabilities`). When the set differs from `local-tools/v1`, the request omits
+`profile` so the Hub does not force the fixed least-privilege set.
 
 Setup connections are space-wide. Advanced `--flow-acl` accepts only canonical
 flow identities already applied to the target space; unknown/future aliases are

@@ -24,7 +24,9 @@ Scaffold a view package in your space:
 
 ```bash
 mrmr space view init preview-review-intake
-cd .mrmr/views/preview-review-intake && npm install
+# stays at space root; npm install runs in .mrmr/views/preview-review-intake
+mrmr view dev preview-review-intake
+npm run build --prefix .mrmr/views/preview-review-intake && mrmr space apply
 ```
 
 ## Binding a View to a step

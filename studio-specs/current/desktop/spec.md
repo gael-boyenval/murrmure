@@ -87,9 +87,10 @@ Dev modes resolve the same bridge entry from `packages/mcp-bridge/dist/main.js` 
 
 ### Menu actions
 
-- **Copy MCP config** copies an ID-only neutral descriptor: stable
-  `~/.murrmure/bin/murrmure-mcp` command plus Hub and connection arguments. It
-  never copies a token or environment entry.
+- **Copy MCP config** copies a command-only neutral descriptor: stable
+  `~/.murrmure/bin/murrmure-mcp` with no Hub URL, connection ID, token, or
+  environment entry. The bridge resolves Hub and connection from discovery and
+  the active pointer at startup.
 - **Open data folder** opens desktop data directory (`~/.murrmure` in v1).
 
 ## Environment

@@ -105,7 +105,10 @@ export function createHubApp(ctx: DaemonContext) {
       }
     }
 
-    return c.json(result.body, result.http_semantic as 200);
+    return c.json(
+      result.outcome === "denial" ? { code: result.code, ...result.body } : result.body,
+      result.http_semantic as 200 | 403 | 409,
+    );
   });
 
   app.get("/v1/spaces/:space_id", async (c) => {

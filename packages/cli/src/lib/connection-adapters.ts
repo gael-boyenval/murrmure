@@ -10,8 +10,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { installMurrmureSkill, readSkillVersion } from "../skill/install.js";
 import {
-  TUTORIAL_BUILDER_CAPABILITIES,
-  TUTORIAL_BUILDER_PROFILE,
+  LOCAL_TOOLS_CAPABILITIES,
+  LOCAL_TOOLS_PROFILE,
 } from "../wizard/capabilities.js";
 import { resolveMcpBridgeCommand } from "./space-doctor-mcp.js";
 
@@ -25,7 +25,7 @@ export interface ConnectionDescriptor {
     args: string[];
   };
   profile: {
-    id: typeof TUTORIAL_BUILDER_PROFILE.id;
+    id: typeof LOCAL_TOOLS_PROFILE.id;
     capabilities: readonly string[];
   };
   skills: {
@@ -73,6 +73,45 @@ function readJsonObject(path: string): Record<string, unknown> {
   }
 }
 
+function upsertMurrmureMcpServer(
+  configPath: string,
+  server: Record<string, unknown>,
+): void {
+  const current = readJsonObject(configPath);
+  const currentServers =
+    current.mcpServers &&
+    typeof current.mcpServers === "object" &&
+    !Array.isArray(current.mcpServers)
+      ? (current.mcpServers as Record<string, unknown>)
+      : {};
+  writeJsonAtomic(configPath, {
+    ...current,
+    mcpServers: {
+      ...currentServers,
+      murrmure: server,
+    },
+  });
+}
+
+/** Remove only the murrmure entry so Cursor does not load the same bridge twice. */
+function stripMurrmureMcpServer(configPath: string): boolean {
+  if (!existsSync(configPath)) return false;
+  const current = readJsonObject(configPath);
+  const currentServers =
+    current.mcpServers &&
+    typeof current.mcpServers === "object" &&
+    !Array.isArray(current.mcpServers)
+      ? { ...(current.mcpServers as Record<string, unknown>) }
+      : {};
+  if (!("murrmure" in currentServers)) return false;
+  delete currentServers.murrmure;
+  writeJsonAtomic(configPath, {
+    ...current,
+    mcpServers: currentServers,
+  });
+  return true;
+}
+
 export function buildConnectionDescriptor(options: {
   hubId: string;
   connectionId: string;
@@ -86,16 +125,13 @@ export function buildConnectionDescriptor(options: {
     space_id: options.spaceId,
     bridge: {
       command: options.command ?? resolveMcpBridgeCommand(),
-      args: [
-        "--hub",
-        options.hubId,
-        "--connection",
-        options.connectionId,
-      ],
+      // Pin the connection (hence space). Hub URL stays out of client config —
+      // murrmure-mcp resolves it from Desktop discovery.
+      args: ["--connection", options.connectionId],
     },
     profile: {
-      id: TUTORIAL_BUILDER_PROFILE.id,
-      capabilities: TUTORIAL_BUILDER_CAPABILITIES,
+      id: LOCAL_TOOLS_PROFILE.id,
+      capabilities: LOCAL_TOOLS_CAPABILITIES,
     },
     skills: {
       bundle: "murrmure-agent",
@@ -110,7 +146,9 @@ export function descriptorMcpServer(
 ): Record<string, unknown> {
   return {
     command: descriptor.bridge.command,
-    args: descriptor.bridge.args,
+    ...(descriptor.bridge.args.length > 0
+      ? { args: descriptor.bridge.args }
+      : {}),
   };
 }
 
@@ -123,27 +161,27 @@ const cursorAdapter: ConnectionAdapter = {
       existsSync(join(homePath, ".cursor"))
     );
   },
-  install(descriptor, { homePath }) {
-    const configPath = join(homePath, ".cursor", "mcp.json");
-    const current = readJsonObject(configPath);
-    const currentServers =
-      current.mcpServers &&
-      typeof current.mcpServers === "object" &&
-      !Array.isArray(current.mcpServers)
-        ? (current.mcpServers as Record<string, unknown>)
-        : {};
-    writeJsonAtomic(configPath, {
-      ...current,
-      mcpServers: {
-        ...currentServers,
-        murrmure: descriptorMcpServer(descriptor),
-      },
-    });
+  install(descriptor, { projectPath, homePath }) {
+    // Desktop/setup installs one Cursor descriptor. Prefer the project file when
+    // the workspace has .cursor/; otherwise fall back to the user config.
+    // Never leave murrmure in both — Cursor would show two identical servers.
+    const projectConfigPath = join(projectPath, ".cursor", "mcp.json");
+    const userConfigPath = join(homePath, ".cursor", "mcp.json");
+    const useProject = existsSync(join(projectPath, ".cursor"));
+    const configPath = useProject ? projectConfigPath : userConfigPath;
+    const otherConfigPath = useProject ? userConfigPath : projectConfigPath;
+
+    upsertMurrmureMcpServer(configPath, descriptorMcpServer(descriptor));
+    const writtenPaths = [configPath];
+    if (stripMurrmureMcpServer(otherConfigPath)) {
+      writtenPaths.push(otherConfigPath);
+    }
+
     const skill = installMurrmureSkill(homePath, { variant: "agent" });
     return {
       adapter_id: "cursor",
       mode: "written",
-      paths: [configPath, ...skill.installed.map((entry) => entry.path)],
+      paths: [...writtenPaths, ...skill.installed.map((entry) => entry.path)],
       reload_required: true,
     };
   },

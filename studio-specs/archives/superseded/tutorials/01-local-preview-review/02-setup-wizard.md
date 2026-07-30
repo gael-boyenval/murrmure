@@ -27,7 +27,7 @@ The wizard runs steps in order. Here is **why each exists**:
 | **Link** | Binds this folder → space id | Hub knows which disk path is this space |
 | **Apply** | Indexes `.mrmr/` (empty flows OK for now) | Desktop **Run** appears after you add a flow |
 | **Skill** | `mrmr skill install` | Platform skills — Murrmure tools, gates, runs |
-| **Connection** | Creates one `tutorial-builder/v1` connection and installs selected adapters | Local tools get least-privilege hub access |
+| **Connection** | Creates one `local-tools/v1` connection and installs selected adapters | Local tools get least-privilege hub access |
 
 ### MCP snippet — purpose
 
@@ -41,7 +41,7 @@ The Cursor adapter writes an ID-only entry to `.cursor/mcp.json`:
 
 Reload Cursor. Test: *"Call murrmure_space_status."*
 
-The fixed `tutorial-builder/v1` profile includes **`space:read`**,
+The fixed `local-tools/v1` profile includes **`space:read`**,
 **`flow:read`**, **`flow:run`**, and **`step:resolve`**. The token is stored in
 macOS Keychain and never appears in this file or the UI.
 

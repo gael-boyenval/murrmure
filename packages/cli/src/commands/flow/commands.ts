@@ -1,5 +1,6 @@
 import { defineCommand, type CommandDef } from "citty";
-import { formatDoctorHuman, runDoctor } from "../../lib/doctor.js";
+import { runDoctor } from "../../lib/doctor.js";
+import { printDoctorHuman } from "../../lib/doctor-print.js";
 import { globalArgs, parseGlobalFlags } from "../../lib/flags.js";
 import { formatStatusHuman } from "../../lib/flow-formatters.js";
 import { emitFlowResult } from "../../lib/flow-output.js";
@@ -89,7 +90,7 @@ export const flowDoctorCommand = defineCommand({
     if (flags.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      console.log(formatDoctorHuman(result));
+      printDoctorHuman(result);
     }
     if (!result.ok) {
       process.exit(1);

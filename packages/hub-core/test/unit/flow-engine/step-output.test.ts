@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   appendShellStreamToRun,
+  mergeSpawnAuditIntoRun,
   mergeStepOutputIntoExecContext,
   shouldMergeCheckpointInput,
   mergeCheckpointOutputIntoInput,
@@ -52,6 +53,30 @@ describe("flow-engine/step-output", () => {
     expect(
       (next.steps as Record<string, { output: Record<string, unknown> }>).build.output.preview_url,
     ).toBe("http://localhost:3000");
+  });
+
+  test("mergeSpawnAuditIntoRun stores pid", async () => {
+    const runs = new Map<string, { exec_context: Record<string, unknown> }>();
+    const studio = {
+      getRun: async (id: string) => {
+        const row = runs.get(id);
+        return row ? { ...row, flow_id: "flw_1", flow_digest: "sha256:x" } : null;
+      },
+      updateRunFlowBinding: async (id: string, input: { exec_context: Record<string, unknown> }) => {
+        const row = runs.get(id);
+        if (row) row.exec_context = input.exec_context;
+      },
+    };
+    runs.set("abc", { exec_context: { steps: {} } });
+    await mergeSpawnAuditIntoRun(studio as never, {
+      run_id: "run_abc",
+      step_id: "build",
+      pid: 99,
+      spawned_at: "2026-01-01T00:00:01.000Z",
+    });
+    const step = (runs.get("abc")!.exec_context.steps as Record<string, { spawn: { pid: number } }>)
+      .build;
+    expect(step.spawn.pid).toBe(99);
   });
 
   test("mergeStepOutputIntoExecContext preserves prior resolve output when shell result arrives", () => {

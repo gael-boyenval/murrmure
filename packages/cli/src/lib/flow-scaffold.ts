@@ -142,17 +142,6 @@ export function scaffoldFlowPackage(
     created.push(handlersPath);
   }
 
-  const hooksTemplate = join(templateDir, "hooks.yaml");
-  const hooksDest = join(murrmureRoot, "space", "hooks.yaml");
-  if (!existsSync(hooksDest) && existsSync(hooksTemplate)) {
-    writeFileSync(
-      hooksDest,
-      applyFlowTemplateTokens(readFileSync(hooksTemplate, "utf-8"), flowId),
-      "utf-8",
-    );
-    created.push(hooksDest);
-  }
-
   mkdirSync(flowDir, { recursive: true });
   const manifestSrc = join(templateDir, "flow.manifest.yaml");
   const manifestDest = join(flowDir, "flow.manifest.yaml");

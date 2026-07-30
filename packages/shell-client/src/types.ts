@@ -162,16 +162,13 @@ export interface SpaceHomeAttentionRow {
   title: string;
 }
 
-export interface SpaceHomeHookActionRow {
-  kind: "ensure_session" | "invoke" | "start_flow";
-  label: string;
-}
-
-export interface SpaceHomeHookRow {
-  hook_id: string;
+export interface SpaceHomeHandlerRow {
+  handler_id: string;
   event_type: string;
   source?: string | string[];
-  actions: SpaceHomeHookActionRow[];
+  type: string;
+  summary: string;
+  description?: string;
 }
 
 export interface SpaceHomeActionRow {
@@ -181,8 +178,8 @@ export interface SpaceHomeActionRow {
 
 export interface SpaceHomeEventRow {
   event_type: string;
-  kind: "hook_listener" | "flow_start";
-  hook_id?: string;
+  kind: "handler_listener" | "flow_start";
+  handler_id?: string;
   flow_id?: string;
   source?: string | string[];
 }
@@ -191,19 +188,19 @@ export interface SpaceHomeIndexSection {
   counts: {
     actions: number;
     executors: number;
-    hooks: number;
+    handlers: number;
     events: number;
     flows: number;
     declared_events: number;
   };
   actions: SpaceHomeActionRow[];
-  hooks: SpaceHomeHookRow[];
+  handlers: SpaceHomeHandlerRow[];
   events: SpaceHomeEventRow[];
 }
 
 export interface SpaceHomeEmittableEventListener {
   space_id: string;
-  hook_id: string;
+  handler_id: string;
   action?: string;
   flow_id?: string;
 }
@@ -217,7 +214,7 @@ export interface SpaceHomeEmittableEventRow {
     required?: string[];
     properties?: Record<string, { type?: string; description?: string }>;
   };
-  origins: Array<"hook" | "declaration" | "flow_start">;
+  origins: Array<"handler" | "declaration" | "flow_start">;
 }
 
 export interface SpaceHomePayload {
@@ -411,7 +408,7 @@ export interface ShellClient {
     ): Promise<GateItem>;
   };
   dev: {
-    viewSession(space_id: string): Promise<{ session: ViewDevSessionPayload }>;
+    viewSession(space_id: string): Promise<{ session: ViewDevSessionPayload | null }>;
     viewFixture(
       space_id: string,
       view_id: string,

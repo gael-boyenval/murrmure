@@ -272,7 +272,7 @@ handlers:
     complete: explicit          # agent calls murrmure_resolve_step / mrmr step resolve
     prompt: |
       …
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 ```
 
 | Field | Semantics |
@@ -556,7 +556,7 @@ handlers:
     complete: explicit
     prompt: |
       Start downstream review for {{event.data.artifact_ref}}
-    command: cursor agent -p --force {{prompt}}
+    command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 ```
 
 **Handler delivery invariant:** Every hub-delivered event handler **must**:
@@ -605,7 +605,12 @@ See [bridges/flow-engine.md](../bridges/flow-engine.md) and `packages/hub-core/s
 
 **Runtime (gap):** The flow advance path dispatches **`invoke`** and **`start_flow`** steps only. Declarative `gate` steps do **not** yet open pending gates or pause advance — use imperative gate API / orchestration attach until [plan/01-flow-engine-gate-steps.md](../../plans/product/plan/01-flow-engine-gate-steps.md) ships.
 
-**Step output chaining (gap):** `{{steps.id.output.field}}` templates are implemented in `templates.ts` but `exec_context.steps` is not populated on action completion — see [plan/02-flow-engine-step-outputs.md](../../plans/product/plan/02-flow-engine-step-outputs.md).
+**Step output chaining:** Handler templates use
+`{{murrmure.step.{id}.output.{field}}}` (flattened from `exec_context.steps` into
+`prompt_bindings` for `shell_spawn` command/prompt). Legacy `{{steps.id.output.field}}`
+remains available only in flow-engine `resolveTemplateString` for invoke params /
+matrix; space handlers reject it at apply. Resolve payload merges into
+`exec_context.steps` via `mergeStepOutputIntoExecContext`.
 
 ---
 
@@ -980,13 +985,15 @@ Participants connect via `murrmure-mcp`. One persistent local **connection**
 represents one machine/trust boundary and may be installed into several
 integration contexts. It is not an agent entity.
 
-Local MCP config contains only the stable per-user launcher plus `--hub` and
-`--connection` IDs. Tokens live only in the OS credential store keyed by Hub +
-connection ID. Local startup fails closed and never consumes environment
-fallback. Explicit headless CI mode may consume a hub bearer token only as
-provider-injected process-runtime secret.
+Local MCP config contains only the stable per-user launcher command. The bridge
+resolves the Hub endpoint from Desktop discovery (`~/.murrmure/hubs/shared.json`)
+and the connection identity from the app-managed active pointer
+(`~/.murrmure/connections/active.json`). Tokens live only in the OS credential
+store keyed by Hub + connection ID. Local startup fails closed and never
+consumes environment fallback. Explicit headless CI mode may consume a hub
+bearer token only as provider-injected process-runtime secret.
 
-The default `tutorial-builder/v1` connection profile contains exactly
+The default `local-tools/v1` connection profile contains exactly
 `space:read`, `flow:read`, `flow:run`, and `step:resolve`. It is space-wide for
 current and future flows. Advanced restricted creation accepts only canonical
 flow IDs already applied to that space.

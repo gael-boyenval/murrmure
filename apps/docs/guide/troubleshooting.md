@@ -9,7 +9,7 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | Code / symptom | Fix |
 |----------------|-----|
 | Revoked connection / 401 / 403 | `mrmr connection rotate con_… --space spc_…`, reinstall contexts, reload |
-| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; connection needs `tutorial-builder/v1` or explicit advanced capabilities |
+| `TOOL_NOT_AUTHORIZED` | `mrmr space apply`; connection needs `local-tools/v1` or explicit advanced capabilities |
 | Indexed flow missing | `mrmr space status --space spc_…`; re-link path; `mrmr space apply --strict` |
 | Checkpoint shows no view (observability-only) | Rebuild view `dist/`; strict-apply so the `view_resolver` binds the step |
 | `murrmure_wait_for_run` times out | Human must resolve checkpoint in **ViewCanvasHost** |

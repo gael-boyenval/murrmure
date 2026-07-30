@@ -148,10 +148,19 @@ export function parseFlowManifest(raw: unknown): ParseResult<FlowManifest> {
 
   const parsed = FlowManifestSchema.safeParse(raw);
   if (!parsed.success) {
+    const issueSummary = parsed.error.issues
+      .slice(0, 5)
+      .map((issue) => {
+        const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+        return `${path}: ${issue.message}`;
+      })
+      .join("; ");
+    const more =
+      parsed.error.issues.length > 5 ? ` (+${parsed.error.issues.length - 5} more)` : "";
     return {
       ok: false,
       code: "INVALID_FLOW_MANIFEST",
-      message: "flow.manifest.yaml failed validation",
+      message: `flow.manifest.yaml failed validation — ${issueSummary}${more}`,
       details: parsed.error,
     };
   }
