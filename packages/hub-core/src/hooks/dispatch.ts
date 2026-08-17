@@ -18,11 +18,40 @@ import { buildMeetingWakeData, meetingWakeExecContext } from "../meetings/assign
 
 export type EventDeliveryMode = "create" | "attach" | "notify_live";
 
+export type LiveAssignmentPrincipal = {
+  space_id: string;
+  token_id: string;
+  client_id: string;
+};
+
+export type LiveAssignmentRecord = {
+  run_id?: string;
+  handler_id?: string;
+  last_delivery_meeting_seq?: number;
+  principal?: LiveAssignmentPrincipal;
+};
+
 export type LiveAssignmentPort = {
   findLive(input: {
     session_id: string;
     participant?: string;
-  }): Promise<{ run_id?: string } | null>;
+  }): Promise<LiveAssignmentRecord | null>;
+  start(input: {
+    session_id: string;
+    participant_id: string;
+    handler_id: string;
+    run_id: string;
+    principal?: LiveAssignmentPrincipal;
+    space_id?: string;
+  }): Promise<void>;
+  notify(input: {
+    session_id: string;
+    participant_id: string;
+    message_id: string;
+    since_seq: number;
+    handler_id: string;
+  }): Promise<void>;
+  revoke(input: { session_id: string; participant_id?: string }): Promise<void>;
 };
 
 export type EventDeliveryTarget =
@@ -42,7 +71,7 @@ export interface HookDispatchDeps extends SessionRunDeps, FlowRunServiceDeps {
     actor_id: string;
     token_id: string;
     idempotency_key?: string;
-  }) => Promise<{ http: number }>;
+  }) => Promise<{ http: number; principal?: LiveAssignmentPrincipal }>;
 }
 
 export type HookDispatchResult =
@@ -63,6 +92,11 @@ function eventExecContext(event: HookSourceEvent): Record<string, unknown> {
 
 function prefixedSessionId(session_id: string): string {
   return session_id.startsWith("ses_") ? session_id : `ses_${session_id}`;
+}
+
+/** Live-map key: persona used by match (`designer`), not `ptc_*`. */
+export function liveSeatParticipantId(event: HookSourceEvent): string {
+  return resolveHookParticipant(event) ?? event.participant_id ?? "";
 }
 
 export async function resolveEventDeliveryTarget(
@@ -323,7 +357,7 @@ async function deliverToAssignment(
   },
 ): Promise<HookDispatchResult> {
   if (input.target.mode === "notify_live") {
-    return { outcome: "failed", message: "notify_live_not_implemented" };
+    return deliverLiveNotify(deps, input);
   }
 
   const meetingWake = await buildMeetingWakeData(deps.studio, input.event);
@@ -377,6 +411,21 @@ async function deliverToAssignment(
     return { outcome: "failed", message: "invoke_failed" };
   }
 
+  if (
+    input.target.mode === "attach" &&
+    input.event.event_type === JOURNAL_EVENT_TYPES.MEETING_SAID &&
+    deps.liveAssignments
+  ) {
+    await deps.liveAssignments.start({
+      session_id: sessionId,
+      participant_id: liveSeatParticipantId(input.event),
+      handler_id: input.handler.id,
+      run_id: created.run.run_id,
+      principal: invokeResult.principal,
+      space_id: hookSpace,
+    });
+  }
+
   await deps.handler.appendSpaceJournal({
     type: JOURNAL_EVENT_TYPES.HOOK_DELIVERED,
     space_id: hookSpace,
@@ -393,6 +442,62 @@ async function deliverToAssignment(
   });
 
   return { outcome: "delivered", session_id: sessionId, run_id: created.run.run_id };
+}
+
+async function deliverLiveNotify(
+  deps: HookDispatchDeps,
+  input: {
+    hook_space_id: string;
+    handler: HandlerSpec;
+    event: HookSourceEvent;
+    actor_id: string;
+    token_id: string;
+    target: { mode: EventDeliveryMode; session_id: string; run_id?: string };
+    dedupKey: string;
+  },
+): Promise<HookDispatchResult> {
+  if (!deps.liveAssignments) {
+    return { outcome: "failed", message: "notify_live_not_implemented" };
+  }
+
+  const meetingWake = await buildMeetingWakeData(deps.studio, input.event);
+  const participant_id = liveSeatParticipantId(input.event);
+  const message_id =
+    meetingWake?.message_id ??
+    (typeof input.event.payload.message_id === "string" ? input.event.payload.message_id : "");
+  const since_seq = meetingWake?.since_seq ?? 0;
+
+  try {
+    await deps.liveAssignments.notify({
+      session_id: input.target.session_id,
+      participant_id,
+      message_id,
+      since_seq,
+      handler_id: input.handler.id,
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "notify_failed";
+    return { outcome: "failed", message };
+  }
+
+  const hookSpace = addSpaceId(stripSpaceId(input.hook_space_id));
+  const runId = input.target.run_id ?? "run_live";
+  await deps.handler.appendSpaceJournal({
+    type: JOURNAL_EVENT_TYPES.HOOK_DELIVERED,
+    space_id: hookSpace,
+    session_id: input.target.session_id,
+    run_id: runId,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    data: {
+      hook_id: input.handler.id,
+      event_id: input.event.event_id,
+      event_type: input.event.event_type,
+      dedup_key: input.dedupKey,
+    },
+  });
+
+  return { outcome: "delivered", session_id: input.target.session_id, run_id: runId };
 }
 
 export async function dispatchMatchedEventHandler(

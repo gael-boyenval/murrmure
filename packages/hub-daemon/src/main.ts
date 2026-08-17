@@ -19,6 +19,8 @@ import { registerPlatformMcpHandlers } from "./mcp-handlers.js";
 import { dispatchHooksFromJournal, journalEventToHookSource } from "./hook-dispatch.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
 import { InvokeService } from "./invoke-service.js";
+import { InMemoryLiveAssignments } from "./live-assignments.js";
+import { MeetingNotifier } from "./meeting-notifier.js";
 import { ArtifactService } from "./artifact-service.js";
 import { createDaemonFederationPort } from "./federation-wire.js";
 import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./flow-scheduler-cron.js";
@@ -173,6 +175,7 @@ export async function startHubDaemon(config: DaemonConfig) {
     invokeService: undefined as never,
     artifactService: undefined as never,
     outOfShellService: undefined as never,
+    liveAssignments: undefined as never,
   };
   ctx.artifactService = new ArtifactService(murrmurePersistence, handler, ctx);
   ctx.invokeService = new InvokeService(
@@ -184,6 +187,12 @@ export async function startHubDaemon(config: DaemonConfig) {
     ctx.artifactService,
     federationPort,
   );
+  const meetingNotifier = new MeetingNotifier({
+    publishToPrincipal: (principal, message) =>
+      ctx.invokeService.publishToPrincipal(principal, message),
+    mcpSessionRegistry,
+  });
+  ctx.liveAssignments = new InMemoryLiveAssignments(meetingNotifier);
   ctx.outOfShellService = createOutOfShellService(ctx);
   wrapHandlerForOutOfShell(handler, ctx.outOfShellService);
 

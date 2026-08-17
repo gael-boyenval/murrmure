@@ -22,6 +22,10 @@ export function isWakeMessage(method: string): boolean {
   return WAKE_METHODS.has(method);
 }
 
+export function isMeetingSaidMessage(method: string): boolean {
+  return method === "murrmure/control.meeting_said";
+}
+
 export function buildPendingWakeRecord(
   message: ControlMessage,
   prompt: string,

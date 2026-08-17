@@ -55,6 +55,7 @@ installation or `mrmr space apply`.
 2. Do the Task (handler `prompt`)
 3. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`
 4. Do **not** `murrmure_resolve_step` the room
+5. Prefer `mcp_session` handlers. First `said` starts one assignment (`invoke_action`). Later `said` is `murrmure/control.meeting_said` on that same assignment — not a new session and not `pending-wake.json`. Do not call `murrmure_get_pending_wake` for a meeting notify.
 
 **Handler assignment** (`Protocol: murrmure.agent/v1` already in the prompt):
 

@@ -87,6 +87,34 @@ describe("resolveEventDeliveryTarget", () => {
     });
   });
 
+  test("findLive hit selects notify_live", async () => {
+    const studio = await studioWithSession("room1");
+    const result = await resolveEventDeliveryTarget(
+      {
+        studio,
+        liveAssignments: {
+          findLive: async () => ({ run_id: "run_live", handler_id: "meeting-designer" }),
+          start: async () => undefined,
+          notify: async () => undefined,
+          revoke: async () => undefined,
+        },
+      },
+      {
+        event_id: "evt_6",
+        event_type: "mrmr.meeting.said",
+        space_id: "spc_demo",
+        session_id: "ses_room1",
+        participant: "designer",
+        payload: {},
+      },
+    );
+    expect(result).toEqual({
+      mode: "notify_live",
+      session_id: "ses_room1",
+      run_id: "run_live",
+    });
+  });
+
   test("liveAssignments undefined never selects notify_live", async () => {
     const studio = await studioWithSession("room1");
     const result = await resolveEventDeliveryTarget(

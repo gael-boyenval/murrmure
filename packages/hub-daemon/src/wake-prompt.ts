@@ -94,12 +94,41 @@ export function formatInvokeActionWake(params: InvokeActionParams): string {
   return lines.join("\n").trim();
 }
 
+export function formatMeetingSaidWake(params: {
+  session_id?: string;
+  participant_id?: string;
+  message_id?: string;
+  since_seq?: number;
+  handler_id?: string;
+}): string {
+  const wake = {
+    session_id: String(params.session_id ?? ""),
+    participant_id: String(params.participant_id ?? ""),
+    message_id: String(params.message_id ?? ""),
+    since_seq: Number(params.since_seq ?? 0),
+  };
+  const lines = [
+    "Murrmure control wake: meeting said",
+    "",
+    `session_id: ${wake.session_id}`,
+    `participant_id: ${wake.participant_id}`,
+    `message_id: ${wake.message_id}`,
+    `since_seq: ${wake.since_seq}`,
+  ];
+  if (params.handler_id) lines.push(`handler_id: ${params.handler_id}`);
+  lines.push("", renderMurrmureMeetingProtocolEnvelope(wake));
+  return lines.join("\n").trim();
+}
+
 export function formatControlWake(
   method: string,
   params: Record<string, unknown>,
 ): string | null {
   if (method === "murrmure/control.invoke_action") {
     return formatInvokeActionWake(params as InvokeActionParams);
+  }
+  if (method === "murrmure/control.meeting_said") {
+    return formatMeetingSaidWake(params);
   }
   return null;
 }

@@ -6,6 +6,7 @@ import type { ControlBus } from "./control-bus.js";
 import type { McpSessionRegistry } from "./mcp-session-registry.js";
 import type { TriggerDispatcher } from "./trigger-dispatcher.js";
 import type { InvokeService } from "./invoke-service.js";
+import type { InMemoryLiveAssignments } from "./live-assignments.js";
 import type { ArtifactService } from "./artifact-service.js";
 import type { ExecutorPollStore } from "@murrmure/hub-core";
 import type { OutOfShellService } from "./out-of-shell-service.js";
@@ -37,6 +38,7 @@ export interface DaemonContext {
   mcpSessionRegistry: McpSessionRegistry;
   triggerDispatcher: TriggerDispatcher;
   invokeService: InvokeService;
+  liveAssignments: InMemoryLiveAssignments;
   artifactService: ArtifactService;
   executorPollStore: ExecutorPollStore;
   outOfShellService: OutOfShellService;

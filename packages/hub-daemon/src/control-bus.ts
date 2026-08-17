@@ -40,6 +40,18 @@ export type ControlMessage =
         executor_id?: string;
         prompt?: string;
       };
+    }
+  | {
+      method: "murrmure/control.meeting_said";
+      params: {
+        seq: number;
+        session_id: string;
+        participant_id: string;
+        message_id: string;
+        since_seq: number;
+        handler_id: string;
+        prompt?: string;
+      };
     };
 
 const TTL_MS = 24 * 60 * 60 * 1000;

@@ -20,6 +20,9 @@
 - `GET /v1/sessions/:id/transcript` and MCP `murrmure_meeting_transcript`
   return the meeting projection. Auth is roster space or `journal:read` on a
   roster space. Meeting wakes pass ids + `since_seq` only.
+- Join-once live map `(session_id, persona)` plus `murrmure/control.meeting_said`.
+  Later `said` notifies the recorded principal (`publishToPrincipal`), not
+  `publishToSpace`. Assignment-mode MCP must not drop this method.
 - `POST /v1/spaces/:id/events` (no `instance_id`) requires `event:emit`,
   journals first via `emitAndDeliver`, and returns the real journal `seq`.
   `murrmure_emit_event` forwards top-level `session_id`. Meeting types without

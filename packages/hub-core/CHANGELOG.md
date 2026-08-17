@@ -25,6 +25,9 @@
   `attach` | `notify_live`). Event handlers with a live `session_id` attach
   instead of minting a new session. `eventExecContext` no longer spreads the
   full payload into run input.
+- Join-once `LiveAssignmentPort` (`findLive` / `start` / `notify` / `revoke`).
+  A live seat's later `said` is `notify_live` (no new session or run). Close
+  revokes the session's live map.
 
 ### Added
 

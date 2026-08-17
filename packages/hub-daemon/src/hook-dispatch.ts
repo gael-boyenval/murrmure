@@ -7,7 +7,7 @@ import {
 } from "@murrmure/hub-core";
 import { ulid } from "ulid";
 import type { Capability } from "@murrmure/contracts";
-import { prefixedSpaceId } from "./space-id.js";
+import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 
 export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
   return {
@@ -17,6 +17,7 @@ export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
     clock: { nowIso: () => new Date().toISOString() },
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
     guard: ctx.spaceRunGuard,
+    liveAssignments: ctx.liveAssignments,
     invokeAction: async (input) => {
       const result = await ctx.invokeService.invokeAction({
         space_id: input.space_id,
@@ -31,7 +32,9 @@ export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
         token_id: input.token_id,
         idempotency_header: input.idempotency_key,
       });
-      return { http: result.http };
+      const principals = ctx.mcpSessionRegistry.connectedPrincipals(bareSpaceId(input.space_id));
+      const principal = principals.length === 1 ? principals[0] : undefined;
+      return { http: result.http, principal };
     },
   };
 }

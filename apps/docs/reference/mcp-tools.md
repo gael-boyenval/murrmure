@@ -93,7 +93,7 @@ See [Connect your agent](../guide/agents-mcp) for grant setup.
 
 `mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. Chair may emit `mrmr.meeting.closed`; humans use `POST /v1/sessions/{id}/meeting/close`.
 
-Seat assignments use `Protocol: murrmure.meeting/v1` (trigger ids + `since_seq`). Pull with `murrmure_meeting_transcript`; reply with `murrmure_emit_event` `said`. Do not `murrmure_resolve_step` the room and do not paste the journal.
+Seat assignments use `Protocol: murrmure.meeting/v1` (trigger ids + `since_seq`). Pull with `murrmure_meeting_transcript`; reply with `murrmure_emit_event` `said`. Do not `murrmure_resolve_step` the room and do not paste the journal. Later turns arrive as control `murrmure/control.meeting_said` on the live assignment — not a new `invoke_action` and not `pending-wake.json`.
 
 ## User preferences
 

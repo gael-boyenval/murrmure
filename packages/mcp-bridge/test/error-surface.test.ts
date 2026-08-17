@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { fetchCatalog, callTool, performHandshake } from "../src/hub-client.js";
 import { bridgeInstructions, resolveBridgeConfig } from "../src/main.js";
+import { isMeetingSaidMessage, isWakeMessage } from "../src/wake-relay.js";
 
 const tempDirs: string[] = [];
 const envSnapshot = { ...process.env };
@@ -226,6 +227,13 @@ describe("bridge error surfaces", () => {
       const detail = error instanceof Error ? error.message : String(error);
       expect(detail).not.toContain(token);
     }
+  });
+
+  test("meeting_said is not a pending-wake method", () => {
+    expect(isWakeMessage("murrmure/control.invoke_action")).toBe(true);
+    expect(isWakeMessage("murrmure/control.meeting_said")).toBe(false);
+    expect(isMeetingSaidMessage("murrmure/control.meeting_said")).toBe(true);
+    expect(isMeetingSaidMessage("murrmure/control.invoke_action")).toBe(false);
   });
 
   test("performHandshake surfaces non-JSON errors", async () => {

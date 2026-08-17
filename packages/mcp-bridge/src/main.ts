@@ -22,6 +22,7 @@ import {
 } from "./hub-client.js";
 import {
   buildPendingWakeRecord,
+  isMeetingSaidMessage,
   isWakeMessage,
   writePendingWakeFile,
   type PendingWakeRecord,
@@ -353,6 +354,27 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
         if (message.method === "murrmure/control.tools_changed") {
           await refreshCatalog();
           await sendToolListChanged(server);
+          continue;
+        }
+        if (isMeetingSaidMessage(message.method)) {
+          // Join-once notify: assignment-mode must not drop this. Do not write
+          // pending-wake.json — the seat is already running.
+          const prompt =
+            typeof message.params.prompt === "string" ? message.params.prompt : "";
+          if (prompt.trim()) {
+            console.error(prompt);
+            try {
+              await server.createMessage({
+                messages: [{ role: "user", content: { type: "text", text: prompt } }],
+                maxTokens: 8192,
+                systemPrompt:
+                  "You are a Murrmure meeting seat. A new said arrived. Pull murrmure_meeting_transcript with session_id and since_seq, then reply with murrmure_emit_event type mrmr.meeting.said. Do not call murrmure_resolve_step for this room.",
+              });
+            } catch (error) {
+              const detail = error instanceof Error ? error.message : String(error);
+              console.error(`murrmure-mcp meeting_said relay failed (${detail})`);
+            }
+          }
           continue;
         }
         if (isWakeMessage(message.method)) {

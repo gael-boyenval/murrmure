@@ -182,6 +182,17 @@ export class InvokeService {
     }
   }
 
+  /** Address one MCP pipe. Meeting notify must not fan out via publishToSpace. */
+  publishToPrincipal(
+    principal: ControlPrincipal,
+    message: { method: string; params: Record<string, unknown> },
+  ): void {
+    this.controlBus.publish(
+      principal,
+      message as Parameters<ControlBus["publish"]>[1],
+    );
+  }
+
   private async loadRunExecInput(run_id?: string): Promise<Record<string, unknown> | undefined> {
     if (!run_id) return undefined;
     const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id;

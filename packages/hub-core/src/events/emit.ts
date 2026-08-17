@@ -185,6 +185,11 @@ export async function emitAndDeliver(
         meeting_seq: "meeting_seq" in journaled ? Number(journaled.meeting_seq) : 0,
         failed: payload.failed === true,
       });
+      if (sessionId) {
+        await deps.liveAssignments?.revoke({
+          session_id: sessionId.startsWith("ses_") ? sessionId : `ses_${sessionId}`,
+        });
+      }
     } else {
       hook_results = await dispatchHooksForEvent(deps, event, {
         actor_id: input.actor_id,
