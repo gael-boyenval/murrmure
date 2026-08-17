@@ -15,6 +15,14 @@
 
 ### Added
 
+- `POST /v1/spaces/:id/events` (no `instance_id`) requires `event:emit`,
+  journals first via `emitAndDeliver`, and returns the real journal `seq`.
+  `murrmure_emit_event` forwards top-level `session_id`. Meeting types without
+  `session_id` return `400 MEETING_SESSION_REQUIRED`. Hub-authored meeting
+  types are denied.
+
+### Added
+
 - Run-capacity admission and apply quiescence wired through every start path
   (flow-starts route, MCP `create_run`, hook `start_flow`, event triggers,
   flow-call, retry) and the space apply route, all sharing `ctx.spaceRunGuard`.

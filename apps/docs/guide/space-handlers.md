@@ -221,7 +221,7 @@ handlers:
     command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
 ```
 
-Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability).
+Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability). HTTP `POST /v1/spaces/{id}/events` requires the same capability, journals first, and returns the real `seq`. Types starting with `mrmr.meeting.` must include a top-level `session_id` (delivery attaches to that session instead of creating one).
 
 ## Run policies
 

@@ -7,6 +7,26 @@ export interface HookSourceEvent {
   space_id: string;
   source?: string;
   payload: Record<string, unknown>;
+  session_id?: string;
+  participant?: string;
+}
+
+/** Attribution for handler match. No roster lookup — pass through emit fields only. */
+export function resolveHookParticipant(event: {
+  participant?: string;
+  payload?: Record<string, unknown>;
+}): string | undefined {
+  if (typeof event.participant === "string" && event.participant.length > 0) {
+    return event.participant;
+  }
+  const payload = event.payload ?? {};
+  if (typeof payload.as_participant_id === "string" && payload.as_participant_id.length > 0) {
+    return payload.as_participant_id;
+  }
+  if (typeof payload.participant === "string" && payload.participant.length > 0) {
+    return payload.participant;
+  }
+  return undefined;
 }
 
 export interface IndexedHook {

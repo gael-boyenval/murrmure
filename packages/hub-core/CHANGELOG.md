@@ -13,6 +13,13 @@
 
 ### Added
 
+- Journal-first `emitAndDeliver` and `resolveEventDeliveryTarget` (`create` |
+  `attach` | `notify_live`). Event handlers with a live `session_id` attach
+  instead of minting a new session. `eventExecContext` no longer spreads the
+  full payload into run input.
+
+### Added
+
 - Space-owned run-capacity admission: `admitFlowRun` counts a flow's
   non-terminal runs against its resolved `max_concurrent_runs` policy and
   returns `FLOW_CONCURRENCY_LIMIT` with the active run IDs on overflow;

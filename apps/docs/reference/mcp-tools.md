@@ -45,7 +45,7 @@ Example arguments:
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
 | `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
 | `murrmure_list_emittable_events` | `space:read` | Event types this space can emit (from hook index) |
-| `murrmure_emit_event` | `event:emit` | Emit platform event `{ type, source?, data? }` |
+| `murrmure_emit_event` | `event:emit` | Journal-first emit `{ event_type, payload, session_id? }`. Meeting types (`mrmr.meeting.*`) require top-level `session_id`. Hub-authored `convened` / `delivered` / `delivery_failed` are denied. |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | **`POST /v1/runs/{id}/steps/{step_id}/resolve`** — branch + payload; local clients may pass workdir-relative `artifacts_out`, remote clients pass an authorized `upload_intent_id` reference |
 | **`murrmure_open_child_step`** | **`step:resolve`** | Yield the assigned parent and open one direct declared child. Requires `run_id`, `parent_step_id`, `child_step_id`, and `idempotency_key`; accepts no input payload. |
@@ -81,11 +81,13 @@ See [Connect your agent](../guide/agents-mcp) for grant setup.
 
 ```json
 {
-  "type": "brief.published",
-  "source": "orchestrator",
-  "data": { "spec_key": "ins_…" }
+  "event_type": "brief.published",
+  "payload": { "spec_key": "ins_…" },
+  "session_id": "ses_…"
 }
 ```
+
+`session_id` is optional for ordinary events (handler delivery still `createSession`). It is **required** for `mrmr.meeting.*`. HTTP `POST /v1/spaces/{id}/events` also requires `event:emit` and returns the real journal `seq`.
 
 ## User preferences
 

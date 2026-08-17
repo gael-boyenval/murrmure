@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { addTokenId } from "@murrmure/hub-core";
+import { addTokenId, emitAndDeliver } from "@murrmure/hub-core";
 import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "./context.js";
 import { broadcastSse } from "./context.js";
@@ -161,27 +161,34 @@ export function createHubApp(ctx: DaemonContext) {
         : { ...rawPayload, source: `/spaces/${normalizedSpaceId}` };
 
     if (!body.instance_id) {
-      await ctx.triggerDispatcher.dispatch({
-        event_id: eventId,
+      const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
+      const capCheck = requireCapability(auth, "event:emit", effective);
+      if (capCheck) return capCheck;
+
+      const session_id = typeof body.session_id === "string" && body.session_id ? body.session_id : undefined;
+      const { hookDispatchDeps } = await import("./hook-dispatch.js");
+      const emitted = await emitAndDeliver(hookDispatchDeps(ctx), {
+        space_id: normalizedSpaceId,
         event_type: eventType,
+        event_id: eventId,
+        payload,
+        session_id,
+        actor_id: auth.actor_id,
+        token_id: auth.token_id,
+        capabilities: effective,
+      });
+      if (!emitted.ok) {
+        return c.json({ code: emitted.code, message: emitted.message }, emitted.http);
+      }
+
+      await ctx.triggerDispatcher.dispatch({
+        event_id: emitted.event_id,
+        event_type: emitted.type,
         space_id,
         payload,
       });
 
-      const { dispatchHooksFromJournal, journalEventToHookSource } = await import("./hook-dispatch.js");
-      await dispatchHooksFromJournal(
-        ctx,
-        journalEventToHookSource({
-          event_id: eventId,
-          event_type: eventType,
-          space_id,
-          payload,
-        }),
-        { actor_id: auth.actor_id, token_id: auth.token_id },
-      ).catch(() => undefined);
-
       const { matchFlowEventStarts, flowRunDeps } = await import("./flow-scheduler-cron.js");
-      const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
       await matchFlowEventStarts(murrmurePersistence, ctx.invokeService, () => flowRunDeps(ctx), {
         event_type: eventType,
         space_id,
@@ -191,7 +198,7 @@ export function createHubApp(ctx: DaemonContext) {
         capabilities: effective,
       }).catch(() => undefined);
 
-      return c.json({ event_id: eventId, type: eventType, seq: 1 });
+      return c.json({ event_id: emitted.event_id, type: emitted.type, seq: emitted.seq });
     }
 
     const result = await handler.execute({

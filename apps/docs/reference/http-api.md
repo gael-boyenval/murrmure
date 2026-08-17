@@ -50,6 +50,7 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/runs/wait?run_id=` | Long-poll until run terminal |
 | `POST` | `/v1/gates/{id}/resolve` | Resolve orchestration gate (`flow:run`, space-bound) |
 | `GET` | `/v1/gates/wait?run_id=` | Long-poll pending gates |
+| `POST` | `/v1/spaces/{id}/events` | `event:emit` | Journal-first emit `{ event_type, payload, session_id? }`; returns real `seq`. `mrmr.meeting.*` requires `session_id`. |
 | `GET` | `/v1/spaces/{id}/events` | Event tail |
 | `GET` | `/v1/spaces/{id}/events/subscribe` | SSE (legacy space events) |
 | `GET` | `/v1/spaces/{id}/audit/export` | Audit JSONL |

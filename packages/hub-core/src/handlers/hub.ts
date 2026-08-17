@@ -192,10 +192,11 @@ export class HubHandler {
     token_id: string;
     session_id?: string;
     run_id?: string;
+    event_id?: string;
     data: Record<string, unknown>;
   }): Promise<{ seq: number; entry_id: string }> {
     const bare = stripSpaceId(input.space_id);
-    const eventId = `evt_${this.ids.ulid()}`;
+    const eventId = input.event_id ?? `evt_${this.ids.ulid()}`;
     const ts = this.clock.nowIso();
     const payload = buildSpaceJournalEnvelope({
       space_id: input.space_id,

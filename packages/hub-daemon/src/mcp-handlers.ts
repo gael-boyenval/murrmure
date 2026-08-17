@@ -181,6 +181,7 @@ export function registerPlatformMcpHandlers(
       body: JSON.stringify({
         event_type: eventType,
         event_id: args.event_id,
+        session_id: typeof args.session_id === "string" ? args.session_id : undefined,
         payload,
       }),
     });

@@ -33,7 +33,7 @@ installation or `mrmr space apply`.
 | `murrmure_space_health` | `space:read` | Health summary, handler coverage |
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
-| **`murrmure_emit_event`** | **`event:emit`** | `{ type, source, data }` — v2 event surface |
+| **`murrmure_emit_event`** | **`event:emit`** | `{ event_type, payload, session_id? }` — journal-first; `session_id` required for `mrmr.meeting.*` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` |
 | **`murrmure_open_child_step`** | **`step:resolve`** | Yield parent and open one direct declared child with idempotency |
 

@@ -83,6 +83,7 @@
   observable trigger-denied flow starts.
 - `SpaceIndexSnapshot.run_policies`, `ApplyIndexChange.resource: "run_policies"`,
   and `ApplyIndexResult.summary.run_policies`.
+- Denial codes `MEETING_SESSION_REQUIRED`, `SESSION_NOT_FOUND`, `HUB_ONLY_EVENT`.
 
 ### Breaking Changes
 

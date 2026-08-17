@@ -1,16 +1,36 @@
-import { HandlerSpecSchema, type Capability, type HandlerSpec, type HookSpec } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  MURRMURE_DENIAL_CODES,
+  type Capability,
+  type HandlerSpec,
+  type HookSpec,
+} from "@murrmure/contracts";
 import { JOURNAL_EVENT_TYPES, FLOW_CONCURRENCY_LIMIT } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
-import type { HubHandler } from "../handlers/hub.js";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 import { admitAndCreateRun, createSession, type SessionRunDeps } from "../run/service.js";
 import { startFlowRun, type FlowRunServiceDeps } from "../flow-engine/run-service.js";
 import { resolveTemplateString, resolveStepParams } from "../flow-engine/templates.js";
 import type { HookSourceEvent } from "./matcher.js";
-import { computeHookDedupKey, hookStepId, matchHooks } from "./matcher.js";
+import { computeHookDedupKey, hookStepId, matchHooks, resolveHookParticipant } from "./matcher.js";
 import { matchEventHandlers } from "../index/parse-handlers.js";
 
+export type EventDeliveryMode = "create" | "attach" | "notify_live";
+
+export type LiveAssignmentPort = {
+  findLive(input: {
+    session_id: string;
+    participant?: string;
+  }): Promise<{ run_id?: string } | null>;
+};
+
+export type EventDeliveryTarget =
+  | { mode: EventDeliveryMode; session_id: string; run_id?: string }
+  | { denial: { code: string; message: string } };
+
 export interface HookDispatchDeps extends SessionRunDeps, FlowRunServiceDeps {
+  /** Slice 5 join-once. Leave undefined so notify_live is never selected. */
+  liveAssignments?: LiveAssignmentPort;
   invokeAction: (input: {
     space_id: string;
     action_name: string;
@@ -36,9 +56,57 @@ function eventExecContext(event: HookSourceEvent): Record<string, unknown> {
       type: event.event_type,
       source: event.source ?? `/spaces/${event.space_id}`,
       data: event.payload,
-      ...event.payload,
     },
   };
+}
+
+function prefixedSessionId(session_id: string): string {
+  return session_id.startsWith("ses_") ? session_id : `ses_${session_id}`;
+}
+
+export async function resolveEventDeliveryTarget(
+  deps: { studio: StudioPersistencePort; liveAssignments?: LiveAssignmentPort },
+  event: HookSourceEvent,
+): Promise<EventDeliveryTarget> {
+  const meeting = event.event_type.startsWith("mrmr.meeting.");
+  const sessionId = event.session_id?.trim() ? event.session_id : undefined;
+
+  if (!sessionId) {
+    if (meeting) {
+      return {
+        denial: {
+          code: MURRMURE_DENIAL_CODES.MEETING_SESSION_REQUIRED,
+          message: "Meeting events require a top-level session_id",
+        },
+      };
+    }
+    return { mode: "create", session_id: "" };
+  }
+
+  const session = await deps.studio.getSession(sessionId);
+  if (!session) {
+    return {
+      denial: {
+        code: MURRMURE_DENIAL_CODES.SESSION_NOT_FOUND,
+        message: meeting
+          ? "Meeting session_id does not match an existing session"
+          : "Session not found",
+      },
+    };
+  }
+
+  const existingId = prefixedSessionId(session.session_id);
+  if (deps.liveAssignments) {
+    const live = await deps.liveAssignments.findLive({
+      session_id: existingId,
+      participant: resolveHookParticipant(event),
+    });
+    if (live) {
+      return { mode: "notify_live", session_id: existingId, run_id: live.run_id };
+    }
+  }
+
+  return { mode: "attach", session_id: existingId };
 }
 
 function resolveHookParams(
@@ -240,6 +308,90 @@ export async function dispatchHook(
   }
 }
 
+async function deliverToAssignment(
+  deps: HookDispatchDeps,
+  input: {
+    hook_space_id: string;
+    handler: HandlerSpec;
+    event: HookSourceEvent;
+    actor_id: string;
+    token_id: string;
+    capabilities: Capability[];
+    target: { mode: EventDeliveryMode; session_id: string; run_id?: string };
+    dedupKey: string;
+  },
+): Promise<HookDispatchResult> {
+  if (input.target.mode === "notify_live") {
+    return { outcome: "failed", message: "notify_live_not_implemented" };
+  }
+
+  const execContext = eventExecContext(input.event);
+  const hookSpace = addSpaceId(stripSpaceId(input.hook_space_id));
+  let sessionId = input.target.session_id;
+
+  if (input.target.mode === "create") {
+    const session = await createSession(deps, {
+      title: `Handler ${input.handler.id}`,
+      subject: input.handler.id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      space_id: hookSpace,
+      created_by: { type: "hook", hook_id: input.handler.id },
+    });
+    sessionId = session.session_id;
+  }
+
+  const created = await admitAndCreateRun(deps, {
+    session_id: sessionId,
+    space_id: hookSpace,
+    flow_id: null,
+    input_params: { ...execContext, idempotency_key: input.dedupKey },
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    capabilities: input.capabilities,
+  });
+  if ("error" in created) {
+    return { outcome: "failed", message: created.error?.message ?? "create_run_failed" };
+  }
+
+  const params = resolveHookParams(
+    input.handler.type === "view_resolver" ? undefined : input.handler.params,
+    execContext,
+  );
+  const step_id = hookStepId(input.handler.id);
+  const invokeResult = await deps.invokeAction({
+    space_id: hookSpace,
+    action_name: input.handler.id,
+    session_id: sessionId,
+    run_id: created.run.run_id,
+    step_id,
+    params,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    idempotency_key: `${created.run.run_id}:${step_id}:${input.dedupKey}`,
+  });
+  if (invokeResult.http >= 400) {
+    return { outcome: "failed", message: "invoke_failed" };
+  }
+
+  await deps.handler.appendSpaceJournal({
+    type: JOURNAL_EVENT_TYPES.HOOK_DELIVERED,
+    space_id: hookSpace,
+    session_id: sessionId,
+    run_id: created.run.run_id,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    data: {
+      hook_id: input.handler.id,
+      event_id: input.event.event_id,
+      event_type: input.event.event_type,
+      dedup_key: input.dedupKey,
+    },
+  });
+
+  return { outcome: "delivered", session_id: sessionId, run_id: created.run.run_id };
+}
+
 async function dispatchEventHandler(
   deps: HookDispatchDeps,
   input: {
@@ -258,65 +410,12 @@ async function dispatchEventHandler(
     return { outcome: "deduped", run_id: `run_${existing.run_id}` };
   }
 
-  const execContext = eventExecContext(input.event);
-  const hookSpace = addSpaceId(stripSpaceId(input.hook_space_id));
-  const session = await createSession(deps, {
-    title: `Handler ${input.handler.id}`,
-    subject: input.handler.id,
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    space_id: hookSpace,
-    created_by: { type: "hook", hook_id: input.handler.id },
-  });
-  const created = await admitAndCreateRun(deps, {
-    session_id: session.session_id,
-    space_id: hookSpace,
-    flow_id: null,
-    input_params: { ...execContext, idempotency_key: dedupKey },
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    capabilities: input.capabilities,
-  });
-  if ("error" in created) {
-    return { outcome: "failed", message: created.error?.message ?? "create_run_failed" };
+  const target = await resolveEventDeliveryTarget(deps, input.event);
+  if ("denial" in target) {
+    return { outcome: "failed", message: target.denial.message };
   }
 
-  const params = resolveHookParams(
-    input.handler.type === "view_resolver" ? undefined : input.handler.params,
-    execContext,
-  );
-  const step_id = hookStepId(input.handler.id);
-  const invokeResult = await deps.invokeAction({
-    space_id: hookSpace,
-    action_name: input.handler.id,
-    session_id: session.session_id,
-    run_id: created.run.run_id,
-    step_id,
-    params,
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    idempotency_key: `${created.run.run_id}:${step_id}:${dedupKey}`,
-  });
-  if (invokeResult.http >= 400) {
-    return { outcome: "failed", message: "invoke_failed" };
-  }
-
-  await deps.handler.appendSpaceJournal({
-    type: JOURNAL_EVENT_TYPES.HOOK_DELIVERED,
-    space_id: hookSpace,
-    session_id: session.session_id,
-    run_id: created.run.run_id,
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    data: {
-      hook_id: input.handler.id,
-      event_id: input.event.event_id,
-      event_type: input.event.event_type,
-      dedup_key: dedupKey,
-    },
-  });
-
-  return { outcome: "delivered", session_id: session.session_id, run_id: created.run.run_id };
+  return deliverToAssignment(deps, { ...input, target, dedupKey });
 }
 
 export async function dispatchHooksForEvent(
@@ -336,6 +435,7 @@ export async function dispatchHooksForEvent(
         const matchedHandlers = matchEventHandlers([parsedHandler.data], {
           event_type: event.event_type,
           source: eventSource,
+          participant: resolveHookParticipant(event),
         });
         for (const matchedHandler of matchedHandlers) {
           const result = await dispatchEventHandler(deps, {

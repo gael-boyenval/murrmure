@@ -1,6 +1,7 @@
 import type { DaemonContext } from "./context.js";
 import {
   dispatchHooksForEvent,
+  resolveHookParticipant,
   type HookDispatchDeps,
   type HookSourceEvent,
 } from "@murrmure/hub-core";
@@ -8,7 +9,7 @@ import { ulid } from "ulid";
 import type { Capability } from "@murrmure/contracts";
 import { prefixedSpaceId } from "./space-id.js";
 
-function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
+export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
   return {
     studio: ctx.murrmurePersistence,
     handler: ctx.handler,
@@ -52,14 +53,27 @@ export function journalEventToHookSource(input: {
   event_type: string;
   space_id: string;
   payload: Record<string, unknown>;
+  session_id?: string;
+  participant?: string;
 }): HookSourceEvent {
   const spaceId = prefixedSpaceId(input.space_id.replace(/^spc_/, ""));
   const defaultSource = `/spaces/${spaceId}`;
+  const session_id =
+    typeof input.session_id === "string" && input.session_id
+      ? input.session_id
+      : typeof input.payload.session_id === "string"
+        ? input.payload.session_id
+        : undefined;
   return {
     event_id: input.event_id,
     event_type: input.event_type,
     space_id: spaceId,
     source: typeof input.payload.source === "string" ? input.payload.source : defaultSource,
     payload: input.payload,
+    session_id,
+    participant: resolveHookParticipant({
+      participant: input.participant,
+      payload: input.payload,
+    }),
   };
 }

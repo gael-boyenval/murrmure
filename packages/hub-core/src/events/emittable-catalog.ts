@@ -159,6 +159,10 @@ export function buildEmitEventInputSchema(catalog: EmittableEventsCatalog): Reco
         payload: { type: "object", additionalProperties: true },
         event_id: { type: "string" },
         space_id: { type: "string" },
+        session_id: {
+          type: "string",
+          description: "Existing session to attach (required for mrmr.meeting.*)",
+        },
       },
       required: ["event_type", "payload"],
     };
@@ -187,6 +191,10 @@ export function buildEmitEventInputSchema(catalog: EmittableEventsCatalog): Reco
           },
       event_id: { type: "string" },
       space_id: { type: "string" },
+      session_id: {
+        type: "string",
+        description: "Existing session to attach (required for mrmr.meeting.*)",
+      },
     },
     required: ["event_type", "payload"],
   }));
