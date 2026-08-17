@@ -395,6 +395,8 @@ Timeout returns **200 + structured snapshot**, not silent hang.
 
 ## Part 9 — Async coordination plane
 
+Meeting `said` delivery attaches to the meeting `session_id` and, when a seat assignment is live, publishes `murrmure/control.meeting_said` (`notify_live`) instead of `createSession`. See [meetings/spec.md](../meetings/spec.md).
+
 ### Trigger registration (required fields)
 
 - `filter`: event_types, source_spaces, capability_ids?, instance_id?

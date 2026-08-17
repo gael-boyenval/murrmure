@@ -20,5 +20,5 @@ Accepted decisions are indexed here. Normative shipped behavior remains in
 | [ADR-013](./ADR-013-agent-assignment-prompt-protocol.md) | accepted | Versioned agent assignment prompt and ephemeral bridge authority |
 | [ADR-014](./ADR-014-local-run-storage-retention-and-materialization-boundary.md) | accepted | Local run storage retention and local-vs-federated artifact materialization |
 | [ADR-015](./ADR-015-nested-step-call-return.md) | accepted | Nested step call/return and assignment yield |
-| [ADR-016](./ADR-016-meeting-protocol.md) | accepted (unshipped) | Meeting protocol: session-as-room, seats not agents, transcript pull |
+| [ADR-016](./ADR-016-meeting-protocol.md) | accepted | Meeting protocol: session-as-room, seats not agents, transcript pull |
 

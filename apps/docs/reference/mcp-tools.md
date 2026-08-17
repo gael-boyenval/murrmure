@@ -117,3 +117,5 @@ Orchestration approval gates remain on the HTTP API (`POST /v1/gates/{id}/resolv
 - `murrmure_get_run` accepts `run_id` or `instance_id` argument.
 
 See `studio-specs/current/bridges/grants-migration.md` for scope → capability mapping.
+
+Hands-on: [Tutorial 1b — Meetings](../guide/tutorials/02-meetings/).

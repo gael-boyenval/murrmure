@@ -49,5 +49,10 @@ Intentionally deferred product scope (not bugs) lives in the plan [deferred spec
 | Named-space first-run | `mrmr setup --yes --json` (creates no agent credential) |
 | Agent MCP | `murrmure_resolve_step`, `murrmure_wait_for_run`, `murrmure_list_handlers` |
 | Split skills | `mrmr skill install --variant agent\|developer\|all` |
+| Personas | `.mrmr/space/personas.yaml` ads; `murrmure_list_personas` |
+| Meeting step | `meeting:` facet; close resolves the step |
+| Meeting Transcript | `/sessions/:id` Transcript (shell, not a View) |
+| Meeting MCP | `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript` |
+| Headless convene | `mrmr meeting start` / `murrmure_start_meeting` |
 
 See [Creating flows](./creating-flows) and [Quick start](./quick-start).

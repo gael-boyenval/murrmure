@@ -12,6 +12,7 @@ my-project/
     space/
       space.yaml              # slug hint for link --create; optional link.host override
       handlers.yaml           # step + event handlers (on::key binding; contract_keys is prompt-scope)
+      personas.yaml           # optional — seat ads (handles + blurbs; not dispatch)
       bindings.yaml           # optional — remote flow/view refs for worker spaces
     flows/
       my-flow/

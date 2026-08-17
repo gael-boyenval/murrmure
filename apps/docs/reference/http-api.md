@@ -34,6 +34,7 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/health` | Status (no auth) |
 | `POST` | `/v1/spaces` | Create space (admin token) |
 | `GET` | `/v1/spaces/{id}` | Get space |
+| `GET` | `/v1/spaces/{id}/personas` | Same-space persona ads (`space:read`) |
 | `GET` | `/v1/sessions` | List sessions |
 | `POST` | `/v1/sessions` | Create session |
 | `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. |
@@ -70,6 +71,8 @@ The Hub does not return content, credentials, validator internals, schema paths,
 or host paths. The JSON/base64 `/work/upload` route is removed.
 
 Path `space_id` must match token scope (unless admin bootstrap on self-hosted).
+
+Meetings walkthrough: [Tutorial 1b](../guide/tutorials/02-meetings/).
 
 ## Configuration API (CS0)
 

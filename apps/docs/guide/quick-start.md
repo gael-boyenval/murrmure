@@ -69,7 +69,7 @@ Reload selected tools and call `murrmure_space_status`.
 
 ## Next steps
 
-- Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (6 parts)
+- Learn the concepts: [Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/) (6 parts). Also: [Meetings tutorial](./tutorials/02-meetings/) (not the 5-minute path).
 - Extend the flow with command + agent handlers: [Tutorial 1a — Part 5](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers)
 - [Creating flows](./creating-flows) · [Space handlers](./space-handlers) · [All tutorials](./tutorials/)
 - [Murrmure Desktop](./desktop) · [Connect your agent](./agents-mcp)

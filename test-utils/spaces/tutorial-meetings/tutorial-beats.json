@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "beats": [
+    {
+      "id": "two-spaces",
+      "chapters": [1],
+      "automated": ["fence:part-1-app-space", "fence:part-1-research-space"],
+      "manual_only": ["two Cursor windows", "workspace card spc_/con_"]
+    },
+    {
+      "id": "personas",
+      "chapters": [2],
+      "automated": ["fence:part-2-app-personas", "fence:part-2-research-personas"],
+      "manual_only": ["murrmure_list_personas ads only"]
+    },
+    {
+      "id": "meeting-flow",
+      "chapters": [3],
+      "automated": ["fence:part-3-flow"],
+      "manual_only": ["inspect graph, no Run"]
+    },
+    {
+      "id": "run-transcript",
+      "chapters": [4],
+      "automated": [],
+      "manual_only": ["Run → Transcript 0 messages", "human Close"]
+    },
+    {
+      "id": "wake-seats",
+      "chapters": [5],
+      "automated": ["fence:part-5-app-handlers", "fence:part-5-research-handlers"],
+      "manual_only": ["designer said", "researcher reply", "join-once same ses_"]
+    },
+    {
+      "id": "talk-advance",
+      "chapters": [6],
+      "automated": ["fence:part-6-flow", "fence:part-6-implement-handler"],
+      "manual_only": ["designer closed", "docs/api-shape.md", "MEETING_CHAIR_REQUIRED"]
+    },
+    {
+      "id": "headless-commit",
+      "chapters": [7],
+      "automated": [],
+      "manual_only": ["murrmure_start_meeting", "git commit"]
+    }
+  ]
+}

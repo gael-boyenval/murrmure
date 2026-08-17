@@ -1,5 +1,14 @@
 # Changelog
 
+## Meetings — convene, Transcript, Tutorial 1b (2026-08-17)
+
+### Shipped
+
+- Convene / `said` / close on a session (`mrmr.meeting.*`); personas catalog; shell Transcript on `/sessions/:id`.
+- MCP: `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript`; emit `said` / `closed` with `session_id`.
+- `meeting:` step facet — open convenes, close resolves the step. Join-once: later `said` reuses the live assignment (`murrmure/control.meeting_said` / `notify_live`).
+- CLI `mrmr meeting start`. Tutorial 1b (`02-meetings/`) + [Meetings](apps/docs/guide/meetings.md).
+
 ## Tutorial feedback — murrmure.step output placeholders (2026-07-17)
 
 ### Fixed

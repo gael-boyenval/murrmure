@@ -18,7 +18,7 @@ handlers:
     command: mrmr flow run preview-review --input '{"pr": "{{event.number}}"}'
 ```
 
-Emission: agents with the `event:emit` capability call `murrmure_emit_event`. Declarations in `.mrmr/space/events.yaml` gate emittable types at apply time.
+Emission: agents with the `event:emit` capability call `murrmure_emit_event`. Declarations in `.mrmr/space/events.yaml` gate emittable types at apply time. Platform `mrmr.meeting.said` / `closed` do **not** need `events.yaml`. Meeting events **must** carry `session_id`; delivery **attaches** to that session (`notify_live` if a seat assignment exists) — they must not `createSession`.
 
 **Dedup drop reason enum:** `duplicate_business_key` | `duplicate_event_id` | `disabled` | `policy_denied`
 

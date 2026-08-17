@@ -1,0 +1,17 @@
+{
+  "description": "Chair closed resolves the bound meeting step; non-chair denied",
+  "http": {
+    "method": "POST",
+    "path": "/v1/sessions/ses_meeting/meeting/close",
+    "body": {
+      "reason": "goal reached",
+      "outcome_text": "Use cursor-based pagination"
+    }
+  },
+  "expect": {
+    "http_status": 200,
+    "journal_type": "mrmr.meeting.closed",
+    "step_branch": "completed",
+    "non_chair_code": "MEETING_CHAIR_REQUIRED"
+  }
+}

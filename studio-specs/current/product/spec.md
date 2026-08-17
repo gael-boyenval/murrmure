@@ -182,6 +182,7 @@ v2 draft overloaded **Session** with five jobs: correlation id, state machine, e
 | `status` | **Derived** from child runs: `active`, `completed`, `partial_failure`, `failed`, `cancelled` |
 | `created_by` | Actor or `{ type: "hook", hook_id }` / `{ type: "flow", flow_id }` |
 | `spaces_touched` | Denormalized list for ACL filter and space home |
+| Meeting | Optional room on this session (roster, transcript, `mrmr.meeting.*`). Status is the meeting snapshot, not `deriveSessionStatus`. See [meetings/spec.md](../meetings/spec.md). |
 
 Session is **mutable** for metadata (title, subject, watchers). It does **not** own step progress directly — Runs do.
 
@@ -788,6 +789,11 @@ Hub journal builder derives `subject` from ids — authors must not supply confl
 | `mrmr.artifact.transferred` | Bytes materialized |
 | `mrmr.hook.delivered` | Hook ran |
 | `mrmr.flow.attached` | Graph bound to session |
+| `mrmr.meeting.convened` | Session became a room (roster + chair + goal) |
+| `mrmr.meeting.said` | Seat spoke (hub-stamped `from`) |
+| `mrmr.meeting.delivered` | Hub wake/notify succeeded for one target seat |
+| `mrmr.meeting.delivery_failed` | Hub wake/notify failed for one target seat |
+| `mrmr.meeting.closed` | Chair or human closed the room |
 
 ### 8.3 Run step memo (projection table)
 
@@ -1018,6 +1024,10 @@ Catalog = connection-filtered platform tools. Runtime onboarding flow:
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
 | `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
 | `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
+| `murrmure_list_personas` | `space:read` | `GET /v1/spaces/{id}/personas` — ads only |
+| `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` |
+| `murrmure_meeting_transcript` | roster space or `journal:read` | `GET /v1/sessions/{id}/transcript` |
+| `murrmure_emit_event` | `event:emit` | Journal-first emit; `session_id` required for `mrmr.meeting.*` |
 
 Removed MCP tools (legacy complete-action MCP tool, removed public invoke MCP tool,
 legacy gate-wait MCP tool, legacy gate-resolve MCP tool,

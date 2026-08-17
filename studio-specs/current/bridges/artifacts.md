@@ -39,7 +39,7 @@ Idempotency: same `source_space_id` + content digest returns the existing manife
 
 ### `GET /v1/artifacts/{transfer_id}?space_id=spc_…`
 
-Returns manifest metadata when the requester space or actor is listed in `authorized_readers`.
+Returns manifest metadata when the requester space or actor is listed in `authorized_readers`. Meeting `said` artifacts expand `authorized_readers` to roster **spaces**.
 
 Scopes: `blob:read`
 

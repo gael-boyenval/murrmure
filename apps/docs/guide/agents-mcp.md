@@ -132,4 +132,4 @@ discovery, locked/missing credential, revoked or mismatched connection, and an
 unreachable Hub.
 
 See [MCP tools reference](../reference/mcp-tools) and the installed skill's
-`reference/mcp.md`.
+`reference/mcp.md`. Meeting walkthrough: [Tutorial 1b](./tutorials/02-meetings/).

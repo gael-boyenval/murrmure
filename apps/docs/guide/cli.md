@@ -48,7 +48,7 @@ Run `mrmr --help` for the full tree. Top-level groups:
 | `hub` | Operator exports |
 | `runtime` | Events, gates, waits, audit |
 | `flow` | Indexed `flow run` + local validate helpers |
-| `meeting` | `meeting start` — convene a room (`Requires: flow:run`) |
+| `meeting` | `meeting start` — convene a room (`Requires: flow:run`). Hands-on: [Tutorial 1b](./tutorials/02-meetings/) |
 | `view` | Scaffold custom view packages |
 | `setup` | First-run wizard (`mrmr setup`) |
 | `step` | Step-level runtime (`mrmr step resolve`) |

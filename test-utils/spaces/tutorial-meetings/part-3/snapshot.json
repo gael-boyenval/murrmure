@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "part": 3,
+  "extends": "../part-2/snapshot.json",
+  "files": {
+    "meeting-app/.mrmr/flows/api-shape/flow.manifest.yaml": "apiVersion: murrmure.flow/v1\nname: api-shape\ndescription: Agree the public list endpoint in a room, then stop.\n\ntriggers:\n  manual: true\n\nsteps:\n  - id: decide\n    description: Designer, QA, and researcher agree the API shape.\n    meeting:\n      participants:\n        - { space: \"spc_PASTE_APP\", persona: designer }\n        - { space: \"spc_PASTE_APP\", persona: qa }\n        - { space: \"spc_PASTE_RESEARCH\", persona: researcher }\n      chair: { human: true }\n      goal: Pick an approach for the public list endpoint\n"
+  },
+  "snippets": {
+    "part-3-flow": "apiVersion: murrmure.flow/v1\nname: api-shape\ndescription: Agree the public list endpoint in a room, then stop.\n\ntriggers:\n  manual: true\n\nsteps:\n  - id: decide\n    description: Designer, QA, and researcher agree the API shape.\n    meeting:\n      participants:\n        - { space: \"spc_PASTE_APP\", persona: designer }\n        - { space: \"spc_PASTE_APP\", persona: qa }\n        - { space: \"spc_PASTE_RESEARCH\", persona: researcher }\n      chair: { human: true }\n      goal: Pick an approach for the public list endpoint\n"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "description": "said to one seat — one delivered receipt; other seats idle",
+  "http": {
+    "method": "POST",
+    "path": "/v1/spaces/spc_app/events",
+    "body": {
+      "event_type": "mrmr.meeting.said",
+      "session_id": "ses_meeting",
+      "payload": {
+        "as_participant_id": "ptc_designer",
+        "to": { "participant_ids": ["ptc_researcher"] },
+        "text": "Need the last latency study."
+      }
+    }
+  },
+  "expect": {
+    "http_status": 200,
+    "journal_type": "mrmr.meeting.said",
+    "receipts": [{ "participant_id": "ptc_researcher", "status": "delivered" }],
+    "same_session": true
+  }
+}

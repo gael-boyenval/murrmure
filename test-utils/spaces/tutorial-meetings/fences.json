@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "pages": [
+    "apps/docs/guide/tutorials/02-meetings/index.md",
+    "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+    "apps/docs/guide/tutorials/02-meetings/02-personas.md",
+    "apps/docs/guide/tutorials/02-meetings/03-meeting-flow.md",
+    "apps/docs/guide/tutorials/02-meetings/04-run-and-read-the-room.md",
+    "apps/docs/guide/tutorials/02-meetings/05-wake-seats.md",
+    "apps/docs/guide/tutorials/02-meetings/06-talk-and-advance.md",
+    "apps/docs/guide/tutorials/02-meetings/07-headless-and-cleanup.md"
+  ],
+  "fences": [
+    {
+      "id": "part-1-app-space",
+      "page": "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+      "part": 2,
+      "snippet": "part-1-app-space",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-1-app-empty-handlers",
+      "page": "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+      "part": 2,
+      "snippet": "part-1-app-empty-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-1-research-space",
+      "page": "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+      "part": 2,
+      "snippet": "part-1-research-space",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-1-research-empty-handlers",
+      "page": "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+      "part": 2,
+      "snippet": "part-1-research-empty-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-2-app-personas",
+      "page": "apps/docs/guide/tutorials/02-meetings/02-personas.md",
+      "part": 2,
+      "snippet": "part-2-app-personas",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-2-research-personas",
+      "page": "apps/docs/guide/tutorials/02-meetings/02-personas.md",
+      "part": 2,
+      "snippet": "part-2-research-personas",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-3-flow",
+      "page": "apps/docs/guide/tutorials/02-meetings/03-meeting-flow.md",
+      "part": 3,
+      "snippet": "part-3-flow",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-5-research-handlers",
+      "page": "apps/docs/guide/tutorials/02-meetings/05-wake-seats.md",
+      "part": 5,
+      "snippet": "part-5-research-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-5-app-handlers",
+      "page": "apps/docs/guide/tutorials/02-meetings/05-wake-seats.md",
+      "part": 5,
+      "snippet": "part-5-app-handlers",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-6-flow",
+      "page": "apps/docs/guide/tutorials/02-meetings/06-talk-and-advance.md",
+      "part": 6,
+      "snippet": "part-6-flow",
+      "compare": "yaml"
+    },
+    {
+      "id": "part-6-implement-handler",
+      "page": "apps/docs/guide/tutorials/02-meetings/06-talk-and-advance.md",
+      "part": 6,
+      "snippet": "part-6-implement-handler",
+      "compare": "yaml"
+    }
+  ]
+}

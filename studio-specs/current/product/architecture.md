@@ -90,6 +90,7 @@ Adapters & products:
 | Journal | `contracts/journal/cloudevents.ts` |
 | RunStepMemo | `contracts/entities/run-step-memo.ts` + `hub-core/projections/step-memo.ts` |
 | View | *(not stored)* — shell + optional `view-sdk` |
+| Meeting | `contracts/entities/meeting.ts` + `hub-core/meetings/` — session-as-room; chat is shell Transcript, not a View |
 
 ---
 
@@ -118,6 +119,7 @@ Architecture review items P1–P6, U1–U6, O1–O3, F1–F3 are normative in [s
 | Session owns step state | Runs + step memo own execution state |
 | Hub runs LLM loop | Out of scope |
 | Assume declarative `gate` steps run | Engine dispatches invoke/start_flow only until backlog B1 |
+| Chat is a View | Meeting talk is shell Transcript on `/sessions/:id`. A View is optional domain validation only. |
 
 ---
 

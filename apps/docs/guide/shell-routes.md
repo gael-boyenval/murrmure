@@ -53,5 +53,6 @@ When no `view_resolver` is bound, the step shows why it is waiting with no form 
 ## Next
 
 - [Murrmure Desktop](./desktop)
+- [Meetings](./meetings)
 - [Review workflow](./review-workflow)
 - [View SDK](../reference/view-sdk)

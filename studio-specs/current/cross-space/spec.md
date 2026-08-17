@@ -1,6 +1,6 @@
 # Studio cross-space queries
 
-Exposes hub **Ask/Answer** protocol on HTTP and MCP so agents perform typed cross-space reads without `emit_event` hacks.
+Exposes hub **Ask/Answer** protocol on HTTP and MCP so agents perform typed cross-space reads without `emit_event` hacks. Meetings are free `said` on a session — not `query_ask` ([meetings/spec.md](../meetings/spec.md)).
 
 Hub event types (unchanged): `ask` · `answer` · `query_failed`
 

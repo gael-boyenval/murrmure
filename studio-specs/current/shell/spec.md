@@ -85,7 +85,46 @@ A meeting is a session. Humans read talk on `/sessions/:id` — not a space View
 - Closed meetings stay readable (historical).
 - Access is Sessions / space-home recent. Start is Run / MCP / CLI — no shell wizard.
 
-See [plans/2026-08-17-meetings/shell-lens.md](../../plans/2026-08-17-meetings/shell-lens.md) for the design notes.
+### Must show
+
+- Session title, opaque goal text, `open` / `closed`
+- Roster: persona + space (not raw `ptc_*` as the only label; id available in detail)
+- Each `said`: from, resolved `to` (names, or “everyone” when `all: true`), text, time / seq
+- `in_reply_to` as a thread hook (indent or “re: …”), not a second product
+- Artifact refs: **name + authorized open/download** (existing artifact routes). No in-shell PR/diff renderer
+- Per-target receipts (`delivered` / `failed`)
+- Seat status `working` when a live assignment exists
+
+### Must not
+
+- Inline the raw journal (`hook.delivered`, `run.started`)
+- Paste full artifact bytes into the pane
+- Invent a compose box for operators to impersonate seats
+- Hide the transcript because a validation View is open
+
+### Human actions
+
+| Who | Action |
+|-----|--------|
+| Human chair | **Close** (reason / outcome optional). Same protocol as `mrmr.meeting.closed`. |
+| Anyone with `journal:read` | Read transcript, open artifacts they are allowed to read |
+| Human seat speaking | **Out.** No synthesized `said` form |
+
+Needs-you: only if a human chair must close. Do not badge every `said`.
+
+### Validation View (not the chat)
+
+If the goal needs a human to **validate** something agents produced (PR, spec artifact, preview), bind a `view_resolver` on a **validation** step. ViewCanvasHost takes the Review tab. Transcript stays. Do not bind a chat View on the meeting step.
+
+### Acceptance
+
+1. Meeting session `/sessions/:id` shows Transcript by default; no `view_resolver` required.
+2. Messages are human-readable (persona + space, text, to/all, receipts). `/logs` is not the primary chat.
+3. Artifact on a message is a link, not a built-in review UI.
+4. Bound validation View does not remove the Transcript tab.
+5. No compose control. Human chair can Close. Non-chair Close denied.
+6. Closed meeting remains readable (historical).
+7. No `/meetings` route. Start is Run / MCP / CLI, not a shell wizard.
 
 ---
 

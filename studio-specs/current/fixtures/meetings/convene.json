@@ -1,0 +1,23 @@
+{
+  "description": "Convene three seats on one session — two personas in app + researcher in research",
+  "http": {
+    "method": "POST",
+    "path": "/v1/meetings",
+    "body": {
+      "title": "API shape",
+      "goal": "Pick an approach for the public list endpoint",
+      "participants": [
+        { "space_id": "spc_app", "persona": "designer" },
+        { "space_id": "spc_app", "persona": "qa" },
+        { "space_id": "spc_research", "persona": "researcher" }
+      ],
+      "chair": { "space_id": "spc_app", "persona": "designer" }
+    }
+  },
+  "expect": {
+    "http_status": 200,
+    "session_id_prefix": "ses_",
+    "roster_count": 3,
+    "journal_type": "mrmr.meeting.convened"
+  }
+}

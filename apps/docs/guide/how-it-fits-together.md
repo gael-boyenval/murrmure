@@ -87,7 +87,7 @@ CI/team/production boundaries.
 | **Grant** | Scoped permission definition for an agent identity; minting produces a token. |
 | **Flow** | Workflow manifest in `.mrmr/flows/` indexed per space via apply |
 | **Handler** | Space-owned execution binding in `handlers.yaml`, bound by `on::key` (`contract_keys` is prompt-scope) |
-| **Session / Run** | Correlation container and one flow execution; human steps pause runs |
+| **Session / Run** | Correlation container and one flow execution; a meeting session is the room — agents `said` / pull Transcript |
 | **ViewCanvasHost** | Shell region that embeds custom checkpoint views (primary human UX) |
 | **Gate** | Human approval checkpoint (imperative API or orchestration attach) |
 
@@ -97,4 +97,5 @@ CI/team/production boundaries.
 - [Installation and dependencies](./installation)
 - [Space handlers](./space-handlers)
 - [Connect your agent](./agents-mcp)
+- [Meetings](./meetings)
 - [Quick start](./quick-start)

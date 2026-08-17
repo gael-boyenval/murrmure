@@ -2,7 +2,7 @@
 
 Hands-on walkthroughs that teach **indexed flows** from an empty folder. You write every manifest, handler, view, and event binding yourself — no pre-built flow packages, no "clone the repo and skip ahead."
 
-Each tutorial ends with a working workflow in **ViewCanvasHost** (custom views in the primary canvas), agent MCP grants, and `mrmr space apply`.
+Tutorial **1a** ends in **ViewCanvasHost** (custom views in the primary canvas). Tutorial **1b** ends in the session **Transcript**. Both use agent MCP grants and `mrmr space apply`.
 
 Follow each part in order — build every file yourself from the steps and snippets in the tutorial.
 
@@ -11,8 +11,11 @@ Follow each part in order — build every file yourself from the steps and snipp
 | | Tutorial | You learn |
 |---|----------|-----------|
 | **1a** | [First flow (v3) — start here](./01-local-preview-review-v3/) | Desktop + space · flow · view · runs · build · cleanup (6 parts) |
+| **1b** | [Meetings](./02-meetings/) | Two spaces · personas · Transcript · said · close → next step (7 parts) |
 
-**Tutorial 1a** is the only active introductory path. It covers the clean protocol end to end: launch Desktop, create a space, write a flow manifest, build a custom intake view, run and read the journal, then extend the graph with shell + agent handlers and clean up with a commit.
+**Tutorial 1a** is the first active introductory path. It covers the clean protocol end to end: launch Desktop, create a space, write a flow manifest, build a custom intake view, run and read the journal, then extend the graph with shell + agent handlers and clean up with a commit.
+
+**Tutorial 1b** is the second path — two spaces, a `meeting:` step, shell Transcript, and chair close. Index label **1b**; folder **`02-meetings/`** so it does not collide with the retired v2 tutorial that was also called “1b.”
 
 The earlier v2 tutorials (1b full preview-review, 2 multi-agent brief, 3 daily-brief trigger) described the removed v2 runtime (`action:invoke`, `gate:resolve`, checkpoint gates, base64 artifact upload) and were retired in the Task 15 cutover. They are preserved as a non-normative audit trail at [`studio-specs/archives/superseded/tutorials/`](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/archives/superseded/tutorials/README.md) — do not follow them.
 
@@ -38,6 +41,8 @@ Murrmure separates **who does what** from **how work is coordinated**:
 | **Handler** | Space execution entry in `.mrmr/space/handlers.yaml` — bound by `on::key` (`on: step.opened::{flow_name}.{step_id}`); `contract_keys` is prompt-scope only |
 | **Contract key** | Protocol address `{flow_ref}.{step_id}` used to compile handler prompt scope; dispatch uses `on::key` |
 | **View** | React UI in `.mrmr/views/{id}/` — opens in **ViewCanvasHost** at human steps |
+| **Persona** | Space-local seat ad in `.mrmr/space/personas.yaml` — hub indexes blurbs, does not dispatch |
+| **Meeting / Transcript** | Session-as-room; humans read `/sessions/:id` Transcript (shell), not a View |
 | **Grant** | Agent token (`tok_…`) — MCP tools filtered by capabilities |
 | **Emittable event** | Declared hub event (e.g. `brief.published`) — triggers event handlers after apply |
 

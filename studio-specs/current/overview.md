@@ -8,7 +8,7 @@ A **local-first hub runtime** where humans and agents coordinate through **sessi
 
 | Surface | Role |
 |---------|------|
-| **Murrmure Desktop** | Primary human path — gates, runs, notifications, space home |
+| **Murrmure Desktop** | Primary human path — gates, runs, notifications, space home; meeting **Transcript** on `/sessions/:id` |
 | **CLI (`mrmr`)** | Admin — spaces, grants, `.mrmr/` init/link/apply, federation, workers |
 
 MCP (`murrmure-mcp`) is the agent integration path. **Murrmure Desktop bundles** `@murrmure/mcp-bridge` and publishes the bridge path in `~/.murrmure/hubs/shared.json`; headless/CI installs the package globally.
@@ -18,7 +18,7 @@ MCP (`murrmure-mcp`) is the agent integration path. **Murrmure Desktop bundles**
 | Entity | ID prefix | Meaning |
 |--------|-----------|---------|
 | **Space** | `spc_*` | Isolation boundary; indexed from `.mrmr/` |
-| **Session** | `ses_*` | Correlation container for related work |
+| **Session** | `ses_*` | Correlation container for related work; also the meeting room when convened |
 | **Run** | `run_*` | Execution unit (flow steps, handlers, gates) |
 | **Gate** | `gate_*` | Human decision point on a run |
 | **Flow** | `flw_*` | Indexed from `.mrmr/flows/*/flow.manifest.yaml` |

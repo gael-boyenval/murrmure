@@ -101,7 +101,7 @@ agent run = harness × task × context × space
 | Context | prompt, skills | **Never** — outside Murrmure config |
 | Space | workspace directory | User owns content; Murrmure indexes path + ACL |
 
-**Pushback noted (compatible with philosophy):** one space may later host **multiple agent roles** (e.g. reviewer vs implementer) via subdirs like `agents/reviewer/` — does not require space ≡ single agent.
+**Shipped (Arc 2):** one space hosts **multiple personas** (meeting seats) via `.mrmr/space/personas.yaml` — [meetings/spec.md](../meetings/spec.md) · [ADR-016](../../ADR/ADR-016-meeting-protocol.md). Does not require space ≡ single agent. Prompts, harness, and skills stay space-owned.
 
 ---
 
@@ -296,7 +296,8 @@ my-backend-space/
   .mrmr/
     space/
       space.yaml        # slug, tags, link block (space_id + host)
-      handlers.yaml     # step + event handlers (only indexed file)
+      handlers.yaml     # step + event handlers
+      personas.yaml     # optional seat ads (not dispatch)
     flows/              # optional — local or global orchestration (protocol only)
     views/              # optional — view packages (decoupled from flows)
   .mrmr.temp/           # gitignored exchange mailbox
@@ -612,7 +613,6 @@ Captured for later; **do not implement** without a new plan slice:
 | Space directory sync | `watch`, `mrmr space apply`, git hook — how hub learns space root path |
 | Cross-hub artifact passthrough | XS1+; remote orchestrator on different computer |
 | Flow marketplace / remote registry | Out of scope |
-| Multiple agents per space | Specified as **personas / meeting seats** — [plans/2026-08-17-meetings/](../../plans/2026-08-17-meetings/) · [ADR-016](../../ADR/ADR-016-meeting-protocol.md). Unshipped. |
 | Numeric inline size threshold | TBD (journal cap ~64 KiB for envelope) |
 | Replace postMessage `hub-fetch` bridge | Optimization only; desktop same-origin helps |
 | Session id encoding (path vs opaque) | 2026-06-28 |
@@ -642,4 +642,4 @@ Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — differe
 | [config/spec.md](../config/spec.md) | Configure shell routes |
 | [desktop/spec.md](../desktop/spec.md) | Local single-URL desktop |
 | [space-flow-protocol-v2.md](../../archives/plans/space-flow-protocol-v2.md) | Draft evolution plan |
-| [meetings plan (draft)](../../plans/2026-08-17-meetings/README.md) | Session-as-room, personas, async talk — unshipped |
+| [meetings/spec.md](../meetings/spec.md) | Session-as-room, personas, async talk — shipped |

@@ -44,6 +44,7 @@ Additional phase 01 fixture: `fixtures/space-apply/checkpoint-on-resolve-missing
 | Zero retired install guidance in `apps/docs/` | 10-U6 | `pnpm check:legacy-install-docs` |
 | Clean first boot and production import boundaries | Tutorial v3 Task 01 | `pnpm check:clean-state` |
 | Tutorial pages (8 — v3 tutorial + tutorials index) | 10-T4 + TV3-F | `packages/cli/test/docs-proof.test.ts` |
+| Tutorial 1b meetings pages + fences | Meetings slice 8 | `packages/cli/test/tutorial-meetings-harness.test.ts` + `docs-proof.test.ts` |
 
 ## Flow runtime (CR)
 
@@ -154,6 +155,18 @@ Requirements:
 - Feature slices rerun the smallest affected contiguous tutorial path. Release
   acceptance runs Parts 1–6 verbatim from a clean checkout, including paths with
   spaces and apostrophes.
+
+## Meetings
+
+| Row | Proves | Test / fixture |
+|-----|--------|----------------|
+| Convene two personas + one other space | Three `ptc_*`, one `ses_*` | `hub-core` meetings convene tests · `fixtures/meetings/convene.json` |
+| `said` to one seat | That handler only; transcript `delivered` | `fixtures/meetings/said.json` |
+| Join-once | Second `said` same `session_id`; `notify_live` | hub-core / mcp-bridge meeting notify tests |
+| Close XOR resolve | Chair `closed` resolves bound step; non-chair `MEETING_CHAIR_REQUIRED` | `fixtures/meetings/close.json` · `step-resolve-meeting.test.ts` |
+| Transcript pull | `since_seq` is `meeting_seq`; not `journal_query` | `fixtures/meetings/transcript.json` |
+| Shell Transcript | `/sessions/:id` default; no compose; no `/meetings` | [shell/spec.md](./shell/spec.md) |
+| Tutorial 1b fences | Progressive snapshots match pages | `packages/cli/test/tutorial-meetings-harness.test.ts` |
 
 ## Gate
 

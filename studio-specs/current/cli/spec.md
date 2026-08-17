@@ -111,6 +111,10 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `skill version` | impl | none |
 | `step resolve` | impl | env bindings (see below) |
 
+### `mrmr meeting start`
+
+Convene a headless room (`POST /v1/meetings`). Requires `flow:run`. Flags: `--title` (required), `--goal`, `--chair space[:persona]|human`, repeatable `--participant space[:persona]`, optional `--session`. Same roster rules as the HTTP body. No wizard. See [meetings/spec.md](../meetings/spec.md).
+
 **Separate binary:** `murrmure-mcp` from `@murrmure/mcp-bridge` — MCP stdio bridge. Local client config pins `--connection <con_…>`; Hub comes from discovery; credential from the OS store.
 
 **Install / command resolution:**

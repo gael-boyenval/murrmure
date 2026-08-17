@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "part": 5,
+  "extends": "../part-3/snapshot.json",
+  "files": {
+    "meeting-app/.mrmr/space/handlers.yaml": "version: 1\nhandlers:\n  - id: meeting-designer\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: designer\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the designer seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n\n  - id: meeting-qa\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: qa\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the QA seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n",
+    "meeting-research/.mrmr/space/handlers.yaml": "version: 1\nhandlers:\n  - id: meeting-researcher\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: researcher\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the researcher seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n"
+  },
+  "snippets": {
+    "part-5-app-handlers": "version: 1\nhandlers:\n  - id: meeting-designer\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: designer\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the designer seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n\n  - id: meeting-qa\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: qa\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the QA seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n",
+    "part-5-research-handlers": "version: 1\nhandlers:\n  - id: meeting-researcher\n    on:\n      event:\n        type: mrmr.meeting.said\n        participant: researcher\n    type: mcp_session\n    complete: explicit\n    prompt: |\n      You are the researcher seat in this meeting.\n      Pull the transcript if you need prior turns. Do not dump the journal.\n"
+  }
+}

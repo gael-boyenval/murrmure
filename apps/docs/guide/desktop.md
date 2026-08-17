@@ -109,6 +109,7 @@ CLI flow development is unchanged: keep Desktop open, then run `mrmr flow dev`, 
 ## Next
 
 - [Quick start](./quick-start) — Desktop → `mrmr setup` → Run
+- [Meetings](./meetings) — Transcript on `/sessions/:id` (meeting badge)
 - [CLI](./cli) — setup, connections, and automation
 - [Shell UI routes](./shell-routes) — observer screens inside Desktop
 - [Connect your agent](./agents-mcp)

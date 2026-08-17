@@ -8,6 +8,7 @@ import { type FlowManifest } from "@murrmure/contracts";
 import { readSpaceApplyBundle } from "../src/lib/space-directory.js";
 import { buildScaffoldedView } from "./helpers/link-view-scaffold-deps.js";
 import { verifyTutorialV3Docs } from "./helpers/tutorial-v3-docs.js";
+import { verifyTutorialMeetingsDocs } from "./helpers/tutorial-meetings-docs.js";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
@@ -23,6 +24,14 @@ const TUTORIAL_PAGES = [
   "apps/docs/guide/tutorials/01-local-preview-review-v3/04-run-and-understand.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md",
   "apps/docs/guide/tutorials/01-local-preview-review-v3/06-cleanup-and-commit.md",
+  "apps/docs/guide/tutorials/02-meetings/index.md",
+  "apps/docs/guide/tutorials/02-meetings/01-two-spaces.md",
+  "apps/docs/guide/tutorials/02-meetings/02-personas.md",
+  "apps/docs/guide/tutorials/02-meetings/03-meeting-flow.md",
+  "apps/docs/guide/tutorials/02-meetings/04-run-and-read-the-room.md",
+  "apps/docs/guide/tutorials/02-meetings/05-wake-seats.md",
+  "apps/docs/guide/tutorials/02-meetings/06-talk-and-advance.md",
+  "apps/docs/guide/tutorials/02-meetings/07-headless-and-cleanup.md",
 ];
 
 const LEGACY_RUNTIME_PATTERN =
@@ -143,6 +152,10 @@ describe("phase 10 docs proof (10-T*)", () => {
 
   test("TUTORIAL-V3-00 — stable fences match progressive fixtures", () => {
     expect(verifyTutorialV3Docs(REPO_ROOT)).toEqual([]);
+  });
+
+  test("TUTORIAL-MEETINGS-00 — stable fences match progressive fixtures", () => {
+    expect(verifyTutorialMeetingsDocs(REPO_ROOT)).toEqual([]);
   });
 
   test("10-T1 — preview-review-v2 example passes apply lint (v2.2 step contracts)", () => {

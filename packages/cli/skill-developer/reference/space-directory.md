@@ -10,6 +10,7 @@ my-space/
     space/
       space.yaml              # optional slug hint; link.space_id after link
       handlers.yaml           # execution handlers (required for agent steps)
+      personas.yaml           # optional seat ads (handles + blurbs; not dispatch)
       bindings.yaml           # optional federation / worker bindings
       events.yaml             # optional emittable event catalog
     flows/{name}/flow.manifest.yaml

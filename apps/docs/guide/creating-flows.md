@@ -3,7 +3,7 @@
 ::: tip Start here
 **New workflows** use a **`.mrmr/`** directory indexed with **`mrmr space apply`**.
 
-→ **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, intake flow, view, runs, command + agent handlers (6 parts).
+→ **[Tutorial 1a — First flow (v3)](./tutorials/01-local-preview-review-v3/)** — launch Desktop, intake flow, view, runs, command + agent handlers (6 parts). Then **[Tutorial 1b — Meetings](./tutorials/02-meetings/)** for rooms.
 
 → **[Known gaps](./known-gaps)** — deferred product surface.
 :::

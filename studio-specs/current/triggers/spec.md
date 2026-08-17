@@ -2,7 +2,7 @@
 
 Event-driven trigger registration, templates, and reactions **without a human prompt**. Builds on [config/spec.md](../config/spec.md) trigger form and hub async dispatcher.
 
-**Normative path (post-cutover):** Space reactions live in `.mrmr/space/handlers.yaml` alongside step lifecycle handlers, declared with `on: event: { type, source? }` and empty or auxiliary `contract_keys`. Indexed on `mrmr space apply`. Implementation: `studio-hub-core/src/hooks/` — matcher + dispatch with mandatory Session + Run + `mrmr.hook.delivered`. See [bridges/triggers.md](../bridges/triggers.md) and [bridges/handlers.md](../bridges/handlers.md).
+**Normative path (post-cutover):** Space reactions live in `.mrmr/space/handlers.yaml` alongside step lifecycle handlers, declared with `on: event: { type, source? }` and empty or auxiliary `contract_keys`. Indexed on `mrmr space apply`. Implementation: `studio-hub-core/src/hooks/` — matcher + dispatch with mandatory Session + Run + `mrmr.hook.delivered`. Meeting events attach to the given `session_id` (`notify_live` when a seat assignment exists) instead of `createSession`. See [bridges/triggers.md](../bridges/triggers.md) and [bridges/handlers.md](../bridges/handlers.md).
 
 ```yaml
 # .mrmr/space/handlers.yaml

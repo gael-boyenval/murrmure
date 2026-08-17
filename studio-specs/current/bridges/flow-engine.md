@@ -25,7 +25,7 @@ Maps rev-1 flow manifest semantics to hub runtime behavior. See [product/spec.md
 | `templates.ts` | `{{input.*}}`, `{{steps.*}}`, `{{event.*}}` resolution |
 | `step-contract-compile.ts` | YAML → `StepContractCatalog`; nested flatten |
 | `step-resolve.ts` | Unified `resolve_step` handler; nested child return |
-| `step-open.ts` | Open step + exclusive handler assignment dispatch |
+| `step-open.ts` | Open step + exclusive handler assignment dispatch; `meeting:` convenes on this session |
 | `open-child-step.ts` | Atomic parent yield, credential revocation, direct-child activation |
 | `step-catalog.ts` | Catalog lookups; nested children ordering |
 | `step-contract-slice.ts` | Runtime injection slice + `active-step-contract.json` |
@@ -87,6 +87,10 @@ Run graph (`GET /v1/runs/{id}/graph`) renders nested nodes when `step_contract_c
 | POST | `/v1/gates/{gate_id}/resolve` | Orchestration gate approval only (`flow:run`, space-bound) |
 | GET | `/v1/spaces/{id}/home` | Six space-home sections |
 | GET | `/v1/runs/{id}/graph` | Manifest overlay + step memo + matrix lanes |
+
+## Meeting step
+
+Opening a step with a `meeting:` facet convenes on **this** session (`MEETING_ALREADY_OPEN` if one is already open). The step stays `working` until `mrmr.meeting.closed`; the engine then `resolveFlowStep` (`completed`, or `failed` when `data.failed: true`). Chair does not also call `resolve_step`. See [meetings/spec.md](../meetings/spec.md) and [step-contract.md](./step-contract.md).
 
 ## CLI
 

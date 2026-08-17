@@ -1,0 +1,15 @@
+{
+  "description": "Transcript is a session projection over mrmr.meeting.* with meeting_seq cursor",
+  "http": {
+    "method": "GET",
+    "path": "/v1/sessions/ses_meeting/transcript",
+    "query": { "since_seq": 0 }
+  },
+  "expect": {
+    "http_status": 200,
+    "status": "open",
+    "roster_count": 3,
+    "since_seq": 0,
+    "not_journal_query": true
+  }
+}

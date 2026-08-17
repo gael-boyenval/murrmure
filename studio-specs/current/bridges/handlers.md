@@ -49,7 +49,7 @@ handlers:
 |-------|-------|
 | `id` | Stable handler id (unique within the space) |
 | `description` | Optional human-facing summary shown in space home / operator UI |
-| `on` | `step.opened::{flow_name}.{qualified_step_id}` \| `step.resolved::…` \| `event: { type, source? }`. Bare `step.opened` is rejected. |
+| `on` | `step.opened::{flow_name}.{qualified_step_id}` \| `step.resolved::…` \| `event: { type, source?, participant? }`. Bare `step.opened` is rejected. |
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls `resolve_step` after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
@@ -57,6 +57,12 @@ handlers:
 | kill-on policy | **Removed.** Assignment termination is runtime-owned; authored kill-on policy is rejected. |
 
 ---
+
+## Meeting event handlers
+
+`on.event.participant` matches the seat **persona**. If the space declares personas, a `mrmr.meeting.said` handler that omits `participant` is rejected (`PERSONA_HANDLER_UNSCOPED`). Prefer `type: mcp_session` + `complete: explicit`. `complete: auto` on a said handler is `MEETING_HANDLER_COMPLETE_AUTO`.
+
+Platform types `mrmr.meeting.said` / `mrmr.meeting.closed` are emittable without listing them in `events.yaml`. First `said` starts one assignment; later `said` notifies that assignment (`murrmure/control.meeting_said` / `notify_live`). See [meetings/spec.md](../meetings/spec.md).
 
 ## Run policies
 
