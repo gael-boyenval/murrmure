@@ -145,6 +145,81 @@ describe("index/parse-flow-manifest", () => {
     }
   });
 
+  test("accepts top-level meeting: facet", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [
+        {
+          id: "decide",
+          meeting: {
+            participants: [{ space: "{{input.app_space}}", persona: "designer" }],
+            chair: { space: "{{input.app_space}}", persona: "designer" },
+            goal: "{{input.goal}}",
+          },
+        },
+        { id: "implement" },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.steps[0]?.meeting?.participants[0]?.space).toBe("{{input.app_space}}");
+  });
+
+  test("rejects nested meeting:", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [
+        {
+          id: "parent",
+          steps: [
+            {
+              id: "child",
+              meeting: {
+                participants: [{ space: "spc_app", persona: "designer" }],
+                chair: { human: true },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("INVALID_FLOW_MANIFEST");
+  });
+
+  test("rejects unknown meeting keys", () => {
+    const result = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [
+        {
+          id: "decide",
+          meeting: {
+            participants: [{ space: "spc_app" }],
+            chair: { human: true },
+            turns: 3,
+          },
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("INVALID_FLOW_MANIFEST");
+  });
+
+  test("still rejects wait: and gate: step kinds", () => {
+    const wait = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [{ id: "a", wait: { type: "manual" } }],
+    });
+    expect(wait.ok).toBe(false);
+    if (!wait.ok) expect(wait.code).toBe("INVALID_FLOW_MANIFEST");
+
+    const gate = parseFlowManifest({
+      ...VALID_MANIFEST,
+      steps: [{ id: "a", gate: { form: { id: "x" } } }],
+    });
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.code).toBe("LEGACY_STEP_KIND");
+  });
+
   test("accepts omitted branches (defaults injected at compile, not parse)", () => {
     const result = parseFlowManifest({
       ...VALID_MANIFEST,

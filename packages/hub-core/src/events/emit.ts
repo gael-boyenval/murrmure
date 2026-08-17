@@ -11,6 +11,7 @@ import { InlinePayloadExceededError } from "../journal/append.js";
 import { appendMeetingEvent } from "../meetings/journal.js";
 import { persistClosedSnapshot, prepareMeetingClosed } from "../meetings/close.js";
 import { dispatchMeetingSaidTargets } from "../meetings/dispatch.js";
+import { maybeResolveBoundMeetingStep } from "../meetings/resolve-bound-step.js";
 import { prepareMeetingSaid } from "../meetings/said.js";
 
 export const HUB_ONLY_EMIT_DENYLIST = [
@@ -188,6 +189,14 @@ export async function emitAndDeliver(
       if (sessionId) {
         await deps.liveAssignments?.revoke({
           session_id: sessionId.startsWith("ses_") ? sessionId : `ses_${sessionId}`,
+        });
+        await maybeResolveBoundMeetingStep(deps, {
+          meeting: closedPrepared.meeting,
+          failed: payload.failed === true,
+          actor_id: input.actor_id,
+          token_id: input.token_id,
+          space_id: spaceId,
+          session_id: sessionId,
         });
       }
     } else {

@@ -13,6 +13,11 @@
 
 ### Added
 
+- `meeting:` flow step: compile copies the facet onto the catalog entry;
+  `openStepContract` convenes on this `session_id` and writes `bound_run_id` /
+  `bound_step_id`; close (HTTP or `MEETING_CLOSED` emit) calls
+  `resolveFlowStep` (`failed` if `data.failed: true`). Apply rejects
+  `view_resolver` and `complete: auto` on that step.
 - Meeting room protocol: `conveneMeeting`, `prepareMeetingSaid`,
   `closeMeeting`, `appendMeetingEvent`, receipts, and
   `dispatchMeetingSaidTargets`. `emitAndDeliver` runs said/closed validators

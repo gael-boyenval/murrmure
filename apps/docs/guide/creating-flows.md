@@ -31,8 +31,11 @@ See [Tutorial 1a](./tutorials/01-local-preview-review-v3/) for the minimal path,
 ## Step contracts (v3, resolver-agnostic)
 
 New flows use a **resolver-agnostic step shape**: `id`, optional `description`,
-optional `branches`, and optional nested `steps` — no `role`, `presentation`, or
-resolver modality. Start conditions live under **`triggers`** (the only
+optional `branches`, optional nested `steps`, and an optional top-level
+`meeting:` facet — no `role`, `presentation`, or resolver modality. A meeting
+step convenes on the run's session; closing the room resolves the step
+(`completed`, or `failed` if the close says so). Do not put a `view_resolver`
+on that step. Start conditions live under **`triggers`** (the only
 start-condition field); the removed `start` and flow-level view binding fields are rejected.
 
 - **Normative bridge:** [step-contract.md](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/bridges/step-contract.md) (monorepo `studio-specs/current/bridges/step-contract.md`)

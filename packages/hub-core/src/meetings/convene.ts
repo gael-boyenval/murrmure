@@ -37,6 +37,8 @@ export type ConveneMeetingInput = MeetingConveneBody & {
   actor_id: string;
   token_id: string;
   convenor_space_id?: string;
+  bound_run_id?: string;
+  bound_step_id?: string;
 };
 
 export type ConveneMeetingResult =
@@ -166,6 +168,8 @@ export async function conveneMeeting(
     roster,
     convene_entry_id: journaled.entry_id,
     convene_meeting_seq: journaled.meeting_seq,
+    bound_run_id: input.bound_run_id,
+    bound_step_id: input.bound_step_id,
     updated_at: deps.clock.nowIso(),
   });
   if (!written.ok) return written;

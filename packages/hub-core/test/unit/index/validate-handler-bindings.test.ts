@@ -122,6 +122,47 @@ describe("index/validate-handler-bindings", () => {
     expect(result.code).toBe("DUPLICATE_FLOW_NAME");
   });
 
+  test("rejects view_resolver on a meeting step", () => {
+    const result = validateHandlerBindings(
+      input({
+        flows: [{ name: "api-shape", step_ids: ["decide", "implement"], meeting_step_ids: ["decide"] }],
+        handlers: [
+          {
+            id: "decide-view",
+            on: "step.opened::api-shape.decide",
+            type: "view_resolver",
+            view: "intake",
+            contract_keys: [],
+          },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("MEETING_STEP_VIEW_RESOLVER");
+  });
+
+  test("rejects complete: auto on step.opened for a meeting step", () => {
+    const result = validateHandlerBindings(
+      input({
+        flows: [{ name: "api-shape", step_ids: ["decide", "implement"], meeting_step_ids: ["decide"] }],
+        handlers: [
+          {
+            id: "decide-kickoff",
+            on: "step.opened::api-shape.decide",
+            type: "shell_spawn",
+            command: "echo",
+            complete: "auto",
+            contract_keys: [],
+          },
+        ],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.code).toBe("MEETING_HANDLER_COMPLETE_AUTO");
+  });
+
   test("resolves aliases against preserved flows not in the bundle (partial apply)", () => {
     const result = validateHandlerBindings(
       input({

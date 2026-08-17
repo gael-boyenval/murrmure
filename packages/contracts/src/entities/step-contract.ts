@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MeetingStepFacetSchema } from "./meeting.js";
 
 /**
  * Resolver-agnostic step contracts (v3).
@@ -163,6 +164,7 @@ export const StepContractCatalogEntrySchema = z.object({
   parent_id: z.string().nullable(),
   description: z.string().optional(),
   branches: z.record(StepCatalogBranchSchema),
+  meeting: MeetingStepFacetSchema.optional(),
 });
 
 export type StepContractCatalogEntry = z.infer<typeof StepContractCatalogEntrySchema>;

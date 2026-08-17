@@ -385,6 +385,9 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
       const bindingFlows = mergedFlowEntries.map((entry) => ({
         name: entry.name,
         step_ids: entry.step_contract_catalog?.step_ids ?? [],
+        meeting_step_ids: (entry.step_contract_catalog?.entries ?? [])
+          .filter((catalogEntry) => catalogEntry.meeting)
+          .map((catalogEntry) => catalogEntry.step_id),
       }));
       const bindingViews = (parsed.data.views ?? (current.views ?? []).map((row) => {
         const parsed = JSON.parse(row.payload_json) as { view_id?: string; build?: { dist_present: boolean; entry_present: boolean } };

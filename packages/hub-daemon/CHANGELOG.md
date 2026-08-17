@@ -15,6 +15,9 @@
 
 ### Added
 
+- Flow `meeting:` step: opening `decide` convenes on the run session; HTTP /
+  emit close resolves the bound step and advances the run. Apply passes
+  catalog meeting step ids into handler-binding validation.
 - `POST /v1/meetings` and `POST /v1/sessions/:id/meeting/close` convene and
   close rooms. MCP `murrmure_start_meeting` mirrors convene (`flow:run`).
 - `GET /v1/sessions/:id/transcript` and MCP `murrmure_meeting_transcript`

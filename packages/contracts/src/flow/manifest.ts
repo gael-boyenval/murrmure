@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CapabilitySchema } from "../grants/capability.js";
 import { GateFormSchema } from "../entities/gate.js";
+import { MeetingStepFacetSchema, type MeetingStepFacet } from "../entities/meeting.js";
 import {
   StepBranchDefinitionSchema,
   StepBranchMapSchema,
@@ -72,6 +73,7 @@ export const FlowStepSchema: z.ZodType<FlowStep> = z.lazy(() =>
     steps: z.array(StepContractManifestStepSchema).optional(),
     parallel: FlowParallelStepSchema.optional(),
     start_flow: FlowStartFlowStepSchema.optional(),
+    meeting: MeetingStepFacetSchema.optional(),
   }).strict(),
 );
 
@@ -82,6 +84,7 @@ export type FlowStep = {
   steps?: z.infer<typeof StepContractManifestStepSchema>[];
   parallel?: z.infer<typeof FlowParallelStepSchema>;
   start_flow?: z.infer<typeof FlowStartFlowStepSchema>;
+  meeting?: MeetingStepFacet;
 };
 
 export const FlowManifestSchema = z.object({

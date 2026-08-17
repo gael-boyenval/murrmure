@@ -1,5 +1,4 @@
-import type { HandlerSpec } from "@murrmure/contracts";
-import { parseHandlerStepBinding } from "@murrmure/contracts";
+import { MURRMURE_DENIAL_CODES, parseHandlerStepBinding, type HandlerSpec } from "@murrmure/contracts";
 
 export type HandlerBindingValidation =
   | { ok: true }
@@ -11,6 +10,8 @@ export interface BindingFlow {
   name: string;
   /** Canonical step ids offered by the flow. */
   step_ids: string[];
+  /** Catalog step ids that carry a `meeting:` facet. */
+  meeting_step_ids?: string[];
 }
 
 /** Candidate View descriptor for `view_resolver.view` resolution. */
@@ -84,6 +85,11 @@ export function validateHandlerBindings(input: ValidateHandlerBindingsInput): Ha
 
   const views = buildViewIndex(input.views);
   const openedResolversByAlias = new Map<string, HandlerSpec>();
+  const meetingAliases = new Set(
+    input.flows.flatMap((flow) =>
+      (flow.meeting_step_ids ?? []).map((stepId) => `${flow.name}.${stepId}`),
+    ),
+  );
 
   for (const handler of handlers) {
     const binding = parseHandlerStepBinding(handler.on);
@@ -109,6 +115,28 @@ export function validateHandlerBindings(input: ValidateHandlerBindingsInput): Ha
         };
       }
       openedResolversByAlias.set(binding.alias, handler);
+    }
+
+    if (meetingAliases.has(binding.alias) && handler.type === "view_resolver") {
+      return {
+        ok: false,
+        code: MURRMURE_DENIAL_CODES.MEETING_STEP_VIEW_RESOLVER,
+        handler_id: handler.id,
+        message: `view_resolver '${handler.id}' cannot bind meeting step '${binding.alias}'`,
+      };
+    }
+
+    if (
+      meetingAliases.has(binding.alias) &&
+      binding.lifecycle === "opened" &&
+      handler.complete === "auto"
+    ) {
+      return {
+        ok: false,
+        code: MURRMURE_DENIAL_CODES.MEETING_HANDLER_COMPLETE_AUTO,
+        handler_id: handler.id,
+        message: `Handler '${handler.id}' uses complete: auto on meeting step '${binding.alias}'`,
+      };
     }
 
     if (handler.type === "view_resolver") {

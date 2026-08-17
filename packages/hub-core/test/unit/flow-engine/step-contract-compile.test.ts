@@ -221,6 +221,32 @@ describe("flow-engine/step-contract-compile", () => {
     expect(parsed.code).toBe("LEGACY_STEP_KIND");
   });
 
+  test("persists meeting facet on catalog entry and still injects default branches", () => {
+    const facet = {
+      participants: [{ space: "{{input.app_space}}", persona: "designer" as const }],
+      chair: { space: "{{input.app_space}}", persona: "designer" as const },
+      goal: "{{input.goal}}",
+    };
+    const { catalog, warnings } = compileStepContractCatalog(
+      {
+        apiVersion: "murrmure.flow/v1",
+        name: "api-shape",
+        triggers: { manual: true },
+        steps: [
+          { id: "decide", description: "Agree", meeting: facet },
+          { id: "implement", description: "Build" },
+        ],
+      },
+      "flw_api_shape",
+    );
+    expect(warnings.filter((w) => w.code === "DEAD_STEP")).toEqual([]);
+    const decide = catalog!.entries.find((entry) => entry.step_id === "decide");
+    expect(decide?.meeting).toEqual(facet);
+    expect(decide?.branches.completed?.routes).toEqual([{ engine: "open", step_id: "implement" }]);
+    expect(decide?.branches.failed?.routes).toEqual([{ engine: "fail_run" }]);
+    expect(catalog!.entries.find((entry) => entry.step_id === "implement")?.meeting).toBeUndefined();
+  });
+
   test("catalog digest is stable for same manifest", () => {
     const a = compileStepContractCatalog(LINEAR_MANIFEST, "flw_x").catalog;
     const b = compileStepContractCatalog(LINEAR_MANIFEST, "flw_x").catalog;

@@ -30,6 +30,41 @@ export const MeetingConveneBodySchema = z.object({
   chair: MeetingChairSchema,
 });
 
+/** Authoring seat on a `meeting:` flow step. `space` may be a template. */
+export const MeetingStepSeatSchema = z
+  .object({
+    space: z.string().min(1),
+    persona: PersonaIdSchema.optional(),
+  })
+  .strict();
+
+export const MeetingStepChairHumanSchema = z
+  .object({
+    human: z.literal(true),
+  })
+  .strict();
+
+export const MeetingStepChairSeatSchema = z
+  .object({
+    space: z.string().min(1),
+    persona: PersonaIdSchema.optional(),
+  })
+  .strict();
+
+export const MeetingStepChairSchema = z.union([
+  MeetingStepChairHumanSchema,
+  MeetingStepChairSeatSchema,
+]);
+
+/** Optional top-level step facet. Nested `meeting:` is rejected by the nested step schema. */
+export const MeetingStepFacetSchema = z
+  .object({
+    participants: z.array(MeetingStepSeatSchema).min(1),
+    chair: MeetingStepChairSchema,
+    goal: z.string().optional(),
+  })
+  .strict();
+
 export const MeetingToParticipantsSchema = z
   .object({
     participant_ids: z.array(ParticipantIdSchema).min(1),
@@ -119,6 +154,9 @@ export const MeetingTranscriptSchema = z.object({
 export type MeetingRosterSeat = z.infer<typeof MeetingRosterSeatSchema>;
 export type MeetingChair = z.infer<typeof MeetingChairSchema>;
 export type MeetingConveneBody = z.infer<typeof MeetingConveneBodySchema>;
+export type MeetingStepSeat = z.infer<typeof MeetingStepSeatSchema>;
+export type MeetingStepChair = z.infer<typeof MeetingStepChairSchema>;
+export type MeetingStepFacet = z.infer<typeof MeetingStepFacetSchema>;
 export type MeetingTo = z.infer<typeof MeetingToSchema>;
 export type MeetingSaidData = z.infer<typeof MeetingSaidDataSchema>;
 export type MeetingClosedData = z.infer<typeof MeetingClosedDataSchema>;

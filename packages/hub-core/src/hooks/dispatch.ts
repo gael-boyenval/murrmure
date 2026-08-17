@@ -10,6 +10,7 @@ import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { addSpaceId, stripSpaceId } from "../bridge/ids.js";
 import { admitAndCreateRun, createSession, type SessionRunDeps } from "../run/service.js";
 import { startFlowRun, type FlowRunServiceDeps } from "../flow-engine/run-service.js";
+import type { FlowAdvanceDeps } from "../flow-engine/advance-runner.js";
 import { resolveTemplateString, resolveStepParams } from "../flow-engine/templates.js";
 import type { HookSourceEvent } from "./matcher.js";
 import { computeHookDedupKey, hookStepId, matchHooks, resolveHookParticipant } from "./matcher.js";
@@ -61,6 +62,8 @@ export type EventDeliveryTarget =
 export interface HookDispatchDeps extends SessionRunDeps, FlowRunServiceDeps {
   /** Slice 5 join-once. Leave undefined so notify_live is never selected. */
   liveAssignments?: LiveAssignmentPort;
+  /** Close of a bound meeting step opens the next flow step. */
+  dispatchSteps?: FlowAdvanceDeps["dispatchSteps"];
   invokeAction: (input: {
     space_id: string;
     action_name: string;

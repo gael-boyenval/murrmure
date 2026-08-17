@@ -73,6 +73,9 @@
 
 ### Added
 
+- Optional `meeting:` step facet (`MeetingStepFacetSchema`) on top-level
+  `FlowStepSchema` and `StepContractCatalogEntrySchema`. Nested `meeting:`
+  stays rejected. Denial `MEETING_STEP_VIEW_RESOLVER`.
 - `RunPolicySchema` and `HandlersFileSchema.run_policies` (defaults to `[]`) for
   space-owned `{ flow, max_concurrent_runs }` run-capacity policies.
 - `ResolvedRunPolicySchema` — the canonical persisted form

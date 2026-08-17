@@ -4,6 +4,7 @@ import { stripSpaceId } from "../bridge/ids.js";
 import type { LiveAssignmentPort } from "../hooks/dispatch.js";
 import { meetingChairRequired, meetingClosed, sessionNotFound, type MeetingDenial } from "./errors.js";
 import { appendMeetingEvent, type MeetingJournalDeps } from "./journal.js";
+import { maybeResolveBoundMeetingStep, type ResolveBoundMeetingDeps } from "./resolve-bound-step.js";
 import { chairParticipantId, findSeat, isHumanChair, prefixedSpace } from "./roster.js";
 import { loadMeeting, writeMeetingSnapshot } from "./snapshot.js";
 
@@ -119,6 +120,7 @@ export async function closeMeeting(
   deps: MeetingJournalDeps & {
     clock: { nowIso: () => string };
     liveAssignments?: LiveAssignmentPort;
+    dispatchSteps?: ResolveBoundMeetingDeps["dispatchSteps"];
   },
   input: CloseMeetingInput,
 ): Promise<CloseMeetingResult> {
@@ -168,6 +170,14 @@ export async function closeMeeting(
 
   const prefixed = input.session_id.startsWith("ses_") ? input.session_id : `ses_${input.session_id}`;
   await deps.liveAssignments?.revoke({ session_id: prefixed });
+  await maybeResolveBoundMeetingStep(deps, {
+    meeting,
+    failed: input.failed,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    space_id: spaceId,
+    session_id: prefixed,
+  });
   return {
     ok: true,
     session_id: prefixed,

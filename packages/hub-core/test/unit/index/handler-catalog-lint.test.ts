@@ -38,6 +38,34 @@ describe("index/handler-catalog-lint", () => {
     expect(warnings.some((w) => w.code === "HANDLER_ORPHAN_KEY")).toBe(true);
   });
 
+  test("meeting step with empty handlers does not report HANDLER_MISSING", () => {
+    const warnings = lintHandlerCatalogCoverage({
+      handlers: { version: 1, handlers: [] },
+      flows: [
+        {
+          flow_id: "flw_api_shape",
+          manifest: {
+            apiVersion: "murrmure.flow/v1",
+            name: "api-shape",
+            triggers: { manual: true },
+            steps: [
+              {
+                id: "decide",
+                meeting: {
+                  participants: [{ space: "{{input.app_space}}", persona: "designer" }],
+                  chair: { space: "{{input.app_space}}", persona: "designer" },
+                },
+              },
+              { id: "implement" },
+            ],
+          },
+        },
+      ],
+    });
+    expect(warnings.some((w) => w.code === "HANDLER_MISSING" || w.code === "STEP_UNCOVERED")).toBe(false);
+    expect(warnings).toEqual([]);
+  });
+
   test("does not warn for unbound steps (unbound steps are valid)", () => {
     const warnings = lintHandlerCatalogCoverage({
       handlers: { version: 1, handlers: [] },

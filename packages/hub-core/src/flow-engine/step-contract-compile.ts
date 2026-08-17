@@ -1,6 +1,7 @@
 import type {
   FlowManifest,
   FlowStep,
+  MeetingStepFacet,
   StepBranchDefinition,
   StepContractCatalog,
   StepContractCatalogEntry,
@@ -234,7 +235,7 @@ function schemaRefForBranch(branchName: string, branch: StepBranchDefinition): s
 }
 
 interface FlatStep {
-  step: StepContractManifestStep;
+  step: StepContractManifestStep & { meeting?: MeetingStepFacet };
   qualifiedId: string;
   parentId: string | null;
   isNested: boolean;
@@ -616,6 +617,7 @@ function compileCatalogEntries(
       parent_id: row.parentId,
       description: row.step.description,
       branches,
+      ...(row.step.meeting ? { meeting: row.step.meeting } : {}),
     };
   });
 }

@@ -35,7 +35,7 @@ Deep dives: [reference/space-directory.md](reference/space-directory.md), [refer
 ## Authoring workflow
 
 1. **Scaffold** — `mrmr space init`; `mrmr space flow init <id>`; `mrmr space view init <id>`.
-2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). No `role`/`presentation`/`start`/flow-level view binding. No indexed action binding, no View identity.
+2. **Edit protocol** — flow manifests: `triggers`, resolver-agnostic steps and branches (`route`/`resume`). Optional top-level `meeting:` facet (portable `space` templates). No `role`/`presentation`/`start`/flow-level view binding. No indexed action binding, no View identity on a meeting step.
 3. **Edit execution** — `handlers.yaml`: bind steps with `on: step.opened::{flow_name}.{step_id}`; map prompt-scope `contract_keys`; bind Views with `view_resolver`.
 4. **Wire keys** — after apply, read `.mrmr/dev/contracts/contract-keys.json`; align handler `contract_keys` with catalog entries.
 5. **Validate** — `mrmr space apply --strict`; `mrmr space doctor`; fix lint warnings.

@@ -27,10 +27,16 @@ triggers:
 
 ## Step contracts (resolver-agnostic)
 
-A step is `id`, optional `description`, optional `branches`, and optional nested `steps` — no `role`, `presentation`, role-derivation field, or resolver modality. A step with no bound handler is valid and externally resolvable (`resolver: null`).
+A step is `id`, optional `description`, optional `branches`, optional nested `steps`, and an optional top-level `meeting:` protocol facet — no `role`, `presentation`, role-derivation field, or resolver modality. Nested `meeting:` is rejected. A step with no bound handler is valid and externally resolvable (`resolver: null`). Do not bind a `view_resolver` on a meeting step; close resolves it (`completed`, or `failed` when `data.failed: true`). Author seats with `space` (templates ok), not `space_id`.
 
 ```yaml
 steps:
+  - id: decide
+    meeting:
+      participants:
+        - { space: "{{input.app_space}}", persona: designer }
+      chair: { space: "{{input.app_space}}", persona: designer }
+      goal: "{{input.goal}}"
   - id: intake
     description: Human attaches one spec markdown file.
     branches:

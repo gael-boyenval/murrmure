@@ -1,4 +1,9 @@
-import { HandlerSpecSchema, JOURNAL_EVENT_TYPES, parseHandlerStepBinding } from "@murrmure/contracts";
+import {
+  HandlerSpecSchema,
+  JOURNAL_EVENT_TYPES,
+  parseHandlerStepBinding,
+  type MeetingStepFacet,
+} from "@murrmure/contracts";
 import type { FlowAdvanceDeps } from "./advance-runner.js";
 import { resolveSpaceRoot } from "../invoke/resolve.js";
 import { flowStepContractCatalog } from "./step-catalog.js";
@@ -8,6 +13,8 @@ import {
 } from "./step-contract-slice.js";
 import { ensureStepWorkdir } from "./step-artifacts.js";
 import { persistRunExecContext } from "./exec-context.js";
+import { conveneMeeting } from "../meetings/convene.js";
+import { resolveTemplateString } from "./templates.js";
 
 function bareRunId(run_id: string): string {
   return run_id.startsWith("run_") ? run_id.slice(4) : run_id;
@@ -134,6 +141,70 @@ export async function openStepContract(
         token_id: input.token_id,
       });
     }
+  }
+
+  if (input.entry.meeting && !input.state_persisted) {
+    await conveneMeetingForOpenStep(deps, {
+      facet: input.entry.meeting,
+      exec_context: runAfter?.exec_context ?? input.exec_context,
+      session_id: input.session_id,
+      run_id: input.run_id,
+      step_id: input.step_id,
+      title: input.entry.description || input.step_id,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      convenor_space_id: input.space_id,
+    });
+  }
+}
+
+function resolveMeetingSeat(
+  seat: { space: string; persona?: string },
+  execContext: Record<string, unknown>,
+): { space_id: string; persona?: string } {
+  const space_id = resolveTemplateString(seat.space, execContext);
+  const persona = seat.persona
+    ? resolveTemplateString(seat.persona, execContext)
+    : undefined;
+  return persona ? { space_id, persona } : { space_id };
+}
+
+async function conveneMeetingForOpenStep(
+  deps: FlowAdvanceDeps,
+  input: {
+    facet: MeetingStepFacet;
+    exec_context: Record<string, unknown>;
+    session_id: string;
+    run_id: string;
+    step_id: string;
+    title: string;
+    actor_id: string;
+    token_id: string;
+    convenor_space_id: string;
+  },
+): Promise<void> {
+  const chair =
+    "human" in input.facet.chair && input.facet.chair.human === true
+      ? { human: true as const }
+      : resolveMeetingSeat(input.facet.chair, input.exec_context);
+  const convened = await conveneMeeting(deps, {
+    session_id: input.session_id,
+    title: input.title,
+    goal: input.facet.goal
+      ? resolveTemplateString(input.facet.goal, input.exec_context)
+      : undefined,
+    participants: input.facet.participants.map((seat) =>
+      resolveMeetingSeat(seat, input.exec_context),
+    ),
+    chair,
+    actor_id: input.actor_id,
+    token_id: input.token_id,
+    convenor_space_id: input.convenor_space_id,
+    bound_run_id: input.run_id,
+    bound_step_id: input.step_id,
+  });
+  if (!convened.ok) {
+    throw new Error(`${convened.code}: ${convened.message}`);
   }
 }
 

@@ -23,10 +23,12 @@ non-portable and forced the shell to synthesize controls for unbound steps.
 ## Decision
 
 1. **Resolver-agnostic step contracts.** A step is `id`, optional `description`,
-   optional `branches`, and optional nested `steps` — no `role`, `presentation`,
-   `deriveRole`, wait kind, or resolver modality. A step with no configured
-   resolver is valid and externally resolvable; its projection carries
-   `resolver: null`.
+   optional `branches`, optional nested `steps`, and an optional top-level
+   `meeting:` **protocol facet** ([ADR-016](./ADR-016-meeting-protocol.md)) — no
+   `role`, `presentation`, `deriveRole`, wait kind, or resolver modality.
+   Nested `meeting:` is rejected. A step with no configured resolver is valid
+   and externally resolvable; its projection carries `resolver: null`. A
+   meeting step must not bind a `view_resolver` for the chat.
 2. **`triggers` is the only start-condition field.** The removed `start` and
    flow-level `requires_view` are rejected by the parser with no dual reader,
    no alias, and no migration. `triggers: {}` means invoke-only: no independent

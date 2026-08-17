@@ -4,11 +4,17 @@
 **Spec:** [step contracts v3](../../plans/2026-07-14-tutorial-v3-build-tasks/03-minimal-flow.md), [nested build/review](../../plans/2026-07-14-tutorial-v3-build-tasks/08-nested-build-review-loop.md), [ADR-007](../../ADR/ADR-007-resolver-agnostic-step-contracts.md), [ADR-015](../../ADR/ADR-015-nested-step-call-return.md)
 
 Murrmure flow steps are **resolver-agnostic contracts**. A step is `id`, optional
-`description`, optional `branches`, and optional nested `steps` — nothing else.
+`description`, optional `branches`, optional nested `steps`, and an optional
+top-level **`meeting:` protocol facet** (see [ADR-016](../../ADR/ADR-016-meeting-protocol.md))
+— nothing else. Nested `meeting:` is rejected. The facet is not a resolver
+modality, View, or wait/gate kind: opening the step convenes on this
+`session_id`; `mrmr.meeting.closed` is what the engine resolves (`completed`, or
+`failed` when `data.failed: true`).
 There is no `role`, `presentation`, role-derivation field, wait kind, or resolver modality on
 a step: spaces bind resolvers (handlers, views, agents) through
 [handlers.md](./handlers.md) (the `on::key` binding in `.mrmr/space/handlers.yaml`;
-`contract_keys` is prompt-scope only).
+`contract_keys` is prompt-scope only). Apply rejects `view_resolver` on a
+meeting step (`MEETING_STEP_VIEW_RESOLVER`). A `step.opened` handler is optional.
 
 Flow manifests declare **protocol only** — no indexed action binding, no `invoke:` /
 `checkpoint:` / `gate:` runtime kinds. **`triggers`** is the only start-condition

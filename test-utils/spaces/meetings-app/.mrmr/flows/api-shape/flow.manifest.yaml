@@ -1,0 +1,18 @@
+apiVersion: murrmure.flow/v1
+name: api-shape
+description: Designer and researcher agree the API shape, then implement
+
+triggers:
+  manual: true
+
+steps:
+  - id: decide
+    description: Designer and researcher agree the API shape
+    meeting:
+      participants:
+        - { space: "{{input.app_space}}", persona: designer }
+        - { space: "{{input.research_space}}", persona: researcher }
+      chair: { space: "{{input.app_space}}", persona: designer }
+      goal: "{{input.goal}}"
+  - id: implement
+    description: Build what the meeting decided

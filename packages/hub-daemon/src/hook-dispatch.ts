@@ -7,6 +7,7 @@ import {
 } from "@murrmure/hub-core";
 import { ulid } from "ulid";
 import type { Capability } from "@murrmure/contracts";
+import { dispatchFlowSteps } from "./flow-dispatch.js";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 
 export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
@@ -18,6 +19,9 @@ export function hookDispatchDeps(ctx: DaemonContext): HookDispatchDeps {
     cancelTimeoutMs: ctx.config.cancelTimeoutMs,
     guard: ctx.spaceRunGuard,
     liveAssignments: ctx.liveAssignments,
+    dispatchSteps: async (input) => {
+      await dispatchFlowSteps(ctx.invokeService, input);
+    },
     invokeAction: async (input) => {
       const result = await ctx.invokeService.invokeAction({
         space_id: input.space_id,
