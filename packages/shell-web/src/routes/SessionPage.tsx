@@ -63,6 +63,20 @@ export function SessionPage() {
   const isMeeting = transcript != null;
   const meetingResolved = transcriptQuery.isFetched || transcriptQuery.isError;
 
+  const spacesQuery = useQuery({
+    queryKey: ["spaces"],
+    queryFn: () => client!.spaces.list(),
+    enabled: Boolean(client),
+  });
+  const spaceLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const space of spacesQuery.data ?? []) {
+      const label = space.slug ?? space.name;
+      if (label) labels[space.space_id] = label;
+    }
+    return labels;
+  }, [spacesQuery.data]);
+
   const focusRunId = selectedRunId ?? runsQuery.data?.runs[0]?.run_id;
 
   const runQuery = useQuery({
@@ -185,9 +199,9 @@ export function SessionPage() {
               <h1 className="text-2xl font-semibold tracking-tight">
                 {session?.title ?? graphQuery.data?.flow_name ?? "Session"}
               </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                {sessionId ? <p className="font-mono text-sm text-muted-foreground">{sessionId}</p> : null}
-              </div>
+              {pane !== "transcript" && sessionId ? (
+                <p className="mt-1 font-mono text-sm text-muted-foreground">{sessionId}</p>
+              ) : null}
             </div>
             {focusRunId ? (
               <DismissRunButton
@@ -234,12 +248,16 @@ export function SessionPage() {
             role="tabpanel"
             aria-label="Transcript"
             hidden={pane !== "transcript"}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className={cn(
+              "min-h-0 flex-1 flex-col overflow-hidden",
+              pane === "transcript" ? "flex" : "hidden",
+            )}
           >
             <MeetingTranscriptPane
               title={session?.title ?? "Meeting"}
               goal={session?.subject}
               transcript={transcript}
+              spaceLabels={spaceLabels}
               closeAction={canClose && sessionId ? <MeetingCloseButton sessionId={sessionId} /> : null}
             />
           </div>
@@ -250,46 +268,47 @@ export function SessionPage() {
             role="tabpanel"
             aria-label="Review"
             hidden={pane !== "review"}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className={cn(
+              "min-h-0 flex-1 flex-col overflow-hidden",
+              pane === "review" ? "flex" : "hidden",
+            )}
           >
             {canvas}
           </div>
         ) : null}
 
-        <div
-          role="tabpanel"
-          aria-label="Flowchart"
-          hidden={pane !== "flowchart"}
-          className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        >
-          <SharedFlowPage
-            embedded
-            title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
-            subtitle={sessionId}
-            status={session?.status}
-            graph={graphQuery.data}
-            graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
-            execContext={run?.exec_context as Record<string, unknown> | undefined}
-            selectedRunId={focusRunId}
-            selectedStepId={selectedStepId}
-            onSelectLane={setSelectedRunId}
-            onSelectStep={setSelectedStepId}
-            secondary={flowchartSecondary}
-          />
-        </div>
+        {pane === "flowchart" ? (
+          <div
+            role="tabpanel"
+            aria-label="Flowchart"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <SharedFlowPage
+              embedded
+              title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
+              subtitle={sessionId}
+              status={session?.status}
+              graph={graphQuery.data}
+              graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
+              execContext={run?.exec_context as Record<string, unknown> | undefined}
+              selectedRunId={focusRunId}
+              selectedStepId={selectedStepId}
+              onSelectLane={setSelectedRunId}
+              onSelectStep={setSelectedStepId}
+              secondary={flowchartSecondary}
+            />
+          </div>
+        ) : null}
 
-        <div
-          role="tabpanel"
-          aria-label="Journal"
-          hidden={pane !== "journal"}
-          className="min-h-0 flex-1 overflow-auto"
-        >
-          {runQuery.data ? (
-            <JournalWaterfallView run={runQuery.data} journalEntries={journalEntries} />
-          ) : (
-            <p className="text-sm text-muted-foreground">No journal replay yet.</p>
-          )}
-        </div>
+        {pane === "journal" ? (
+          <div role="tabpanel" aria-label="Journal" className="min-h-0 flex-1 overflow-auto">
+            {runQuery.data ? (
+              <JournalWaterfallView run={runQuery.data} journalEntries={journalEntries} />
+            ) : (
+              <p className="text-sm text-muted-foreground">No journal replay yet.</p>
+            )}
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );

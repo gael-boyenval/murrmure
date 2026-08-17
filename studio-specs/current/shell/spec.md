@@ -79,7 +79,7 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 
 A meeting is a session. Humans read talk on `/sessions/:id` — not a space View and not `/logs`.
 
-- **Transcript** is shell observability: title, opaque goal (`session.subject`), `open` / `closed`, roster as `persona@space`, each `said` (from → to / everyone, text, receipts, `in_reply_to` hook). Artifact refs are **links** to existing artifact routes — no in-shell PR/diff renderer.
+- **Transcript** is the conversation: title, opaque goal (`session.subject`), `open` / `closed`, roster as `persona@space` (slug, not raw `spc_*` / `ptc_*`), each `said` as a chat turn (speaker, to/everyone, text). Receipts stay quiet under the bubble. `in_reply_to` quotes the prior text. Artifact refs are **links** to existing artifact routes — no in-shell PR/diff renderer. Journal lines (`hook.delivered`, `run.started`) stay on the **Journal** tab — they must not paint under Transcript.
 - **No compose box.** Humans who need to talk use a later slice or a validation View. Human chair **Close** is `POST /v1/sessions/{id}/meeting/close` — not `gates.resolve`, not `runs.cancel`.
 - Live updates: `JournalProvider` invalidates `["session-transcript", sessionId]` on `journal.append` for that session. Needs-you is **not** invalidated on every `said`.
 - Closed meetings stay readable (historical).
@@ -119,7 +119,7 @@ If the goal needs a human to **validate** something agents produced (PR, spec ar
 ### Acceptance
 
 1. Meeting session `/sessions/:id` shows Transcript by default; no `view_resolver` required.
-2. Messages are human-readable (persona + space, text, to/all, receipts). `/logs` is not the primary chat.
+2. Messages are a conversation (speaker, text, to/all, quiet receipts). `/logs` and the Journal tab are not the primary chat.
 3. Artifact on a message is a link, not a built-in review UI.
 4. Bound validation View does not remove the Transcript tab.
 5. No compose control. Human chair can Close. Non-chair Close denied.

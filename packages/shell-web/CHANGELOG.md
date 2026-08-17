@@ -17,6 +17,9 @@
   Meeting sessions default to Transcript (`GET …/transcript`). A bound View is
   the Review tab and no longer unmounts the transcript. Human chair Close uses
   `sessions.closeMeeting`. No compose box, no `/meetings` route.
+- Transcript is a conversation (speaker + bubble), not a journal dump. Flowchart
+  and Journal no longer paint under the Transcript tab (`flex` was beating
+  `hidden`). Roster uses space slug, not a raw `spc_*` ULID.
 
 ### Minor Changes
 

@@ -38,7 +38,7 @@ When a run pauses at a **checkpoint** step with a space-bound view (a `view_reso
 
 1. Open **`/sessions/:sessionId`** — run graph, pending step observability, retry
 2. Use when debugging — not the primary path when a custom view is bound
-3. Meeting sessions open on **Transcript** (roster, messages, receipts). Close is the human-chair action. There is no compose box and no `/meetings` wizard.
+3. Meeting sessions open on **Transcript** — the conversation (who said what). Journal dumps stay on the Journal tab. Close is the human-chair action. There is no compose box and no `/meetings` wizard.
 
 ### Watch a meeting
 

@@ -57,10 +57,12 @@ describe("MeetingTranscriptPane", () => {
     expect(screen.getByText("open")).toBeTruthy();
     expect(screen.getAllByText("designer@app").length).toBeGreaterThan(0);
     expect(screen.getAllByText("researcher@research").length).toBeGreaterThan(0);
-    expect(screen.getByText(/designer@app → researcher@research/)).toBeTruthy();
-    expect(screen.getByText("Need the last latency study.")).toBeTruthy();
-    expect(screen.getByText(/receipts:\s+researcher@research delivered/)).toBeTruthy();
-    expect(screen.getByText("re: msg_1")).toBeTruthy();
+    expect(screen.getByText("Designer")).toBeTruthy();
+    expect(screen.getByText(/to Researcher/)).toBeTruthy();
+    expect(screen.getAllByText("Need the last latency study.").length).toBe(2);
+    expect(screen.getByText("Researcher delivered")).toBeTruthy();
+    expect(screen.getByText("brief attached")).toBeTruthy();
+    expect(screen.queryByText(/re: msg_/)).toBeNull();
 
     const artifact = screen.getByRole("link", { name: "xfr_brief" });
     expect(artifact.getAttribute("href")).toContain("/v1/artifacts/xfr_brief");
@@ -69,5 +71,12 @@ describe("MeetingTranscriptPane", () => {
 
   it("formats seat labels as persona@space", () => {
     expect(meetingSeatLabel({ persona: "qa", space_id: "spc_app" })).toBe("qa@app");
+    expect(meetingSeatLabel({ persona: "qa", space_id: "spc_01M07GTVBS91S2GER7H9725J44" })).toBe("qa");
+    expect(
+      meetingSeatLabel(
+        { persona: "qa", space_id: "spc_01M07GTVBS91S2GER7H9725J44" },
+        { spc_01M07GTVBS91S2GER7H9725J44: "app" },
+      ),
+    ).toBe("qa@app");
   });
 });

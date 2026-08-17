@@ -186,6 +186,7 @@ describe("SessionPage meeting lens", () => {
     expect(screen.getByText("Need the last latency study.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByText("No journal replay yet.")).toBeNull();
   });
 
   it("keeps Transcript mounted when a bound View is present (not canvasMode-only)", async () => {
