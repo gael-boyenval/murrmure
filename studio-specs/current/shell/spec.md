@@ -53,7 +53,7 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 | `/notifications` | Actionable inbox linking bound checkpoints to their custom Views |
 | `/logs` | Journal explorer with filter chips (retrieval only) |
 | `/runs/:id?gate=chk_*` | Run detail with flowchart or journal replay + gate tab |
-| `/sessions/:id` | Session — pending checkpoint with a bound view → **ViewCanvasHost** (session title chrome) |
+| `/sessions/:id` | Session — pending checkpoint with a bound view → **ViewCanvasHost** (session title chrome). **Meeting sessions (unshipped):** Transcript pane is shell chrome — [plans/2026-08-17-meetings/shell-lens.md](../../plans/2026-08-17-meetings/shell-lens.md) |
 | `/spaces/:id/dev/views/:viewId` | View dev — author iframe + fixture tabs (`mrmr view dev`) |
 
 ---

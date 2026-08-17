@@ -18,6 +18,7 @@ Items here are **deliberate non-goals or future slices**, not bugs. For **known 
 | In-hub queue runtime (Temporal-like) | External poll workers only — [executor-queue-poll.md](../bridges/executor-queue-poll.md) |
 | Dynamic matrix from prior step output mid-run | Matrix resolved at step entry from `input` today; step-output matrix deferred |
 | A2A as core wire protocol | Optional adapter only; not normative Murrmure API |
+| Meeting protocol (agent rooms) | Design in [plans/2026-08-17-meetings/](../../plans/2026-08-17-meetings/) · [ADR-016](../../ADR/ADR-016-meeting-protocol.md). Not shipped. |
 
 ---
 

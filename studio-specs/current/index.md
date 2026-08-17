@@ -35,6 +35,7 @@ The retired configure shell (historical `/setup` flow) is archived under [archiv
 | Flow runtime | [flow-runtime/spec.md](./flow-runtime/spec.md) | [bridges/flow-runtime.md](./bridges/flow-runtime.md) | [fixtures/flow-runtime/](./fixtures/flow-runtime/) |
 | Triggers | [triggers/spec.md](./triggers/spec.md) | [bridges/triggers.md](./bridges/triggers.md) | [fixtures/triggers/](./fixtures/triggers/) |
 | Cross-space (XS0) | [cross-space/spec.md](./cross-space/spec.md) | [bridges/cross-space.md](./bridges/cross-space.md) · [bridges/federation.md](./bridges/federation.md) | [fixtures/cross-space/](./fixtures/cross-space/) |
+| Meetings (draft) | [plans/2026-08-17-meetings/](../plans/2026-08-17-meetings/README.md) — **unshipped**; not `current/` behavior | — | — |
 
 Runnable reference flows live in the repo at
 [`test-utils/spaces/`](../../test-utils/spaces/) — strict-apply fixtures for CI and manual smoke; not linked from `apps/docs/`.

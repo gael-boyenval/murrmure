@@ -612,7 +612,7 @@ Captured for later; **do not implement** without a new plan slice:
 | Space directory sync | `watch`, `mrmr space apply`, git hook — how hub learns space root path |
 | Cross-hub artifact passthrough | XS1+; remote orchestrator on different computer |
 | Flow marketplace / remote registry | Out of scope |
-| Multiple agents per space | `agents/reviewer/` subdirs — compatible, not specified |
+| Multiple agents per space | Specified as **personas / meeting seats** — [plans/2026-08-17-meetings/](../../plans/2026-08-17-meetings/) · [ADR-016](../../ADR/ADR-016-meeting-protocol.md). Unshipped. |
 | Numeric inline size threshold | TBD (journal cap ~64 KiB for envelope) |
 | Replace postMessage `hub-fetch` bridge | Optimization only; desktop same-origin helps |
 | Session id encoding (path vs opaque) | 2026-06-28 |
@@ -642,3 +642,4 @@ Murrmure is **not** built on [A2A](https://a2a-protocol.org/latest/) — differe
 | [config/spec.md](../config/spec.md) | Configure shell routes |
 | [desktop/spec.md](../desktop/spec.md) | Local single-URL desktop |
 | [space-flow-protocol-v2.md](../../archives/plans/space-flow-protocol-v2.md) | Draft evolution plan |
+| [meetings plan (draft)](../../plans/2026-08-17-meetings/README.md) | Session-as-room, personas, async talk — unshipped |
