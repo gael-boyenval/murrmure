@@ -54,6 +54,7 @@ describe("flow_index composite key", () => {
       executors: [],
       hooks: [],
       events: [],
+      personas: [],
       flows: [makeFlowRow(spaceA, flowId, "space-a-flow")],
     });
     await persistence.replaceSpaceIndex(spaceB, {
@@ -61,6 +62,7 @@ describe("flow_index composite key", () => {
       executors: [],
       hooks: [],
       events: [],
+      personas: [],
       flows: [makeFlowRow(spaceB, flowId, "space-b-flow")],
     });
 

@@ -131,6 +131,21 @@ export function registerPlatformMcpHandlers(
     };
   });
 
+  registry.registerHandler("murrmure_list_personas", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const rows = await studio.listIndexedPersonas(bare);
+    return {
+      space_id: prefixedSpaceId(bare),
+      personas: rows.map((row) => ({
+        id: row.id,
+        summary: row.summary,
+        asks: row.asks ?? [],
+        requests: row.requests ?? [],
+      })),
+    };
+  });
+
   registry.registerHandler("murrmure_emit_event", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     const bare = bareSpaceId(spaceId);

@@ -74,6 +74,64 @@ describe("index/parse-handlers", () => {
     expect(matchEventHandlers(parsed.value.handlers, { event_type: "other", source: "/spaces/spc_x" })).toHaveLength(0);
   });
 
+  test("matches mrmr.meeting.said by type and participant", () => {
+    const parsed = parseHandlersFile({
+      version: 1,
+      handlers: [
+        {
+          id: "meeting-designer",
+          on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+          type: "mcp_session",
+          complete: "explicit",
+        },
+        {
+          id: "meeting-qa",
+          on: { event: { type: "mrmr.meeting.said", participant: "qa" } },
+          type: "mcp_session",
+          complete: "explicit",
+        },
+        {
+          id: "unscoped-said",
+          on: { event: { type: "mrmr.meeting.said" } },
+          type: "mcp_session",
+          complete: "explicit",
+        },
+      ],
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const designer = matchEventHandlers(parsed.value.handlers, {
+      event_type: "mrmr.meeting.said",
+      source: "/spaces/spc_x",
+      participant: "designer",
+    });
+    expect(designer.map((h) => h.id).sort()).toEqual(["meeting-designer", "unscoped-said"]);
+    const qa = matchEventHandlers(parsed.value.handlers, {
+      event_type: "mrmr.meeting.said",
+      source: "/spaces/spc_x",
+      participant: "qa",
+    });
+    expect(qa.map((h) => h.id).sort()).toEqual(["meeting-qa", "unscoped-said"]);
+  });
+
+  test("non-meeting event match ignores participant", () => {
+    const parsed = parseHandlersFile({
+      version: 1,
+      handlers: [
+        { id: "brief-wake", on: { event: { type: "brief.requested" } }, type: "mcp_session" },
+      ],
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(
+      matchEventHandlers(parsed.value.handlers, {
+        event_type: "brief.requested",
+        source: "/spaces/spc_x",
+        participant: "designer",
+      }),
+    ).toHaveLength(1);
+  });
+
   test("accepts view_resolver binding with view and no executor fields", () => {
     const parsed = parseHandlersFile({
       version: 1,

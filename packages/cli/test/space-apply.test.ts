@@ -96,6 +96,49 @@ describe("space apply integration", () => {
     expect(bundle.actions?.file.actions.hello).toBeDefined();
     expect(bundle.flows?.length).toBe(1);
     expect(bundle.flows?.[0]?.flow_id).toBe("flw_flows_demo");
+    expect(bundle.personas).toBeUndefined();
+  });
+
+  test("readSpaceApplyBundle loads personas.yaml when present", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "personas.yaml"),
+      [
+        "version: 1",
+        "personas:",
+        "  - id: designer",
+        "    summary: Product design",
+        "    asks:",
+        "      - API shape",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    expect(bundle.personas?.file.personas).toEqual([
+      { id: "designer", summary: "Product design", asks: ["API shape"] },
+    ]);
+  });
+
+  test("unscoped said handler fails strict lint when personas exist", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "personas.yaml"),
+      "version: 1\npersonas:\n  - id: designer\n    summary: Product design\n",
+    );
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "handlers.yaml"),
+      [
+        "version: 1",
+        "handlers:",
+        "  - id: meeting-all",
+        "    on:",
+        "      event:",
+        "        type: mrmr.meeting.said",
+        "    type: mcp_session",
+        "    complete: explicit",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    const warnings = lintSpaceApplyBundle(bundle);
+    expect(warnings.some((w) => w.code === "PERSONA_HANDLER_UNSCOPED")).toBe(true);
+    expect(strictLintFailures(warnings).some((w) => w.code === "PERSONA_HANDLER_UNSCOPED")).toBe(true);
   });
 
   test("readSpaceApplyBundle clears absent yaml sections with empty files", () => {

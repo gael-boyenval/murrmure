@@ -6,7 +6,9 @@ import {
   JOURNAL_EVENT_TYPES,
   isLocalSpaceBinding,
   SPACE_HAS_ACTIVE_RUNS,
+  HandlerSpecSchema,
   type FlowIndexEntry,
+  type HandlerSpec,
   type SpaceApplyBundle,
   type IndexedResourceRow,
 } from "@murrmure/contracts";
@@ -20,6 +22,7 @@ import {
   resolveBindingsFile,
   validateHandlerBindings,
   validateHandlerPlaceholders,
+  validatePersonaHandlers,
   resolveRunPolicies,
   buildRunPolicyRows,
   assertSpaceQuiescent,
@@ -88,6 +91,30 @@ function recomputeFlowChanges(
   }
 
   return out;
+}
+
+function handlersFromIndexRows(rows: IndexedResourceRow[]): HandlerSpec[] {
+  const out: HandlerSpec[] = [];
+  for (const row of rows) {
+    try {
+      const parsed = HandlerSpecSchema.safeParse(JSON.parse(row.payload_json));
+      if (parsed.success) out.push(parsed.data);
+    } catch {
+      // legacy hook row
+    }
+  }
+  return out;
+}
+
+function personaIdsFromIndexRows(rows: IndexedResourceRow[]): string[] {
+  return rows.map((row) => {
+    try {
+      const payload = JSON.parse(row.payload_json) as { id?: string };
+      return typeof payload.id === "string" && payload.id.length > 0 ? payload.id : row.key;
+    } catch {
+      return row.key;
+    }
+  });
 }
 
 function recomputeRunPolicyChanges(
@@ -388,6 +415,20 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
           400,
         );
       }
+      const personaHandlers = validatePersonaHandlers({
+        handlers: handlersFromIndexRows(result.next.hooks),
+        personaIds: personaIdsFromIndexRows(result.next.personas ?? []),
+      });
+      if (!personaHandlers.ok) {
+        return c.json(
+          {
+            code: personaHandlers.code,
+            message: personaHandlers.message,
+            handler_id: personaHandlers.handler_id,
+          },
+          400,
+        );
+      }
 
       // Run policies are space-owned and resolve against the same merged
       // post-apply flow set as handler aliases. Unknown/ambiguous/stale or
@@ -498,6 +539,24 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
 
     const hooks = await murrmurePersistence.listIndexedHooks(bareSpaceId(space_id));
     return c.json({ hooks });
+  });
+
+  app.get("/v1/spaces/:space_id/personas", async (c) => {
+    const space_id = c.req.param("space_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const scopeCheck = requireScope(auth, "space:read");
+    if (scopeCheck) return scopeCheck;
+
+    const rows = await murrmurePersistence.listIndexedPersonas(bareSpaceId(space_id));
+    return c.json({
+      personas: rows.map((row) => ({
+        id: row.id,
+        summary: row.summary,
+        asks: row.asks ?? [],
+        requests: row.requests ?? [],
+      })),
+    });
   });
 
   app.get("/v1/spaces/:space_id/index/flows", async (c) => {

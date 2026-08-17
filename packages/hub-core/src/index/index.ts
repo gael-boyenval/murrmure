@@ -1,6 +1,8 @@
 export { computeContentDigest } from "./digest.js";
 export type { ParseResult } from "./parse-result.js";
 export { parseEventsFile } from "./parse-events.js";
+export { parsePersonasFile } from "./parse-personas.js";
+export { validatePersonaHandlers } from "./validate-persona-handlers.js";
 export {
   parseBindingsFile,
   resolveBindingSource,

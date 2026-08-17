@@ -16,6 +16,7 @@ import {
   parseBindingsFile,
   parseFlowManifest,
   parseHandlersFile,
+  parsePersonasFile,
   parseViewManifest,
 } from "@murrmure/hub-core";
 import type { ZodError } from "zod";
@@ -177,6 +178,13 @@ export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
       digest: computeContentDigest(EMPTY_EVENTS_FILE),
       file: EMPTY_EVENTS_FILE,
     };
+  }
+
+  const personasPath = join(spaceDir, "personas.yaml");
+  if (existsSync(personasPath)) {
+    const parsed = parsePersonasFile(readYamlFile(personasPath));
+    if (!parsed.ok) throw formatParseFailure(parsed, "personas.yaml");
+    bundle.personas = { digest: fileDigest(personasPath), file: parsed.value };
   }
 
   const bindingsPath = join(spaceDir, "bindings.yaml");

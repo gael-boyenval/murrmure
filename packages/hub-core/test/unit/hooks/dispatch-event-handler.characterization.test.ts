@@ -15,6 +15,7 @@ function emptySnapshot() {
     executors: [],
     hooks: [],
     events: [],
+    personas: [],
     flows: [],
     views: [],
     run_policies: [],
@@ -177,34 +178,43 @@ describe("hooks/dispatchEventHandler characterization (pre-meeting split)", () =
     expect(journal.some((row) => row.type === JOURNAL_EVENT_TYPES.SESSION_CREATED)).toBe(true);
   });
 
-  test("matchEventHandlers ignores participant today", () => {
-    const stripped = HandlerEventFilterSchema.parse({
+  test("matchEventHandlers uses participant for mrmr.meeting.said", () => {
+    const kept = HandlerEventFilterSchema.parse({
       type: "mrmr.meeting.said",
       participant: "designer",
     });
-    expect(stripped).toEqual({ type: "mrmr.meeting.said" });
-    expect("participant" in stripped).toBe(false);
+    expect(kept).toEqual({ type: "mrmr.meeting.said", participant: "designer" });
 
     const parsed = HandlerSpecSchema.parse({
       id: "meeting-designer",
       on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
       type: "mcp_session",
     });
-    expect(parsed.on).toEqual({ event: { type: "mrmr.meeting.said" } });
+    expect(parsed.on).toEqual({ event: { type: "mrmr.meeting.said", participant: "designer" } });
 
-    const matched = matchEventHandlers(
-      [
-        {
-          id: "meeting-designer",
-          contract_keys: [],
-          on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
-          type: "mcp_session",
-          complete: "explicit",
-        } as never,
-      ],
-      { event_type: "mrmr.meeting.said", source: "/spaces/spc_demo" },
-    );
-    expect(matched.map((h) => h.id)).toEqual(["meeting-designer"]);
+    const handlers = [
+      {
+        id: "meeting-designer",
+        contract_keys: [],
+        on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+        type: "mcp_session" as const,
+        complete: "explicit" as const,
+      },
+    ];
+    expect(
+      matchEventHandlers(handlers, {
+        event_type: "mrmr.meeting.said",
+        source: "/spaces/spc_demo",
+        participant: "designer",
+      }).map((h) => h.id),
+    ).toEqual(["meeting-designer"]);
+    expect(
+      matchEventHandlers(handlers, {
+        event_type: "mrmr.meeting.said",
+        source: "/spaces/spc_demo",
+        participant: "qa",
+      }),
+    ).toHaveLength(0);
   });
 
   test("legacy hook ensure_session path still createSession", async () => {

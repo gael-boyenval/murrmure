@@ -43,6 +43,7 @@ Example arguments:
 | `murrmure_space_status` | `space:read` | `GET /v1/spaces/{id}/index/status` |
 | `murrmure_space_health` | `space:read` | Health summary (index counts, handler coverage, warnings) |
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
+| `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
 | `murrmure_list_emittable_events` | `space:read` | Event types this space can emit (from hook index) |
 | `murrmure_emit_event` | `event:emit` | Emit platform event `{ type, source?, data? }` |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |

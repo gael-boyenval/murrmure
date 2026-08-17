@@ -143,6 +143,7 @@ export function applyIndexDiff(
     executors: [],
     hooks: [],
     events: [],
+    personas: [],
     flows: [],
     views: [],
     run_policies: [],
@@ -220,6 +221,17 @@ export function applyIndexDiff(
     next.events = current.events ?? [];
   }
 
+  if (bundle.personas) {
+    const rows = bundle.personas.file.personas.map((persona) => ({
+      key: persona.id,
+      digest: bundle.personas!.digest,
+      payload_json: JSON.stringify(persona),
+    }));
+    next.personas = diffResource("personas", current.personas ?? [], rows, (r) => r.key);
+  } else {
+    next.personas = current.personas ?? [];
+  }
+
   if (bundle.flows !== undefined) {
     const flowEntries = buildFlowIndexEntries(bundle, originSpaceId);
     const flowRows: FlowIndexRow[] = flowEntries.map((entry) => ({
@@ -256,6 +268,7 @@ export function applyIndexDiff(
       executors: next.executors.length,
       hooks: next.hooks.length,
       events: next.events.length,
+      personas: next.personas.length,
       flows: next.flows.length,
       views: next.views.length,
       run_policies: next.run_policies.length,
@@ -276,6 +289,7 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
       /** @deprecated Alias of handlers — hub storage bucket is still named hooks. */
       hooks: handlersCount,
       events: (snapshot.events ?? []).length,
+      personas: (snapshot.personas ?? []).length,
       flows: snapshot.flows.length,
       views: (snapshot.views ?? []).length,
       run_policies: (snapshot.run_policies ?? []).length,
@@ -287,6 +301,7 @@ export function buildIndexStatus(snapshot: SpaceIndexSnapshot) {
       /** @deprecated Alias of handlers. */
       hooks: handlersDigest,
       events: snapshot.events?.[0]?.digest,
+      personas: snapshot.personas?.[0]?.digest,
       flows: snapshot.flows.map((f) => ({
         flow_id: f.flow_id,
         digest: f.digest,

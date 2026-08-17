@@ -85,14 +85,22 @@ export function matchStepResolvedHandlers(
 
 export function matchEventHandlers(
   handlers: HandlerSpec[],
-  event: { event_type: string; source: string },
+  event: { event_type: string; source: string; participant?: string },
 ): HandlerSpec[] {
   return handlers.filter((handler) => {
     if (typeof handler.on === "string") return false;
     const on = handler.on.event;
     if (on.type !== event.event_type) return false;
-    if (!on.source) return true;
-    if (typeof on.source === "string") return on.source === event.source;
-    return on.source.includes(event.source);
+    if (on.source) {
+      if (typeof on.source === "string") {
+        if (on.source !== event.source) return false;
+      } else if (!on.source.includes(event.source)) {
+        return false;
+      }
+    }
+    if (event.event_type === "mrmr.meeting.said" && on.participant) {
+      return on.participant === event.participant;
+    }
+    return true;
   });
 }

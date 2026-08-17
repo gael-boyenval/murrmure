@@ -1,0 +1,39 @@
+{
+  "description": "Apply 400 — personas exist and a mrmr.meeting.said handler lacks on.event.participant",
+  "bundle": {
+    "personas": {
+      "digest": "sha256:persona-unscoped",
+      "file": {
+        "version": 1,
+        "personas": [
+          {
+            "id": "designer",
+            "summary": "Product design"
+          }
+        ]
+      }
+    },
+    "handlers": {
+      "digest": "sha256:handler-unscoped",
+      "file": {
+        "version": 1,
+        "handlers": [
+          {
+            "id": "meeting-all",
+            "on": {
+              "event": {
+                "type": "mrmr.meeting.said"
+              }
+            },
+            "type": "mcp_session",
+            "complete": "explicit"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "http_status": 400,
+    "code": "PERSONA_HANDLER_UNSCOPED"
+  }
+}

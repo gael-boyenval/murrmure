@@ -1,4 +1,4 @@
-import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
+import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, PersonaAd, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams } from "./port.js";
 
@@ -342,22 +342,28 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   }
 
   async getSpaceIndexSnapshot(space_id: string): Promise<SpaceIndexSnapshot> {
-    return (
-      this.spaceIndex.get(this.bareSpaceId(space_id)) ?? {
-        actions: [],
-        executors: [],
-        hooks: [],
-        events: [],
-        flows: [],
-        views: [],
-        run_policies: [],
-      }
-    );
+    const snapshot = this.spaceIndex.get(this.bareSpaceId(space_id)) ?? {
+      actions: [],
+      executors: [],
+      hooks: [],
+      events: [],
+      personas: [],
+      flows: [],
+      views: [],
+      run_policies: [],
+    };
+    return {
+      ...snapshot,
+      personas: snapshot.personas ?? [],
+    };
   }
 
   async replaceSpaceIndex(space_id: string, snapshot: SpaceIndexSnapshot): Promise<void> {
     const bare = this.bareSpaceId(space_id);
-    this.spaceIndex.set(bare, snapshot);
+    this.spaceIndex.set(bare, {
+      ...snapshot,
+      personas: snapshot.personas ?? [],
+    });
     for (const [key] of [...this.flowIndexById.entries()]) {
       const entry = this.flowIndexById.get(key);
       if (entry && this.bareSpaceId(entry.origin_space_id) === bare) {
@@ -391,6 +397,11 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   async listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>> {
     const snapshot = await this.getSpaceIndexSnapshot(space_id);
     return (snapshot.events ?? []).map((row) => JSON.parse(row.payload_json) as Record<string, unknown>);
+  }
+
+  async listIndexedPersonas(space_id: string): Promise<PersonaAd[]> {
+    const snapshot = await this.getSpaceIndexSnapshot(space_id);
+    return (snapshot.personas ?? []).map((row) => JSON.parse(row.payload_json) as PersonaAd);
   }
 
   async listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>> {

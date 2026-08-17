@@ -33,6 +33,7 @@ export async function upsertEphemeralFlowEntry(
     executors: current.executors,
     hooks: current.hooks,
     events: current.events ?? [],
+    personas: current.personas ?? [],
     flows: [
       ...current.flows.filter((f) => f.flow_id !== entry.flow_id),
       { ...entry, payload_json: JSON.stringify(entry) } as FlowIndexRow,

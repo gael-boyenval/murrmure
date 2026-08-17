@@ -9,6 +9,7 @@ import type {
   IndexedAction,
   SpaceBinding,
   SpaceIndexSnapshot,
+  PersonaAd,
   RunLifecycle,
   RunStepMemo,
   SessionCreatedBy,
@@ -253,6 +254,7 @@ export interface StudioPersistencePort {
   listIndexedExecutors(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedHooks(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedEvents(space_id: string): Promise<Array<Record<string, unknown>>>;
+  listIndexedPersonas(space_id: string): Promise<PersonaAd[]>;
   listIndexedViews(space_id: string): Promise<Array<Record<string, unknown>>>;
   listIndexedRunPolicies(space_id: string): Promise<ResolvedRunPolicy[]>;
   listFlowIndex(space_id: string): Promise<FlowIndexEntry[]>;

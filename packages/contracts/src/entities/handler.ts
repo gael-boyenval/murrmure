@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PersonaIdSchema } from "./persona.js";
 
 /**
  * Resolver-agnostic handler binding (v3).
@@ -30,6 +31,7 @@ export const HandlerOnStepSchema = z
 export const HandlerEventFilterSchema = z.object({
   type: z.string(),
   source: z.union([z.string(), z.array(z.string())]).optional(),
+  participant: PersonaIdSchema.optional(),
 });
 
 export const HandlerOnEventSchema = z.object({

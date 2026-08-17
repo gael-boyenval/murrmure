@@ -9,6 +9,7 @@ import type {
 import { compileFlowIr } from "./compile.js";
 import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractManifest } from "./step-contract-compile.js";
 import { lintHandlerCatalogCoverage } from "../index/handler-catalog-lint.js";
+import { validatePersonaHandlers } from "../index/validate-persona-handlers.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
 export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "step_contract"] as const;
@@ -205,6 +206,17 @@ export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWar
         step_id: warning.step_id,
         code: warning.code,
         message: warning.message,
+      });
+    }
+    const personaCheck = validatePersonaHandlers({
+      handlers: handlers.handlers,
+      personaIds: (bundle.personas?.file.personas ?? []).map((persona) => persona.id),
+    });
+    if (!personaCheck.ok) {
+      warnings.push({
+        flow_id: "handlers",
+        code: personaCheck.code,
+        message: personaCheck.message,
       });
     }
   }

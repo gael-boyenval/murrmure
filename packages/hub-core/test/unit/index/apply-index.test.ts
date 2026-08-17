@@ -3,7 +3,16 @@ import { HandlerSpecSchema } from "@murrmure/contracts";
 import { applyIndexDiff, validateApplyBundle } from "../../../src/index/apply-index.js";
 import type { SpaceApplyBundle, SpaceIndexSnapshot } from "@murrmure/contracts";
 
-const EMPTY: SpaceIndexSnapshot = { actions: [], executors: [], hooks: [], events: [], flows: [], views: [] };
+const EMPTY: SpaceIndexSnapshot = {
+  actions: [],
+  executors: [],
+  hooks: [],
+  events: [],
+  personas: [],
+  flows: [],
+  views: [],
+  run_policies: [],
+};
 
 const bundle: SpaceApplyBundle = {
   actions: {
@@ -281,6 +290,46 @@ describe("index/apply-index", () => {
     const result = validateApplyBundle(dupBundle);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("DUPLICATE_FLOW_ID");
+  });
+
+  test("indexes bundle.personas and preserves them when omitted", () => {
+    const personasBundle: SpaceApplyBundle = {
+      personas: {
+        digest: "sha256:personas1",
+        file: {
+          version: 1,
+          personas: [{ id: "designer", summary: "Product design" }],
+        },
+      },
+    };
+    const first = applyIndexDiff(EMPTY, personasBundle, "spc_demo");
+    expect(first.summary.personas).toBe(1);
+    expect(first.changes.some((c) => c.resource === "personas" && c.key === "designer" && c.change === "added")).toBe(
+      true,
+    );
+    expect(first.next.personas.map((r) => r.key)).toEqual(["designer"]);
+
+    const partial = applyIndexDiff(first.next, { actions: bundle.actions }, "spc_demo");
+    expect(partial.next.personas).toEqual(first.next.personas);
+    expect(partial.changes.some((c) => c.resource === "personas" && c.change === "removed")).toBe(false);
+
+    const replaced = applyIndexDiff(
+      first.next,
+      {
+        personas: {
+          digest: "sha256:personas2",
+          file: {
+            version: 1,
+            personas: [{ id: "researcher", summary: "Prior art" }],
+          },
+        },
+      },
+      "spc_demo",
+    );
+    expect(replaced.next.personas.map((r) => r.key)).toEqual(["researcher"]);
+    expect(replaced.changes.some((c) => c.resource === "personas" && c.key === "designer" && c.change === "removed")).toBe(
+      true,
+    );
   });
 
   test("validateApplyBundle rejects flow-call cycle", () => {

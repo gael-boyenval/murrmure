@@ -13,6 +13,7 @@ export type SpaceIndexSnapshot = {
   executors: IndexedResourceRow[];
   hooks: IndexedResourceRow[];
   events: IndexedResourceRow[];
+  personas: IndexedResourceRow[];
   flows: FlowIndexRow[];
   views: IndexedResourceRow[];
   /** Canonical run policies (`ResolvedRunPolicy` rows keyed by `flow_id`). */
@@ -20,7 +21,7 @@ export type SpaceIndexSnapshot = {
 };
 
 export type ApplyIndexChange = {
-  resource: "actions" | "executors" | "hooks" | "events" | "flows" | "views" | "run_policies";
+  resource: "actions" | "executors" | "hooks" | "events" | "personas" | "flows" | "views" | "run_policies";
   key: string;
   change: "added" | "updated" | "removed" | "unchanged";
   digest?: string;
@@ -33,6 +34,7 @@ export type ApplyIndexResult = {
     executors: number;
     hooks: number;
     events: number;
+    personas: number;
     flows: number;
     views: number;
     run_policies: number;
