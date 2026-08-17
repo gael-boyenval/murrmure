@@ -1,13 +1,20 @@
 import type { Hono } from "hono";
-import { closeMeeting, conveneMeeting, hasCapability } from "@murrmure/hub-core";
+import {
+  buildMeetingTranscript,
+  canReadMeetingTranscript,
+  closeMeeting,
+  conveneMeeting,
+  hasCapability,
+} from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
 import { hookDispatchDeps } from "../../hook-dispatch.js";
 
-function denialHttp(http: number): 400 | 403 | 409 {
+function denialHttp(http: number): 400 | 403 | 404 | 409 {
   if (http === 403) return 403;
   if (http === 409) return 409;
+  if (http === 404) return 404;
   return 400;
 }
 
@@ -39,6 +46,38 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
       return c.json({ code: result.code, message: result.message }, denialHttp(result.http));
     }
     return c.json(result, 201);
+  });
+
+  app.get("/v1/sessions/:session_id/transcript", async (c) => {
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
+    if (auth instanceof Response) return auth;
+    const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
+    const session_id = c.req.param("session_id");
+    const rawSince = c.req.query("since_seq");
+    const since_seq = rawSince != null && rawSince !== "" ? Number(rawSince) : 0;
+    const transcript = await buildMeetingTranscript(murrmurePersistence, {
+      session_id,
+      since_seq: Number.isFinite(since_seq) ? since_seq : 0,
+    });
+    if (!transcript) {
+      return c.json({ code: "MEETING_NOT_FOUND", message: "No meeting on this session" }, 404);
+    }
+    if (
+      !canReadMeetingTranscript({
+        token_space_id: auth.space_id,
+        capabilities: effective,
+        roster: transcript.roster,
+      })
+    ) {
+      return c.json(
+        {
+          code: "SCOPE_ENFORCEMENT_FAILURE",
+          message: "Transcript requires a roster space or journal:read on a roster space",
+        },
+        403,
+      );
+    }
+    return c.json(transcript);
   });
 
   app.post("/v1/sessions/:session_id/meeting/close", async (c) => {

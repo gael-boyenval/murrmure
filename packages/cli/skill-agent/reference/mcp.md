@@ -34,6 +34,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
 | **`murrmure_list_personas`** | **`space:read`** | Same-space persona ads |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
+| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull `mrmr.meeting.*` with `since_seq`. Not `journal_query`. |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
 | **`murrmure_emit_event`** | **`event:emit`** | `{ event_type, payload, session_id? }` — journal-first; `session_id` required for `mrmr.meeting.*` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` |
@@ -47,6 +48,13 @@ installation or `mrmr space apply`.
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?session=ses_*&type=mrmr.step.*` |
 
 ## Typical agent flow
+
+**Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
+
+1. `murrmure_meeting_transcript` with the prompt `session_id` + `since_seq` — pull, do not paste the journal
+2. Do the Task (handler `prompt`)
+3. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`
+4. Do **not** `murrmure_resolve_step` the room
 
 **Handler assignment** (`Protocol: murrmure.agent/v1` already in the prompt):
 

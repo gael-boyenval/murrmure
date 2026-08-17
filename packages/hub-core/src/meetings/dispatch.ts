@@ -27,6 +27,7 @@ export async function dispatchMeetingSaidTargets(
     const targetEvent: HookSourceEvent = {
       ...event,
       participant: target.persona,
+      participant_id: target.participant_id,
       space_id: target.space_id,
     };
     const matched = matchEventHandlers(handlers, {

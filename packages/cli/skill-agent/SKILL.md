@@ -22,6 +22,7 @@ For authoring `.mrmr/` spaces, flows, views, and handlers, use
 
 | Signal | Mode | What to do |
 |--------|------|------------|
+| Prompt has `Protocol: murrmure.meeting/v1` | **Meeting seat** | Pull `murrmure_meeting_transcript` (`session_id` + `since_seq`). Reply with `murrmure_emit_event` `said`. Do **not** `murrmure_resolve_step` the room. Do not paste the journal. |
 | Prompt has `Protocol: murrmure.agent/v1`, or env has `MURRMURE_ASSIGNMENT_SCOPE` / `MURRMURE_RUN_ID` + `MURRMURE_STEP_ID` | **Assignment** | Jump to [Assignment](#assignment-do-this-now). Skip everything else. |
 | Interactive Cursor chat / local MCP with no assignment prompt | **Interactive** | [Interactive loop](#interactive-loop) only if the human asked you to operate a run. |
 | Prompt says `run_feedback_agent` or is a Murrmure control wake | **Feedback wake** | Follow that prompt (write `feedbacks/…`). Not a flow assignment. |
@@ -189,7 +190,8 @@ Assignment essentials: **`murrmure_resolve_step`**, optionally
 
 Interactive / advanced: `murrmure_get_run_context`, `murrmure_get_run_graph`,
 `murrmure_space_health`, `murrmure_list_handlers`, `murrmure_list_emittable_events` /
-`murrmure_emit_event`, `murrmure_journal_query`, `query_ask`.
+`murrmure_emit_event`, `murrmure_meeting_transcript`, `murrmure_journal_query`,
+`query_ask`. Meeting seats pull the transcript — they do not `journal_query` the room.
 
 Full catalog: [reference/mcp.md](reference/mcp.md). Gaps:
 [reference/known-gaps.md](reference/known-gaps.md).

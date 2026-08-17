@@ -88,6 +88,8 @@
   types, convene/`to` xor schemas, and denial codes `NOT_MEETING_MEMBER`,
   `MEETING_CLOSED`, `MEETING_CHAIR_REQUIRED`, `REPLY_UNKNOWN`,
   `PARTICIPANT_AMBIGUOUS`, `MEETING_ALREADY_OPEN`, `TO_AMBIGUOUS`, `TO_EMPTY`.
+- `MeetingTranscriptSchema` — session transcript DTO (`since_seq` / `up_to_seq`
+  are `meeting_seq`).
 
 ### Breaking Changes
 

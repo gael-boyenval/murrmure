@@ -7,3 +7,16 @@ export { appendMeetingDelivered, appendMeetingDeliveryFailed } from "./receipts.
 export { loadMeeting, writeMeetingSnapshot } from "./snapshot.js";
 export { meetingDenial, type MeetingDenial } from "./errors.js";
 export { mintParticipantId, mintMessageId, findSeat, seatsForSpace } from "./roster.js";
+export {
+  buildMeetingTranscript,
+  canReadMeetingTranscript,
+  meetingJournalData,
+} from "./transcript.js";
+export {
+  renderMurrmureMeetingProtocolEnvelope,
+  isMeetingSaidHandler,
+  isMeetingWakeParams,
+  buildMeetingWakeData,
+  lastDeliveryMeetingSeq,
+  type MeetingWakeData,
+} from "./assignment-prompt.js";

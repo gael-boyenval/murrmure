@@ -154,6 +154,17 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     { required: ["participants", "chair"] },
   ),
+  murrmure_meeting_transcript: objectSchema(
+    {
+      session_id: stringSchema("Meeting session id"),
+      since_seq: {
+        type: "integer",
+        minimum: 0,
+        description: "Session-monotonic meeting_seq cursor (exclusive)",
+      },
+    },
+    { required: ["session_id"] },
+  ),
   murrmure_create_session: objectSchema({
     title: stringSchema("Session title"),
     subject: {

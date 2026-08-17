@@ -146,6 +146,19 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Start meeting");
   });
 
+  registry.registerHandler("murrmure_meeting_transcript", async (args, authCtx) => {
+    const sessionId = String(args.session_id ?? "");
+    if (!sessionId) throw new Error("session_id is required");
+    const params = new URLSearchParams();
+    if (args.since_seq != null) params.set("since_seq", String(args.since_seq));
+    const qs = params.toString();
+    const res = await fetch(
+      `${hubUrl()}/v1/sessions/${encodeURIComponent(sessionId)}/transcript${qs ? `?${qs}` : ""}`,
+      { headers: mcpHeaders(authCtx) },
+    );
+    return assertHttpOk(res, "Meeting transcript");
+  });
+
   registry.registerHandler("murrmure_list_personas", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     const bare = bareSpaceId(spaceId);

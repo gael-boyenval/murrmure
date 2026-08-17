@@ -9,6 +9,8 @@ export interface HookSourceEvent {
   payload: Record<string, unknown>;
   session_id?: string;
   participant?: string;
+  /** Target seat `ptc_*` when waking a meeting handler. */
+  participant_id?: string;
 }
 
 /** Attribution for handler match. No roster lookup — pass through emit fields only. */

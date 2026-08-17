@@ -1,3 +1,5 @@
+import { isMeetingWakeParams, renderMurrmureMeetingProtocolEnvelope } from "@murrmure/hub-core";
+
 export interface InvokeActionParams {
   action_name?: string;
   step_id?: string;
@@ -27,7 +29,48 @@ function readTaskInstruction(params: Record<string, unknown> | undefined): strin
   return undefined;
 }
 
+function formatMeetingWake(params: InvokeActionParams): string {
+  const data = params.params ?? {};
+  const wake = {
+    session_id: String(data.session_id ?? params.session_id ?? ""),
+    participant_id: String(data.participant_id ?? ""),
+    message_id: String(data.message_id ?? ""),
+    since_seq: Number(data.since_seq ?? 0),
+  };
+  const instruction = readTaskInstruction(data);
+  const lines = [
+    "Murrmure control wake: action invoke",
+    "",
+    `Action: ${String(params.action_name ?? "unknown")}`,
+  ];
+  if (params.run_id) lines.push(`Run: ${params.run_id}`);
+  if (wake.session_id) lines.push(`Session: ${wake.session_id}`);
+  if (instruction) {
+    lines.push("", "Instruction:", instruction);
+  }
+  lines.push(
+    "",
+    "Data:",
+    JSON.stringify(
+      {
+        session_id: wake.session_id,
+        participant_id: wake.participant_id,
+        message_id: wake.message_id,
+        since_seq: wake.since_seq,
+      },
+      null,
+      2,
+    ),
+    "",
+    renderMurrmureMeetingProtocolEnvelope(wake),
+  );
+  return lines.join("\n").trim();
+}
+
 export function formatInvokeActionWake(params: InvokeActionParams): string {
+  if (isMeetingWakeParams(params.params)) {
+    return formatMeetingWake(params);
+  }
   const actionName = String(params.action_name ?? "unknown");
   const instruction = readTaskInstruction(params.params);
   const lines = [

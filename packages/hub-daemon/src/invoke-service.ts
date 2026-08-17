@@ -16,6 +16,8 @@ import {
   DEFAULT_WORKER_TTL_MS,
   registerShellProcessCancel,
   buildFlowInvokeStepContract,
+  isMeetingSaidHandler,
+  isMeetingWakeParams,
   mergeDispatchAuditIntoRun,
   mergeSpawnAuditIntoRun,
   appendShellStreamToRun,
@@ -723,7 +725,13 @@ export class InvokeService {
 
     if (run_id && parsed.data.step_id && resolved.space_root) {
       const matchedHandler = indexedHandler ?? await this.loadIndexedHandler(bare, input.action_name);
-      const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
+      const meetingSeat =
+        isMeetingSaidHandler(matchedHandler) || isMeetingWakeParams(parsed.data.params);
+      if (meetingSeat) {
+        // Seat handlers use murrmure.meeting/v1 — do not mint a step contract
+        // that orders murrmure_resolve_step.
+      } else {
+        const ttl_ms = resolveTokenTtlMs(resolved.action.timeout_ms);
       // For a `remote_hub` dispatch the resolve token is relayed to the consumer
       // hub, which uses it to fetch artifact bytes from this (producer) hub.
       // Bind the token to the consumer space so the producer bytes endpoint
@@ -757,6 +765,7 @@ export class InvokeService {
       });
       if (stepContract) {
         request.step_contract = stepContract;
+      }
       }
     }
 

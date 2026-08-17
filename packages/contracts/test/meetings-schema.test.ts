@@ -6,6 +6,7 @@ import {
   MeetingConveneBodySchema,
   MeetingSaidDataSchema,
   MeetingToSchema,
+  MeetingTranscriptSchema,
   MessageIdSchema,
   ParticipantIdSchema,
   PersonaIdSchema,
@@ -138,5 +139,28 @@ describe("meetings/convene and to xor", () => {
         to: { all: true },
       }).success,
     ).toBe(false);
+  });
+
+  test("transcript DTO", () => {
+    const parsed = MeetingTranscriptSchema.parse({
+      session_id: SES,
+      status: "open",
+      roster: [{ participant_id: PTC, space_id: SPC, persona: "designer" }],
+      chair: { participant_id: PTC },
+      since_seq: 0,
+      up_to_seq: 2,
+      messages: [
+        {
+          message_id: MSG,
+          seq: 2,
+          from: { participant_id: PTC, space_id: SPC, persona: "designer" },
+          to: { all: true, participant_ids: [PTC_B] },
+          text: "hello",
+          receipts: [{ participant_id: PTC_B, status: "delivered" }],
+        },
+      ],
+    });
+    expect(parsed.messages[0]?.to.all).toBe(true);
+    expect(parsed.messages[0]?.receipts[0]?.status).toBe("delivered");
   });
 });

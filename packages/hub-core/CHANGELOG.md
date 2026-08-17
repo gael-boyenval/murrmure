@@ -18,6 +18,9 @@
   `dispatchMeetingSaidTargets`. `emitAndDeliver` runs said/closed validators
   before journal and fans out only to resolved targets. Convene unions
   `spaces_touched` with every roster space.
+- `buildMeetingTranscript` folds `mrmr.meeting.*` on session-monotonic
+  `meeting_seq`. Seat wakes use `renderMurrmureMeetingProtocolEnvelope`
+  (`murrmure.meeting/v1`) — trigger ids + `since_seq`, not the step envelope.
 - Journal-first `emitAndDeliver` and `resolveEventDeliveryTarget` (`create` |
   `attach` | `notify_live`). Event handlers with a live `session_id` attach
   instead of minting a new session. `eventExecContext` no longer spreads the

@@ -14,6 +14,7 @@ import { resolveTemplateString, resolveStepParams } from "../flow-engine/templat
 import type { HookSourceEvent } from "./matcher.js";
 import { computeHookDedupKey, hookStepId, matchHooks, resolveHookParticipant } from "./matcher.js";
 import { matchEventHandlers } from "../index/parse-handlers.js";
+import { buildMeetingWakeData, meetingWakeExecContext } from "../meetings/assignment-prompt.js";
 
 export type EventDeliveryMode = "create" | "attach" | "notify_live";
 
@@ -325,7 +326,8 @@ async function deliverToAssignment(
     return { outcome: "failed", message: "notify_live_not_implemented" };
   }
 
-  const execContext = eventExecContext(input.event);
+  const meetingWake = await buildMeetingWakeData(deps.studio, input.event);
+  const execContext = meetingWake ? meetingWakeExecContext(meetingWake) : eventExecContext(input.event);
   const hookSpace = addSpaceId(stripSpaceId(input.hook_space_id));
   let sessionId = input.target.session_id;
 
@@ -354,10 +356,11 @@ async function deliverToAssignment(
     return { outcome: "failed", message: created.error?.message ?? "create_run_failed" };
   }
 
-  const params = resolveHookParams(
+  const resolvedParams = resolveHookParams(
     input.handler.type === "view_resolver" ? undefined : input.handler.params,
     execContext,
   );
+  const params = meetingWake ? { ...resolvedParams, ...meetingWake } : resolvedParams;
   const step_id = hookStepId(input.handler.id);
   const invokeResult = await deps.invokeAction({
     space_id: hookSpace,
