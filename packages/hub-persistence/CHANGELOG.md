@@ -12,6 +12,10 @@
 
 ### Added
 
+- Meeting snapshot port: `meeting_sessions`, `meeting_seq_counters`, nullable
+  `journal_index.meeting_seq`, plus `getMeetingBySession`,
+  `upsertMeetingSnapshot`, `allocateMeetingSeq`, `queryMeetingJournal`, and
+  `updateArtifactAuthorizedReaders`.
 - `listIndexedRunPolicies(space_id)` on `StudioPersistencePort` returns the
   space's resolved run policies.
 - In-memory and SQLite persistence store `run_policies` in the space index

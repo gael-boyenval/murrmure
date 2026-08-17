@@ -1,0 +1,25 @@
+version: 1
+
+handlers:
+  - id: meeting-designer
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: designer
+    type: mcp_session
+    complete: explicit
+    prompt: |
+      You are the designer seat in this meeting.
+      Pull transcript if you need prior turns.
+  - id: meeting-qa
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: qa
+    type: mcp_session
+    complete: explicit
+    prompt: |
+      You are the QA seat in this meeting.
+      Pull transcript if you need prior turns.

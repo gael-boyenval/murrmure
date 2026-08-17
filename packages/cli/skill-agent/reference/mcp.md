@@ -32,6 +32,8 @@ installation or `mrmr space apply`.
 | `murrmure_space_status` | `space:read` | Indexed counts + digests |
 | `murrmure_space_health` | `space:read` | Health summary, handler coverage |
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
+| **`murrmure_list_personas`** | **`space:read`** | Same-space persona ads |
+| **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
 | **`murrmure_emit_event`** | **`event:emit`** | `{ event_type, payload, session_id? }` — journal-first; `session_id` required for `mrmr.meeting.*` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` |

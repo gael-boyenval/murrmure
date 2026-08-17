@@ -36,6 +36,8 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/spaces/{id}` | Get space |
 | `GET` | `/v1/sessions` | List sessions |
 | `POST` | `/v1/sessions` | Create session |
+| `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. |
+| `POST` | `/v1/sessions/{id}/meeting/close` | Close the room (human chair / bootstrap). Journals `closed` + snapshot. Not a gate; does not call `resolveFlowStep`. |
 | `GET` | `/v1/sessions/{id}` | Get session |
 | `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
 | `GET` | `/v1/runs/{id}/step-contracts` | `space:read` | Active step-contract slice + `graph_digest` |

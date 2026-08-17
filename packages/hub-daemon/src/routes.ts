@@ -28,6 +28,7 @@ import { mountStepWorkUploadRoutes } from "./routes/runs/step-work-upload.js";
 import { mountGrantV2Routes } from "./routes/grants/index.js";
 import { mountExecutorPollRoutes } from "./routes/executor/index.js";
 import { mountJournalRoutes } from "./routes/journal/index.js";
+import { mountMeetingRoutes } from "./routes/meetings/index.js";
 import {
   mountGateRoutes,
   mountNotificationRoutes,
@@ -305,6 +306,7 @@ export function createHubApp(ctx: DaemonContext) {
   mountExecutorPollRoutes(app, ctx, ctx.executorPollStore);
   mountArtifactRoutes(app, ctx);
   mountSessionRunRoutes(app, ctx);
+  mountMeetingRoutes(app, ctx);
   mountResolveStepRoutes(app, ctx);
   mountOpenChildStepRoutes(app, ctx);
   mountStepContractsRoutes(app, ctx);

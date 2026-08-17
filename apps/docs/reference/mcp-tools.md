@@ -44,6 +44,7 @@ Example arguments:
 | `murrmure_space_health` | `space:read` | Health summary (index counts, handler coverage, warnings) |
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
 | `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
+| `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` — convene (`participants`, `chair` required; `title`, `goal`, `session_id` optional) |
 | `murrmure_list_emittable_events` | `space:read` | Event types this space can emit (from hook index) |
 | `murrmure_emit_event` | `event:emit` | Journal-first emit `{ event_type, payload, session_id? }`. Meeting types (`mrmr.meeting.*`) require top-level `session_id`. Hub-authored `convened` / `delivered` / `delivery_failed` are denied. |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
@@ -88,6 +89,8 @@ See [Connect your agent](../guide/agents-mcp) for grant setup.
 ```
 
 `session_id` is optional for ordinary events (handler delivery still `createSession`). It is **required** for `mrmr.meeting.*`. HTTP `POST /v1/spaces/{id}/events` also requires `event:emit` and returns the real journal `seq`.
+
+`mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. Chair may emit `mrmr.meeting.closed`; humans use `POST /v1/sessions/{id}/meeting/close`.
 
 ## User preferences
 

@@ -84,6 +84,10 @@
 - `SpaceIndexSnapshot.run_policies`, `ApplyIndexChange.resource: "run_policies"`,
   and `ApplyIndexResult.summary.run_policies`.
 - Denial codes `MEETING_SESSION_REQUIRED`, `SESSION_NOT_FOUND`, `HUB_ONLY_EVENT`.
+- Meeting room contracts: `ptc_*` / `msg_*` ids, `mrmr.meeting.*` journal
+  types, convene/`to` xor schemas, and denial codes `NOT_MEETING_MEMBER`,
+  `MEETING_CLOSED`, `MEETING_CHAIR_REQUIRED`, `REPLY_UNKNOWN`,
+  `PARTICIPANT_AMBIGUOUS`, `MEETING_ALREADY_OPEN`, `TO_AMBIGUOUS`, `TO_EMPTY`.
 
 ### Breaking Changes
 

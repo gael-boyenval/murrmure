@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- `mrmr meeting start` convenes a room via `POST /v1/meetings`
+  (`--title --goal --chair --participant --session`).
+
 ### Patch Changes
 
 - `space view init` runs `npm install` by default, ships a minimal App +

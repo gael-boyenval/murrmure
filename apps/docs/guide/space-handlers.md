@@ -223,6 +223,8 @@ handlers:
 
 Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability). HTTP `POST /v1/spaces/{id}/events` requires the same capability, journals first, and returns the real `seq`. Types starting with `mrmr.meeting.` must include a top-level `session_id` (delivery attaches to that session instead of creating one).
 
+`on.event.participant` matches the seat **persona** (`designer`), not `ptc_*`. Convene (`POST /v1/meetings` / `murrmure_start_meeting`) unions `spaces_touched` with every roster space. Close is `POST /v1/sessions/{id}/meeting/close` or chair-emitted `mrmr.meeting.closed` — not a gate and not `resolve_step`. Denial codes include `MEETING_ALREADY_OPEN`, `MEETING_CLOSED`, `MEETING_CHAIR_REQUIRED`, `TO_AMBIGUOUS`, `TO_EMPTY`, `REPLY_UNKNOWN`, `NOT_MEETING_MEMBER`, `PARTICIPANT_AMBIGUOUS`.
+
 ## Run policies
 
 `run_policies` declares how many **non-terminal runs** of a flow may exist at

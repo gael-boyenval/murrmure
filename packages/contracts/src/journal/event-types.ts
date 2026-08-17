@@ -24,6 +24,11 @@ export const JOURNAL_EVENT_TYPES = {
   FLOW_CHILD_COMPLETED: "mrmr.flow.child_completed",
   FLOW_START_DENIED: "mrmr.flow.start_denied",
   SPACE_INDEX_UPDATED: "mrmr.space.index_updated",
+  MEETING_CONVENED: "mrmr.meeting.convened",
+  MEETING_SAID: "mrmr.meeting.said",
+  MEETING_DELIVERED: "mrmr.meeting.delivered",
+  MEETING_DELIVERY_FAILED: "mrmr.meeting.delivery_failed",
+  MEETING_CLOSED: "mrmr.meeting.closed",
 } as const;
 
 export type JournalEventType = (typeof JOURNAL_EVENT_TYPES)[keyof typeof JOURNAL_EVENT_TYPES];

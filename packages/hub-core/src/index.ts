@@ -38,3 +38,4 @@ export * from "./executors/index.js";
 export * from "./federation/index.js";
 export * from "./cross-space/index.js";
 export * from "./events/index.js";
+export * from "./meetings/index.js";

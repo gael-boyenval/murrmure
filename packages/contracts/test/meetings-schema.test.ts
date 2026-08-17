@@ -1,5 +1,22 @@
 import { describe, expect, test } from "vitest";
-import { PersonaIdSchema, PersonasFileSchema } from "../src/index.js";
+import {
+  JOURNAL_EVENT_TYPES,
+  MURRMURE_DENIAL_CODES,
+  MeetingChairSchema,
+  MeetingConveneBodySchema,
+  MeetingSaidDataSchema,
+  MeetingToSchema,
+  MessageIdSchema,
+  ParticipantIdSchema,
+  PersonaIdSchema,
+  PersonasFileSchema,
+} from "../src/index.js";
+
+const PTC = "ptc_01ARZ3NDEKTSV4RRFFQ69G5FAV";
+const PTC_B = "ptc_01ARZ3NDEKTSV4RRFFQ69G5FBW";
+const MSG = "msg_01ARZ3NDEKTSV4RRFFQ69G5FAV";
+const SPC = "spc_01ARZ3NDEKTSV4RRFFQ69G5FAV";
+const SES = "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
 describe("meetings/personas schema", () => {
   test("accepts a valid personas file", () => {
@@ -37,5 +54,89 @@ describe("meetings/personas schema", () => {
     expect(PersonaIdSchema.safeParse("1designer").success).toBe(false);
     expect(PersonaIdSchema.safeParse("").success).toBe(false);
     expect(PersonaIdSchema.safeParse("a".repeat(65)).success).toBe(false);
+  });
+});
+
+describe("meetings/ids and journal types", () => {
+  test("ptc_* and msg_* ids", () => {
+    expect(ParticipantIdSchema.safeParse(PTC).success).toBe(true);
+    expect(MessageIdSchema.safeParse(MSG).success).toBe(true);
+    expect(ParticipantIdSchema.safeParse("ptc_not-a-ulid").success).toBe(false);
+    expect(MessageIdSchema.safeParse("msg_not-a-ulid").success).toBe(false);
+    expect(ParticipantIdSchema.safeParse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV").success).toBe(false);
+  });
+
+  test("five mrmr.meeting.* journal types", () => {
+    expect(JOURNAL_EVENT_TYPES.MEETING_CONVENED).toBe("mrmr.meeting.convened");
+    expect(JOURNAL_EVENT_TYPES.MEETING_SAID).toBe("mrmr.meeting.said");
+    expect(JOURNAL_EVENT_TYPES.MEETING_DELIVERED).toBe("mrmr.meeting.delivered");
+    expect(JOURNAL_EVENT_TYPES.MEETING_DELIVERY_FAILED).toBe("mrmr.meeting.delivery_failed");
+    expect(JOURNAL_EVENT_TYPES.MEETING_CLOSED).toBe("mrmr.meeting.closed");
+  });
+
+  test("meeting denial codes", () => {
+    expect(MURRMURE_DENIAL_CODES.NOT_MEETING_MEMBER).toBe("NOT_MEETING_MEMBER");
+    expect(MURRMURE_DENIAL_CODES.MEETING_CLOSED).toBe("MEETING_CLOSED");
+    expect(MURRMURE_DENIAL_CODES.MEETING_CHAIR_REQUIRED).toBe("MEETING_CHAIR_REQUIRED");
+    expect(MURRMURE_DENIAL_CODES.REPLY_UNKNOWN).toBe("REPLY_UNKNOWN");
+    expect(MURRMURE_DENIAL_CODES.PARTICIPANT_AMBIGUOUS).toBe("PARTICIPANT_AMBIGUOUS");
+    expect(MURRMURE_DENIAL_CODES.MEETING_ALREADY_OPEN).toBe("MEETING_ALREADY_OPEN");
+    expect(MURRMURE_DENIAL_CODES.TO_AMBIGUOUS).toBe("TO_AMBIGUOUS");
+    expect(MURRMURE_DENIAL_CODES.TO_EMPTY).toBe("TO_EMPTY");
+    expect(MURRMURE_DENIAL_CODES.MEETING_SESSION_REQUIRED).toBe("MEETING_SESSION_REQUIRED");
+  });
+});
+
+describe("meetings/convene and to xor", () => {
+  test("accepts convene body with seat chair", () => {
+    const parsed = MeetingConveneBodySchema.parse({
+      title: "API shape",
+      goal: "Pick an approach",
+      session_id: SES,
+      participants: [
+        { space_id: SPC, persona: "designer" },
+        { space_id: SPC, persona: "qa" },
+      ],
+      chair: { space_id: SPC, persona: "designer" },
+    });
+    expect(parsed.participants).toHaveLength(2);
+    expect(parsed.chair).toEqual({ space_id: SPC, persona: "designer" });
+  });
+
+  test("accepts human chair", () => {
+    expect(MeetingChairSchema.safeParse({ human: true }).success).toBe(true);
+    expect(MeetingChairSchema.safeParse({ space_id: SPC }).success).toBe(true);
+    expect(MeetingChairSchema.safeParse({ human: true, space_id: SPC }).success).toBe(false);
+  });
+
+  test("to is xor list / all", () => {
+    expect(MeetingToSchema.safeParse({ participant_ids: [PTC] }).success).toBe(true);
+    expect(MeetingToSchema.safeParse({ all: true }).success).toBe(true);
+    expect(MeetingToSchema.safeParse({ all: true, participant_ids: [PTC] }).success).toBe(false);
+    expect(MeetingToSchema.safeParse({}).success).toBe(false);
+    expect(MeetingToSchema.safeParse({ participant_ids: [] }).success).toBe(false);
+  });
+
+  test("said requires text or artifacts", () => {
+    expect(
+      MeetingSaidDataSchema.safeParse({
+        as_participant_id: PTC,
+        to: { all: true },
+        text: "hello",
+      }).success,
+    ).toBe(true);
+    expect(
+      MeetingSaidDataSchema.safeParse({
+        as_participant_id: PTC,
+        to: { participant_ids: [PTC_B] },
+        artifacts: ["xfr_01ARZ3NDEKTSV4RRFFQ69G5FAV"],
+      }).success,
+    ).toBe(true);
+    expect(
+      MeetingSaidDataSchema.safeParse({
+        as_participant_id: PTC,
+        to: { all: true },
+      }).success,
+    ).toBe(false);
   });
 });

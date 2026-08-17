@@ -9,6 +9,11 @@ export type {
   ArtifactRow,
   NotificationRow,
   JournalIndexRow,
+  MeetingSessionRow,
+  MeetingRosterSeatRow,
+  MeetingSnapshotChair,
+  MeetingJournalQueryParams,
+  UpsertMeetingSnapshotResult,
 } from "./port.js";
 export { migrateStudio, ensureBootstrapToken } from "./migrate.js";
 export { MemoryStudioPersistence } from "./memory.js";

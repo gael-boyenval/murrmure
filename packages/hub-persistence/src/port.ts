@@ -136,7 +136,43 @@ export interface JournalIndexRow {
   actor_id?: string;
   time: string;
   payload_json: string;
+  meeting_seq?: number;
 }
+
+export type MeetingSnapshotStatus = "open" | "closed";
+
+export type MeetingSnapshotChair = { participant_id: string } | { human: true };
+
+export interface MeetingRosterSeatRow {
+  participant_id: string;
+  space_id: string;
+  persona?: string;
+}
+
+export interface MeetingSessionRow {
+  session_id: string;
+  status: MeetingSnapshotStatus;
+  title?: string;
+  goal?: string;
+  chair: MeetingSnapshotChair;
+  roster: MeetingRosterSeatRow[];
+  convene_entry_id: string;
+  convene_meeting_seq: number;
+  close_entry_id?: string;
+  close_meeting_seq?: number;
+  close_outcome?: "completed" | "failed";
+  bound_run_id?: string;
+  bound_step_id?: string;
+  updated_at: string;
+}
+
+export interface MeetingJournalQueryParams {
+  session_id: string;
+  types?: string[];
+  since_meeting_seq?: number;
+}
+
+export type UpsertMeetingSnapshotResult = { ok: true } | { ok: false; code: "MEETING_ALREADY_OPEN" };
 
 export interface JournalQueryParams {
   subject?: string;
@@ -329,4 +365,11 @@ export interface StudioPersistencePort {
 
   insertJournalIndex(row: JournalIndexRow): Promise<void>;
   queryJournalIndex(params: JournalQueryParams): Promise<JournalIndexRow[]>;
+  setJournalIndexMeetingSeq(entry_id: string, meeting_seq: number): Promise<void>;
+
+  getMeetingBySession(session_id: string): Promise<MeetingSessionRow | null>;
+  upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult>;
+  allocateMeetingSeq(session_id: string): Promise<number>;
+  queryMeetingJournal(params: MeetingJournalQueryParams): Promise<JournalIndexRow[]>;
+  updateArtifactAuthorizedReaders(transfer_id: string, readers: string[]): Promise<void>;
 }

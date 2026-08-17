@@ -16,6 +16,7 @@ const PLATFORM_TOOL_NAMES = [
   "murrmure_list_emittable_events",
   "murrmure_list_handlers",
   "murrmure_list_personas",
+  "murrmure_start_meeting",
   "murrmure_emit_event",
   "murrmure_create_session",
   "murrmure_list_sessions",
@@ -45,6 +46,7 @@ const P0_REQUIRED: Record<string, string[]> = {
   murrmure_space_health: [],
   murrmure_list_handlers: [],
   murrmure_list_personas: [],
+  murrmure_start_meeting: ["participants", "chair"],
 };
 
 const ALL_PLATFORM_CAPABILITIES = [

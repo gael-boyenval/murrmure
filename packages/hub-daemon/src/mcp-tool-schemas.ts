@@ -130,6 +130,30 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
   murrmure_list_personas: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
+  murrmure_start_meeting: objectSchema(
+    {
+      title: stringSchema("Meeting title"),
+      goal: stringSchema("Opaque meeting goal"),
+      session_id: stringSchema("Optional existing session to attach"),
+      participants: {
+        type: "array",
+        items: objectSchema(
+          {
+            space_id: stringSchema("Invitee space id"),
+            persona: stringSchema("Optional persona handle"),
+          },
+          { required: ["space_id"] },
+        ),
+        description: "Roster seats",
+      },
+      chair: {
+        type: "object",
+        additionalProperties: true,
+        description: "Chair seat { space_id, persona? } or { human: true }",
+      },
+    },
+    { required: ["participants", "chair"] },
+  ),
   murrmure_create_session: objectSchema({
     title: stringSchema("Session title"),
     subject: {

@@ -15,6 +15,8 @@
 
 ### Added
 
+- `POST /v1/meetings` and `POST /v1/sessions/:id/meeting/close` convene and
+  close rooms. MCP `murrmure_start_meeting` mirrors convene (`flow:run`).
 - `POST /v1/spaces/:id/events` (no `instance_id`) requires `event:emit`,
   journals first via `emitAndDeliver`, and returns the real journal `seq`.
   `murrmure_emit_event` forwards top-level `session_id`. Meeting types without

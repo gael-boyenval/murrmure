@@ -23,6 +23,8 @@ export const GateIdSchema = PrefixedIdSchema("chk");
 export const TriggerIdSchema = PrefixedIdSchema("trg");
 export const HubIdSchema = PrefixedIdSchema("hub");
 export const BlobIdSchema = PrefixedIdSchema("blb");
+export const ParticipantIdSchema = PrefixedIdSchema("ptc");
+export const MessageIdSchema = PrefixedIdSchema("msg");
 
 /** Map v1 instance id (`ins_*`) to rev-1 run id (`run_*`). */
 export function instanceIdToRunId(id: string): string {
@@ -37,3 +39,5 @@ export type SessionId = z.infer<typeof SessionIdSchema>;
 export type FlowId = z.infer<typeof FlowIdSchema>;
 export type TransferId = z.infer<typeof TransferIdSchema>;
 export type TokenId = z.infer<typeof TokenIdSchema>;
+export type ParticipantId = z.infer<typeof ParticipantIdSchema>;
+export type MessageId = z.infer<typeof MessageIdSchema>;

@@ -97,6 +97,7 @@ Legend: **stub** = Task 1 placeholder; **impl** = implemented.
 | `flow build` | impl | none |
 | `flow push` | **404** | Hub returns 404 (phase 16) — use `space apply` |
 | `flow run` | impl | requireScope · flow:run |
+| `meeting start` | impl | requireScope · flow:run |
 | `flow status` | impl | none |
 | `flow list` | impl | requireScope · space:read |
 | `flow doctor` | impl (deprecated alias) | any valid token → delegates to `mrmr doctor` |

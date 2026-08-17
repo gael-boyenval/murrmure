@@ -21,6 +21,7 @@ export * from "./entities/artifact-record.js";
 export * from "./entities/hook.js";
 export * from "./entities/event-declaration.js";
 export * from "./entities/persona.js";
+export * from "./entities/meeting.js";
 export * from "./entities/member.js";
 export * from "./entities/capability.js";
 export * from "./grants/capability.js";

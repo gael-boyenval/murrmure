@@ -1,0 +1,14 @@
+version: 1
+personas:
+  - id: designer
+    summary: Product UI in this repo
+    asks:
+      - UX review of a flow or screenshot
+    requests:
+      - critique an artifact
+  - id: qa
+    summary: Quality and empty-state review
+    asks:
+      - regression and edge cases
+    requests:
+      - attach a written brief

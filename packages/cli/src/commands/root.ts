@@ -17,6 +17,7 @@ import { workerCommand } from "./worker/index.js";
 import { viewCommand } from "./view/index.js";
 import { federationCommand } from "./federation.js";
 import { setupCommand } from "./setup.js";
+import { meetingCommand } from "./meeting/index.js";
 import { globalArgs } from "../lib/flags.js";
 
 function readCliVersion(): string {
@@ -57,6 +58,7 @@ export const rootCommand = defineCommand({
     hub: hubCommand,
     runtime: runtimeCommand,
     flow: flowCommand,
+    meeting: meetingCommand,
     view: viewCommand,
     skill: skillCommand,
   },

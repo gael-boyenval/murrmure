@@ -131,6 +131,21 @@ export function registerPlatformMcpHandlers(
     };
   });
 
+  registry.registerHandler("murrmure_start_meeting", async (args, authCtx) => {
+    const res = await fetch(`${hubUrl()}/v1/meetings`, {
+      method: "POST",
+      headers: mcpHeaders(authCtx),
+      body: JSON.stringify({
+        title: args.title,
+        goal: args.goal,
+        session_id: args.session_id,
+        participants: args.participants,
+        chair: args.chair,
+      }),
+    });
+    return assertHttpOk(res, "Start meeting");
+  });
+
   registry.registerHandler("murrmure_list_personas", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     const bare = bareSpaceId(spaceId);

@@ -1,0 +1,10 @@
+version: 1
+personas:
+  - id: researcher
+    summary: Technical research and prior art
+    asks:
+      - literature / papers on a topic
+      - latency or perf evidence
+    requests:
+      - attach a written brief
+      - recommend a choice (not decide)

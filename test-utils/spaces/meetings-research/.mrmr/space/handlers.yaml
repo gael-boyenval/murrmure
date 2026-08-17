@@ -1,0 +1,14 @@
+version: 1
+
+handlers:
+  - id: meeting-researcher
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: researcher
+    type: mcp_session
+    complete: explicit
+    prompt: |
+      You are the researcher seat in this meeting.
+      Pull transcript if you need prior turns.

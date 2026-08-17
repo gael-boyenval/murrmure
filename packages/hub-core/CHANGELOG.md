@@ -13,6 +13,11 @@
 
 ### Added
 
+- Meeting room protocol: `conveneMeeting`, `prepareMeetingSaid`,
+  `closeMeeting`, `appendMeetingEvent`, receipts, and
+  `dispatchMeetingSaidTargets`. `emitAndDeliver` runs said/closed validators
+  before journal and fans out only to resolved targets. Convene unions
+  `spaces_touched` with every roster space.
 - Journal-first `emitAndDeliver` and `resolveEventDeliveryTarget` (`create` |
   `attach` | `notify_live`). Event handlers with a live `session_id` attach
   instead of minting a new session. `eventExecContext` no longer spreads the

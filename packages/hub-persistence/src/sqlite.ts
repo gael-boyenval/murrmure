@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, PersonaAd, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
-import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow } from "./port.js";
+import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow, MeetingSessionRow, MeetingJournalQueryParams, MeetingSnapshotChair, MeetingRosterSeatRow, UpsertMeetingSnapshotResult } from "./port.js";
 
 function parseJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
@@ -1575,19 +1575,150 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     sql += " ORDER BY time DESC LIMIT ?";
     args.push(params.limit ?? 100);
 
-    const rows = this.db.prepare(sql).all(...args) as Array<Record<string, string>>;
-    return rows.map((r) => ({
-      entry_id: r.entry_id,
+    const rows = this.db.prepare(sql).all(...args) as Array<Record<string, string | number | null>>;
+    return rows.map((r) => this.rowToJournalIndex(r));
+  }
+
+  async setJournalIndexMeetingSeq(entry_id: string, meeting_seq: number): Promise<void> {
+    this.db.prepare("UPDATE journal_index SET meeting_seq = ? WHERE entry_id = ?").run(meeting_seq, entry_id);
+  }
+
+  async getMeetingBySession(session_id: string): Promise<MeetingSessionRow | null> {
+    const bare = this.bareSessionId(session_id);
+    const row = this.db.prepare("SELECT * FROM meeting_sessions WHERE session_id = ?").get(bare) as
+      | Record<string, string | number | null>
+      | undefined;
+    return row ? this.rowToMeetingSession(row) : null;
+  }
+
+  async upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult> {
+    const bare = this.bareSessionId(row.session_id);
+    const existing = await this.getMeetingBySession(bare);
+    if (existing?.status === "open" && row.status === "open" && existing.convene_entry_id !== row.convene_entry_id) {
+      return { ok: false, code: "MEETING_ALREADY_OPEN" };
+    }
+    this.db
+      .prepare(
+        `INSERT INTO meeting_sessions (
+           session_id, status, title, goal, chair_json, roster_json,
+           convene_entry_id, convene_meeting_seq, close_entry_id, close_meeting_seq,
+           close_outcome, bound_run_id, bound_step_id, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(session_id) DO UPDATE SET
+           status = excluded.status,
+           title = excluded.title,
+           goal = excluded.goal,
+           chair_json = excluded.chair_json,
+           roster_json = excluded.roster_json,
+           convene_entry_id = excluded.convene_entry_id,
+           convene_meeting_seq = excluded.convene_meeting_seq,
+           close_entry_id = excluded.close_entry_id,
+           close_meeting_seq = excluded.close_meeting_seq,
+           close_outcome = excluded.close_outcome,
+           bound_run_id = excluded.bound_run_id,
+           bound_step_id = excluded.bound_step_id,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        bare,
+        row.status,
+        row.title ?? null,
+        row.goal ?? null,
+        JSON.stringify(row.chair),
+        JSON.stringify(row.roster),
+        row.convene_entry_id,
+        row.convene_meeting_seq,
+        row.close_entry_id ?? null,
+        row.close_meeting_seq ?? null,
+        row.close_outcome ?? null,
+        row.bound_run_id ?? null,
+        row.bound_step_id ?? null,
+        row.updated_at,
+      );
+    return { ok: true };
+  }
+
+  async allocateMeetingSeq(session_id: string): Promise<number> {
+    const bare = this.bareSessionId(session_id);
+    const row = this.db.prepare("SELECT next_seq FROM meeting_seq_counters WHERE session_id = ?").get(bare) as
+      | { next_seq: number }
+      | undefined;
+    if (!row) {
+      this.db.prepare("INSERT INTO meeting_seq_counters (session_id, next_seq) VALUES (?, 1)").run(bare);
+      return 1;
+    }
+    const next = row.next_seq + 1;
+    this.db.prepare("UPDATE meeting_seq_counters SET next_seq = ? WHERE session_id = ?").run(next, bare);
+    return next;
+  }
+
+  async queryMeetingJournal(params: MeetingJournalQueryParams): Promise<JournalIndexRow[]> {
+    const bare = this.bareSessionId(params.session_id);
+    let sql = "SELECT * FROM journal_index WHERE session_id = ? AND meeting_seq IS NOT NULL";
+    const args: Array<string | number> = [bare];
+    if (params.types && params.types.length > 0) {
+      sql += ` AND type IN (${params.types.map(() => "?").join(", ")})`;
+      args.push(...params.types);
+    }
+    if (params.since_meeting_seq != null) {
+      sql += " AND meeting_seq > ?";
+      args.push(params.since_meeting_seq);
+    }
+    sql += " ORDER BY meeting_seq ASC";
+    const rows = this.db.prepare(sql).all(...args) as Array<Record<string, string | number | null>>;
+    return rows.map((r) => this.rowToJournalIndex(r));
+  }
+
+  async updateArtifactAuthorizedReaders(transfer_id: string, readers: string[]): Promise<void> {
+    const existing = await this.getArtifact(transfer_id);
+    if (!existing) return;
+    const merged = [...new Set([...existing.authorized_readers, ...readers])];
+    this.db
+      .prepare("UPDATE artifacts SET authorized_readers_json = ? WHERE transfer_id = ?")
+      .run(JSON.stringify(merged), transfer_id);
+  }
+
+  private bareSessionId(session_id: string): string {
+    return session_id.startsWith("ses_") ? session_id.slice(4) : session_id;
+  }
+
+  private rowToJournalIndex(r: Record<string, string | number | null>): JournalIndexRow {
+    const meetingSeq = r.meeting_seq;
+    return {
+      entry_id: String(r.entry_id),
       seq: Number(r.seq),
-      space_id: r.space_id,
-      type: r.type,
-      subject: r.subject ?? undefined,
-      session_id: r.session_id ?? undefined,
-      run_id: r.run_id ?? undefined,
-      actor_id: r.actor_id ?? undefined,
-      time: r.time,
-      payload_json: r.payload_json,
-    }));
+      space_id: String(r.space_id),
+      type: String(r.type),
+      subject: r.subject != null ? String(r.subject) : undefined,
+      session_id: r.session_id != null ? String(r.session_id) : undefined,
+      run_id: r.run_id != null ? String(r.run_id) : undefined,
+      actor_id: r.actor_id != null ? String(r.actor_id) : undefined,
+      time: String(r.time),
+      payload_json: String(r.payload_json),
+      meeting_seq: meetingSeq == null ? undefined : Number(meetingSeq),
+    };
+  }
+
+  private rowToMeetingSession(row: Record<string, string | number | null>): MeetingSessionRow {
+    return {
+      session_id: String(row.session_id),
+      status: row.status === "closed" ? "closed" : "open",
+      title: row.title != null ? String(row.title) : undefined,
+      goal: row.goal != null ? String(row.goal) : undefined,
+      chair: parseJson<MeetingSnapshotChair>(String(row.chair_json)),
+      roster: parseJson<MeetingRosterSeatRow[]>(String(row.roster_json)),
+      convene_entry_id: String(row.convene_entry_id),
+      convene_meeting_seq: Number(row.convene_meeting_seq),
+      close_entry_id: row.close_entry_id != null ? String(row.close_entry_id) : undefined,
+      close_meeting_seq: row.close_meeting_seq == null ? undefined : Number(row.close_meeting_seq),
+      close_outcome:
+        row.close_outcome === "failed" || row.close_outcome === "completed"
+          ? row.close_outcome
+          : undefined,
+      bound_run_id: row.bound_run_id != null ? String(row.bound_run_id) : undefined,
+      bound_step_id: row.bound_step_id != null ? String(row.bound_step_id) : undefined,
+      updated_at: String(row.updated_at),
+    };
   }
 }
 

@@ -1,6 +1,6 @@
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, PersonaAd, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { normalizeFlowIndexEntry } from "@murrmure/contracts";
-import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams } from "./port.js";
+import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, MeetingSessionRow, MeetingJournalQueryParams, UpsertMeetingSnapshotResult } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
   private spaces = new Map<string, Space>();
@@ -29,6 +29,8 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   private notifications = new Map<string, NotificationRow>();
   private userPrefs = new Map<string, UserPrefsRow>();
   private journalIndex: JournalIndexRow[] = [];
+  private meetingSessions = new Map<string, MeetingSessionRow>();
+  private meetingSeq = new Map<string, number>();
 
   private flowIndexKey(origin_space_id: string, flow_id: string): string {
     return `${this.bareSpaceId(origin_space_id)}:${flow_id}`;
@@ -730,6 +732,57 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
 
   async insertJournalIndex(row: JournalIndexRow): Promise<void> {
     this.journalIndex.push(row);
+  }
+
+  async setJournalIndexMeetingSeq(entry_id: string, meeting_seq: number): Promise<void> {
+    const row = this.journalIndex.find((entry) => entry.entry_id === entry_id);
+    if (row) row.meeting_seq = meeting_seq;
+  }
+
+  private bareSessionId(session_id: string): string {
+    return session_id.startsWith("ses_") ? session_id.slice(4) : session_id;
+  }
+
+  async getMeetingBySession(session_id: string): Promise<MeetingSessionRow | null> {
+    return this.meetingSessions.get(this.bareSessionId(session_id)) ?? null;
+  }
+
+  async upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult> {
+    const bare = this.bareSessionId(row.session_id);
+    const existing = this.meetingSessions.get(bare);
+    if (existing?.status === "open" && row.status === "open" && existing.convene_entry_id !== row.convene_entry_id) {
+      return { ok: false, code: "MEETING_ALREADY_OPEN" };
+    }
+    this.meetingSessions.set(bare, { ...row, session_id: bare });
+    return { ok: true };
+  }
+
+  async allocateMeetingSeq(session_id: string): Promise<number> {
+    const bare = this.bareSessionId(session_id);
+    const next = (this.meetingSeq.get(bare) ?? 0) + 1;
+    this.meetingSeq.set(bare, next);
+    return next;
+  }
+
+  async queryMeetingJournal(params: MeetingJournalQueryParams): Promise<JournalIndexRow[]> {
+    const bare = this.bareSessionId(params.session_id);
+    const types = params.types && params.types.length > 0 ? new Set(params.types) : undefined;
+    return this.journalIndex
+      .filter((row) => {
+        if (row.session_id !== bare) return false;
+        if (row.meeting_seq == null) return false;
+        if (types && !types.has(row.type)) return false;
+        if (params.since_meeting_seq != null && row.meeting_seq <= params.since_meeting_seq) return false;
+        return true;
+      })
+      .sort((a, b) => (a.meeting_seq ?? 0) - (b.meeting_seq ?? 0));
+  }
+
+  async updateArtifactAuthorizedReaders(transfer_id: string, readers: string[]): Promise<void> {
+    const row = this.artifacts.get(transfer_id);
+    if (!row) return;
+    const merged = [...new Set([...row.authorized_readers, ...readers])];
+    this.artifacts.set(transfer_id, { ...row, authorized_readers: merged });
   }
 
   async queryJournalIndex(params: JournalQueryParams): Promise<JournalIndexRow[]> {

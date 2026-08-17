@@ -392,7 +392,7 @@ async function deliverToAssignment(
   return { outcome: "delivered", session_id: sessionId, run_id: created.run.run_id };
 }
 
-async function dispatchEventHandler(
+export async function dispatchMatchedEventHandler(
   deps: HookDispatchDeps,
   input: {
     hook_space_id: string;
@@ -438,7 +438,7 @@ export async function dispatchHooksForEvent(
           participant: resolveHookParticipant(event),
         });
         for (const matchedHandler of matchedHandlers) {
-          const result = await dispatchEventHandler(deps, {
+          const result = await dispatchMatchedEventHandler(deps, {
             hook_space_id: space.space_id,
             handler: matchedHandler,
             event,

@@ -334,11 +334,35 @@ export function migrateStudio(db: Database.Database): void {
       run_id TEXT,
       actor_id TEXT,
       time TEXT NOT NULL,
-      payload_json TEXT NOT NULL
+      payload_json TEXT NOT NULL,
+      meeting_seq INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_journal_index_time ON journal_index(time);
     CREATE INDEX IF NOT EXISTS idx_journal_index_session ON journal_index(session_id, time);
     CREATE INDEX IF NOT EXISTS idx_journal_index_type ON journal_index(type, time);
+    CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq);
+
+    CREATE TABLE IF NOT EXISTS meeting_sessions (
+      session_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      title TEXT,
+      goal TEXT,
+      chair_json TEXT NOT NULL,
+      roster_json TEXT NOT NULL,
+      convene_entry_id TEXT NOT NULL,
+      convene_meeting_seq INTEGER NOT NULL,
+      close_entry_id TEXT,
+      close_meeting_seq INTEGER,
+      close_outcome TEXT,
+      bound_run_id TEXT,
+      bound_step_id TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS meeting_seq_counters (
+      session_id TEXT PRIMARY KEY,
+      next_seq INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   const spaceCols = db.prepare("PRAGMA table_info(spaces)").all() as Array<{ name: string }>;
@@ -430,6 +454,13 @@ export function migrateStudio(db: Database.Database): void {
   const notificationColNames = new Set(notificationCols.map((c) => c.name));
   if (!notificationColNames.has("step_id")) {
     db.exec(`ALTER TABLE notifications ADD COLUMN step_id TEXT`);
+  }
+
+  const journalCols = db.prepare("PRAGMA table_info(journal_index)").all() as Array<{ name: string }>;
+  const journalColNames = new Set(journalCols.map((c) => c.name));
+  if (!journalColNames.has("meeting_seq")) {
+    db.exec(`ALTER TABLE journal_index ADD COLUMN meeting_seq INTEGER`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq)`);
   }
 }
 
