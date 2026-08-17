@@ -64,6 +64,7 @@ export function useStepCanvasBinding(input: StepCanvasBindingInput | null) {
     if (sessionId) {
       await queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
       await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
     }
   }, [queryClient, runId, sessionId]);
 

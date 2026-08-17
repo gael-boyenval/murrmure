@@ -39,6 +39,13 @@ export function JournalProvider({ children }: { children: ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: ["notifications"] });
       }
 
+      if (payload.event === "journal.append") {
+        const sessionId = payload.data.session_id;
+        if (typeof sessionId === "string") {
+          void queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
+        }
+      }
+
       if (RUN_STATE_INVALIDATION_EVENTS.has(payload.event)) {
         invalidateRunStateQueries(queryClient, payload.data);
       } else {

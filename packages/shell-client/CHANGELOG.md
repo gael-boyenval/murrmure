@@ -79,6 +79,10 @@
 
 ### Added
 
+- `sessions.transcript` (`GET /v1/sessions/{id}/transcript`) and
+  `sessions.closeMeeting` (`POST /v1/sessions/{id}/meeting/close`). Transcript
+  404 is `null` (session is not a meeting). Close is the human-chair mutation,
+  not `gates.resolve` / `runs.cancel`.
 - `runFlow` now raises a structured `ShellClientHttpError` (with typed
   `code`, `message`, `active_run_ids`, `max_concurrent_runs`) on non-2xx
   responses so the Desktop shell can surface `FLOW_CONCURRENCY_LIMIT` and

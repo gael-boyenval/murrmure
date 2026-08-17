@@ -11,7 +11,7 @@ The observer shell is the UI inside **Murrmure Desktop** — not a standalone br
 | **`/spaces/new`** | First-run space creation and linking |
 | **`/spaces/:spaceId`** | Space home — sessions, flows, gates (**admin**) |
 | **`/spaces/:spaceId/flows/:flowId`** | Flow preview (**admin**) |
-| **`/sessions/:sessionId`** | Session orchestration — run graph, gate panel (**admin**) |
+| **`/sessions/:sessionId`** | Session — **Transcript** default when the session is a meeting; **Review** tab if a validation View is bound (does not replace Transcript); Flowchart / Journal operator tabs. `?operator=1` defaults to Flowchart. No `/meetings` route. |
 | **`/runs/:runId`** | Run detail — graph, gates, retry (**admin**) |
 | **`/notifications`** | Notification inbox (**admin**) |
 | **`/logs`** | Journal / log explorer (**admin**) |
@@ -38,6 +38,13 @@ When a run pauses at a **checkpoint** step with a space-bound view (a `view_reso
 
 1. Open **`/sessions/:sessionId`** — run graph, pending step observability, retry
 2. Use when debugging — not the primary path when a custom view is bound
+3. Meeting sessions open on **Transcript** (roster, messages, receipts). Close is the human-chair action. There is no compose box and no `/meetings` wizard.
+
+### Watch a meeting
+
+1. Start a flow that has a `meeting:` step (space home **Run**), or an agent/CLI convene
+2. Open the session from **Sessions** / recent — Transcript is the default pane
+3. Optional **Review** tab if a later validation step binds a View; Transcript stays mounted
 
 ### Unbound step (observability-only)
 

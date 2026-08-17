@@ -1,5 +1,16 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { resolveDefaultRoute, resolveHomeFallbackRoute } from "./App.js";
+
+describe("App routes", () => {
+  it("does not register /meetings or /chat", () => {
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "App.tsx"), "utf8");
+    expect(src).not.toMatch(/path=["']\/meetings/);
+    expect(src).not.toMatch(/path=["']\/chat/);
+  });
+});
 
 describe("resolveDefaultRoute", () => {
   it("sends non-bundled users without token to connect", () => {

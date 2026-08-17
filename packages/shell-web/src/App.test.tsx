@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App.js";
@@ -37,6 +37,8 @@ describe("App /connect route", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => cleanup());
+
   it("redirects bundled authenticated users from /connect to /spaces/new", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -53,5 +55,24 @@ describe("App /connect route", () => {
     );
 
     expect(await screen.findByText(/Create your first space/i)).toBeTruthy();
+  });
+
+  it("does not serve a /meetings page", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/meetings"]}>
+          <ShellClientProvider>
+            <JournalProvider>
+              <App />
+            </JournalProvider>
+          </ShellClientProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/Create your first space/i)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: /meetings/i })).toBeNull();
   });
 });

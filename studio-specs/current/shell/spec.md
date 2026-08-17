@@ -53,7 +53,7 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 | `/notifications` | Actionable inbox linking bound checkpoints to their custom Views |
 | `/logs` | Journal explorer with filter chips (retrieval only) |
 | `/runs/:id?gate=chk_*` | Run detail with flowchart or journal replay + gate tab |
-| `/sessions/:id` | Session — pending checkpoint with a bound view → **ViewCanvasHost** (session title chrome). **Meeting sessions (unshipped):** Transcript pane is shell chrome — [plans/2026-08-17-meetings/shell-lens.md](../../plans/2026-08-17-meetings/shell-lens.md) |
+| `/sessions/:id` | Session tabs: **Transcript** (meeting when `GET /v1/sessions/:id/transcript` is 200), **Review** (bound validation View), **Flowchart**, **Journal**. Meeting default is Transcript. Non-meeting + bound view defaults to Review. `?operator=1` defaults to Flowchart. A bound View is a tab — it must not unmount Transcript. No `/meetings` or `/chat` route. |
 | `/spaces/:id/dev/views/:viewId` | View dev — author iframe + fixture tabs (`mrmr view dev`) |
 
 ---
@@ -72,6 +72,20 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 - Hub dispatches `out_of_shell.desktop` SSE for desktop push when journal types are `mrmr.gate.pending` or `mrmr.run.failed` only.
 - Email uses `MURRMURE_SMTP_*` or `MURRMURE_EMAIL_WEBHOOK_URL`; dev default is log-only noop adapter.
 - Admin self-test: `POST /v1/notifications/test` (`hub:admin`).
+
+---
+
+## Meeting Transcript (session chrome)
+
+A meeting is a session. Humans read talk on `/sessions/:id` — not a space View and not `/logs`.
+
+- **Transcript** is shell observability: title, opaque goal (`session.subject`), `open` / `closed`, roster as `persona@space`, each `said` (from → to / everyone, text, receipts, `in_reply_to` hook). Artifact refs are **links** to existing artifact routes — no in-shell PR/diff renderer.
+- **No compose box.** Humans who need to talk use a later slice or a validation View. Human chair **Close** is `POST /v1/sessions/{id}/meeting/close` — not `gates.resolve`, not `runs.cancel`.
+- Live updates: `JournalProvider` invalidates `["session-transcript", sessionId]` on `journal.append` for that session. Needs-you is **not** invalidated on every `said`.
+- Closed meetings stay readable (historical).
+- Access is Sessions / space-home recent. Start is Run / MCP / CLI — no shell wizard.
+
+See [plans/2026-08-17-meetings/shell-lens.md](../../plans/2026-08-17-meetings/shell-lens.md) for the design notes.
 
 ---
 
@@ -114,7 +128,7 @@ Views are **full custom UI** in the **primary content region** (sandboxed iframe
 | Checkpoint step | space `view_resolver` → inline view ref on `open_steps[]` | **ViewCanvasHost** (full canvas) |
 | No view bound | — | Observability-only (no fallback form synthesized) |
 
-**Session UX (decision 07):** ViewCanvasHost chrome shows **session title** / workflow name — not raw `run_*` ids. Operator run detail remains at `/runs/:id?admin=1`.
+**Session UX (decision 07):** ViewCanvasHost chrome shows **session title** / workflow name — not raw `run_*` ids. On `/sessions/:id` a bound View is the **Review** tab and must not unmount Transcript. Operator run detail remains at `/runs/:id` (`?operator=1` for flowchart-first).
 
 **Dev route:** `/spaces/:id/dev/views/:viewId` — iframe loads author dev server; fixture tabs switch `dev/fixtures/*.json` context (decision 02).
 

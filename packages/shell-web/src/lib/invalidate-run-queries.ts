@@ -18,6 +18,7 @@ export function invalidateRunStateQueries(
   if (sessionId) {
     void queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
     void queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
+    void queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
     if (runId) {
       void queryClient.invalidateQueries({ queryKey: ["journal", sessionId, runId] });
     } else {

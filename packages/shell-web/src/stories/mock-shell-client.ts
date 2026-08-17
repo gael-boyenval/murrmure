@@ -113,6 +113,14 @@ export function createMockShellClient(
   sessions: {
     get: async () => ({ session_id: "ses_demo", title: "Demo", status: "active" }),
     listRuns: async () => ({ runs: [] }),
+    transcript: async () => null,
+    closeMeeting: async (session_id) => ({
+      ok: true as const,
+      session_id,
+      status: "closed" as const,
+      outcome: "completed" as const,
+      close_meeting_seq: 1,
+    }),
   },
   runs: {
     get: async () => ({

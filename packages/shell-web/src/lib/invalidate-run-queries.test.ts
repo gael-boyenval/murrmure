@@ -18,6 +18,7 @@ describe("invalidateRunStateQueries", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["gates", "run_xyz"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["session", "ses_abc"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["session-runs", "ses_abc"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["session-transcript", "ses_abc"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["journal", "ses_abc", "run_xyz"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["space-home", "spc_demo"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["space", "spc_demo"] });

@@ -11,6 +11,13 @@
 
 ## Unreleased
 
+### Added
+
+- `/sessions/:id` meeting lens: Transcript / Review / Flowchart / Journal tabs.
+  Meeting sessions default to Transcript (`GET …/transcript`). A bound View is
+  the Review tab and no longer unmounts the transcript. Human chair Close uses
+  `sessions.closeMeeting`. No compose box, no `/meetings` route.
+
 ### Minor Changes
 
 - The trusted View host validates branch contracts, privately manages upload

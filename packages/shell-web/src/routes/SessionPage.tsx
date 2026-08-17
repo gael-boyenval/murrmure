@@ -1,17 +1,28 @@
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { JournalWaterfallView } from "../components/JournalWaterfallView.js";
 import { StepExecutorOutputPanel } from "../components/StepExecutorOutputPanel.js";
 import { DismissRunButton } from "../components/DismissRunButton.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { SharedFlowPage } from "../components/SharedFlowPage.js";
+import { MeetingTranscriptPane, isHumanMeetingChair } from "../components/MeetingTranscriptPane.js";
+import { MeetingCloseButton } from "../components/MeetingCloseButton.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { useRunStepInspector } from "../hooks/useRunStepInspector.js";
+import { useMeetingTranscript } from "../hooks/useMeetingTranscript.js";
 import { activeRunRefetchInterval } from "../lib/invalidate-run-queries.js";
-import { Button } from "@murrmure/shell-ui";
+import { defaultSessionPane, sessionPanes, type SessionPane } from "../lib/session-pane.js";
+import { Button, cn } from "@murrmure/shell-ui";
 import { AppShell } from "../layout/AppShell.js";
+
+const PANE_LABEL: Record<SessionPane, string> = {
+  transcript: "Transcript",
+  review: "Review",
+  flowchart: "Flowchart",
+  journal: "Journal",
+};
 
 export function SessionPage() {
   const { sessionId } = useParams();
@@ -21,6 +32,7 @@ export function SessionPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
+  const [userPane, setUserPane] = useState<SessionPane | null>(null);
 
   const runsQuery = useQuery({
     queryKey: ["session-runs", sessionId],
@@ -45,6 +57,11 @@ export function SessionPage() {
           : undefined,
       ),
   });
+
+  const transcriptQuery = useMeetingTranscript(sessionId);
+  const transcript = transcriptQuery.data ?? null;
+  const isMeeting = transcript != null;
+  const meetingResolved = transcriptQuery.isFetched || transcriptQuery.isError;
 
   const focusRunId = selectedRunId ?? runsQuery.data?.runs[0]?.run_id;
 
@@ -107,86 +124,173 @@ export function SessionPage() {
     pollWhileActive,
   });
 
-  if (showCanvas && canvas && !operatorMode) {
-    return <AppShell canvasMode>{canvas}</AppShell>;
-  }
+  const panes = sessionPanes({ isMeeting, hasView: Boolean(showCanvas && canvas) });
+  const resolvedPane = defaultSessionPane({
+    operatorMode,
+    isMeeting,
+    meetingResolved,
+    hasView: Boolean(showCanvas && canvas),
+  });
+  const pane = userPane && panes.includes(userPane) ? userPane : resolvedPane;
+  const canClose =
+    Boolean(sessionId) && isMeeting && transcript.status === "open" && isHumanMeetingChair(transcript.chair);
+
+  const flowchartSecondary = (
+    <>
+      {run && focusRunId ? (
+        <StepExecutorOutputPanel
+          className="min-h-0 flex-1"
+          run={run}
+          stepId={selectedStepId}
+          journalEntries={journalEntries}
+          graphStepIds={graphStepIds}
+          onSelectStep={setSelectedStepId}
+        />
+      ) : null}
+
+      {orchestrationGate ? (
+        <GatePanel
+          gate={orchestrationGate}
+          graph={graphQuery.data}
+          onSubmit={async (values) => {
+            await client!.gates.resolve(orchestrationGate.gate_id, values);
+            await gatesQuery.refetch();
+            await graphQuery.refetch();
+          }}
+        />
+      ) : null}
+
+      {focusedRun?.lifecycle === "failed" || focusedRun?.lifecycle === "cancelled" ? (
+        <Button
+          variant="outline"
+          onClick={async () => {
+            if (!focusRunId) return;
+            const result = await client!.runs.retry(focusRunId);
+            setSelectedRunId(result.run.run_id);
+            await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
+          }}
+        >
+          Retry failed lane
+        </Button>
+      ) : null}
+    </>
+  );
 
   return (
-    <SharedFlowPage
-      topBanner={showCanvas && operatorMode ? (
-        <div className="shrink-0 border-b border-border bg-muted/30 px-4 py-2">
-          <Link to={`/sessions/${sessionId}`} className="text-sm text-primary underline">
-            Back to checkpoint view
-          </Link>
+    <AppShell fillMain>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        <header className="shrink-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {session?.title ?? graphQuery.data?.flow_name ?? "Session"}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {sessionId ? <p className="font-mono text-sm text-muted-foreground">{sessionId}</p> : null}
+              </div>
+            </div>
+            {focusRunId ? (
+              <DismissRunButton
+                runId={focusRunId}
+                spaceId={run?.space_id}
+                lifecycle={run?.lifecycle ?? focusedRun?.lifecycle}
+                onDismissed={async () => {
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["run", focusRunId] }),
+                    queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] }),
+                    queryClient.invalidateQueries({ queryKey: ["session", sessionId] }),
+                  ]);
+                  if (run?.space_id) navigate(`/spaces/${run.space_id}`);
+                }}
+              />
+            ) : null}
+          </div>
+        </header>
+
+        <div
+          className="flex shrink-0 gap-1 border-b border-border pb-2"
+          role="tablist"
+          aria-label="Session views"
+        >
+          {panes.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={pane === id}
+              className={cn(
+                "rounded px-2.5 py-1 text-xs font-medium",
+                pane === id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setUserPane(id)}
+            >
+              {PANE_LABEL[id]}
+            </button>
+          ))}
         </div>
-      ) : null}
-      title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
-      subtitle={sessionId}
-      status={session?.status}
-      graph={graphQuery.data}
-      graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
-      execContext={run?.exec_context as Record<string, unknown> | undefined}
-      selectedRunId={focusRunId}
-      selectedStepId={selectedStepId}
-      onSelectLane={setSelectedRunId}
-      onSelectStep={setSelectedStepId}
-      actions={
-        focusRunId ? (
-          <DismissRunButton
-            runId={focusRunId}
-            spaceId={run?.space_id}
-            lifecycle={run?.lifecycle ?? focusedRun?.lifecycle}
-            onDismissed={async () => {
-              await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["run", focusRunId] }),
-                queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] }),
-                queryClient.invalidateQueries({ queryKey: ["session", sessionId] }),
-              ]);
-              if (run?.space_id) navigate(`/spaces/${run.space_id}`);
-            }}
+
+        {isMeeting && transcript ? (
+          <div
+            role="tabpanel"
+            aria-label="Transcript"
+            hidden={pane !== "transcript"}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <MeetingTranscriptPane
+              title={session?.title ?? "Meeting"}
+              goal={session?.subject}
+              transcript={transcript}
+              closeAction={canClose && sessionId ? <MeetingCloseButton sessionId={sessionId} /> : null}
+            />
+          </div>
+        ) : null}
+
+        {showCanvas && canvas ? (
+          <div
+            role="tabpanel"
+            aria-label="Review"
+            hidden={pane !== "review"}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {canvas}
+          </div>
+        ) : null}
+
+        <div
+          role="tabpanel"
+          aria-label="Flowchart"
+          hidden={pane !== "flowchart"}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <SharedFlowPage
+            embedded
+            title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
+            subtitle={sessionId}
+            status={session?.status}
+            graph={graphQuery.data}
+            graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
+            execContext={run?.exec_context as Record<string, unknown> | undefined}
+            selectedRunId={focusRunId}
+            selectedStepId={selectedStepId}
+            onSelectLane={setSelectedRunId}
+            onSelectStep={setSelectedStepId}
+            secondary={flowchartSecondary}
           />
-        ) : null
-      }
-      secondary={
-        <>
-              {run && focusRunId ? (
-                <StepExecutorOutputPanel
-                  className="min-h-0 flex-1"
-                  run={run}
-                  stepId={selectedStepId}
-                  journalEntries={journalEntries}
-                  graphStepIds={graphStepIds}
-                  onSelectStep={setSelectedStepId}
-                />
-              ) : null}
+        </div>
 
-              {orchestrationGate ? (
-                <GatePanel
-                  gate={orchestrationGate}
-                  graph={graphQuery.data}
-                  onSubmit={async (values) => {
-                    await client!.gates.resolve(orchestrationGate.gate_id, values);
-                    await gatesQuery.refetch();
-                    await graphQuery.refetch();
-                  }}
-                />
-              ) : null}
-
-              {focusedRun?.lifecycle === "failed" || focusedRun?.lifecycle === "cancelled" ? (
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    if (!focusRunId) return;
-                    const result = await client!.runs.retry(focusRunId);
-                    setSelectedRunId(result.run.run_id);
-                    await queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] });
-                  }}
-                >
-                  Retry failed lane
-                </Button>
-              ) : null}
-        </>
-      }
-    />
+        <div
+          role="tabpanel"
+          aria-label="Journal"
+          hidden={pane !== "journal"}
+          className="min-h-0 flex-1 overflow-auto"
+        >
+          {runQuery.data ? (
+            <JournalWaterfallView run={runQuery.data} journalEntries={journalEntries} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No journal replay yet.</p>
+          )}
+        </div>
+      </div>
+    </AppShell>
   );
 }

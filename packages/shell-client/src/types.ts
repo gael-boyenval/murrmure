@@ -1,3 +1,19 @@
+import type {
+  MeetingClosedData,
+  MeetingTranscript,
+  MeetingTranscriptMessage,
+} from "@murrmure/contracts";
+
+export type { MeetingClosedData, MeetingTranscript, MeetingTranscriptMessage };
+
+export interface MeetingCloseResult {
+  ok: true;
+  session_id: string;
+  status: "closed";
+  outcome: "completed" | "failed";
+  close_meeting_seq: number;
+}
+
 export interface ShellClientOptions {
   baseUrl: string;
   token: string;
@@ -425,6 +441,10 @@ export interface ShellClient {
   sessions: {
     get(session_id: string): Promise<SessionDetailPayload>;
     listRuns(session_id: string): Promise<{ runs: Array<{ run_id: string; lifecycle: string; flow_id?: string | null }> }>;
+    /** Meeting projection. `null` when the session has no meeting (HTTP 404). */
+    transcript(session_id: string, opts?: { since_seq?: number }): Promise<MeetingTranscript | null>;
+    /** Human / chair close. Not `gates.resolve` or `runs.cancel`. */
+    closeMeeting(session_id: string, body?: MeetingClosedData): Promise<MeetingCloseResult>;
   };
   runs: {
     get(run_id: string): Promise<RunDetailPayload>;

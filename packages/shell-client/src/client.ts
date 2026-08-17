@@ -259,6 +259,27 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) throw new Error(`sessions.listRuns failed: ${res.status}`);
         return res.json() as Promise<{ runs: Array<{ run_id: string; lifecycle: string; flow_id?: string | null }> }>;
       },
+      async transcript(session_id, opts) {
+        const search = new URLSearchParams();
+        if (opts?.since_seq != null) search.set("since_seq", String(opts.since_seq));
+        const query = search.toString();
+        const res = await fetch(
+          `${base}/v1/sessions/${encodeURIComponent(session_id)}/transcript${query ? `?${query}` : ""}`,
+          { headers: authHeaders(token) },
+        );
+        if (res.status === 404) return null;
+        if (!res.ok) await throwHttpError(res, `sessions.transcript failed: ${res.status}`);
+        return res.json() as Promise<import("./types.js").MeetingTranscript>;
+      },
+      async closeMeeting(session_id, body) {
+        const res = await fetch(`${base}/v1/sessions/${encodeURIComponent(session_id)}/meeting/close`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify(body ?? {}),
+        });
+        if (!res.ok) await throwHttpError(res, `sessions.closeMeeting failed: ${res.status}`);
+        return res.json() as Promise<import("./types.js").MeetingCloseResult>;
+      },
     },
     runs: {
       async get(run_id) {

@@ -30,6 +30,8 @@ export interface SharedFlowPageProps {
   onSelectLane?: (runId: string) => void;
   onSelectStep: (stepId: string | undefined) => void;
   secondary?: ReactNode;
+  /** Skip AppShell + page header — embed in a parent tab. */
+  embedded?: boolean;
 }
 
 function SideTabBar({
@@ -92,6 +94,7 @@ export function SharedFlowPage({
   onSelectLane,
   onSelectStep,
   secondary,
+  embedded = false,
 }: SharedFlowPageProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -163,10 +166,9 @@ export function SharedFlowPage({
         )
       : null;
 
-  return (
-    <AppShell fillMain>
-      {topBanner}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+  const body = (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      {embedded ? null : (
         <header className="shrink-0">
           {backHref ? (
             <Link to={backHref} className="mb-2 inline-block text-sm text-muted-foreground hover:underline">
@@ -184,33 +186,42 @@ export function SharedFlowPage({
             {actions}
           </div>
         </header>
+      )}
 
-        <ResizableSplitPane
-          className="min-h-0 flex-1"
-          primary={
-            renderableGraph ? (
-              <Suspense fallback={<p className="text-sm text-muted-foreground">Loading flowchart…</p>}>
-                <RunFlowchartView
-                  graph={renderableGraph}
-                  execContext={execContext}
-                  runLifecycle={status}
-                  selectedRunId={selectedRunId}
-                  selectedStepId={selectedStepId}
-                  onSelectLane={onSelectLane}
-                  onSelectStep={(stepId) => onSelectStep(stepId)}
-                />
-              </Suspense>
-            ) : (
-              <div className="min-h-0 flex-1 overflow-auto">{graphFallback}</div>
-            )
-          }
-          secondary={
-            <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">{detailBody}</div>
-          }
-        />
+      <ResizableSplitPane
+        className="min-h-0 flex-1"
+        primary={
+          renderableGraph ? (
+            <Suspense fallback={<p className="text-sm text-muted-foreground">Loading flowchart…</p>}>
+              <RunFlowchartView
+                graph={renderableGraph}
+                execContext={execContext}
+                runLifecycle={status}
+                selectedRunId={selectedRunId}
+                selectedStepId={selectedStepId}
+                onSelectLane={onSelectLane}
+                onSelectStep={(stepId) => onSelectStep(stepId)}
+              />
+            </Suspense>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-auto">{graphFallback}</div>
+          )
+        }
+        secondary={
+          <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">{detailBody}</div>
+        }
+      />
 
-        {mobileDrawer}
-      </div>
+      {mobileDrawer}
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <AppShell fillMain>
+      {topBanner}
+      {body}
     </AppShell>
   );
 }
