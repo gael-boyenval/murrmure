@@ -67,15 +67,28 @@ describe("handler event participant", () => {
     });
   });
 
-  test("persistent shell session rejects continuation and process timeout", () => {
-    const parsed = HandlerSpecSchema.safeParse({
+  test("persistent shell session may declare continuation for resume after close", () => {
+    const parsed = HandlerSpecSchema.parse({
       id: "meeting-designer",
       on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
       type: "shell_spawn",
       command: "cursor agent --force {{prompt}}",
       continuation: {
-        command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+        command: "cursor agent --resume {{continuation_token}} --force {{prompt}}",
+        mint_command: "cursor agent create-chat",
       },
+      session: { mode: "persistent" },
+    });
+    expect(parsed.continuation?.mint_command).toBe("cursor agent create-chat");
+    expect(parsed.session?.mode).toBe("persistent");
+  });
+
+  test("persistent shell session still rejects process timeout", () => {
+    const parsed = HandlerSpecSchema.safeParse({
+      id: "meeting-designer",
+      on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+      type: "shell_spawn",
+      command: "cursor agent --force {{prompt}}",
       session: { mode: "persistent" },
       timeout_ms: 60_000,
     });

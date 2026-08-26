@@ -7,6 +7,7 @@ import {
 import {
   createShellSpawnExecutor,
   extractContinuationToken,
+  extractMintToken,
   meetingContinuationStatePath,
   type PersistentShellSessionController,
   resolveShellCommand,
@@ -16,7 +17,7 @@ import {
 } from "../src/shell-spawn.js";
 import type { DispatchContext, InvokeRequest } from "@murrmure/runtime-contracts";
 import { EventEmitter } from "node:events";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -31,6 +32,12 @@ describe("shell-spawn helpers", () => {
       JSON.stringify({ type: "result", session_id: "chat_123" }),
     ].join("\n");
     expect(extractContinuationToken(stdout, "session_id")).toBe("chat_123");
+  });
+
+  test("extracts a plain mint chat id line", () => {
+    expect(extractMintToken("8e7eb1d0-1199-4301-a37a-d7fe286ff199\n", "session_id")).toBe(
+      "8e7eb1d0-1199-4301-a37a-d7fe286ff199",
+    );
   });
 
   test("resolves a continuation command with the saved token", () => {
@@ -540,5 +547,196 @@ describe("shell-spawn helpers", () => {
       expect(writes.some((chunk) => chunk.includes("Read "))).toBe(true);
       expect(writes).toContain("\r");
     });
+  });
+
+  test("mints a chat id then starts the persistent PTY with --resume", async () => {
+    const root = mkdtempSync(join(tmpdir(), "murrmure-meeting-mint-"));
+    const mintScripts: string[] = [];
+    const spawnStub = ((
+      _binary: string,
+      args: string[],
+    ) => {
+      mintScripts.push(String(args[2] ?? ""));
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+        stdin: { write: () => boolean; end: () => void };
+        unref: () => void;
+      };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.stdin = { write: () => true, end: () => undefined };
+      child.unref = () => undefined;
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from("chat-mint-99\n"));
+        child.emit("close", 0);
+      });
+      return child as never;
+    }) as unknown as typeof import("node:child_process").spawn;
+    let spawnedPtyCommand = "";
+    const executor = createShellSpawnExecutor({
+      spawn: spawnStub,
+      spawnPty: vi.fn((_file, args) => {
+        spawnedPtyCommand = String(args[2] ?? "");
+        return {
+          pid: 5150,
+          cols: 120,
+          rows: 40,
+          process: "cursor",
+          handleFlowControl: false,
+          onData: () => ({ dispose: () => undefined }),
+          onExit: () => ({ dispose: () => undefined }),
+          resize: () => undefined,
+          clear: () => undefined,
+          write: () => undefined,
+          kill: () => undefined,
+          pause: () => undefined,
+          resume: () => undefined,
+        } as never;
+      }),
+    });
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      run_id: "run_seat",
+      step_id: "hook:meeting-developer",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "convened",
+        since_seq: 0,
+      },
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent --force {{prompt}}",
+        continuation: {
+          command: "cursor agent --resume {{continuation_token}} --force {{prompt}}",
+          token_field: "session_id",
+          mint_command: "cursor agent create-chat",
+        },
+        prompt: "Stay in this meeting.",
+        session: {
+          mode: "persistent",
+          transport: "pty",
+          shutdown_grace_ms: 5_000,
+        },
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: root,
+    };
+
+    try {
+      const outcome = await executor.dispatch(invoke, context);
+      expect(outcome.status).toBe("dispatched");
+      expect(mintScripts.some((script) => script.includes("create-chat"))).toBe(true);
+      expect(spawnedPtyCommand).toContain("--resume");
+      expect(spawnedPtyCommand).toContain("chat-mint-99");
+      const statePath = meetingContinuationStatePath({
+        space_root: root,
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        action_name: "meeting-developer",
+      });
+      expect(JSON.parse(readFileSync(statePath, "utf8")).token).toBe("chat-mint-99");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("reuses a stored chat id and skips mint on the next persistent PTY", async () => {
+    const root = mkdtempSync(join(tmpdir(), "murrmure-meeting-resume-"));
+    const statePath = meetingContinuationStatePath({
+      space_root: root,
+      session_id: "ses_room",
+      participant_id: "ptc_developer",
+      action_name: "meeting-developer",
+    });
+    mkdirSync(join(root, ".mrmr", "dev", "meeting-seats", "ses_room", "ptc_developer"), {
+      recursive: true,
+    });
+    writeFileSync(
+      statePath,
+      `${JSON.stringify({
+        protocol: "murrmure.meeting-continuation/v1",
+        token: "stored-chat-7",
+        token_field: "session_id",
+        updated_at: "2026-08-26T00:00:00.000Z",
+      })}\n`,
+    );
+    const mintScripts: string[] = [];
+    const spawnStub = ((
+      _binary: string,
+      args: string[],
+    ) => {
+      mintScripts.push(String(args[2] ?? ""));
+      throw new Error("mint should not run when a token is already stored");
+    }) as unknown as typeof import("node:child_process").spawn;
+    let spawnedPtyCommand = "";
+    const executor = createShellSpawnExecutor({
+      spawn: spawnStub,
+      spawnPty: vi.fn((_file, args) => {
+        spawnedPtyCommand = String(args[2] ?? "");
+        return {
+          pid: 5151,
+          cols: 120,
+          rows: 40,
+          process: "cursor",
+          handleFlowControl: false,
+          onData: () => ({ dispose: () => undefined }),
+          onExit: () => ({ dispose: () => undefined }),
+          resize: () => undefined,
+          clear: () => undefined,
+          write: () => undefined,
+          kill: () => undefined,
+          pause: () => undefined,
+          resume: () => undefined,
+        } as never;
+      }),
+    });
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      run_id: "run_seat",
+      step_id: "hook:meeting-developer",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "resumed",
+        since_seq: 4,
+      },
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent --force {{prompt}}",
+        continuation: {
+          command: "cursor agent --resume {{continuation_token}} --force {{prompt}}",
+          token_field: "session_id",
+          mint_command: "cursor agent create-chat",
+        },
+        prompt: "Stay in this meeting.",
+        session: {
+          mode: "persistent",
+          transport: "pty",
+          shutdown_grace_ms: 5_000,
+        },
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: root,
+    };
+
+    try {
+      const outcome = await executor.dispatch(invoke, context);
+      expect(outcome.status).toBe("dispatched");
+      expect(mintScripts).toEqual([]);
+      expect(spawnedPtyCommand).toContain("--resume");
+      expect(spawnedPtyCommand).toContain("stored-chat-7");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

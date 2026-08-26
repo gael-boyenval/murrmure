@@ -12,6 +12,8 @@ export type {
   MeetingClosedData,
   MeetingCloseResult,
   MeetingResumeResult,
+  MeetingSeatActivity,
+  SeatPtyEvent,
   MeetingTranscript,
   MeetingTranscriptMessage,
   GateForm,

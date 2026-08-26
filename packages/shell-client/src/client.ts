@@ -357,6 +357,58 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
           preview?: { text: string; truncated: boolean; name: string } | null;
         }>;
       },
+      async listSeats(session_id) {
+        const res = await fetch(`${base}/v1/sessions/${encodeURIComponent(session_id)}/seats`, {
+          headers: authHeaders(token),
+        });
+        if (!res.ok) await throwHttpError(res, `sessions.listSeats failed: ${res.status}`);
+        return res.json() as Promise<{ seats: import("./types.js").MeetingSeatActivity[] }>;
+      },
+      subscribeSeatPty(session_id, participant_id, onEvent) {
+        let closed = false;
+        let es: EventSource | null = null;
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const connect = async () => {
+          if (closed) return;
+          try {
+            const { ticket } = await fetch(`${base}/v1/auth/sse-ticket`, {
+              method: "POST",
+              headers: authHeaders(token),
+            }).then((r) => {
+              if (!r.ok) throw new Error(`sse-ticket: ${r.status}`);
+              return r.json() as Promise<{ ticket: string }>;
+            });
+            if (closed) return;
+            es?.close();
+            const url =
+              `${base}/v1/sessions/${encodeURIComponent(session_id)}` +
+              `/seats/${encodeURIComponent(participant_id)}/pty?ticket=${encodeURIComponent(ticket)}`;
+            es = new EventSource(url);
+            es.addEventListener("snapshot", (e) => {
+              const data = JSON.parse((e as MessageEvent).data) as { text?: string; live?: boolean };
+              onEvent({ type: "snapshot", text: data.text ?? "", live: Boolean(data.live) });
+            });
+            es.addEventListener("chunk", (e) => {
+              const data = JSON.parse((e as MessageEvent).data) as { text?: string };
+              onEvent({ type: "chunk", text: data.text ?? "" });
+            });
+            es.onerror = () => {
+              es?.close();
+              es = null;
+              if (!closed) refreshTimer = setTimeout(() => void connect(), 3000);
+            };
+          } catch {
+            if (!closed) refreshTimer = setTimeout(() => void connect(), 3000);
+          }
+        };
+        void connect();
+        return () => {
+          closed = true;
+          if (refreshTimer) clearTimeout(refreshTimer);
+          es?.close();
+        };
+      },
     },
     runs: {
       async get(run_id) {

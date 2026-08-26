@@ -14,7 +14,10 @@
 - Executor handlers and indexed actions may declare `continuation.command` and
   `continuation.token_field` for opaque harness continuation.
 - `shell_spawn` handlers/actions may declare a persistent PTY `session`;
-  persistent mode rejects `continuation` and `timeout_ms`.
+  persistent mode rejects `timeout_ms`.
+- Persistent seats may declare `continuation` plus optional
+  `mint_command` so the next process after close/crash reopens the same
+  harness chat.
 - Meeting transcript messages carry `created_at` and support
   `from: { human: true }`; receipts carry `recorded_at` and `latency_ms`.
 

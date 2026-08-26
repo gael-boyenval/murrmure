@@ -97,7 +97,7 @@ A meeting is a session. Humans read talk on `/sessions/:id` — not a space View
 - Header minimize (title + status stay)
 - Per-target receipts (`delivered` / `failed`)
 - Seat status `working` when a live assignment exists
-- Meeting **Agent activity** explains that one seat assignment owns one persistent process until close.
+- Meeting **Agent activity** lists every roster seat and watches that seat’s live PTY in a wterm emulator (watch-only). One process per seat until close; last output remains after exit until hub restart.
 
 ### Must not
 

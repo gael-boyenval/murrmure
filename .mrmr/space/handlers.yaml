@@ -108,6 +108,10 @@ handlers:
       Convene: contribute once if another seat exists.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty

@@ -21,23 +21,25 @@ No `/meetings` route. Humans read Transcript; a human chair can message selected
 seats or everyone, **Close**, and **Resume** a closed room. Agents `said` and pull
 `murrmure_meeting_transcript`.
 
-Header **+** creates a **session**, not a space object and not a run. Find it in the header **Meetings** list (always visible). Convene journals `mrmr.meeting.convened` and wakes each seat. **Resume** journals `mrmr.meeting.resumed` and re-wakes the same `ptc_*`. Transcript stays empty until a seat `said`. There is no talk flow to start a room.
+Header **+** creates a **session**, not a space object and not a run. Find it in the header **Meetings** list (always visible). Convene journals `mrmr.meeting.convened` and wakes each seat. **Resume** journals `mrmr.meeting.resumed` and re-wakes the same `ptc_*` in the same harness chat (`--resume` of the minted id). Transcript stays empty until a seat `said`. There is no talk flow to start a room.
 
 ## Seats vs agents
 
 - **Persona** — space-local handle in `.mrmr/space/personas.yaml`. Ads (`summary`, `asks`, `requests`). Hub does not dispatch on them.
 - **Participant** — a seat in *this* room: `{ space, persona }` → `ptc_*`.
 - **Handler** — how the seat **enters and continues**. Stock seats use
-  `session.mode: persistent`: convene starts one interactive CLI process
-  (`{{prompt}}` is the first-turn argument) and later `said` writes the next
-  turn into that same PTY. Do not use `mcp_session` as the enter path.
+  `session.mode: persistent` plus `continuation`: convene mints a chat id and
+  starts one interactive CLI process (`{{prompt}}` is the first-turn argument).
+  Later `said` writes the next turn into that same PTY. Close/crash starts a
+  replacement with `--resume` of the stored id. Do not use `mcp_session` as the
+  enter path.
 
 `query_ask` is the other door (typed RPC). Meetings are free `said`.
 
 ## Put this in every invited space
 
 Ask the agent **in that repo**. Skills `murrmure-agent` / `murrmure-developer`
-(v1.3.9 / v1.2.6) tell it to add **`type: shell_spawn`** with a persistent session. If doctor says the
+(v1.3.14 / v1.2.13) tell it to add **`type: shell_spawn`** with a persistent session and a minted chat id. If doctor says the
 skill is outdated: `mrmr skill install --variant all` in that folder.
 
 Copy, change `id` / `participant` / the prompt voice, then `mrmr space apply --strict`:
@@ -62,6 +64,10 @@ handlers:
       On convene, contribute once to the goal.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -75,11 +81,12 @@ Also in **that** repo:
 2. A connection in **that** repo's `.cursor/mcp.json` (`--connection con_…`). One MCP server = one space. Do **not** put `murrmure` in `~/.cursor/mcp.json` — that is a second server with the same name and the wrong space.
 3. `event:emit` on that connection (`mrmr connection grant`). Default `local-tools/v1` cannot talk.
 
-You do **not** need a Cursor chat open on that workspace. Convene starts the
-interactive command once. Murrmure owns its PTY until meeting close; later
-messages create model turns through the same MCP connection, without restarting
-`cursor agent`. If nothing appears, the handler is missing, not applied, or
-`cursor` is not on `PATH`.
+You do **not** need a Cursor chat open on that workspace. Convene mints a chat
+id and starts the interactive command once. Murrmure owns its PTY until meeting
+close; later messages create model turns in that process. **Resume** (or a crash
+then a later `said`) starts a replacement with `--resume` of the stored id — the
+same Cursor chat, not a blank one. If nothing appears, the handler is missing,
+not applied, or `cursor` is not on `PATH`.
 
 Live seats check for control messages every 750 ms. Multiple `said` events for
 the same seat between polls—and messages queued while the seat is answering—are
@@ -104,8 +111,9 @@ chevron collapses goal + roster. While the room is open, the human chair can
 **Reply** to a turn — that sets `in_reply_to` and targets the sender. Artifact
 **Expand** opens a modal; **Reply** threads + cites the `xfr_*`, **Cite**
 attaches it without threading. Journal
-`/logs` is retrieval, not the chat. **Agent activity** shows one seat
-assignment/process for the room.
+`/logs` is retrieval, not the chat. **Agent activity** lists every roster
+seat and watches that seat’s live PTY in a [wterm](https://wterm.dev)
+emulator (watch-only). Close keeps the last output until the hub restarts.
 
 Transcript carries artifact references (`xfr_*`), not file bytes. The shell
 shows a right-hand list of unique attachments; click jumps to the share and

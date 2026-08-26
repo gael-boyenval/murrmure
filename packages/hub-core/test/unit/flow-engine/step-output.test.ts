@@ -40,6 +40,31 @@ describe("flow-engine/step-output", () => {
     expect(step.output.streaming).toBe(true);
   });
 
+  test("appendShellStreamToRun persists meeting/hook runs with no flow", async () => {
+    const runs = new Map<string, { exec_context: Record<string, unknown> }>();
+    const studio = {
+      getRun: async (id: string) => {
+        const row = runs.get(id);
+        return row ? { ...row, flow_id: null, flow_digest: null } : null;
+      },
+      updateRunExecContext: async (id: string, exec_context: Record<string, unknown>) => {
+        const row = runs.get(id);
+        if (row) row.exec_context = exec_context;
+      },
+    };
+    runs.set("seat", { exec_context: { steps: {} } });
+    await appendShellStreamToRun(studio as never, {
+      run_id: "run_seat",
+      step_id: "hook:meeting-developer",
+      stream: "stdout",
+      chunk: "hello from pty\n",
+    });
+    const step = (
+      runs.get("seat")!.exec_context.steps as Record<string, { output: Record<string, unknown> }>
+    )["hook:meeting-developer"];
+    expect(step.output.stdout).toBe("hello from pty\n");
+  });
+
   test("mergeStepOutputIntoExecContext stores action result", () => {
     const next = mergeStepOutputIntoExecContext(
       { input: { topic: "news" } },

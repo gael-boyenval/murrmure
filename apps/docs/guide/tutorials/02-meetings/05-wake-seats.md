@@ -2,10 +2,11 @@
 
 **Concept:** **Convene starts** one interactive `cursor agent` process per seat.
 That process and its MCP connection stay alive until meeting close. Later `said`
-messages create turns in the same process—no spawn-per-message and no
-`--resume`. A seat contributes once on convene; on later turns it may stay
+messages create turns in the same process—no spawn-per-message. Close or crash
+starts a replacement with `--resume` of a minted chat id, so Resume is the same
+Cursor chat. A seat contributes once on convene; on later turns it may stay
 silent. `personas.yaml` does not wake anyone. `type: shell_spawn` +
-`session.mode: persistent` is the seat.
+`session.mode: persistent` + `continuation` is the seat.
 
 ## Before you start
 
@@ -47,6 +48,10 @@ handlers:
       On convene, contribute once to the goal.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -78,6 +83,10 @@ handlers:
       On convene, contribute once to the goal.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -107,6 +116,10 @@ handlers:
       On convene, contribute once to the goal.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -127,6 +140,10 @@ handlers:
       On convene, contribute once to the goal.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -209,8 +226,8 @@ Typed ask/answer with a schema is the other protocol. An ask here is just `said`
 | `NO_HANDLER` / no wake | Wrong persona id / not applied | Match `designer` / `qa` / `researcher` |
 | Nothing spawned | Handler still `mcp_session`, or `cursor` not on `PATH` | Use the Step 3 YAML; apply; check Desktop hub logs |
 | `EXECUTOR_UNAVAILABLE` | Spawn failed | Command / cwd / `cursor` on PATH |
-| Every message starts another process | Missing persistent `session` | Copy the `session` block; remove `continuation` and `timeout_ms` |
-| `PERSISTENT_SESSION_EXITED` | Cursor process crashed/exited before close | Read PTY output and exit reason; the next targeted message may start a replacement |
+| Every message starts another process | Missing persistent `session` | Copy the `session` block; remove `timeout_ms`. Keep `continuation` for Resume. |
+| `PERSISTENT_SESSION_EXITED` | Cursor process crashed/exited before close | Read PTY output and exit reason; the next targeted message starts a replacement with `--resume` of the stored chat id |
 | Second `ses_…` on reply | Attach bug (product) or agent omitted `session_id` | Emit **must** carry meeting `session_id` |
 | Agent calls `resolve_step` on `decide` | 1a habit | Close is `closed` / human Close |
 | QA woke | `to` was `all` or included qa | Use researcher’s `ptc_*` only |

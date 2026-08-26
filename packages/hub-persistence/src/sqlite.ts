@@ -1173,6 +1173,13 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     }
   }
 
+  async updateRunExecContext(run_id: string, exec_context: Record<string, unknown>): Promise<void> {
+    const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id.startsWith("ins_") ? run_id.slice(4) : run_id;
+    this.db
+      .prepare("UPDATE runs SET exec_context_json = ? WHERE run_id = ?")
+      .run(JSON.stringify(exec_context), bare);
+  }
+
   async getRunByInstanceId(instance_id: string): Promise<RunRow | null> {
     const bare = instance_id.startsWith("ins_") ? instance_id.slice(4) : instance_id;
     const row = this.db.prepare("SELECT * FROM runs WHERE instance_id = ? OR run_id = ?").get(bare, bare) as

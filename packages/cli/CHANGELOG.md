@@ -4,6 +4,10 @@
 
 ### Changed
 
+- `murrmure-agent` **1.3.14**: meeting-seat recipe mints a Cursor chat id
+  and `--resume`s it on the next process after close/crash.
+- `murrmure-developer` **1.2.13**: meeting-seat recipe matches that resume
+  contract (`mint_command` + `continuation.command`).
 - `murrmure-agent` **1.3.13**: meeting seats pull transcript with their
   `participant_id`, read `you` / `addressed_to_you`, and do requested work on
   the turn instead of status-only replies.

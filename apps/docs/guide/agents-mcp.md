@@ -147,8 +147,9 @@ this workspace does not install tools in other linked spaces.
   Do not add `murrmure` to `~/.cursor/mcp.json` (user MCP). Same name, wrong
   space, Cursor shows two servers and disables one.
 - Meeting seats start on convene (`shell_spawn` +
-  `session.mode: persistent`). One interactive process stays alive until room
-  close; later `said` writes the next turn into that PTY. You do not need a
+  `session.mode: persistent` + `continuation`). One interactive process stays
+  alive until room close; later `said` writes the next turn into that PTY.
+  Resume after close uses `--resume` of the minted chat id. You do not need a
   Cursor chat open. Copy the handler from
   [Meetings](./meetings.md#put-this-in-every-invited-space).
 - Default `local-tools/v1` omits `event:emit`. Grant it before a seat can

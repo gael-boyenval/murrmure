@@ -19,6 +19,7 @@ const BARE_ALLOWED = new Set([
   "space_root",
   "action_name",
   "instruction",
+  "continuation_token",
 ]);
 
 const MURRMURE_ATOMIC = new Set([
@@ -157,6 +158,7 @@ export function validateHandlerPlaceholders(
     const fields: Array<{ label: string; value?: string }> = [
       { label: "command", value: handler.command },
       { label: "continuation.command", value: handler.continuation?.command },
+      { label: "continuation.mint_command", value: handler.continuation?.mint_command },
       { label: "prompt", value: handler.prompt },
       { label: "cwd", value: handler.cwd },
     ];

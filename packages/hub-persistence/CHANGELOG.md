@@ -10,6 +10,11 @@
 
 ## Unreleased
 
+### Added
+
+- `updateRunExecContext` persists `exec_context` for runs that have no flow
+  binding (meeting/hook seats).
+
 ### Fixed
 
 - Existing hubs can migrate: `idx_journal_index_meeting_seq` is created after

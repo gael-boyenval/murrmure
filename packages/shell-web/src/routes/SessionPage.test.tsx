@@ -11,6 +11,20 @@ import { defaultSessionRunId, SessionPage, sessionPaneLabel } from "./SessionPag
 
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
 
+vi.mock("@wterm/react/css", () => ({}));
+vi.mock("@wterm/react", async () => {
+  const { forwardRef } = await import("react");
+  return {
+    Terminal: forwardRef(() => <div data-testid="wterm" />),
+    useTerminal: () => ({
+      ref: { current: null },
+      write: () => undefined,
+      resize: () => undefined,
+      focus: () => undefined,
+    }),
+  };
+});
+
 vi.mock("../components/ViewCanvasHost.js", () => ({
   ViewCanvasHost: (props: ViewCanvasHostProps) => {
     capturedCanvasProps.push(props);
@@ -97,6 +111,27 @@ function mockClient(overrides: {
       listRuns: vi.fn().mockResolvedValue({
         runs: [{ run_id: "run_abc", lifecycle: "working" }],
       }),
+      listSeats: vi.fn().mockResolvedValue({
+        seats: [
+          {
+            participant_id: "ptc_des",
+            space_id: "spc_app",
+            persona: "designer",
+            handler_id: "meeting-designer",
+            run_id: "run_des",
+            live: true,
+          },
+          {
+            participant_id: "ptc_res",
+            space_id: "spc_research",
+            persona: "researcher",
+            handler_id: "meeting-researcher",
+            run_id: "run_res",
+            live: false,
+          },
+        ],
+      }),
+      subscribeSeatPty: vi.fn().mockReturnValue(() => undefined),
       transcript: vi.fn().mockResolvedValue(transcript),
       sayMeeting: vi.fn().mockResolvedValue({ ok: true, event_id: "evt_human", seq: 3 }),
       closeMeeting: vi.fn(),
@@ -253,7 +288,7 @@ describe("SessionPage meeting lens", () => {
     });
   });
 
-  it("explains that an open meeting reuses one process per seat", async () => {
+  it("lists every roster seat on Agent activity", async () => {
     renderSession(mockClient({ transcript: openTranscript }));
 
     const activity = await screen.findByRole("tab", { name: "Agent activity" });
@@ -261,9 +296,11 @@ describe("SessionPage meeting lens", () => {
 
     expect(
       screen.getByText(
-        "Meeting is open. Each seat keeps one process for the room; later messages reuse it.",
+        "Each roster seat has its own process. Watch the live PTY here. Later messages reuse that process.",
       ),
     ).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /designer@app/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /researcher@research/ })).toBeTruthy();
   });
 
   it("keeps Transcript mounted when a bound View is present (not canvasMode-only)", async () => {

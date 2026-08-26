@@ -188,6 +188,8 @@ export function createMockShellClient(
       resume_meeting_seq: 2,
       roster: [],
     }),
+    listSeats: async () => ({ seats: [] }),
+    subscribeSeatPty: () => () => undefined,
   },
   runs: {
     get: async () => ({

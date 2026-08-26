@@ -40,6 +40,10 @@ Append to `.mrmr/space/handlers.yaml`. `participant` **must** match the persona 
       On convene, contribute once if another seat exists.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -57,10 +61,11 @@ mrmr connection grant --space spc_… \
   --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit,journal:read,blob:write,blob:read
 ```
 
-`cursor` must be on `PATH`. No Cursor chat needs to be open. Convene starts the
-interactive command once in a PTY (`{{prompt}}` is the first-turn argument).
-The process stays alive until meeting close. Later `said` writes the next turn
-into that PTY; Murrmure does not restart it or use `cursor agent --resume`.
+`cursor` must be on `PATH`. No Cursor chat needs to be open. Convene mints a
+chat id (`mint_command`) then starts the interactive command in a PTY
+(`{{prompt}}` is the first-turn argument). The process stays alive until
+meeting close. Later `said` writes the next turn into that PTY. Close or crash
+starts a replacement with `--resume` of the stored id — not `--continue`.
 
 To attach a file: `murrmure_put_artifact({ content, name })` (or `path`), then
 `murrmure_emit_event` `mrmr.meeting.said` with `artifacts: [xfr_*]`. If
@@ -73,7 +78,8 @@ to put.
 ## 4. Do not
 
 - Do not use `type: mcp_session` for the seat
-- Do not combine persistent `session` with `continuation` or `timeout_ms`
+- Do not combine persistent `session` with `timeout_ms`
+- Do not use `cursor agent --continue` (global last chat). Token is per seat.
 - Do not add a talk flow
 - Do not call `murrmure_resolve_step` for the room
 - Do not wait for the operator to ask an open chat to poll

@@ -49,14 +49,18 @@ export const HandlerTypeSchema = z.enum([
 ]);
 
 /**
- * Optional harness-owned continuation contract for one-shot shell processes.
- * Murrmure stores the opaque token read from JSON/JSONL stdout and uses the
- * continuation command on the next delivery for the same meeting seat.
+ * Optional harness-owned continuation contract.
+ * Murrmure stores the opaque token (mint stdout, or JSON/JSONL from the
+ * process) and uses `command` on the next spawn for the same meeting seat.
+ * Compatible with persistent PTY: later `said` still writes into the live
+ * process; close/crash uses this command so the next process is the same chat.
  */
 export const HandlerContinuationSchema = z
   .object({
     command: z.string().min(1),
     token_field: z.string().min(1).default("session_id"),
+    /** Optional one-shot command whose stdout is the token (plain line or JSON). */
+    mint_command: z.string().min(1).optional(),
   })
   .strict();
 
@@ -120,13 +124,6 @@ export const HandlerSpecSchema = z
         code: z.ZodIssueCode.custom,
         message: "session.mode persistent is supported only by shell_spawn",
         path: ["session"],
-      });
-    }
-    if (handler.continuation) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "persistent shell_spawn cannot also declare continuation",
-        path: ["continuation"],
       });
     }
     if (handler.timeout_ms) {

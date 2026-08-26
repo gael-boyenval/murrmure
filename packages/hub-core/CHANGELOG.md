@@ -13,6 +13,8 @@
 
 ### Fixed
 
+- Meeting/hook runs persist `exec_context` (stdout, spawn) without a flow
+  binding. Agent activity can show seat output.
 - `murrmure_emit_event` catalog schema now sets `type: "object"` on multi-event
   `oneOf`. Cursor otherwise rejects the whole tool list (0 tools enabled).
 - `shell_spawn` meeting seats are registered before invocation. A fast first
@@ -36,6 +38,8 @@
   messages write the next turn into that PTY (`notify_live` → controller).
   Queued writes flush after idle. Convene prompts require one contribution;
   later turns allow concise, targeted silence.
+- Persistent `shell_spawn` may declare `continuation.mint_command`; apply
+  validates that template the same as `continuation.command`.
 
 ### Added
 

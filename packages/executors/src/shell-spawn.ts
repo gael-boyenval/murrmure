@@ -68,6 +68,10 @@ export interface PersistentShellSessionController {
   close(reason?: string): Promise<void>;
   /** Queue one later turn. Flushed when the PTY is idle. */
   write(text: string): void;
+  /** Current PTY tail for a late subscriber (watch UI). */
+  snapshot(): string;
+  /** Live bytes. Returns unsubscribe. */
+  subscribe(listener: (chunk: string) => void): () => void;
 }
 
 export type PersistentPtySpawn = (
@@ -160,6 +164,19 @@ export function extractContinuationToken(stdout: string, tokenField: string): st
   return undefined;
 }
 
+const PLAIN_TOKEN_RE = /^[A-Za-z0-9._:-]{8,128}$/;
+
+/** Mint stdout may be JSON (`session_id`) or a single plain chat id line. */
+export function extractMintToken(stdout: string, tokenField: string): string | undefined {
+  const fromJson = extractContinuationToken(stdout, tokenField);
+  if (fromJson) return fromJson;
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (PLAIN_TOKEN_RE.test(trimmed)) return trimmed;
+  }
+  return undefined;
+}
+
 async function readMeetingContinuationToken(path: string): Promise<string | undefined> {
   try {
     const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<MeetingContinuationState>;
@@ -171,17 +188,15 @@ async function readMeetingContinuationToken(path: string): Promise<string | unde
   }
 }
 
-async function persistMeetingContinuationToken(input: {
+async function writeMeetingContinuationToken(input: {
   path: string;
-  stdout: string;
+  token: string;
   token_field: string;
 }): Promise<void> {
-  const token = extractContinuationToken(input.stdout, input.token_field);
-  if (!token) return;
   await mkdir(dirname(input.path), { recursive: true });
   const state: MeetingContinuationState = {
     protocol: "murrmure.meeting-continuation/v1",
-    token,
+    token: input.token,
     token_field: input.token_field,
     updated_at: new Date().toISOString(),
   };
@@ -189,6 +204,49 @@ async function persistMeetingContinuationToken(input: {
     encoding: "utf8",
     mode: 0o600,
   });
+}
+
+async function persistMeetingContinuationToken(input: {
+  path: string;
+  stdout: string;
+  token_field: string;
+}): Promise<void> {
+  const token = extractContinuationToken(input.stdout, input.token_field);
+  if (!token) return;
+  await writeMeetingContinuationToken({
+    path: input.path,
+    token,
+    token_field: input.token_field,
+  });
+}
+
+const MINT_TIMEOUT_MS = 30_000;
+
+async function mintMeetingContinuationToken(input: {
+  mint_command: string;
+  cwd: string;
+  path: string;
+  token_field: string;
+  extraEnv: Record<string, string>;
+  spawn: typeof spawn;
+}): Promise<string | undefined> {
+  const resolved = resolveSafeShellCommand(input.mint_command, {}, { stripPrompt: true });
+  const { stdout, code } = await runCommand(
+    resolved.script,
+    input.cwd,
+    MINT_TIMEOUT_MS,
+    input.spawn,
+    input.extraEnv,
+  );
+  if (code !== 0) return undefined;
+  const token = extractMintToken(stdout, input.token_field);
+  if (!token) return undefined;
+  await writeMeetingContinuationToken({
+    path: input.path,
+    token,
+    token_field: input.token_field,
+  });
+  return token;
 }
 
 async function materializePromptArtifacts(input: {
@@ -753,7 +811,7 @@ function runCommandDetached(
   });
 }
 
-const PERSISTENT_OUTPUT_TAIL_CHARS = 12_000;
+const PERSISTENT_OUTPUT_TAIL_CHARS = 256_000;
 const PERSISTENT_INLINE_TURN_CHARS = 240;
 
 function persistLiveTurnFile(session_id: string, text: string): string | null {
@@ -809,6 +867,7 @@ function runPersistentCommand(
     session_id: string;
     participant_id: string;
     shutdown_grace_ms: number;
+    persistTokenFromOutput?: (chunk: string) => void;
   },
 ): void {
   const pty = spawnPtyFn(POSIX_SHELL, ["-e", "-c", command], {
@@ -888,6 +947,7 @@ function runPersistentCommand(
     idleTimer = setTimeout(markIdle, PERSISTENT_IDLE_MS);
   };
 
+  const watchers = new Set<(chunk: string) => void>();
   const controller: PersistentShellSessionController = {
     write(text) {
       if (settled || closeRequested) return;
@@ -895,6 +955,15 @@ function runPersistentCommand(
       if (!body) return;
       turnQueue.push(body);
       if (!turnBusy) flushNextTurn();
+    },
+    snapshot() {
+      return outputTail;
+    },
+    subscribe(listener) {
+      watchers.add(listener);
+      return () => {
+        watchers.delete(listener);
+      };
     },
     async close(reason) {
       if (settled) return;
@@ -922,6 +991,8 @@ function runPersistentCommand(
 
   pty.onData((chunk) => {
     outputTail = `${outputTail}${chunk}`.slice(-PERSISTENT_OUTPUT_TAIL_CHARS);
+    processMeta.persistTokenFromOutput?.(chunk);
+    for (const listener of watchers) listener(chunk);
     deps.onOutputChunk?.({
       run_id: processMeta.run_id,
       step_id: processMeta.step_id,
@@ -1109,16 +1180,9 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
                 config: context.action.continuation,
               }
             : undefined;
-        const continuationToken = meetingContinuation
+        let continuationToken = meetingContinuation
           ? await readMeetingContinuationToken(meetingContinuation.path)
           : undefined;
-        const invocation = resolveShellInvocation(invoke, context, artifactBindings, {
-          command: continuationToken
-            ? meetingContinuation?.config.command
-            : context.action.command,
-          continuation_token: continuationToken,
-          persistent: context.action.session?.mode === "persistent",
-        });
         const prompt = resolveShellPrompt(invoke, context);
 
         const invokeEnv: Record<string, string> = {
@@ -1140,9 +1204,30 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           invokeEnv.MURRMURE_ASSIGNMENT_SCOPE =
             `${invoke.run_id ?? ""}:${step_id}:${invoke.action_name}`;
         }
+        if (
+          meetingContinuation &&
+          !continuationToken &&
+          meetingContinuation.config.mint_command
+        ) {
+          continuationToken = await mintMeetingContinuationToken({
+            mint_command: meetingContinuation.config.mint_command,
+            cwd: resolveCwd(context),
+            path: meetingContinuation.path,
+            token_field: meetingContinuation.config.token_field,
+            extraEnv: invokeEnv,
+            spawn: spawnFn,
+          });
+        }
         if (continuationToken) {
           invokeEnv.MURRMURE_CONTINUATION_TOKEN = continuationToken;
         }
+        const invocation = resolveShellInvocation(invoke, context, artifactBindings, {
+          command: continuationToken
+            ? meetingContinuation?.config.command
+            : context.action.command,
+          continuation_token: continuationToken,
+          persistent: context.action.session?.mode === "persistent",
+        });
         const promptArtifacts = await materializePromptArtifacts({
           prompt,
           space_root: context.space_root,
@@ -1175,6 +1260,28 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
               detail: "persistent shell_spawn currently requires a meeting session and participant",
             };
           }
+          let tokenScan = "";
+          let capturedToken = Boolean(continuationToken);
+          const persistTokenFromOutput =
+            meetingContinuation && !capturedToken
+              ? (chunk: string) => {
+                  if (capturedToken) return;
+                  tokenScan = `${tokenScan}${chunk}`.slice(-8_000);
+                  const token = extractContinuationToken(
+                    tokenScan,
+                    meetingContinuation.config.token_field,
+                  );
+                  if (!token) return;
+                  capturedToken = true;
+                  continuationToken = token;
+                  invokeEnv.MURRMURE_CONTINUATION_TOKEN = token;
+                  void writeMeetingContinuationToken({
+                    path: meetingContinuation.path,
+                    token,
+                    token_field: meetingContinuation.config.token_field,
+                  });
+                }
+              : undefined;
           runPersistentCommand(
             invocation.command,
             invocation.cwd,
@@ -1188,6 +1295,7 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
               session_id: meetingWake.session_id,
               participant_id: meetingWake.participant_id,
               shutdown_grace_ms: context.action.session.shutdown_grace_ms,
+              persistTokenFromOutput,
             },
           );
           return {

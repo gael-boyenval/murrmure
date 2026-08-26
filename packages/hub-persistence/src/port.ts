@@ -329,6 +329,8 @@ export interface StudioPersistencePort {
       exec_context?: Record<string, unknown>;
     },
   ): Promise<void>;
+  /** Persist exec_context without requiring a flow binding (meeting/hook runs). */
+  updateRunExecContext(run_id: string, exec_context: Record<string, unknown>): Promise<void>;
   getRunByInstanceId(instance_id: string): Promise<RunRow | null>;
 
   upsertRunStepMemo(memo: RunStepMemo): Promise<void>;

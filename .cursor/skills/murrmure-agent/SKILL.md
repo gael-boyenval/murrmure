@@ -5,7 +5,7 @@ description: >-
   work. Prefer this when the prompt has Protocol murrmure.agent/v1 or
   murrmure.meeting/v1, or the human asks this space to join a meeting.
   For authoring flows/views use murrmure-developer.
-version: 1.3.13
+version: 1.3.14
 ---
 
 # Murrmure Agent Skill
@@ -59,6 +59,10 @@ Skills do not make a seat. This repo needs a handler. **`type: shell_spawn`**
       On convene, contribute once if another seat exists.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty
@@ -69,9 +73,9 @@ Skills do not make a seat. This repo needs a handler. **`type: shell_spawn`**
 3. `mrmr space apply --strict`
 4. `mrmr connection grant --space spc_… --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit,journal:read,blob:write,blob:read`
 
-Then convene starts one interactive `cursor agent` process here. The first
-prompt is a command argument. Later `said` writes the next turn into that PTY
-until meeting close.
+Then convene mints a chat id and starts one interactive `cursor agent` here.
+The first prompt is a command argument. Later `said` writes the next turn into
+that PTY until meeting close. Resume after close uses `--resume` of that id.
 Prefer **`murrmure-developer`** if that skill is installed
 (`reference/meeting-seat.md`).
 

@@ -1,4 +1,6 @@
 import type { Hono } from "hono";
+import type { Context } from "hono";
+import { streamSSE } from "hono/streaming";
 import {
   buildMeetingTranscript,
   canReadMeetingTranscript,
@@ -9,13 +11,42 @@ import {
   meetingRosterTouchesSpace,
   resumeMeeting,
   sortMeetingList,
+  stripTokenId,
   toMeetingListRow,
 } from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
-import { requireToken } from "../../auth.js";
+import { requireToken, type TokenContext } from "../../auth.js";
 import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
 import { hookDispatchDeps } from "../../hook-dispatch.js";
 import { broadcastSse } from "../../context.js";
+import { listMeetingSeatActivity } from "../../list-meeting-seats.js";
+import { resolveSseTicket } from "../../sse-ticket.js";
+
+async function resolveMeetingStreamAuth(
+  c: Context,
+  ctx: DaemonContext,
+): Promise<TokenContext | Response> {
+  const ticket = c.req.query("ticket");
+  if (ticket) {
+    const tokenId = resolveSseTicket(ticket);
+    if (!tokenId) {
+      return c.json({ code: "INVALID_TICKET", message: "SSE ticket expired or invalid" }, 401);
+    }
+    const token = await ctx.murrmurePersistence.getToken(stripTokenId(tokenId));
+    if (!token || token.status !== "active") {
+      return c.json({ code: "INVALID_TICKET", message: "SSE ticket expired or invalid" }, 401);
+    }
+    return {
+      token_id: tokenId,
+      actor_id: token.actor_id,
+      space_id: token.space_id,
+      scopes: token.scopes,
+      harness_id: token.harness_id,
+      flow_acl: token.flow_acl,
+    };
+  }
+  return requireToken(ctx.murrmurePersistence, c.req.raw);
+}
 
 function denialHttp(http: number): 400 | 403 | 404 | 409 {
   if (http === 403) return 403;
@@ -228,5 +259,100 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
       },
     });
     return c.json({ ok: true, event_id: emitted.event_id, seq: emitted.seq });
+  });
+
+  app.get("/v1/sessions/:session_id/seats", async (c) => {
+    const auth = await requireToken(murrmurePersistence, c.req.raw);
+    if (auth instanceof Response) return auth;
+    const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
+    const session_id = c.req.param("session_id");
+    const transcript = await buildMeetingTranscript(murrmurePersistence, {
+      session_id,
+      since_seq: 0,
+      token_space_id: auth.space_id,
+      capabilities: effective,
+    });
+    if (!transcript) {
+      return c.json({ code: "MEETING_NOT_FOUND", message: "No meeting on this session" }, 404);
+    }
+    if (
+      !canReadMeetingTranscript({
+        token_space_id: auth.space_id,
+        capabilities: effective,
+        roster: transcript.roster,
+      })
+    ) {
+      return c.json(
+        {
+          code: "SCOPE_ENFORCEMENT_FAILURE",
+          message: "Seat activity requires a roster space or journal:read on a roster space",
+        },
+        403,
+      );
+    }
+    const seats = await listMeetingSeatActivity({
+      studio: murrmurePersistence,
+      liveAssignments: ctx.liveAssignments,
+      session_id,
+      roster: transcript.roster,
+    });
+    return c.json({ seats });
+  });
+
+  app.get("/v1/sessions/:session_id/seats/:participant_id/pty", async (c) => {
+    const auth = await resolveMeetingStreamAuth(c, ctx);
+    if (auth instanceof Response) return auth;
+    const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
+    const session_id = c.req.param("session_id");
+    const participant_id = c.req.param("participant_id");
+    const transcript = await buildMeetingTranscript(murrmurePersistence, {
+      session_id,
+      since_seq: 0,
+      token_space_id: auth.space_id,
+      capabilities: effective,
+    });
+    if (!transcript) {
+      return c.json({ code: "MEETING_NOT_FOUND", message: "No meeting on this session" }, 404);
+    }
+    if (
+      !canReadMeetingTranscript({
+        token_space_id: auth.space_id,
+        capabilities: effective,
+        roster: transcript.roster,
+      })
+    ) {
+      return c.json(
+        {
+          code: "SCOPE_ENFORCEMENT_FAILURE",
+          message: "Seat PTY requires a roster space or journal:read on a roster space",
+        },
+        403,
+      );
+    }
+    if (!transcript.roster.some((seat) => seat.participant_id === participant_id)) {
+      return c.json({ code: "NOT_MEETING_MEMBER", message: "Unknown seat" }, 404);
+    }
+
+    const initial = ctx.liveAssignments.snapshotPty(session_id, participant_id);
+    return streamSSE(c, async (stream) => {
+      await stream.writeSSE({
+        event: "snapshot",
+        data: JSON.stringify({ text: initial.text, live: initial.live }),
+      });
+      const unsub = ctx.liveAssignments.subscribePty(session_id, participant_id, (chunk) => {
+        void stream.writeSSE({ event: "chunk", data: JSON.stringify({ text: chunk }) });
+      });
+      const heartbeat = setInterval(() => {
+        void stream.writeSSE({ event: "heartbeat", data: "{}" });
+      }, 15_000);
+      try {
+        await new Promise<void>((resolve) => {
+          c.req.raw.signal.addEventListener("abort", () => resolve());
+        });
+      } finally {
+        clearInterval(heartbeat);
+        unsub();
+      }
+    });
   });
 }

@@ -20,6 +20,18 @@ export type LiveSeat = LiveAssignmentRecord & {
 export type PersistentSeatController = {
   close(reason?: string): Promise<void>;
   write?(text: string): void;
+  snapshot?(): string;
+  subscribe?(listener: (chunk: string) => void): () => void;
+};
+
+export type SeatPtyArchive = {
+  session_id: string;
+  participant_id: string;
+  run_id?: string;
+  handler_id?: string;
+  snapshot: string;
+  live: false;
+  archived_at: number;
 };
 
 type PendingNotify = {
@@ -47,6 +59,7 @@ function sameSpace(left?: string, right?: string): boolean {
 export class InMemoryLiveAssignments implements LiveAssignmentPort {
   private readonly seats = new Map<string, LiveSeat>();
   private readonly pending = new Map<string, PendingNotify[]>();
+  private readonly archives = new Map<string, SeatPtyArchive>();
 
   constructor(
     private readonly notifier: MeetingNotifier,
@@ -60,6 +73,33 @@ export class InMemoryLiveAssignments implements LiveAssignmentPort {
 
   getSeat(session_id: string, participant_id: string): LiveSeat | undefined {
     return this.seats.get(seatKey(session_id, participant_id));
+  }
+
+  list(session_id: string): LiveSeat[] {
+    const prefixed = prefixedSessionId(session_id);
+    return [...this.seats.values()].filter((seat) => seat.session_id === prefixed);
+  }
+
+  listArchives(session_id: string): SeatPtyArchive[] {
+    const prefixed = prefixedSessionId(session_id);
+    return [...this.archives.values()].filter((row) => row.session_id === prefixed);
+  }
+
+  snapshotPty(session_id: string, participant_id: string): { text: string; live: boolean } {
+    const seat = this.seats.get(seatKey(session_id, participant_id));
+    if (seat) {
+      return { text: seat.controller?.snapshot?.() ?? "", live: true };
+    }
+    const archived = this.archives.get(seatKey(session_id, participant_id));
+    return { text: archived?.snapshot ?? "", live: false };
+  }
+
+  subscribePty(
+    session_id: string,
+    participant_id: string,
+    listener: (chunk: string) => void,
+  ): () => void {
+    return this.seats.get(seatKey(session_id, participant_id))?.controller?.subscribe?.(listener) ?? (() => undefined);
   }
 
   async findLive(input: {
@@ -141,9 +181,22 @@ export class InMemoryLiveAssignments implements LiveAssignmentPort {
   async revoke(input: { session_id: string; participant_id?: string }): Promise<void> {
     const session_id = prefixedSessionId(input.session_id);
     const controllers: Array<{ close(reason?: string): Promise<void> }> = [];
+    const archiveSeat = (key: string, seat: LiveSeat | undefined) => {
+      if (!seat) return;
+      this.archives.set(key, {
+        session_id: seat.session_id,
+        participant_id: seat.participant_id,
+        run_id: seat.run_id,
+        handler_id: seat.handler_id,
+        snapshot: seat.controller?.snapshot?.() ?? "",
+        live: false,
+        archived_at: Date.now(),
+      });
+    };
     if (input.participant_id) {
       const key = seatKey(session_id, input.participant_id);
       const seat = this.seats.get(key);
+      archiveSeat(key, seat);
       if (seat?.controller) controllers.push(seat.controller);
       this.seats.delete(key);
       this.pending.delete(key);
@@ -152,6 +205,7 @@ export class InMemoryLiveAssignments implements LiveAssignmentPort {
       for (const key of [...this.seats.keys()]) {
         if (key.startsWith(prefix)) {
           const seat = this.seats.get(key);
+          archiveSeat(key, seat);
           if (seat?.controller) controllers.push(seat.controller);
           this.seats.delete(key);
           this.pending.delete(key);

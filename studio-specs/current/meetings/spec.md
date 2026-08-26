@@ -341,7 +341,7 @@ Human chair (same authority as close) may reopen the **same** room:
 }
 ```
 
-Hub-only (denylisted on emit). Snapshot status → `open`. Same roster ids. Said handlers ring with `trigger: resumed`. Close already killed the PTY — this starts a replacement process for that `ptc_*`. Already-resolved bound steps stay resolved. Resume while open → `MEETING_ALREADY_OPEN`.
+Hub-only (denylisted on emit). Snapshot status → `open`. Same roster ids. Said handlers ring with `trigger: resumed`. Close already killed the PTY — this starts a replacement process for that `ptc_*`. If the seat declared `continuation` and a token is stored (or `mint_command` succeeds), the replacement uses `continuation.command` so the same harness chat continues. Already-resolved bound steps stay resolved. Resume while open → `MEETING_ALREADY_OPEN`.
 
 Hub does not understand “goal reached.” Chair or human does.
 
@@ -352,6 +352,9 @@ Hub does not understand “goal reached.” Chair or human does.
 `GET /v1/sessions/{session_id}/transcript?since_seq=&participant_id=`
 
 Projection over `mrmr.meeting.*` only. Rebuildable from journal.  
+Operator **Agent activity** is a separate watch: `GET /v1/sessions/{id}/seats` plus
+`GET /v1/sessions/{id}/seats/{ptc}/pty` (live PTY bytes, watch-only). Not the
+transcript and not a second chat.  
 `since_seq` is **`meeting_seq`** (session-monotonic), not space `journal_index.seq`.  
 **Not** `GET /v1/journal` / `murrmure_journal_query` — those filter by emitter space and hide other seats.
 
@@ -426,7 +429,7 @@ Non-meeting handlers still `createSession`. For `mrmr.meeting.*` that is **forbi
 Per participant, while the meeting is open:
 
 1. **First turn (convene, or first `said`)** — attach to the meeting `session_id`, register the live seat **before launch**, then start the handler's `command` (`type: shell_spawn`, `session.mode: persistent`) in one runtime-owned PTY. `{{prompt}}` is passed as a command argument so an interactive CLI starts a real first turn. Dispatch returns when the process starts.
-2. **Persistent lifetime** — the non-print interactive harness remains alive. Murrmure does not restart it after each answer and does not use `continuation.command` / `--resume` for this mode. The child may open MCP to emit/read the room; that pipe is not the later-turn delivery path.
+2. **Persistent lifetime** — the non-print interactive harness remains alive. Murrmure does not restart it after each answer. `continuation.command` / `--resume` is only for the **next process** after close or `PERSISTENT_SESSION_EXITED`, not for later `said` on a live PTY. The child may open MCP to emit/read the room; that pipe is not the later-turn delivery path.
 3. **Later `said`** — write the new turn into that same PTY (`notify_live` → seat controller). Queue writes while the process is producing output; flush after idle; submit with Enter. Do not stamp delivery on a space MCP connection that never bound the seat.
 4. **Seat identity** — all live/resume state is keyed by unique roster `participant_id` (`ptc_*`), never persona. The shell exports meeting `ses_*` + `ptc_*`; the child MCP handshake carries both so the Hub can bind that exact seat after checking the principal's space. Connection-order guessing and operator-chat fallback are forbidden. Two `default` personas in different spaces are independent seats.
 5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
@@ -442,7 +445,8 @@ Without pre-registration that reply recursively launches another seat. Keeping
 the registration after process exit is also forbidden: it records false
 delivery to a dead MCP pipe. Unexpected exit is `PERSISTENT_SESSION_EXITED`; a
 later targeted message may create a replacement assignment because the original
-process is no longer live.
+process is no longer live. That replacement uses the stored continuation token
+when present.
 
 A **run** may be one per spawn (observability) or the optional `room` flow run.
 
@@ -468,6 +472,10 @@ A **run** may be one per spawn (observability) or the optional `room` flow run.
     On convene, contribute once to the goal.
     Stay silent later only when nothing new was asked of you.
   command: cursor agent --force --approve-mcps --trust {{prompt}}
+  continuation:
+    command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+    token_field: session_id
+    mint_command: cursor agent create-chat
   session:
     mode: persistent
     transport: pty
@@ -477,8 +485,13 @@ A **run** may be one per spawn (observability) or the optional `room` flow run.
 
 `on.event.participant` selects the seat’s persona. Runtime identity and the
 persistent controller use `(ses_*, ptc_*)`, so equal persona names across spaces
-or concurrent rooms cannot collide. Persistent mode rejects `continuation` and
-`timeout_ms`; meeting close owns the lifetime.
+or concurrent rooms cannot collide. Persistent mode rejects `timeout_ms`;
+meeting close owns the live PTY. Optional `continuation` stores a harness chat
+id per `(ses_*, ptc_*, handler)` so the **next** process (resume after close,
+or crash then later `said`) reopens that chat. `mint_command` is authored —
+Murrmure does not hardcode a harness. Stock Cursor seats mint with
+`cursor agent create-chat`, then `--resume` that id. Later `said` still writes
+into the live PTY.
 
 If the space declares personas, a handler that omits `participant` MUST NOT match `said` (avoid waking every voice). Apply rejects that combo: `PERSONA_HANDLER_UNSCOPED`.
 

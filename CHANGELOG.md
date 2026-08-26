@@ -1,5 +1,22 @@
 # Changelog
 
+## Meeting agent activity (2026-08-26)
+
+### Changed
+
+- Agent activity lists every roster seat and streams that seat’s PTY
+  into a wterm emulator (watch-only). Meeting/hook runs now persist
+  stdout even without a flow.
+
+## Meeting chat resume (2026-08-26)
+
+### Changed
+
+- Persistent meeting seats may mint a harness chat id and `--resume` it
+  on the next process after close or crash. Later `said` still writes
+  into the live PTY. Stock Cursor recipe: `cursor agent create-chat`,
+  then `cursor agent --resume {{continuation_token}}`.
+
 ## Meeting seat context (2026-08-26)
 
 ### Changed

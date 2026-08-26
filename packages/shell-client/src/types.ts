@@ -15,6 +15,20 @@ export interface MeetingCloseResult {
   close_meeting_seq: number;
 }
 
+export interface MeetingSeatActivity {
+  participant_id: string;
+  space_id: string;
+  persona?: string;
+  handler_id?: string;
+  run_id?: string;
+  live: boolean;
+  lifecycle?: string;
+}
+
+export type SeatPtyEvent =
+  | { type: "snapshot"; text: string; live: boolean }
+  | { type: "chunk"; text: string };
+
 export interface MeetingResumeResult {
   ok: true;
   session_id: string;
@@ -547,6 +561,14 @@ export interface ShellClient {
       expires_at?: string;
       preview?: { text: string; truncated: boolean; name: string } | null;
     }>;
+    /** Roster seats plus live/exited PTY assignment. */
+    listSeats(session_id: string): Promise<{ seats: MeetingSeatActivity[] }>;
+    /** Watch-only PTY stream. Returns unsubscribe. */
+    subscribeSeatPty(
+      session_id: string,
+      participant_id: string,
+      onEvent: (event: SeatPtyEvent) => void,
+    ): () => void;
   };
   runs: {
     get(run_id: string): Promise<RunDetailPayload>;

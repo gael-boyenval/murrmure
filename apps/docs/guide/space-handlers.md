@@ -42,8 +42,8 @@ handlers:
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
-| `continuation` | Optional `{ command, token_field }` for a one-shot `shell_spawn` harness. Runtime stores the opaque JSON/JSONL stdout field and resolves `{{continuation_token}}` in the next command for the same meeting `ptc_*`. |
-| `session` | Optional `{ mode: persistent, transport: pty, shutdown_grace_ms? }` for one long-lived `shell_spawn` process. Mutually exclusive with `continuation` and `timeout_ms`. |
+| `continuation` | Optional `{ command, token_field, mint_command? }`. Runtime stores an opaque token (mint stdout or JSON/JSONL) and resolves `{{continuation_token}}` on the next spawn for the same meeting `ptc_*`. Works with persistent PTY: later `said` writes into the live process; close/crash uses `command`. |
+| `session` | Optional `{ mode: persistent, transport: pty, shutdown_grace_ms? }` for one long-lived `shell_spawn` process. Mutually exclusive with `timeout_ms`. |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
 | kill-on policy | **Removed.** Authored kill-on policy is rejected; assignment termination is runtime-owned. |
 
@@ -229,8 +229,10 @@ Discover emittable types with **`murrmure_list_emittable_events`**. Emit from ag
 
 `on.event.participant` selects the seat **persona** (`designer`), but live state
 is keyed by `(session_id, ptc_*)`. Prefer **`shell_spawn`** with
-`session.mode: persistent`: convene starts one PTY process with `{{prompt}}` as
-the first-turn argument, and later `said` writes the next turn into that PTY.
+`session.mode: persistent` plus `continuation`: convene mints a chat id and
+starts one PTY process with `{{prompt}}` as the first-turn argument. Later
+`said` writes the next turn into that PTY. The next process after close/crash
+uses `--resume` of the stored id.
 Meeting close gracefully
 ends it; unexpected exit revokes the live assignment. Do not treat an operator
 chat as the enter path. Copy the handler from

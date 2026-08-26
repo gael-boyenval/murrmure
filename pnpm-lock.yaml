@@ -464,6 +464,12 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.66.9
         version: 5.101.2(react@18.3.1)
+      '@wterm/dom':
+        specifier: ^0.3.4
+        version: 0.3.4
+      '@wterm/react':
+        specifier: ^0.3.4
+        version: 0.3.4(@wterm/dom@0.3.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@xyflow/react':
         specifier: ^12.4.4
         version: 12.11.1(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2750,6 +2756,19 @@ packages:
 
   '@vueuse/shared@12.8.2':
     resolution: {integrity: sha512-dznP38YzxZoNloI0qpEfpkms8knDtaoQ6Y/sfS0L7Yki4zh40LFHEhur0odJC6xTHG5dxWVPiUWBXn+wCG2s5w==}
+
+  '@wterm/core@0.3.4':
+    resolution: {integrity: sha512-GZoAxybV6FY+o2L4VcZupipkcNKM4Dv4UGekRvuohDJ9oSAzwGgw4J8UGZlXllDLV0pKg3pmIGoukMat6EQ/pQ==}
+
+  '@wterm/dom@0.3.4':
+    resolution: {integrity: sha512-4TYaCJpAo9B3CMsCuApS65X7nExbMZ7QjcLbJCI0132hzccQ2EdG8NX2I2AELbGbDIeWNcDYD3ReqVtbEcQwqA==}
+
+  '@wterm/react@0.3.4':
+    resolution: {integrity: sha512-/DwzDyvLp2x6wOc5Ng49GRTy46gfhdVfqlYTnZNh4y3DJBb82/f2JKpxKJtQkI3m6HL7VQqwgAnysIX+DavugQ==}
+    peerDependencies:
+      '@wterm/dom': 0.3.4
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   '@xyflow/react@12.11.1':
     resolution: {integrity: sha512-L+zBoLGSXham0MnlY8QqjfR7/C5JNw0zxkaey5aZ5XmCgJBAdH4+WRIu8CR40d3l/BdU635V6YbhBK1jMo8/6Q==}
@@ -7617,6 +7636,18 @@ snapshots:
       vue: 3.5.38(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
+
+  '@wterm/core@0.3.4': {}
+
+  '@wterm/dom@0.3.4':
+    dependencies:
+      '@wterm/core': 0.3.4
+
+  '@wterm/react@0.3.4(@wterm/dom@0.3.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@wterm/dom': 0.3.4
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   '@xyflow/react@12.11.1(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:

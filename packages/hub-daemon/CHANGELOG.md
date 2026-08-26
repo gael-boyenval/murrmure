@@ -13,6 +13,14 @@
 
 ## Unreleased
 
+### Changed
+
+- Meeting handler dispatch still passes authored `continuation` (including
+  `mint_command`) into `shell_spawn`, so Resume after close can reopen the
+  same harness chat.
+- `GET /v1/sessions/:id/seats` lists roster seats plus live assignment.
+  `GET /v1/sessions/:id/seats/:ptc/pty` streams that seat’s PTY (watch-only).
+
 ### Fixed
 
 - MCP handshake treats a client `last_ack_seq` ahead of the hub seq as a

@@ -123,12 +123,16 @@ export async function persistRunExecContext(
 ): Promise<void> {
   const bare = bareRunId(run_id);
   const run = await studio.getRun(bare);
-  if (!run?.flow_id || !run.flow_digest) return;
-  await studio.updateRunFlowBinding(bare, {
-    flow_id: run.flow_id,
-    flow_digest: run.flow_digest,
-    exec_context: execContext,
-  });
+  if (!run) return;
+  if (run.flow_id && run.flow_digest) {
+    await studio.updateRunFlowBinding(bare, {
+      flow_id: run.flow_id,
+      flow_digest: run.flow_digest,
+      exec_context: execContext,
+    });
+    return;
+  }
+  await studio.updateRunExecContext(bare, execContext);
 }
 
 /** Append live shell stdout/stderr while a detached executor runs. */

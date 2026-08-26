@@ -10,6 +10,7 @@ import { MeetingTranscriptPane, isHumanMeetingChair } from "../components/Meetin
 import { MeetingCloseButton } from "../components/MeetingCloseButton.js";
 import { MeetingResumeButton } from "../components/MeetingResumeButton.js";
 import { MeetingComposer } from "../components/MeetingComposer.js";
+import { MeetingAgentActivity } from "../components/MeetingAgentActivity.js";
 import type { MeetingReplyTarget } from "../lib/meeting-reply.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
@@ -322,35 +323,36 @@ export function SessionPage() {
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
             {isMeeting && transcript ? (
-              <p className="mb-2 shrink-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                {transcript.status === "open"
-                  ? "Meeting is open. Each seat keeps one process for the room; later messages reuse it."
-                  : "Meeting is closed. Each lane represents one seat assignment."}
-              </p>
-            ) : null}
-            <SharedFlowPage
-              embedded
-              title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
-              subtitle={sessionId}
-              status={session?.status}
-              graph={graphQuery.data}
-              graphFallback={
-                runQuery.data ? (
-                  <JournalWaterfallView run={runQuery.data} />
-                ) : isMeeting ? (
-                  <p className="text-sm text-muted-foreground">
-                    No run on this session. New meeting creates a room, not a flow — flowchart
-                    stays empty until a flow binds.
-                  </p>
-                ) : null
-              }
-              execContext={run?.exec_context as Record<string, unknown> | undefined}
-              selectedRunId={focusRunId}
-              selectedStepId={selectedStepId}
-              onSelectLane={setSelectedRunId}
-              onSelectStep={setSelectedStepId}
-              secondary={flowchartSecondary}
-            />
+              <>
+                <p className="mb-2 shrink-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {transcript.status === "open"
+                    ? "Each roster seat has its own process. Watch the live PTY here. Later messages reuse that process."
+                    : "Room is closed. Last PTY output stays until the hub restarts."}
+                </p>
+                {sessionId ? (
+                  <MeetingAgentActivity sessionId={sessionId} spaceLabels={spaceLabels} />
+                ) : null}
+              </>
+            ) : (
+              <SharedFlowPage
+                embedded
+                title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
+                subtitle={sessionId}
+                status={session?.status}
+                graph={graphQuery.data}
+                graphFallback={
+                  runQuery.data ? (
+                    <JournalWaterfallView run={runQuery.data} />
+                  ) : null
+                }
+                execContext={run?.exec_context as Record<string, unknown> | undefined}
+                selectedRunId={focusRunId}
+                selectedStepId={selectedStepId}
+                onSelectLane={setSelectedRunId}
+                onSelectStep={setSelectedStepId}
+                secondary={flowchartSecondary}
+              />
+            )}
           </div>
         ) : null}
 

@@ -5,7 +5,7 @@ description: >-
   contract keys, flow/view authoring, and apply. Use when the human asks this
   space to join a Murrmure meeting, accept directives, add a meeting seat, or
   edit handlers/flows/views.
-version: 1.2.12
+version: 1.2.13
 ---
 
 # Murrmure Developer Skill
@@ -40,9 +40,9 @@ Do this **in this repo** before convene can spawn anyone here. Full recipe:
 [reference/meeting-seat.md](reference/meeting-seat.md).
 
 Required: persona + `on.event` `mrmr.meeting.said` + **`type: shell_spawn`** +
-`session.mode: persistent` + apply + `event:emit` + `blob:write`. `space:read`
-supplies `murrmure_get_artifact`; `blob:write` supplies `murrmure_put_artifact`.
-Not `mcp_session`.
+`session.mode: persistent` + `continuation` + apply + `event:emit` +
+`blob:write`. `space:read` supplies `murrmure_get_artifact`; `blob:write`
+supplies `murrmure_put_artifact`. Not `mcp_session`.
 
 ```yaml
   - id: meeting-<persona>
@@ -60,6 +60,10 @@ Not `mcp_session`.
       On convene, contribute once if another seat exists.
       Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
     session:
       mode: persistent
       transport: pty

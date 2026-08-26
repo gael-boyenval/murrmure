@@ -580,6 +580,13 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     });
   }
 
+  async updateRunExecContext(run_id: string, exec_context: Record<string, unknown>): Promise<void> {
+    const bare = run_id.startsWith("run_") ? run_id.slice(4) : run_id.startsWith("ins_") ? run_id.slice(4) : run_id;
+    const r = this.runs.get(bare);
+    if (!r) return;
+    this.runs.set(bare, { ...r, exec_context });
+  }
+
   async getRunByInstanceId(instance_id: string): Promise<RunRow | null> {
     const bare = instance_id.startsWith("ins_") ? instance_id.slice(4) : instance_id;
     return this.runs.get(bare) ?? [...this.runs.values()].find((r) => r.instance_id === bare) ?? null;

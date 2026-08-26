@@ -80,6 +80,7 @@ export interface DispatchContext {
     continuation?: {
       command: string;
       token_field: string;
+      mint_command?: string;
     };
     session?: {
       mode: "persistent";
