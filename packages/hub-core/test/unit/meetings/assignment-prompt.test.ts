@@ -84,9 +84,10 @@ describe("meetings/assignment-prompt", () => {
       since_seq: 3,
     });
     expect(protocol).toContain("already joined");
-    expect(protocol).toContain("You may stay silent");
+    expect(protocol).toContain("addressed_to_you");
+    expect(protocol).toContain("do that work this turn");
     expect(protocol).toContain("to.participant_ids");
-    expect(protocol).toContain("Keep it concise");
+    expect(protocol).toContain("Stay silent only when");
     expect(protocol).not.toContain("You were invited");
   });
 
@@ -99,10 +100,11 @@ describe("meetings/assignment-prompt", () => {
         trigger: "said",
         since_seq: 2,
       },
-      { text: "Are you here?", from: { human: true } },
+      { text: "Are you here?", from: { human: true }, to: { all: true } },
     );
     expect(prompt).toContain("from: human chair");
     expect(prompt).toContain("text: Are you here?");
+    expect(prompt).toContain("addressed_to_you: true");
     expect(prompt).toContain("Protocol: murrmure.meeting/v1");
     expect(prompt).toContain(`message_id: ${MSG}`);
   });

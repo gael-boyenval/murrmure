@@ -57,8 +57,10 @@ handlers:
     complete: explicit
     prompt: |
       You are the <persona> seat in this Murrmure meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns you may stay silent unless addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once to the goal.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent
@@ -83,8 +85,10 @@ Live seats check for control messages every 750 ms. Multiple `said` events for
 the same seat between polls—and messages queued while the seat is answering—are
 coalesced before the next transcript pull/model turn.
 Seats contribute once on convene when another roster seat exists (a one-seat
-room stays silent because self-delivery is dropped). On later turns they may
-stay silent; when they reply they should target the relevant speaker,
+room stays silent because self-delivery is dropped). They pull the transcript
+with their `participant_id` and read `you` / `addressed_to_you`. If asked to
+do work, they do it on that turn. Stay silent later only when nothing new was
+asked. When they reply they should target the relevant speaker,
 use `in_reply_to` when useful, and avoid `to: { all: true }` unless every seat
 genuinely needs the message.
 

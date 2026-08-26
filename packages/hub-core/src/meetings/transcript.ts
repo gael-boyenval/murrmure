@@ -7,6 +7,7 @@ import {
   type MeetingTranscript,
   type MeetingTranscriptMessage,
   type MeetingTranscriptReceipt,
+  type MeetingTranscriptYou,
 } from "@murrmure/contracts";
 import type { JournalIndexRow, MeetingRosterSeatRow, StudioPersistencePort } from "@murrmure/hub-persistence";
 import { hasCapability } from "../grants/migrate.js";
@@ -99,27 +100,79 @@ function projectTo(
   return { all: false, participant_ids: listed };
 }
 
+export function meetingSpeakerLabel(from: {
+  human?: boolean;
+  persona?: string;
+  space_id?: string;
+  participant_id?: string;
+}): string {
+  if (from.human === true) return "human chair";
+  const persona = from.persona?.trim();
+  const space = from.space_id?.trim();
+  if (persona && space) return `${persona}@${space}`;
+  if (persona) return persona;
+  if (from.participant_id) return from.participant_id;
+  return "seat";
+}
+
+function withSenderLabel(from: MeetingTranscriptSender): MeetingTranscriptSender {
+  return { ...from, label: meetingSpeakerLabel(from) };
+}
+
+export function resolveTranscriptReader(
+  roster: MeetingRosterParticipant[],
+  input: {
+    participant_id?: string;
+    token_space_id?: string;
+    capabilities?: Capability[];
+  },
+): MeetingTranscriptYou | undefined {
+  const participant_id = input.participant_id?.trim();
+  if (!participant_id) return undefined;
+  const seat = roster.find((row) => row.participant_id === participant_id);
+  if (!seat) return undefined;
+  const token = input.token_space_id?.trim();
+  const admin =
+    !token ||
+    token === "bootstrap" ||
+    hasCapability(input.capabilities ?? [], "hub:admin");
+  if (!admin && token && stripSpaceId(seat.space_id) !== stripSpaceId(token)) {
+    return undefined;
+  }
+  return { ...seat, label: meetingSpeakerLabel(seat) };
+}
+
+function addressedToReader(
+  message: MeetingTranscriptMessage,
+  reader_id: string,
+): boolean {
+  if ("participant_id" in message.from && message.from.participant_id === reader_id) {
+    return false;
+  }
+  return message.to.participant_ids.includes(reader_id);
+}
+
 function fromSeat(
   data: Record<string, unknown>,
   roster: MeetingRosterSeatRow[],
 ): MeetingTranscriptSender {
   const stamped = asRecord(data.from);
-  if (stamped?.human === true) return { human: true };
+  if (stamped?.human === true) return withSenderLabel({ human: true });
   if (stamped && typeof stamped.participant_id === "string" && typeof stamped.space_id === "string") {
-    return {
+    return withSenderLabel({
       participant_id: stamped.participant_id,
       space_id: prefixedSpace(stamped.space_id),
       ...(typeof stamped.persona === "string" ? { persona: stamped.persona } : {}),
-    };
+    });
   }
   const speakerId =
     typeof data.as_participant_id === "string" ? data.as_participant_id : undefined;
   const seat = speakerId ? roster.find((row) => row.participant_id === speakerId) : undefined;
-  return {
+  return withSenderLabel({
     participant_id: speakerId ?? "",
     space_id: seat ? prefixedSpace(seat.space_id) : "",
     ...(seat?.persona ? { persona: seat.persona } : {}),
-  };
+  });
 }
 
 export function canReadMeetingTranscript(input: {
@@ -138,7 +191,13 @@ export function canReadMeetingTranscript(input: {
 
 export async function buildMeetingTranscript(
   studio: StudioPersistencePort,
-  input: { session_id: string; since_seq?: number },
+  input: {
+    session_id: string;
+    since_seq?: number;
+    reader_participant_id?: string;
+    token_space_id?: string;
+    capabilities?: Capability[];
+  },
 ): Promise<MeetingTranscript | null> {
   const since_seq =
     typeof input.since_seq === "number" && Number.isFinite(input.since_seq) && input.since_seq > 0
@@ -232,16 +291,28 @@ export async function buildMeetingTranscript(
   }
 
   const up_to_seq = rows.reduce((max, row) => Math.max(max, row.meeting_seq ?? 0), 0);
+  const rosterDto = toRosterDto(roster);
+  const you = resolveTranscriptReader(rosterDto, {
+    participant_id: input.reader_participant_id,
+    token_space_id: input.token_space_id,
+    capabilities: input.capabilities,
+  });
 
   return {
     session_id: prefixedSessionId(input.session_id),
     status,
-    roster: toRosterDto(roster),
+    roster: rosterDto,
     chair,
+    ...(you ? { you } : {}),
     since_seq,
     up_to_seq,
     messages: [...messages.values()]
       .filter((message) => message.seq > since_seq)
-      .sort((a, b) => a.seq - b.seq),
+      .sort((a, b) => a.seq - b.seq)
+      .map((message) =>
+        you
+          ? { ...message, addressed_to_you: addressedToReader(message, you.participant_id) }
+          : message,
+      ),
   };
 }

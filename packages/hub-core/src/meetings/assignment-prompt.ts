@@ -1,7 +1,7 @@
 import { JOURNAL_EVENT_TYPES } from "@murrmure/contracts";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import type { HookSourceEvent } from "../hooks/matcher.js";
-import { meetingJournalData } from "./transcript.js";
+import { meetingJournalData, meetingSpeakerLabel } from "./transcript.js";
 
 export type MeetingWakeData = {
   session_id: string;
@@ -26,10 +26,10 @@ export function renderMurrmureMeetingProtocolEnvelope(input: MeetingWakeData): s
   if (input.message_id) lines.push(`message_id: ${input.message_id}`);
   const operatingRule =
     input.trigger === "convened"
-      ? "Operating rule: You were invited. This process is your seat. Pull the transcript with murrmure_meeting_transcript. If another roster seat is present, make one concise initial contribution that addresses the meeting goal using murrmure_emit_event type mrmr.meeting.said; a text answer in this process is not a room reply, and the turn is incomplete until the event succeeds. If you are the room's only roster seat, stay silent because the hub drops self-delivery. Target the relevant participant when possible. Later said resumes this same conversation — do not treat it as a new invite. Do not call murrmure_resolve_step for this room."
+      ? "Operating rule: You were invited. This process is your seat. Pull murrmure_meeting_transcript with session_id, since_seq 0, and this participant_id. Read `you` and the goal. If another roster seat is present, make one concise initial contribution that addresses the meeting goal using murrmure_emit_event type mrmr.meeting.said; a text answer in this process is not a room reply, and the turn is incomplete until the event succeeds. If you are the room's only roster seat, stay silent because the hub drops self-delivery. After that, if the goal or transcript asks this seat to do work (code, files, specs), start that work this turn — do not only talk. Later said resumes this same conversation — do not treat it as a new invite. Do not call murrmure_resolve_step for this room."
       : input.trigger === "resumed"
-        ? "Operating rule: This room resumed. This process is your seat again — same session_id and participant_id. Pull the transcript with murrmure_meeting_transcript using session_id and since_seq. Continue from the existing conversation. Do not re-introduce yourself or repeat prior turns. Contribute only if the goal still needs you. Use murrmure_emit_event type mrmr.meeting.said; a text answer in this process is not a room reply. Do not call murrmure_resolve_step for this room."
-        : "Operating rule: One or more said events arrived in a room you already joined. Pull prior turns once with murrmure_meeting_transcript using session_id and since_seq. You may stay silent. Use murrmure_emit_event type mrmr.meeting.said only when directly addressed or when you have distinct useful content. Keep it concise, target the relevant speaker with to.participant_ids, use in_reply_to when appropriate, and never re-introduce, acknowledge, paraphrase, or repeat material already in the transcript. Do not call murrmure_resolve_step for this room.";
+        ? "Operating rule: This room resumed. This process is your seat again — same session_id and participant_id. Pull murrmure_meeting_transcript with session_id, since_seq, and this participant_id. Read `you` and messages with addressed_to_you. Continue from the existing conversation: know the goal and any open work asked of you. If work was requested, do it this turn — do not only re-introduce or post status. Use murrmure_emit_event type mrmr.meeting.said when you speak; a text answer in this process is not a room reply. Do not call murrmure_resolve_step for this room."
+        : "Operating rule: One or more said events arrived in a room you already joined. Pull prior turns once with murrmure_meeting_transcript using session_id, since_seq, and this participant_id. Read `you` and every message with addressed_to_you. Understand the goal and what was asked of you. If you were asked to do work (implement, edit, write files), do that work this turn — a room reply is not the job, and do not answer with only working / in progress / starting now. Stay silent only when nothing new was asked of you and you have no open work. When you speak, use murrmure_emit_event type mrmr.meeting.said, target the relevant speaker with to.participant_ids, set in_reply_to when appropriate, and never re-introduce, acknowledge, paraphrase, or repeat material already in the transcript. Do not call murrmure_resolve_step for this room.";
   lines.push("", operatingRule);
   return lines.join("\n");
 }
@@ -128,16 +128,22 @@ export async function buildMeetingWakeData(
   };
 }
 
-function speakerLabel(from: unknown): string {
-  if (!from || typeof from !== "object") return "unknown";
-  const rec = from as Record<string, unknown>;
-  if (rec.human === true) return "human chair";
-  const persona = typeof rec.persona === "string" ? rec.persona : undefined;
-  const space = typeof rec.space_id === "string" ? rec.space_id : undefined;
-  if (persona && space) return `${persona}@${space}`;
-  if (persona) return persona;
-  if (typeof rec.participant_id === "string") return rec.participant_id;
-  return "seat";
+function payloadAddressedToYou(
+  payload: Record<string, unknown>,
+  participant_id: string,
+): boolean | undefined {
+  const to = asRecord(payload.to);
+  if (!to) return undefined;
+  if (to.all === true) return true;
+  if (Array.isArray(to.participant_ids)) {
+    return to.participant_ids.includes(participant_id);
+  }
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
 }
 
 /** Later PTY turn: the new message plus the meeting protocol envelope. */
@@ -148,7 +154,11 @@ export function formatLiveSaidPrompt(
   const text = typeof payload.text === "string" ? payload.text.trim() : "";
   const lines = ["New message in this meeting.", ""];
   if (text) {
-    lines.push(`from: ${speakerLabel(payload.from)}`, `text: ${text}`, "");
+    const from = asRecord(payload.from) ?? {};
+    lines.push(`from: ${meetingSpeakerLabel(from)}`, `text: ${text}`);
+    const addressed = payloadAddressedToYou(payload, wake.participant_id);
+    if (addressed != null) lines.push(`addressed_to_you: ${addressed}`);
+    lines.push("");
   }
   lines.push(
     renderMurrmureMeetingProtocolEnvelope({

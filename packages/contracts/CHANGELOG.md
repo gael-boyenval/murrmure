@@ -4,6 +4,8 @@
 
 ### Added
 
+- Meeting transcript may include seat-scoped `you`, per-message
+  `addressed_to_you`, and `from.label`.
 - Journal type `mrmr.meeting.resumed`.
 - `SpaceYamlFileSchema` and optional apply-bundle `space` section for
   directory-owned `name` / `description` (purpose, max 500 characters).

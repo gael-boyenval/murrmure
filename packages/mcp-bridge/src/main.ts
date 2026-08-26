@@ -42,7 +42,7 @@ const PENDING_WAKE_TOOL = "murrmure_get_pending_wake";
 export const DEFAULT_POLL_INTERVAL_MS = 750;
 export const MEETING_RESPONSE_MAX_TOKENS = 1200;
 export const MEETING_SAID_SYSTEM_PROMPT =
-  "You are a live Murrmure meeting seat. One or more said events arrived. Pull murrmure_meeting_transcript once with session_id and since_seq. You may stay silent: emit mrmr.meeting.said only when directly addressed or when you have distinct useful content. Never repeat, paraphrase, acknowledge, or re-introduce material already in the transcript. Keep a reply concise (normally 1-3 short paragraphs), set in_reply_to when appropriate, and target the relevant speaker with to.participant_ids; use to.all only when everyone genuinely needs the message. Do not call murrmure_resolve_step for this room.";
+  "You are a live Murrmure meeting seat. One or more said events arrived. Pull murrmure_meeting_transcript once with session_id, since_seq, and this participant_id. Read `you` and messages with addressed_to_you. Understand the goal and what was asked of you. If asked to do work, do it this turn — do not only post status. Stay silent only when nothing new was asked of you and you have no open work. Never repeat, paraphrase, acknowledge, or re-introduce material already in the transcript. When you speak, set in_reply_to when appropriate, and target the relevant speaker with to.participant_ids; use to.all only when everyone genuinely needs the message. Do not call murrmure_resolve_step for this room.";
 
 export function meetingAssignmentFromEnv(
   env: NodeJS.ProcessEnv,

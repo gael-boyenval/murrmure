@@ -173,6 +173,9 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
         minimum: 0,
         description: "Session-monotonic meeting_seq cursor (exclusive)",
       },
+      participant_id: stringSchema(
+        "This seat's ptc_* so the projection includes you + addressed_to_you",
+      ),
     },
     { required: ["session_id"] },
   ),

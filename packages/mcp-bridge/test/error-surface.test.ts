@@ -265,7 +265,8 @@ describe("bridge error surfaces", () => {
   test("meeting control poll is responsive and coalesces one seat into one turn", () => {
     expect(DEFAULT_POLL_INTERVAL_MS).toBe(750);
     expect(MEETING_RESPONSE_MAX_TOKENS).toBe(1200);
-    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("You may stay silent");
+    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("addressed_to_you");
+    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("Stay silent only when");
     expect(MEETING_SAID_SYSTEM_PROMPT).toContain("to.participant_ids");
     expect(MEETING_SAID_SYSTEM_PROMPT).toContain("use to.all only when everyone genuinely needs");
     const messages = coalesceMeetingSaidMessages([

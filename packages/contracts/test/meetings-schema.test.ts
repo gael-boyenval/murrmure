@@ -155,9 +155,10 @@ describe("meetings/convene and to xor", () => {
           message_id: MSG,
           seq: 2,
           created_at: "2026-08-17T15:00:00.000Z",
-          from: { participant_id: PTC, space_id: SPC, persona: "designer" },
+          from: { participant_id: PTC, space_id: SPC, persona: "designer", label: "designer@spc_app" },
           to: { all: true, participant_ids: [PTC_B] },
           text: "hello",
+          addressed_to_you: false,
           receipts: [{
             participant_id: PTC_B,
             status: "delivered",

@@ -36,7 +36,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
 | **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
-| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull `mrmr.meeting.*` with `since_seq`, message/receipt timestamps, and delivery latency. Not `journal_query`. |
+| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull with `since_seq` and this seat's `participant_id` so the projection includes `you`, `from.label`, and `addressed_to_you`. Not `journal_query`. |
 | **`murrmure_get_artifact`** | **`space:read`** + artifact ACL | Materialize an `xfr_*` into this space's `.mrmr/dev/inbox/`; returns verified metadata + relative `local_path` |
 | **`murrmure_put_artifact`** | **`blob:write`** (or `space:write`) | Upload inline `content`+`name` (64 KiB) or a space-relative `path`; returns `xfr_*` |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
@@ -55,10 +55,10 @@ installation or `mrmr space apply`.
 
 **Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
 
-1. `murrmure_meeting_transcript` once with the prompt `session_id` + `since_seq` — pull, do not paste the journal.
+1. `murrmure_meeting_transcript` once with the prompt `session_id`, `since_seq`, and **your** `participant_id` — read `you` and `addressed_to_you`. Do not paste the journal.
 2. To attach a file: `murrmure_put_artifact({ content, name })` → `xfr_*`, then `murrmure_emit_event` `mrmr.meeting.said` with `artifacts: [xfr_*]`. For a received `xfr_*`, call `murrmure_get_artifact({ transfer_id })` and read `artifact.local_path` relative to the space root. Never guess a sender-local path.
-3. On `trigger: convened`, contribute once when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On `trigger: resumed`, pull the transcript and continue — do not re-introduce. On later turns you may stay silent unless addressed or useful.
-4. Keep replies concise. Target the relevant speaker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
+3. On `trigger: convened`, contribute once when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On `trigger: resumed`, continue — do not re-introduce. If the room asked you to do work, do it this turn.
+4. Stay silent later only when nothing new was asked of you and you have no open work. Do not answer with only “working”. Target the relevant speaker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
 5. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`.
 5. Do **not** `murrmure_resolve_step` the room.
 6. Prefer `shell_spawn` with `session.mode: persistent`. Convene starts one interactive process; later `said` writes the next turn into that PTY until close. Do not call `murrmure_get_pending_wake`.

@@ -13,6 +13,8 @@ export {
   buildMeetingTranscript,
   canReadMeetingTranscript,
   meetingJournalData,
+  meetingSpeakerLabel,
+  resolveTranscriptReader,
 } from "./transcript.js";
 export {
   toMeetingListRow,

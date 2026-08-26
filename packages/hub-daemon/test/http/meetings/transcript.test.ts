@@ -206,6 +206,23 @@ describe("http/meetings/transcript", () => {
     expect(res.status).toBe(403);
   });
 
+  test("participant_id projects you and addressed_to_you", async () => {
+    const res = await fetch(
+      `${baseUrl}/v1/sessions/${sessionId}/transcript?participant_id=${researcher}`,
+      { headers: bootstrapAuth(bootstrapToken) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      you?: { participant_id: string; persona?: string };
+      messages: Array<{ text?: string; addressed_to_you?: boolean; from?: { label?: string } }>;
+    };
+    expect(body.you?.participant_id).toBe(researcher);
+    expect(body.you?.persona).toBe("researcher");
+    const said = body.messages.find((m) => m.text === "Need the last latency study.");
+    expect(said?.addressed_to_you).toBe(true);
+    expect(said?.from?.label).toContain("designer@");
+  });
+
   test("MCP murrmure_meeting_transcript returns the projection", async () => {
     const res = await fetch(`${baseUrl}/v1/mcp/tools/call?space_id=${appSpace}`, {
       method: "POST",
@@ -215,7 +232,7 @@ describe("http/meetings/transcript", () => {
       },
       body: JSON.stringify({
         name: "murrmure_meeting_transcript",
-        arguments: { session_id: sessionId, since_seq: 0 },
+        arguments: { session_id: sessionId, since_seq: 0, participant_id: designer },
       }),
     });
     expect(res.status).toBe(200);

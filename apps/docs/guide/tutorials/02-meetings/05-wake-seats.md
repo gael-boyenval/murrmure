@@ -42,8 +42,10 @@ handlers:
     complete: explicit
     prompt: |
       You are the researcher seat in this meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns, reply briefly only when addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once to the goal.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent
@@ -71,8 +73,10 @@ handlers:
     complete: explicit
     prompt: |
       You are the researcher seat in this meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns, reply briefly only when addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once to the goal.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent
@@ -98,8 +102,10 @@ handlers:
     complete: explicit
     prompt: |
       You are the designer seat in this meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns, reply briefly only when addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once to the goal.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent
@@ -116,8 +122,10 @@ handlers:
     complete: explicit
     prompt: |
       You are the QA seat in this meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns, reply briefly only when addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once to the goal.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent

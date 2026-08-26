@@ -120,10 +120,20 @@ export const MeetingHumanChairSenderSchema = z
   })
   .strict();
 
+export const MeetingTranscriptSenderLabelSchema = z.string().min(1);
+
 export const MeetingTranscriptSenderSchema = z.union([
-  MeetingRosterParticipantSchema,
-  MeetingHumanChairSenderSchema,
+  MeetingRosterParticipantSchema.extend({
+    label: MeetingTranscriptSenderLabelSchema.optional(),
+  }),
+  MeetingHumanChairSenderSchema.extend({
+    label: MeetingTranscriptSenderLabelSchema.optional(),
+  }),
 ]);
+
+export const MeetingTranscriptYouSchema = MeetingRosterParticipantSchema.extend({
+  label: MeetingTranscriptSenderLabelSchema,
+});
 
 export const MeetingSnapshotChairSchema = z.union([
   z.object({ participant_id: ParticipantIdSchema }),
@@ -153,6 +163,7 @@ export const MeetingTranscriptMessageSchema = z.object({
   text: z.string().optional(),
   artifacts: z.array(TransferIdSchema).optional(),
   receipts: z.array(MeetingTranscriptReceiptSchema),
+  addressed_to_you: z.boolean().optional(),
 });
 
 export const MeetingTranscriptSchema = z.object({
@@ -160,6 +171,7 @@ export const MeetingTranscriptSchema = z.object({
   status: z.enum(["open", "closed"]),
   roster: z.array(MeetingRosterParticipantSchema),
   chair: MeetingSnapshotChairSchema,
+  you: MeetingTranscriptYouSchema.optional(),
   since_seq: z.number().int().nonnegative(),
   up_to_seq: z.number().int().nonnegative(),
   messages: z.array(MeetingTranscriptMessageSchema),
@@ -176,6 +188,7 @@ export type MeetingSaidData = z.infer<typeof MeetingSaidDataSchema>;
 export type MeetingClosedData = z.infer<typeof MeetingClosedDataSchema>;
 export type MeetingRosterParticipant = z.infer<typeof MeetingRosterParticipantSchema>;
 export type MeetingTranscriptSender = z.infer<typeof MeetingTranscriptSenderSchema>;
+export type MeetingTranscriptYou = z.infer<typeof MeetingTranscriptYouSchema>;
 export type MeetingSnapshotChair = z.infer<typeof MeetingSnapshotChairSchema>;
 export type MeetingTranscriptTo = z.infer<typeof MeetingTranscriptToSchema>;
 export type MeetingTranscriptReceipt = z.infer<typeof MeetingTranscriptReceiptSchema>;

@@ -5,7 +5,7 @@ description: >-
   contract keys, flow/view authoring, and apply. Use when the human asks this
   space to join a Murrmure meeting, accept directives, add a meeting seat, or
   edit handlers/flows/views.
-version: 1.2.11
+version: 1.2.12
 ---
 
 # Murrmure Developer Skill
@@ -55,8 +55,10 @@ Not `mcp_session`.
     complete: explicit
     prompt: |
       You are the <persona> seat in this Murrmure meeting.
-      On convene, pull the transcript and contribute once if another seat exists.
-      On later turns you may stay silent unless addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once if another seat exists.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent

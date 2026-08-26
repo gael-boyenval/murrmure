@@ -72,7 +72,7 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 - Optional `in_reply_to` — never required
 - Address one seat, several seats, or `{ all: true }`
 - Transcript projection + pull (`since_seq`)
-- Assignment prompt: trigger + cursor, **not** the full room
+- Assignment prompt: trigger + cursor, **not** the full room. Transcript pull with `participant_id` adds `you` / `addressed_to_you` / `from.label`
 - Handler delivery **attaches** to the meeting session
 - Join-once: reuse a live assignment for later `said` (no new `ses_*`)
 - Persistent `shell_spawn` seat: one PTY + MCP connection until room close
@@ -349,7 +349,7 @@ Hub does not understand “goal reached.” Chair or human does.
 
 ## 9. Transcript (pull, not paste)
 
-`GET /v1/sessions/{session_id}/transcript?since_seq=`
+`GET /v1/sessions/{session_id}/transcript?since_seq=&participant_id=`
 
 Projection over `mrmr.meeting.*` only. Rebuildable from journal.  
 `since_seq` is **`meeting_seq`** (session-monotonic), not space `journal_index.seq`.  
@@ -361,6 +361,7 @@ Projection over `mrmr.meeting.*` only. Rebuildable from journal.
   "status": "open" | "closed",
   "roster": [ { "participant_id", "space_id", "persona" } ],
   "chair": { "participant_id" } | { "human": true },
+  "you": { "participant_id", "space_id", "persona", "label": "designer@spc_…" },
   "since_seq": 848,
   "up_to_seq": 912,
   "messages": [
@@ -368,8 +369,9 @@ Projection over `mrmr.meeting.*` only. Rebuildable from journal.
       "message_id": "msg_…",
       "seq": 850,
       "created_at": "2026-08-17T15:03:21.425Z",
-      "from": { "participant_id", "space_id", "persona" } | { "human": true },
+      "from": { "participant_id", "space_id", "persona", "label": "qa@spc_…" } | { "human": true, "label": "human chair" },
       "to": { "all": false, "participant_ids": ["ptc_des", "ptc_res"] },
+      "addressed_to_you": true,
       "in_reply_to": "msg_…",
       "text": "…",
       "artifacts": ["xfr_…"],
@@ -389,9 +391,11 @@ Projection over `mrmr.meeting.*` only. Rebuildable from journal.
 
 Authored `{ all: true }` projects as `{ all: true, participant_ids: [/* roster minus speaker */] }` so the view can say “everyone” and still list receipts per seat.
 
+`you` and per-message `addressed_to_you` appear only when `participant_id` is a roster seat the caller may read (same space, or bootstrap / `hub:admin`). `from.label` is always present (`human chair`, `persona@spc_*`). Own messages are not `addressed_to_you`.
+
 Optional seat status (from live assignment / latest run on this session): `idle` | `working` | `failed`. Enough for “research is still going.” No `meeting.working` event required.
 
-**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls if needed. The shell lens shows the full room.
+**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`: if asked to do work, do it this turn. The shell lens shows the full room.
 
 ---
 
@@ -426,7 +430,7 @@ Per participant, while the meeting is open:
 3. **Later `said`** — write the new turn into that same PTY (`notify_live` → seat controller). Queue writes while the process is producing output; flush after idle; submit with Enter. Do not stamp delivery on a space MCP connection that never bound the seat.
 4. **Seat identity** — all live/resume state is keyed by unique roster `participant_id` (`ptc_*`), never persona. The shell exports meeting `ses_*` + `ptc_*`; the child MCP handshake carries both so the Hub can bind that exact seat after checking the principal's space. Connection-order guessing and operator-chat fallback are forbidden. Two `default` personas in different spaces are independent seats.
 5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
-6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On later turns it may stay silent. If it replies, it should target the relevant participant(s) and avoid acknowledgement/repetition. The hub does not invent turn-taking.
+6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Pull the transcript with this seat's `participant_id` and read `you` / `addressed_to_you`. If the room asked this seat to do work, do that work on the turn — a status reply is not the job. Stay silent later only when nothing new was asked and there is no open work. If it replies, target the relevant participant(s) and avoid acknowledgement/repetition. The hub does not invent turn-taking.
 7. **PTY not attached yet** — queue the notify until the persistent controller attaches. Do not fall back to a pre-existing operator MCP in the same space.
 8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller.
 
@@ -459,8 +463,10 @@ A **run** may be one per spawn (observability) or the optional `room` flow run.
   complete: explicit
   prompt: |
     You are the designer seat in this meeting.
-    On convene, pull the transcript and contribute once to the goal.
-    On later turns you may stay silent unless addressed or useful.
+    Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+    Know the goal and what was asked of you. If asked to do work, do it this turn.
+    On convene, contribute once to the goal.
+    Stay silent later only when nothing new was asked of you.
   command: cursor agent --force --approve-mcps --trust {{prompt}}
   session:
     mode: persistent

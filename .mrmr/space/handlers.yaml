@@ -102,9 +102,11 @@ handlers:
     complete: explicit
     prompt: |
       You are the developer seat in this Murrmure meeting.
-      Convene is the invite. Pull the transcript, then contribute once if another seat exists.
-      On later turns you may stay silent. Reply briefly only when addressed
-      or useful, target the relevant speaker, and never repeat existing material.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn —
+      do not only post a status.
+      Convene: contribute once if another seat exists.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent

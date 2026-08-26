@@ -33,6 +33,9 @@
 
 ### Added
 
+- `GET /v1/sessions/:id/transcript?participant_id=` and MCP
+  `murrmure_meeting_transcript` `participant_id` project `you` /
+  `addressed_to_you` for that seat.
 - `GET /v1/sessions/:id/artifacts/:xfr` (transcript auth) returns meeting
   attachment metadata / `?preview=1` without claiming the sender space.
 - `GET /v1/artifacts/:id` accepts `space:read` or `blob:read`. `?preview=1`

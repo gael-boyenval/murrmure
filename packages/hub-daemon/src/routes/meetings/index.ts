@@ -79,9 +79,13 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
     const session_id = c.req.param("session_id");
     const rawSince = c.req.query("since_seq");
     const since_seq = rawSince != null && rawSince !== "" ? Number(rawSince) : 0;
+    const reader_participant_id = c.req.query("participant_id")?.trim();
     const transcript = await buildMeetingTranscript(murrmurePersistence, {
       session_id,
       since_seq: Number.isFinite(since_seq) ? since_seq : 0,
+      ...(reader_participant_id ? { reader_participant_id } : {}),
+      token_space_id: auth.space_id,
+      capabilities: effective,
     });
     if (!transcript) {
       return c.json({ code: "MEETING_NOT_FOUND", message: "No meeting on this session" }, 404);

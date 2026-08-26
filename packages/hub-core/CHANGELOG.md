@@ -23,6 +23,9 @@
 
 ### Changed
 
+- Meeting seat operating rules: pull transcript with this `participant_id`,
+  read `you` / `addressed_to_you`, and do requested work on the turn instead
+  of status-only replies.
 - Meeting `said` artifacts add `actor:{session.actor_id}` to
   `authorized_readers` (human chair preview) plus roster spaces.
 - Default artifact TTL is 90 days (`DEFAULT_ARTIFACT_TTL_DAYS`). Existing
@@ -36,6 +39,8 @@
 
 ### Added
 
+- Meeting transcript reader projection: `you`, `from.label`, `addressed_to_you`
+  when the caller passes a roster `participant_id`.
 - `resumeMeeting` reopens a closed room (same `ses_*` + `ptc_*`), journals
   `mrmr.meeting.resumed`, and re-wakes said handlers with `trigger: resumed`.
 - `GET` meeting list includes closed rooms and roster seats.

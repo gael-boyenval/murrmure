@@ -265,4 +265,83 @@ describe("meetings/transcript", () => {
     const studio = new MemoryStudioPersistence();
     expect(await buildMeetingTranscript(studio, { session_id: SES })).toBeNull();
   });
+
+  test("reader projection adds you, labels, and addressed_to_you", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedJournal(
+      studio,
+      [
+        row({
+          entry_id: "evt_said",
+          type: JOURNAL_EVENT_TYPES.MEETING_SAID,
+          meeting_seq: 2,
+          payload: {
+            message_id: MSG1,
+            from: { participant_id: DESIGNER, space_id: APP, persona: "designer" },
+            to: { participant_ids: [QA] },
+            text: "for qa only",
+          },
+        }),
+        row({
+          entry_id: "evt_all",
+          type: JOURNAL_EVENT_TYPES.MEETING_SAID,
+          meeting_seq: 3,
+          payload: {
+            message_id: MSG2,
+            from: { human: true },
+            to: { all: true },
+            text: "everyone",
+          },
+        }),
+      ],
+      snapshot(),
+    );
+
+    const transcript = await buildMeetingTranscript(studio, {
+      session_id: SES,
+      reader_participant_id: QA,
+      token_space_id: APP,
+    });
+    expect(transcript?.you).toEqual({
+      participant_id: QA,
+      space_id: APP,
+      persona: "qa",
+      label: `qa@${APP}`,
+    });
+    expect(transcript?.messages[0]?.from).toMatchObject({
+      label: `designer@${APP}`,
+    });
+    expect(transcript?.messages[0]?.addressed_to_you).toBe(true);
+    expect(transcript?.messages[1]?.from).toEqual({ human: true, label: "human chair" });
+    expect(transcript?.messages[1]?.addressed_to_you).toBe(true);
+  });
+
+  test("reader from another space is ignored", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedJournal(
+      studio,
+      [
+        row({
+          entry_id: "evt_said",
+          type: JOURNAL_EVENT_TYPES.MEETING_SAID,
+          meeting_seq: 2,
+          payload: {
+            message_id: MSG1,
+            from: { participant_id: DESIGNER, space_id: APP, persona: "designer" },
+            to: { participant_ids: [QA] },
+            text: "x",
+          },
+        }),
+      ],
+      snapshot(),
+    );
+
+    const transcript = await buildMeetingTranscript(studio, {
+      session_id: SES,
+      reader_participant_id: QA,
+      token_space_id: RESEARCH,
+    });
+    expect(transcript?.you).toBeUndefined();
+    expect(transcript?.messages[0]?.addressed_to_you).toBeUndefined();
+  });
 });

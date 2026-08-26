@@ -1,5 +1,14 @@
 # Changelog
 
+## Meeting seat context (2026-08-26)
+
+### Changed
+
+- Seat wakes tell the agent to read the room, know what was asked of them,
+  and do requested work on that turn — not status-only replies.
+- `murrmure_meeting_transcript` with this seat's `participant_id` adds
+  `you`, `from.label`, and `addressed_to_you`.
+
 ## Meeting transcript rail (2026-08-26)
 
 ### Added

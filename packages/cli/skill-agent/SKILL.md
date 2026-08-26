@@ -5,7 +5,7 @@ description: >-
   work. Prefer this when the prompt has Protocol murrmure.agent/v1 or
   murrmure.meeting/v1, or the human asks this space to join a meeting.
   For authoring flows/views use murrmure-developer.
-version: 1.3.12
+version: 1.3.13
 ---
 
 # Murrmure Agent Skill
@@ -23,7 +23,7 @@ For authoring `.mrmr/` spaces, flows, views, and handlers, use
 
 | Signal | Mode | What to do |
 |--------|------|------------|
-| Prompt has `Protocol: murrmure.meeting/v1` | **Meeting seat** | You are **this seat**. On convene, pull `murrmure_meeting_transcript` and, when another roster seat exists, make one concise contribution to the goal. A one-seat room stays silent. On `trigger: resumed`, pull the transcript and continue the same `ses_*` / `ptc_*` — do not re-introduce. Later `said` resumes the same logical chat; then you may stay silent unless addressed or useful. Attach with `murrmure_put_artifact` then `said` `artifacts: [xfr_*]`. Materialize any needed `xfr_*` with `murrmure_get_artifact` and read its returned `local_path`. Target the relevant speaker and use `in_reply_to` when appropriate. Never repeat or acknowledge existing material. Do **not** `murrmure_resolve_step` the room. Do not paste the journal. Do not call `murrmure_get_pending_wake`. |
+| Prompt has `Protocol: murrmure.meeting/v1` | **Meeting seat** | You are **this seat**. Pull `murrmure_meeting_transcript` with `session_id`, `since_seq`, and **your** `participant_id`. Read `you` and messages with `addressed_to_you`. Know the goal and what was asked of you. If asked to do work (code, files, specs), do it this turn — do not only post status. On convene, contribute once when another seat exists (one-seat room stays silent). On `trigger: resumed`, continue the same `ses_*` / `ptc_*` — do not re-introduce. Stay silent later only when nothing new was asked of you and you have no open work. Attach with `murrmure_put_artifact` then `said` `artifacts: [xfr_*]`. Materialize `xfr_*` with `murrmure_get_artifact` and read `local_path`. Target the speaker; use `in_reply_to`. Never repeat the transcript. Do **not** `murrmure_resolve_step` the room. Do not call `murrmure_get_pending_wake`. |
 | Prompt has `Protocol: murrmure.agent/v1`, or env has `MURRMURE_ASSIGNMENT_SCOPE` / `MURRMURE_RUN_ID` + `MURRMURE_STEP_ID` | **Assignment** | Jump to [Assignment](#assignment-do-this-now). Skip everything else. |
 | Human asks this space to join a meeting / add a seat | **Wire the seat** | [Join meetings](#this-space-should-join-meetings). Add `type: shell_spawn` — not `mcp_session`. |
 | Interactive Cursor chat / local MCP with no assignment prompt | **Interactive** | [Interactive loop](#interactive-loop) only if the human asked you to operate a run. |
@@ -54,8 +54,10 @@ Skills do not make a seat. This repo needs a handler. **`type: shell_spawn`**
     complete: explicit
     prompt: |
       You are the default seat in this Murrmure meeting.
-      On convene, pull the transcript and contribute once if another seat exists.
-      On later turns you may stay silent unless addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once if another seat exists.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent

@@ -35,8 +35,10 @@ Append to `.mrmr/space/handlers.yaml`. `participant` **must** match the persona 
     complete: explicit
     prompt: |
       You are the default seat in this Murrmure meeting.
-      On convene, pull the transcript and contribute once if another seat exists.
-      On later turns you may stay silent unless addressed or useful.
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Know the goal and what was asked of you. If asked to do work, do it this turn.
+      On convene, contribute once if another seat exists.
+      Stay silent later only when nothing new was asked of you.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     session:
       mode: persistent

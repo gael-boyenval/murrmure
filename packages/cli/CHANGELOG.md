@@ -4,6 +4,10 @@
 
 ### Changed
 
+- `murrmure-agent` **1.3.13**: meeting seats pull transcript with their
+  `participant_id`, read `you` / `addressed_to_you`, and do requested work on
+  the turn instead of status-only replies.
+- `murrmure-developer` **1.2.12**: meeting-seat recipe matches that rule.
 - `murrmure-agent` **1.3.12**: meeting seat `trigger: resumed` continues the
   same `ses_*` / `ptc_*` from the transcript.
 - `murrmure-agent` **1.3.11**: admin directive MCP

@@ -157,6 +157,9 @@ export function registerPlatformMcpHandlers(
     if (!sessionId) throw new Error("session_id is required");
     const params = new URLSearchParams();
     if (args.since_seq != null) params.set("since_seq", String(args.since_seq));
+    if (typeof args.participant_id === "string" && args.participant_id.trim()) {
+      params.set("participant_id", args.participant_id.trim());
+    }
     const qs = params.toString();
     const res = await fetch(
       `${hubUrl()}/v1/sessions/${encodeURIComponent(sessionId)}/transcript${qs ? `?${qs}` : ""}`,
