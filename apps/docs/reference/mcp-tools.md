@@ -1,6 +1,6 @@
 # MCP platform tools (rev-1 §10.9)
 
-Murrmure exposes grant-filtered MCP tools via `murrmure-mcp` (`@murrmure/mcp-bridge`) → `POST /v1/mcp/tools/call`.
+Murrmure exposes grant-filtered MCP tools via `murrmure-mcp` (`@murrmure/mcp-bridge`) → `POST /v1/mcp/tools/call`. The bridge refetches `/v1/mcp/catalog` on every `tools/list` and emits `tools/list_changed` after a hub replace (`pid`/`started_at` or handshake seq reset). An already-open agent chat may still keep its original snapshot.
 
 Platform tools are filtered by grant **capabilities** (scopes). Flow step completion uses **`murrmure_resolve_step`** — not legacy complete-action or gate-wait tools.
 
@@ -44,8 +44,12 @@ Example arguments:
 | `murrmure_space_health` | `space:read` | Health summary (index counts, handler coverage, warnings) |
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
 | `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
+| `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — spaces that bind `step.opened::directive.execute`. Default `local-tools/v1` does not see this tool. |
+| `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. Required `prompt`. Optional `space_ids` / `space_id`; omit to start on every currently eligible space. Returns `{ starts: [{ space_id, ok, run_id?, session_id?, error? }] }`. |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` — convene (`participants`, `chair` required; `title`, `goal`, `session_id` optional) |
-| `murrmure_meeting_transcript` | roster space or `journal:read` on a roster space | `GET /v1/sessions/{id}/transcript?since_seq=` — fold `mrmr.meeting.*` only. Pull; do not use `murrmure_journal_query` as the chat. |
+| `murrmure_meeting_transcript` | roster space or `journal:read` on a roster space | `GET /v1/sessions/{id}/transcript?since_seq=` — fold `mrmr.meeting.*` only, including message/receipt timestamps and delivery latency. Pull; do not use `murrmure_journal_query` as the chat. |
+| `murrmure_get_artifact` | `space:read` + artifact ACL | Materialize `transfer_id` (`artifact_id` accepted as an input alias) into the authenticated space's `.mrmr/dev/inbox/` and return safe verified metadata + relative `local_path` (ACL readers omitted). |
+| `murrmure_put_artifact` | `blob:write` (or `space:write`) | Upload bytes (`content` + `name`, max 64 KiB) or a space-relative `path`. Returns `{ transfer_id, digest, name, size_bytes }`. Meeting attach: put → `said` with `artifacts: [xfr_*]` → peer `get_artifact`. |
 | `murrmure_list_emittable_events` | `space:read` | Event types this space can emit (from hook index) |
 | `murrmure_emit_event` | `event:emit` | Journal-first emit `{ event_type, payload, session_id? }`. Meeting types (`mrmr.meeting.*`) require top-level `session_id`. Hub-authored `convened` / `delivered` / `delivery_failed` are denied. |
 | `murrmure_grant_mint` | `space:admin` | `POST /v1/spaces/{id}/grants` |
@@ -91,7 +95,7 @@ See [Connect your agent](../guide/agents-mcp) for grant setup.
 
 `session_id` is optional for ordinary events (handler delivery still `createSession`). It is **required** for `mrmr.meeting.*`. HTTP `POST /v1/spaces/{id}/events` also requires `event:emit` and returns the real journal `seq`.
 
-`mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. Chair may emit `mrmr.meeting.closed`; humans use `POST /v1/sessions/{id}/meeting/close`.
+`mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. Chair may emit `mrmr.meeting.closed`; a human chair uses `POST /v1/sessions/{id}/meeting/say` (Hub stamps `{ human: true }`) and `/meeting/close`.
 
 Seat assignments use `Protocol: murrmure.meeting/v1` (trigger ids + `since_seq`). Pull with `murrmure_meeting_transcript`; reply with `murrmure_emit_event` `said`. Do not `murrmure_resolve_step` the room and do not paste the journal. Later turns arrive as control `murrmure/control.meeting_said` on the live assignment — not a new `invoke_action` and not `pending-wake.json`.
 

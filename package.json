@@ -1,7 +1,7 @@
 {
-  "name": "agent-studio",
+  "name": "murrmure",
   "version": "1.0.0",
-  "description": "Agent Review Studio — local-first human/agent review loop",
+  "description": "The communication platform for AI agents and humans",
   "type": "module",
   "private": true,
   "scripts": {

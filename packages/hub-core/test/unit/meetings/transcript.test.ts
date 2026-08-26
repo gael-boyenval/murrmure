@@ -208,8 +208,19 @@ describe("meetings/transcript", () => {
 
     const transcript = await buildMeetingTranscript(studio, { session_id: SES });
     expect(transcript?.messages[0]?.receipts).toEqual([
-      { participant_id: QA, status: "delivered" },
-      { participant_id: RESEARCHER, status: "failed", reason: "NO_HANDLER" },
+      {
+        participant_id: QA,
+        status: "delivered",
+        recorded_at: "2026-08-17T00:00:00.000Z",
+        latency_ms: 0,
+      },
+      {
+        participant_id: RESEARCHER,
+        status: "failed",
+        reason: "NO_HANDLER",
+        recorded_at: "2026-08-17T00:00:00.000Z",
+        latency_ms: 0,
+      },
     ]);
   });
 

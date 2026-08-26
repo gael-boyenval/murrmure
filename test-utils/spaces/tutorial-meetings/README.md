@@ -5,7 +5,7 @@ tree after recursively applying its `extends` chain:
 
 1. `part-2/snapshot.json` — both spaces: `space.yaml`, empty handlers, personas;
 2. `part-3/snapshot.json` — app `api-shape` flow (`meeting:` + human chair);
-3. `part-5/snapshot.json` — scoped `mrmr.meeting.said` handlers on both spaces;
+3. `part-5/snapshot.json` — scoped `shell_spawn` `mrmr.meeting.said` handlers on both spaces;
 4. `part-6/snapshot.json` — designer chair, `implement` step + shell handler.
 
 `files` maps paths relative to a two-root tree (`meeting-app/…`,

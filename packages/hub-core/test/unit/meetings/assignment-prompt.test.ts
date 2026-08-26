@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { renderMurrmureMeetingProtocolEnvelope } from "../../../src/meetings/assignment-prompt.js";
+import {
+  formatLiveSaidPrompt,
+  renderMurrmureMeetingProtocolEnvelope,
+} from "../../../src/meetings/assignment-prompt.js";
 
 const SES = "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const PTC = "ptc_01ARZ3NDEKTSV4RRFFQ69G5FAD";
@@ -12,6 +15,7 @@ describe("meetings/assignment-prompt", () => {
       session_id: SES,
       participant_id: PTC,
       message_id: MSG,
+      trigger: "said",
       since_seq: 0,
     });
 
@@ -32,11 +36,74 @@ describe("meetings/assignment-prompt", () => {
       session_id: SES,
       participant_id: PTC,
       message_id: MSG,
+      trigger: "said",
       since_seq: 12,
     });
     expect(protocol).not.toContain("Protocol: murrmure.agent/v1");
     expect(protocol).not.toContain("murrmure_get_pending_wake");
     expect(protocol).not.toContain("## Contracts");
     expect(protocol).toContain("since_seq: 12");
+  });
+
+  test("convene wake has no message_id and says invited", () => {
+    const protocol = renderMurrmureMeetingProtocolEnvelope({
+      session_id: SES,
+      participant_id: PTC,
+      trigger: "convened",
+      since_seq: 0,
+      subject: "KB goal check\nread the desk",
+    });
+    expect(protocol).toContain("trigger: convened");
+    expect(protocol).toContain("You were invited");
+    expect(protocol).toContain("This process is your seat");
+    expect(protocol).toContain("make one concise initial contribution");
+    expect(protocol).toContain("subject: KB goal check read the desk");
+    expect(protocol).not.toContain("message_id:");
+  });
+
+  test("resumed wake keeps the same seat and asks to continue", () => {
+    const protocol = renderMurrmureMeetingProtocolEnvelope({
+      session_id: SES,
+      participant_id: PTC,
+      trigger: "resumed",
+      since_seq: 0,
+    });
+    expect(protocol).toContain("trigger: resumed");
+    expect(protocol).toContain("This room resumed");
+    expect(protocol).toContain("same session_id and participant_id");
+    expect(protocol).toContain("Continue from the existing conversation");
+    expect(protocol).not.toContain("You were invited");
+  });
+
+  test("said wake says already joined, not a new invite", () => {
+    const protocol = renderMurrmureMeetingProtocolEnvelope({
+      session_id: SES,
+      participant_id: PTC,
+      message_id: MSG,
+      trigger: "said",
+      since_seq: 3,
+    });
+    expect(protocol).toContain("already joined");
+    expect(protocol).toContain("You may stay silent");
+    expect(protocol).toContain("to.participant_ids");
+    expect(protocol).toContain("Keep it concise");
+    expect(protocol).not.toContain("You were invited");
+  });
+
+  test("later PTY turn includes the human text and protocol envelope", () => {
+    const prompt = formatLiveSaidPrompt(
+      {
+        session_id: SES,
+        participant_id: PTC,
+        message_id: MSG,
+        trigger: "said",
+        since_seq: 2,
+      },
+      { text: "Are you here?", from: { human: true } },
+    );
+    expect(prompt).toContain("from: human chair");
+    expect(prompt).toContain("text: Are you here?");
+    expect(prompt).toContain("Protocol: murrmure.meeting/v1");
+    expect(prompt).toContain(`message_id: ${MSG}`);
   });
 });

@@ -37,7 +37,12 @@ Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + `on::key` 
 | Personas | `.mrmr/space/personas.yaml` ads; `murrmure_list_personas` |
 | Meeting step | `meeting:` facet; close resolves the step |
 | Meeting Transcript | `/sessions/:id` Transcript (shell, not a View) |
+| Meeting start (shell) | Header **New meeting** — spaces + personas → `POST /v1/meetings` |
+| Meeting seat continuity | Persistent `shell_spawn` PTY starts once on convene; later turns write into that PTY after idle; close ends the process |
+| Human-chair talk | Transcript composer to selected/all seats; Hub stamps `{ human: true }` |
+| Meeting timing | Message timestamps, Hub delivery latency, and reply latency |
 | Meeting MCP | `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript` |
 | Headless convene | `mrmr meeting start` / `murrmure_start_meeting` |
+| Directive MCP | `murrmure_list_directive_eligible`, `murrmure_start_directive` (`hub:admin`) |
 
 See [Creating flows](./creating-flows) and [Quick start](./quick-start).

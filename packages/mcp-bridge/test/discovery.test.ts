@@ -2,7 +2,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { discoverHubEndpoint, resolveSharedDiscoveryPath } from "../src/discovery.js";
+import {
+  discoverHubEndpoint,
+  readHubInstance,
+  resolveSharedDiscoveryPath,
+} from "../src/discovery.js";
 
 const tempDirs: string[] = [];
 
@@ -50,6 +54,22 @@ describe("discoverHubEndpoint", () => {
     process.env.MURRMURE_HUB_URL = "http://127.0.0.1:5000";
     expect(() => discoverHubEndpoint({ homePath })).toThrow(/Missing hub discovery file/);
     delete process.env.MURRMURE_HUB_URL;
+  });
+
+  test("reads hub pid and started_at for reload", () => {
+    const homePath = makeTempHome("mcp-bridge-discovery-instance-");
+    const sharedPath = resolveSharedDiscoveryPath(homePath);
+    mkdirSync(join(homePath, ".murrmure", "hubs"), { recursive: true });
+    writeFileSync(
+      sharedPath,
+      JSON.stringify({
+        hubs: [{ endpoint: "http://127.0.0.1:8787", pid: 42, started_at: "2026-08-24T06:00:00.000Z" }],
+      }),
+    );
+    expect(readHubInstance(sharedPath)).toEqual({
+      pid: 42,
+      started_at: "2026-08-24T06:00:00.000Z",
+    });
   });
 
   test("fails when discovery has no usable endpoint", () => {

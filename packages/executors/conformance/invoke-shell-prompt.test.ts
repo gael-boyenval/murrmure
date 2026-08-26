@@ -42,6 +42,19 @@ describe("invoke-shell-prompt", () => {
     expect(prompt).not.toContain("## Resolve API");
   });
 
+  test("substitutes flow input.prompt on handler templates", () => {
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "directive",
+        space_id: "spc_demo",
+        run_id: "run_1",
+        params: { prompt: "Say pong", input: { prompt: "Say pong" } },
+      },
+      "{{input.prompt}}",
+    );
+    expect(prompt).toBe("Say pong");
+  });
+
   test("does not prepend briefing for handler-style prompt path", () => {
     const prompt = resolveInvokePrompt(
       {
@@ -81,6 +94,30 @@ describe("invoke-shell-prompt", () => {
       "Build it.",
     );
     expect(prompt).toContain("## Discovery");
+  });
+
+  test("injects meeting protocol for convene wake params", () => {
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "meeting-developer",
+        space_id: "spc_demo",
+        run_id: "run_1",
+        session_id: "ses_room",
+        params: {
+          session_id: "ses_room",
+          participant_id: "ptc_dev",
+          trigger: "convened",
+          since_seq: 0,
+        },
+      },
+      "You are the developer seat. Address the goal.",
+    );
+    expect(prompt).toContain("You are the developer seat. Address the goal.");
+    expect(prompt).toContain("Protocol: murrmure.meeting/v1");
+    expect(prompt).toContain("session_id: ses_room");
+    expect(prompt).toContain("participant_id: ptc_dev");
+    expect(prompt).toContain("trigger: convened");
+    expect(prompt).toContain("Do not call murrmure_resolve_step for this room.");
   });
 
   test("hard-fails unknown prompt placeholders with quick-fix", () => {

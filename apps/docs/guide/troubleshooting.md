@@ -31,14 +31,25 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | `scope_enforcement_failure` (403) on an upload intent | A handler token minted for one space was used against a run in another space. Re-dispatch the step in its own space; grant tokens carry only the space boundary. |
 | `ACTION_TIMED_OUT` | The command exceeded `timeout_ms`. Raise `timeout_ms` for slow scripts, or fix a hanging child — the runtime terminates the whole process group once (SIGTERM → 5s → SIGKILL) and shutdown awaits that escalation so no descendant outlives the hub. |
 | `SHELL_EXIT_NONZERO` | The script exited nonzero. Read `stderr` in the run journal; `/bin/sh -e -c` stops at the first failing command. |
+| Every meeting message starts another Cursor process | Re-apply the seat with `session: { mode: persistent, transport: pty }`; remove `continuation` and `timeout_ms`. Convene should create one process for the room. |
+| `PERSISTENT_SESSION_EXITED` / later receipt fails after Cursor exits | Read the recorded exit code/signal and PTY output. Unexpected exit revokes the live seat; the next targeted message may start one replacement assignment. |
+| Meeting will not close / persistent Cursor remains | Update the Hub. Close sends Ctrl-D, waits `shutdown_grace_ms`, then escalates through process-group SIGTERM/SIGKILL. |
+| `desktop:dev:hmr` prints repeated Hub proxy `ECONNREFUSED` | Read the first daemon error above. The supervisor allows a 5s watch restart, then stops shell/Desktop so proxy noise cannot continue indefinitely. Fix the daemon error and restart the dev stack. |
 
 ## MCP tools not showing in Cursor
+
+Cursor shows **0 tools** when it rejects `tools/list` — every tool
+`inputSchema` must have `type: "object"`. A bare `oneOf` (used by
+`murrmure_emit_event` when several events are emittable) is dropped and the
+whole catalog disappears. Reload the Murrmure server after a hub update.
+
+Then:
 
 1. Reload the selected integration context after `mrmr connection create`
 2. Confirm `~/.murrmure/bin/murrmure-mcp` exists and is executable
 3. Relaunch Desktop to refresh stale bundle discovery after a move or upgrade
 4. Unlock macOS Keychain if credential lookup is blocked
-5. Run **`mrmr space doctor`** to distinguish launcher, discovery, credential, revocation/association, and Hub failures
+5. Run **`mrmr space doctor`** to distinguish launcher, discovery, credential, revocation/association, schema, and Hub failures
 
 Do not add `MURRMURE_HUB_TOKEN` to local MCP configuration. Local mode fails
 closed and reads the credential by Hub + connection ID from Keychain. Runtime

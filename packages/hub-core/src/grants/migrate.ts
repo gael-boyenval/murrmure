@@ -9,6 +9,8 @@ const VALID_CAPABILITIES: Capability[] = [
   "event:emit",
   "step:resolve",
   "journal:read",
+  "blob:read",
+  "blob:write",
   "executor:poll",
   "hub:admin",
 ];

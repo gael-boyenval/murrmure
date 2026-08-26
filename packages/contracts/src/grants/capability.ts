@@ -10,6 +10,8 @@ export const CAPABILITY_STRINGS = [
   "event:emit",
   "step:resolve",
   "journal:read",
+  "blob:read",
+  "blob:write",
   "executor:poll",
   "hub:admin",
 ] as const;

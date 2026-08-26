@@ -16,10 +16,12 @@ function journalFromHandler(deps: SessionRunDeps): StepResolveJournal {
         space_id: entry.space_id,
         session_id: entry.session_id,
         run_id: entry.run_id,
-        step_id: entry.step_id,
         actor_id: entry.actor_id,
         token_id: entry.token_id,
-        data: entry.data,
+        data: {
+          ...entry.data,
+          step_id: entry.step_id,
+        },
       });
     },
   };

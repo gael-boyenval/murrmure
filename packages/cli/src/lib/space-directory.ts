@@ -8,6 +8,7 @@ import {
   HooksFileSchema,
   EventsFileSchema,
   SpaceApplyBundleSchema,
+  SpaceYamlFileSchema,
   type SpaceApplyBundle,
 } from "@murrmure/contracts";
 import {
@@ -114,11 +115,28 @@ export function resolveMurrmureRoot(cwd: string): string {
   throw new Error(`No .mrmr/ directory in ${cwd}`);
 }
 
+function parseSpaceYamlFile(raw: unknown) {
+  const parsed = SpaceYamlFileSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw formatParseFailure(
+      { ok: false, code: "INVALID_SPACE_YAML", message: "space.yaml failed validation", details: parsed.error },
+      "space.yaml",
+    );
+  }
+  return parsed.data;
+}
+
 export function readSpaceApplyBundle(cwd: string): SpaceApplyBundle {
   const root = resolveMurrmureRoot(cwd);
   const spaceDir = join(root, "space");
   const bundle: SpaceApplyBundle = { flows: [], views: [] };
   const seenFlowIds = new Set<string>();
+
+  const spacePath = join(spaceDir, "space.yaml");
+  if (existsSync(spacePath)) {
+    const file = parseSpaceYamlFile(readYamlFile(spacePath));
+    bundle.space = { digest: fileDigest(spacePath), file };
+  }
 
   const actionsPath = join(spaceDir, "actions.yaml");
   if (existsSync(actionsPath)) {
@@ -258,11 +276,32 @@ export function validateSpaceBundleCycles(bundle: SpaceApplyBundle): void {
   }
 }
 
-export function readSpaceSlug(cwd: string): string | undefined {
+export type SpaceYamlIdentity = {
+  slug?: string;
+  name?: string;
+  description?: string;
+};
+
+function readSpaceYamlRaw(cwd: string): Record<string, unknown> | undefined {
   const path = join(resolveMurrmureRoot(cwd), "space", "space.yaml");
   if (!existsSync(path)) return undefined;
-  const raw = readYamlFile(path) as { slug?: string };
-  return typeof raw.slug === "string" ? raw.slug : undefined;
+  const raw = readYamlFile(path);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  return raw as Record<string, unknown>;
+}
+
+export function readSpaceYamlIdentity(cwd: string): SpaceYamlIdentity {
+  const raw = readSpaceYamlRaw(cwd);
+  if (!raw) return {};
+  const slug = typeof raw.slug === "string" && raw.slug.trim() ? raw.slug.trim() : undefined;
+  const name = typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined;
+  const description =
+    typeof raw.description === "string" && raw.description.trim() ? raw.description.trim() : undefined;
+  return { slug, name, description };
+}
+
+export function readSpaceSlug(cwd: string): string | undefined {
+  return readSpaceYamlIdentity(cwd).slug;
 }
 
 export { computeContentDigest, resolveHooksFilename };

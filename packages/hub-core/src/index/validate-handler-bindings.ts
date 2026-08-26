@@ -129,6 +129,7 @@ export function validateHandlerBindings(input: ValidateHandlerBindingsInput): Ha
     if (
       meetingAliases.has(binding.alias) &&
       binding.lifecycle === "opened" &&
+      handler.type !== "view_resolver" &&
       handler.complete === "auto"
     ) {
       return {

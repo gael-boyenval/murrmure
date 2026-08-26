@@ -42,12 +42,14 @@ handlers:
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls resolve after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
+| `continuation` | Optional `{ command, token_field }` for a one-shot `shell_spawn` harness. Runtime stores the opaque JSON/JSONL stdout field and resolves `{{continuation_token}}` in the next command for the same meeting `ptc_*`. |
+| `session` | Optional `{ mode: persistent, transport: pty, shutdown_grace_ms? }` for one long-lived `shell_spawn` process. Mutually exclusive with `continuation` and `timeout_ms`. |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
 | kill-on policy | **Removed.** Authored kill-on policy is rejected; assignment termination is runtime-owned. |
 
 **`view_resolver` is executor-free** — it carries `view` and binds `step.opened::…` only, and forbids `command`, `prompt`, `params`, and `cwd`.
 
-**Full walkthrough:** [Tutorial 1a — Part 5: copy & build](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md) includes a complete `handlers.yaml` for the preview-review flow. Meeting seats: [Tutorial 1b — Part 5](./tutorials/02-meetings/05-wake-seats).
+**Full walkthrough:** [Tutorial 1a — Part 5: copy & build](./tutorials/01-local-preview-review-v3/05-extend-flow-and-handlers.md) includes a complete `handlers.yaml` for the preview-review flow. Meeting seats: [Tutorial 1b — Part 5](./tutorials/02-meetings/05-wake-seats). Header **New directive** is handler-only (`step.opened::directive.execute`) — the hub owns `flw_mrmr_directive`; do not copy that flow into the space.
 
 ## `on::key` binding and contract keys
 
@@ -146,7 +148,9 @@ values can never become shell fragments and the runtime owns process lifecycle.
 - **Execution.** Multiline commands run as `/bin/sh -e -c "<script>"` with no
   login profile and no silent shell fallback. Omitted `cwd` defaults to the
   space root; omitted `delivery` defaults to fail fast.
-- **Timeout and termination.** `timeout_ms` (default 30000) caps the run. On
+- **Timeout and termination.** `timeout_ms` (default 30000) caps the run.
+  One-shot `cursor agent -p` handlers (including `directive`) must set
+  `timeout_ms: 3600000` — 30s kills the agent mid-work. On
   timeout, cancellation, external resolution, yield, run terminal, or Desktop
   shutdown the runtime sends process-group `SIGTERM`, waits five seconds, then
   `SIGKILL`, and records one terminal result. Shutdown awaits that escalation
@@ -223,7 +227,20 @@ handlers:
 
 Discover emittable types with **`murrmure_list_emittable_events`**. Emit from agents with **`murrmure_emit_event`** (`event:emit` capability). HTTP `POST /v1/spaces/{id}/events` requires the same capability, journals first, and returns the real `seq`. Types starting with `mrmr.meeting.` must include a top-level `session_id` (delivery attaches to that session instead of creating one).
 
-`on.event.participant` matches the seat **persona** (`designer`), not `ptc_*`. Prefer **`mcp_session`** for meeting seats. First `said` starts one assignment; later `said` notifies that assignment with `murrmure/control.meeting_said` (assignment-mode MCP does not drop this). It is not `pending-wake.json`. Two personas in one space are addressed separately (`handler_id` / `publishToPrincipal`). Convene (`POST /v1/meetings` / `murrmure_start_meeting`) unions `spaces_touched` with every roster space. Close is `POST /v1/sessions/{id}/meeting/close` or chair-emitted `mrmr.meeting.closed` — not a gate and not `resolve_step`. Denial codes include `MEETING_ALREADY_OPEN`, `MEETING_CLOSED`, `MEETING_CHAIR_REQUIRED`, `TO_AMBIGUOUS`, `TO_EMPTY`, `REPLY_UNKNOWN`, `NOT_MEETING_MEMBER`, `PARTICIPANT_AMBIGUOUS`.
+`on.event.participant` selects the seat **persona** (`designer`), but live state
+is keyed by `(session_id, ptc_*)`. Prefer **`shell_spawn`** with
+`session.mode: persistent`: convene starts one PTY process with `{{prompt}}` as
+the first-turn argument, and later `said` writes the next turn into that PTY.
+Meeting close gracefully
+ends it; unexpected exit revokes the live assignment. Do not treat an operator
+chat as the enter path. Copy the handler from
+[Meetings](./meetings.md#put-this-in-every-invited-space). Convene
+(`POST /v1/meetings` / `murrmure_start_meeting`) unions `spaces_touched` with
+every roster space. Close is `POST /v1/sessions/{id}/meeting/close` or
+chair-emitted `mrmr.meeting.closed` — not a gate and not `resolve_step`. Denial
+codes include `MEETING_ALREADY_OPEN`, `MEETING_CLOSED`,
+`MEETING_CHAIR_REQUIRED`, `TO_AMBIGUOUS`, `TO_EMPTY`, `REPLY_UNKNOWN`,
+`NOT_MEETING_MEMBER`, `PARTICIPANT_AMBIGUOUS`.
 
 ## Run policies
 

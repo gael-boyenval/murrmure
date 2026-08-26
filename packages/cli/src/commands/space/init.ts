@@ -79,6 +79,10 @@ export const spaceInitCommand = defineCommand({
       type: "string",
       description: "Space slug (default: normalized display name)",
     },
+    description: {
+      type: "string",
+      description: "Optional purpose / about text written to space.yaml",
+    },
     "with-skill": {
       type: "boolean",
       description: "Install murrmure Cursor skill without prompting",
@@ -123,6 +127,7 @@ export const spaceInitCommand = defineCommand({
       const { created, filledEmptyMurrmure } = scaffoldMurrmureDir(target, {
         withExamples: includeExamples,
         ...identity,
+        description: typeof args.description === "string" ? args.description : undefined,
       });
       const skill = await maybeInstallSkill(target, { withSkill, noSkill });
 

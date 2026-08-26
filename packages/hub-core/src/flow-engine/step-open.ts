@@ -184,9 +184,9 @@ async function conveneMeetingForOpenStep(
   },
 ): Promise<void> {
   const chair =
-    "human" in input.facet.chair && input.facet.chair.human === true
-      ? { human: true as const }
-      : resolveMeetingSeat(input.facet.chair, input.exec_context);
+    "space" in input.facet.chair
+      ? resolveMeetingSeat(input.facet.chair, input.exec_context)
+      : { human: true as const };
   const convened = await conveneMeeting(deps, {
     session_id: input.session_id,
     title: input.title,
@@ -234,12 +234,20 @@ export async function dispatchStepResolverAssignment(
       return binding?.lifecycle === "opened" && binding.alias === alias;
     });
   if (!handler?.success || handler.data.type === "view_resolver") return;
+  const runBare = input.run_id.startsWith("run_") ? input.run_id.slice(4) : input.run_id;
+  const run = await deps.studio.getRun(runBare);
+  const flowInput =
+    run?.exec_context.input &&
+    typeof run.exec_context.input === "object" &&
+    !Array.isArray(run.exec_context.input)
+      ? (run.exec_context.input as Record<string, unknown>)
+      : {};
   await deps.dispatchSteps({
     dispatch: [{
       step_id: input.step_id,
       space_id: input.space_id,
       action_name: handler.data.id,
-      params: { assignment_reason: input.reason },
+      params: { ...flowInput, input: flowInput, assignment_reason: input.reason },
     }],
     session_id: input.session_id,
     run_id: input.run_id,

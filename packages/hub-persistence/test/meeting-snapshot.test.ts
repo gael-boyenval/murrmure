@@ -27,6 +27,8 @@ async function runParity(persistence: StudioPersistencePort) {
 
   const first = await persistence.upsertMeetingSnapshot(snapshot(sessionId, "open", "evt_convene1"));
   expect(first).toEqual({ ok: true });
+  expect((await persistence.listOpenMeetings()).map((row) => row.session_id)).toEqual([sessionId]);
+  expect((await persistence.listMeetings()).map((row) => row.session_id)).toEqual([sessionId]);
   const loaded = await persistence.getMeetingBySession(`ses_${sessionId}`);
   expect(loaded?.status).toBe("open");
   expect(loaded?.roster).toHaveLength(2);
@@ -45,6 +47,8 @@ async function runParity(persistence: StudioPersistencePort) {
   });
   expect(closed).toEqual({ ok: true });
   expect((await persistence.getMeetingBySession(sessionId))?.status).toBe("closed");
+  expect((await persistence.listOpenMeetings())).toEqual([]);
+  expect((await persistence.listMeetings()).map((row) => row.status)).toEqual(["closed"]);
 
   const reconvene = await persistence.upsertMeetingSnapshot(snapshot(sessionId, "open", "evt_convene3"));
   expect(reconvene).toEqual({ ok: true });

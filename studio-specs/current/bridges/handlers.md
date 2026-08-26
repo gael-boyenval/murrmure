@@ -53,6 +53,8 @@ handlers:
 | `type` | `shell_spawn` \| `mcp_session` \| `queue_poll` \| `remote_hub` \| `view_resolver` |
 | `contract_keys` | Prompt-scope addresses (which steps a prompt-scoped handler may address); empty for event-only and `view_resolver` handlers |
 | `complete` | `auto` \| `cli` \| `explicit` — who calls `resolve_step` after shell dispatch. Not applicable to `view_resolver` (always explicit, host-mediated). |
+| `continuation` | Optional strict `{ command, token_field }` for one-shot shell harnesses. Runtime stores the opaque JSON/JSONL stdout token per meeting `ptc_*`; the continuation command receives it as `{{continuation_token}}`. |
+| `session` | Optional strict `{ mode: persistent, transport: pty, shutdown_grace_ms? }` for a long-lived `shell_spawn`. It is mutually exclusive with `continuation` and `timeout_ms`; the assignment owns lifetime. |
 | `view` | Required for `view_resolver`: the `view_id` of a locally built View in `.mrmr/views/`. |
 | kill-on policy | **Removed.** Assignment termination is runtime-owned; authored kill-on policy is rejected. |
 
@@ -60,9 +62,9 @@ handlers:
 
 ## Meeting event handlers
 
-`on.event.participant` matches the seat **persona**. If the space declares personas, a `mrmr.meeting.said` handler that omits `participant` is rejected (`PERSONA_HANDLER_UNSCOPED`). Prefer `type: mcp_session` + `complete: explicit`. `complete: auto` on a said handler is `MEETING_HANDLER_COMPLETE_AUTO`.
+`on.event.participant` selects the seat **persona**; runtime state uses the minted `ptc_*`. If the space declares personas, a `mrmr.meeting.said` handler that omits `participant` is rejected (`PERSONA_HANDLER_UNSCOPED`). Prefer `type: shell_spawn` + `complete: explicit` + `session.mode: persistent`. `complete: auto` on a said handler is `MEETING_HANDLER_COMPLETE_AUTO`.
 
-Platform types `mrmr.meeting.said` / `mrmr.meeting.closed` are emittable without listing them in `events.yaml`. First `said` starts one assignment; later `said` notifies that assignment (`murrmure/control.meeting_said` / `notify_live`). See [meetings/spec.md](../meetings/spec.md).
+Platform types `mrmr.meeting.said` / `mrmr.meeting.closed` are emittable without listing them in `events.yaml`. Convene starts one PTY process with `{{prompt}}` as the first-turn argument. Later `said` writes the next turn into that PTY after idle. Meeting close writes Ctrl-D, waits the authored grace, then terminates the process group. Seat state is keyed by `(session_id, ptc_*)`, not persona. One-shot `continuation` remains supported as a fallback mode, but is not the stock meeting experience. See [meetings/spec.md](../meetings/spec.md).
 
 ## Run policies
 
@@ -247,6 +249,11 @@ runtime owns process lifecycle. See
 
 ### Process lifecycle and credentials
 
+- A persistent shell session is a runtime-owned PTY. It receives the initial
+  prompt once, stays registered for the assignment, and exposes a close
+  controller to meeting/run/Hub lifecycle. It has no `timeout_ms`; normal
+  meeting close sends Ctrl-D, waits `shutdown_grace_ms` (default 5 seconds),
+  then uses the standard process-group termination escalation.
 - Timeout, cancellation, external resolution, nested yield, run terminal, or Desktop
   shutdown sends process-group `SIGTERM`, waits five seconds, then `SIGKILL`,
   and records exactly one terminal result. The `SIGKILL` escalation stays armed

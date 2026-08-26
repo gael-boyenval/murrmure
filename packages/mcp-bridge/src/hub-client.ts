@@ -98,6 +98,10 @@ export async function performHandshake(
   options: HubCallOptions & {
     clientId: string;
     lastAckSeq: number;
+    meetingAssignment?: {
+      session_id: string;
+      participant_id: string;
+    };
   },
 ): Promise<HandshakeResponse> {
   const fetchFn = options.fetchImpl ?? fetch;
@@ -107,6 +111,7 @@ export async function performHandshake(
     body: JSON.stringify({
       client_id: options.clientId,
       last_ack_seq: options.lastAckSeq,
+      meeting_assignment: options.meetingAssignment,
     }),
   });
   const body = await parseJsonBody(response, "MCP handshake");

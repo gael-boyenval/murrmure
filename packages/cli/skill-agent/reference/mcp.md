@@ -33,8 +33,12 @@ installation or `mrmr space apply`.
 | `murrmure_space_health` | `space:read` | Health summary, handler coverage |
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
 | **`murrmure_list_personas`** | **`space:read`** | Same-space persona ads |
+| **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
+| **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
-| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull `mrmr.meeting.*` with `since_seq`. Not `journal_query`. |
+| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull `mrmr.meeting.*` with `since_seq`, message/receipt timestamps, and delivery latency. Not `journal_query`. |
+| **`murrmure_get_artifact`** | **`space:read`** + artifact ACL | Materialize an `xfr_*` into this space's `.mrmr/dev/inbox/`; returns verified metadata + relative `local_path` |
+| **`murrmure_put_artifact`** | **`blob:write`** (or `space:write`) | Upload inline `content`+`name` (64 KiB) or a space-relative `path`; returns `xfr_*` |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
 | **`murrmure_emit_event`** | **`event:emit`** | `{ event_type, payload, session_id? }` — journal-first; `session_id` required for `mrmr.meeting.*` |
 | **`murrmure_resolve_step`** | **`step:resolve`** | `{ run_id, step_id, branch, payload?, artifacts_out? }` |
@@ -51,11 +55,13 @@ installation or `mrmr space apply`.
 
 **Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
 
-1. `murrmure_meeting_transcript` with the prompt `session_id` + `since_seq` — pull, do not paste the journal
-2. Do the Task (handler `prompt`)
-3. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`
-4. Do **not** `murrmure_resolve_step` the room
-5. Prefer `mcp_session` handlers. First `said` starts one assignment (`invoke_action`). Later `said` is `murrmure/control.meeting_said` on that same assignment — not a new session and not `pending-wake.json`. Do not call `murrmure_get_pending_wake` for a meeting notify.
+1. `murrmure_meeting_transcript` once with the prompt `session_id` + `since_seq` — pull, do not paste the journal.
+2. To attach a file: `murrmure_put_artifact({ content, name })` → `xfr_*`, then `murrmure_emit_event` `mrmr.meeting.said` with `artifacts: [xfr_*]`. For a received `xfr_*`, call `murrmure_get_artifact({ transfer_id })` and read `artifact.local_path` relative to the space root. Never guess a sender-local path.
+3. On `trigger: convened`, contribute once when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On `trigger: resumed`, pull the transcript and continue — do not re-introduce. On later turns you may stay silent unless addressed or useful.
+4. Keep replies concise. Target the relevant speaker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
+5. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`.
+5. Do **not** `murrmure_resolve_step` the room.
+6. Prefer `shell_spawn` with `session.mode: persistent`. Convene starts one interactive process; later `said` writes the next turn into that PTY until close. Do not call `murrmure_get_pending_wake`.
 
 **Handler assignment** (`Protocol: murrmure.agent/v1` already in the prompt):
 

@@ -7,7 +7,7 @@ import { useState } from "react";
 import type { MeetingTranscript, ShellClient } from "@murrmure/shell-client";
 import type { ViewCanvasHostProps } from "../components/ViewCanvasHost.js";
 import { ShellClientContext } from "../providers/ShellClientProvider.js";
-import { SessionPage } from "./SessionPage.js";
+import { defaultSessionRunId, SessionPage, sessionPaneLabel } from "./SessionPage.js";
 
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
 
@@ -52,10 +52,16 @@ const openTranscript: MeetingTranscript = {
     {
       message_id: "msg_1",
       seq: 2,
+      created_at: "2026-08-17T15:00:00.000Z",
       from: { participant_id: "ptc_des", space_id: "spc_app", persona: "designer" },
       to: { all: false, participant_ids: ["ptc_res"] },
       text: "Need the last latency study.",
-      receipts: [{ participant_id: "ptc_res", status: "delivered" }],
+      receipts: [{
+        participant_id: "ptc_res",
+        status: "delivered",
+        recorded_at: "2026-08-17T15:00:00.025Z",
+        latency_ms: 25,
+      }],
     },
   ],
 };
@@ -78,6 +84,7 @@ function mockClient(overrides: {
   };
   return {
     spaces: { list: vi.fn().mockResolvedValue([]) },
+    meetings: { start: vi.fn(), list: vi.fn().mockResolvedValue({ meetings: [] }) },
     notifications: { list: vi.fn().mockResolvedValue({ notifications: [], pending_count: 0 }) },
     me: { get: vi.fn().mockResolvedValue({ actor_id: "usr_test" }) },
     sessions: {
@@ -91,7 +98,15 @@ function mockClient(overrides: {
         runs: [{ run_id: "run_abc", lifecycle: "working" }],
       }),
       transcript: vi.fn().mockResolvedValue(transcript),
+      sayMeeting: vi.fn().mockResolvedValue({ ok: true, event_id: "evt_human", seq: 3 }),
       closeMeeting: vi.fn(),
+      resumeMeeting: vi.fn().mockResolvedValue({
+        ok: true,
+        session_id: "ses_1",
+        status: "open",
+        resume_meeting_seq: 8,
+        roster: [],
+      }),
     },
     runs: {
       get: vi.fn().mockResolvedValue(run),
@@ -176,6 +191,17 @@ describe("SessionPage checkpoint canvas", () => {
 });
 
 describe("SessionPage meeting lens", () => {
+  it("labels meeting runs as agent activity and focuses the active turn", () => {
+    expect(sessionPaneLabel("flowchart", true)).toBe("Agent activity");
+    expect(sessionPaneLabel("flowchart", false)).toBe("Flowchart");
+    expect(
+      defaultSessionRunId([
+        { run_id: "run_done", lifecycle: "completed" },
+        { run_id: "run_live", lifecycle: "working" },
+      ]),
+    ).toBe("run_live");
+  });
+
   it("defaults a meeting session to Transcript", async () => {
     renderSession(mockClient({ transcript: openTranscript }));
 
@@ -185,8 +211,59 @@ describe("SessionPage meeting lens", () => {
     expect(screen.getByTestId("meeting-transcript")).toBeTruthy();
     expect(screen.getByText("Need the last latency study.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
-    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
     expect(screen.queryByText("No journal replay yet.")).toBeNull();
+  });
+
+  it("sends a targeted message as the human chair", async () => {
+    const client = mockClient({ transcript: openTranscript });
+    renderSession(client);
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "researcher@research" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+      target: { value: "Can you verify the latency result?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(client.sessions.sayMeeting).toHaveBeenCalledWith("ses_1", {
+        to: { participant_ids: ["ptc_res"] },
+        text: "Can you verify the latency result?",
+      });
+    });
+  });
+
+  it("replies to a specific message", async () => {
+    const client = mockClient({ transcript: openTranscript });
+    renderSession(client);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reply" }));
+    expect(screen.getByText(/Replying to designer@app/)).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+      target: { value: "Here it is." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(client.sessions.sayMeeting).toHaveBeenCalledWith("ses_1", {
+        to: { participant_ids: ["ptc_des"] },
+        text: "Here it is.",
+        in_reply_to: "msg_1",
+      });
+    });
+  });
+
+  it("explains that an open meeting reuses one process per seat", async () => {
+    renderSession(mockClient({ transcript: openTranscript }));
+
+    const activity = await screen.findByRole("tab", { name: "Agent activity" });
+    fireEvent.click(activity);
+
+    expect(
+      screen.getByText(
+        "Meeting is open. Each seat keeps one process for the room; later messages reuse it.",
+      ),
+    ).toBeTruthy();
   });
 
   it("keeps Transcript mounted when a bound View is present (not canvasMode-only)", async () => {
@@ -201,16 +278,21 @@ describe("SessionPage meeting lens", () => {
     expect(screen.getByRole("tab", { name: "Transcript" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByTestId("meeting-transcript")).toBeTruthy();
     expect(screen.getByText("Observer")).toBeTruthy();
-    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
   });
 
-  it("keeps a closed meeting readable and hides Close", async () => {
-    renderSession(mockClient({ transcript: closedTranscript }));
+  it("keeps a closed meeting readable and offers Resume", async () => {
+    const client = mockClient({ transcript: closedTranscript });
+    renderSession(client);
 
     await waitFor(() => {
       expect(screen.getByText("Need the last latency study.")).toBeTruthy();
     });
     expect(screen.getByText("closed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => {
+      expect(client.sessions.resumeMeeting).toHaveBeenCalledWith("ses_1");
+    });
   });
 });

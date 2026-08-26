@@ -747,6 +747,14 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
     return this.meetingSessions.get(this.bareSessionId(session_id)) ?? null;
   }
 
+  async listOpenMeetings(): Promise<MeetingSessionRow[]> {
+    return (await this.listMeetings()).filter((row) => row.status === "open");
+  }
+
+  async listMeetings(): Promise<MeetingSessionRow[]> {
+    return [...this.meetingSessions.values()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  }
+
   async upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult> {
     const bare = this.bareSessionId(row.session_id);
     const existing = this.meetingSessions.get(bare);

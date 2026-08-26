@@ -266,6 +266,22 @@ describe("probeMcpLiveHealth", () => {
     expect(issues.some((issue) => issue.code === "MCP_SCHEMA_PRESENT")).toBe(true);
   });
 
+  test("flags MCP_SCHEMA_PRESENT when a tool uses bare oneOf (Cursor 0 tools)", async () => {
+    mockLiveFetch({
+      catalogTools: [
+        { name: "murrmure_space_status", inputSchema: { type: "object" } },
+        {
+          name: "murrmure_resolve_step",
+          inputSchema: { type: "object", required: ["run_id", "step_id", "branch"] },
+        },
+        { name: "murrmure_emit_event", inputSchema: { oneOf: [{ type: "object" }] } },
+      ],
+    });
+    const issues = await runLiveProbe();
+    const schemaIssue = issues.find((issue) => issue.code === "MCP_SCHEMA_PRESENT");
+    expect(schemaIssue?.message).toContain("murrmure_emit_event");
+  });
+
   test("flags MCP_PROBE_INVOKE on revoked/wrong grant (HTTP 403)", async () => {
     mockLiveFetch({ invokeStatus: 403 });
     const issues = await runLiveProbe();

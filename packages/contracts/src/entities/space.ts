@@ -25,3 +25,26 @@ export const SpaceSchema = z
   .passthrough();
 
 export type Space = z.infer<typeof SpaceSchema>;
+
+/** Max length for authored `space.yaml` purpose / about. */
+export const SPACE_YAML_DESCRIPTION_MAX = 500;
+
+export const SpaceYamlLinkSchema = z
+  .object({
+    space_id: z.string().optional(),
+    host: z.string().optional(),
+  })
+  .passthrough();
+
+/** `.mrmr/space/space.yaml` — directory-owned space identity. */
+export const SpaceYamlFileSchema = z
+  .object({
+    apiVersion: z.literal("murrmure.space/v1").optional(),
+    slug: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+    description: z.string().max(SPACE_YAML_DESCRIPTION_MAX).optional(),
+    link: SpaceYamlLinkSchema.optional(),
+  })
+  .passthrough();
+
+export type SpaceYamlFile = z.infer<typeof SpaceYamlFileSchema>;

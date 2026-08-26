@@ -10,10 +10,17 @@
 
 ## Unreleased
 
+### Fixed
+
+- Existing hubs can migrate: `idx_journal_index_meeting_seq` is created after
+  `ALTER TABLE journal_index ADD COLUMN meeting_seq`, not in the bootstrap
+  `CREATE TABLE IF NOT EXISTS` blob (that index crashed desktop on old DBs).
+
 ### Added
 
+- `listMeetings()` returns open and closed meeting snapshots (`updated_at` desc).
 - Meeting snapshot port: `meeting_sessions`, `meeting_seq_counters`, nullable
-  `journal_index.meeting_seq`, plus `getMeetingBySession`,
+  `journal_index.meeting_seq`, plus `getMeetingBySession`, `listOpenMeetings`,
   `upsertMeetingSnapshot`, `allocateMeetingSeq`, `queryMeetingJournal`, and
   `updateArtifactAuthorizedReaders`.
 - `listIndexedRunPolicies(space_id)` on `StudioPersistencePort` returns the

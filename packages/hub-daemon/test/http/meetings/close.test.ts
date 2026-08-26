@@ -121,5 +121,21 @@ describe("http/meetings/close", () => {
     const body = (await close.json()) as { status: string; outcome: string };
     expect(body.status).toBe("closed");
     expect(body.outcome).toBe("completed");
+
+    const listed = await fetch(`${baseUrl}/v1/meetings`, {
+      headers: bootstrapAuth(bootstrapToken),
+    }).then((r) => r.json() as Promise<{ meetings: Array<{ session_id: string; status: string }> }>);
+    expect(listed.meetings.some((row) => row.session_id === sessionId && row.status === "closed")).toBe(
+      true,
+    );
+
+    const resume = await fetch(`${baseUrl}/v1/sessions/${sessionId}/meeting/resume`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+    });
+    expect(resume.status).toBe(200);
+    const resumed = (await resume.json()) as { session_id: string; status: string };
+    expect(resumed.session_id).toBe(sessionId);
+    expect(resumed.status).toBe("open");
   });
 });

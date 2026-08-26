@@ -368,6 +368,8 @@ export interface StudioPersistencePort {
   setJournalIndexMeetingSeq(entry_id: string, meeting_seq: number): Promise<void>;
 
   getMeetingBySession(session_id: string): Promise<MeetingSessionRow | null>;
+  listOpenMeetings(): Promise<MeetingSessionRow[]>;
+  listMeetings(): Promise<MeetingSessionRow[]>;
   upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult>;
   allocateMeetingSeq(session_id: string): Promise<number>;
   queryMeetingJournal(params: MeetingJournalQueryParams): Promise<JournalIndexRow[]>;

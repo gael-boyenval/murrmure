@@ -3,8 +3,13 @@
 **Status:** draft (2026-08-17, specification hardening)  
 **ADR:** [ADR-016](../../ADR/ADR-016-meeting-protocol.md)
 
-Unshipped. Do not treat as `current/` behavior until implementation + acceptance land.  
-On conflict inside this folder: [pitfalls.md](./pitfalls.md) wins.
+Unshipped notes. **`studio-specs/current/` wins.** Default meeting seat is
+`shell_spawn` with an initial command plus an opaque-token continuation command.
+Active processes may receive `notify_live`; exited one-shot harnesses resume.
+The `mcp_session` / “do not shell_spawn” lines in this folder are superseded.
+
+On conflict inside this folder: [pitfalls.md](./pitfalls.md) wins, except where
+`current/` disagrees.
 
 ## Goal
 
@@ -29,6 +34,7 @@ One spec per product surface. Implement against these, not chat.
 | **Testing** | [testing.md](./testing.md) | Pyramid, files, characterization |
 | **Tutorial** | [tutorial-plan.md](./tutorial-plan.md) | 1b / `02-meetings/` — pages **not** written |
 | **Doc wave** | [doc-surfaces.md](./doc-surfaces.md) | What to update on ship |
+| **Artifact MCP gap** | [meeting-artifact-mcp-slice.md](./meeting-artifact-mcp-slice.md) | Living spec: `put_artifact`, grants, attach docs (from KB goal-check) |
 
 ## Hardened implementation slices
 

@@ -1,6 +1,13 @@
 import type { MeetingTranscript, MeetingTranscriptMessage } from "@murrmure/shell-client";
-import { Badge, cn } from "@murrmure/shell-ui";
-import type { ReactNode } from "react";
+import { Badge, Button, cn } from "@murrmure/shell-ui";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { MeetingArtifactCard } from "./MeetingArtifactCard.js";
+import { MeetingArtifactsRail } from "./MeetingArtifactsRail.js";
+import { MeetingMarkdown } from "./MeetingMarkdown.js";
+import { listTranscriptArtifacts } from "../lib/meeting-artifacts.js";
+import { meetingClockTime } from "../lib/meeting-time.js";
+import { replyPreview, type MeetingReplyTarget } from "../lib/meeting-reply.js";
 
 const SEAT_TONES = [
   "bg-sky-500/15 text-sky-200",
@@ -32,12 +39,26 @@ export function meetingSeatLabel(
 }
 
 export function meetingSpeakerName(seat: { persona?: string; space_id: string }, labels?: SpaceLabelMap): string {
-  if (seat.persona) return seat.persona.charAt(0).toUpperCase() + seat.persona.slice(1);
   return meetingSeatLabel(seat, labels);
+}
+
+function meetingSeatInitials(
+  seat: { persona?: string; space_id: string },
+  labels?: SpaceLabelMap,
+): string {
+  const persona = seat.persona?.charAt(0) ?? "";
+  const space = spaceShort(seat.space_id, labels).charAt(0);
+  return `${persona}${space}`.toUpperCase() || "?";
 }
 
 export function isHumanMeetingChair(chair: MeetingTranscript["chair"]): boolean {
   return "human" in chair && chair.human === true;
+}
+
+function isMeetingSeatSender(
+  sender: MeetingTranscriptMessage["from"],
+): sender is Extract<MeetingTranscriptMessage["from"], { space_id: string }> {
+  return "space_id" in sender;
 }
 
 function rosterMap(transcript: MeetingTranscript): Map<string, { persona?: string; space_id: string }> {
@@ -64,9 +85,11 @@ function targetNames(
     .join(", ");
 }
 
-function artifactHref(transferId: string, spaceId?: string): string {
-  const search = spaceId ? `?space_id=${encodeURIComponent(spaceId)}` : "";
-  return `/v1/artifacts/${encodeURIComponent(transferId)}${search}`;
+export { meetingClockTime } from "../lib/meeting-time.js";
+
+function latencyLabel(milliseconds: number): string {
+  if (milliseconds < 1_000) return `${milliseconds} ms`;
+  return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
 }
 
 export interface MeetingTranscriptPaneProps {
@@ -74,7 +97,9 @@ export interface MeetingTranscriptPaneProps {
   goal?: string;
   transcript: MeetingTranscript;
   closeAction?: ReactNode;
+  composer?: ReactNode;
   spaceLabels?: SpaceLabelMap;
+  onReply?: (target: MeetingReplyTarget) => void;
 }
 
 export function MeetingTranscriptPane({
@@ -82,49 +107,97 @@ export function MeetingTranscriptPane({
   goal,
   transcript,
   closeAction,
+  composer,
   spaceLabels,
+  onReply,
 }: MeetingTranscriptPaneProps) {
   const seats = rosterMap(transcript);
   const byId = new Map(transcript.messages.map((message) => [message.message_id, message]));
+  const [headerOpen, setHeaderOpen] = useState(true);
+  const [focusMessageId, setFocusMessageId] = useState<string>();
+  const [selectedArtifact, setSelectedArtifact] = useState<string>();
+  const artifacts = listTranscriptArtifacts(transcript, (message) => {
+    const seat = isMeetingSeatSender(message.from) ? message.from : undefined;
+    return seat ? meetingSpeakerName(seat, spaceLabels) : "human chair";
+  });
+
+  const jumpTo = (messageId: string, transferId: string) => {
+    setSelectedArtifact(transferId);
+    setFocusMessageId(messageId);
+    document.getElementById(`meeting-msg-${messageId}`)?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+    window.setTimeout(() => {
+      setFocusMessageId((current) => (current === messageId ? undefined : current));
+    }, 1600);
+  };
 
   return (
     <div data-testid="meeting-transcript" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border pb-2">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-1.5"
+              aria-expanded={headerOpen}
+              aria-label={headerOpen ? "Minimize meeting header" : "Expand meeting header"}
+              onClick={() => setHeaderOpen((open) => !open)}
+            >
+              {headerOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+            </Button>
             <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
             <Badge variant="outline">{transcript.status}</Badge>
           </div>
-          {goal ? <p className="text-sm text-muted-foreground">{goal}</p> : null}
-          <p className="text-sm text-muted-foreground">
-            {transcript.roster.map((seat) => (
-              <span
-                key={seat.participant_id}
-                className="mr-2 font-medium text-foreground"
-                title={seat.participant_id}
-              >
-                {meetingSeatLabel(seat, spaceLabels)}
-              </span>
-            ))}
-          </p>
+          {headerOpen ? (
+            <>
+              {goal ? <p className="text-sm text-muted-foreground">{goal}</p> : null}
+              <p className="text-sm text-muted-foreground">
+                {transcript.roster.map((seat) => (
+                  <span
+                    key={seat.participant_id}
+                    className="mr-2 font-medium text-foreground"
+                    title={seat.participant_id}
+                  >
+                    {meetingSeatLabel(seat, spaceLabels)}
+                  </span>
+                ))}
+              </p>
+            </>
+          ) : null}
         </div>
         {closeAction}
       </header>
 
-      <ol className="scrollbar-subtle mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <div className="mt-3 flex min-h-0 flex-1 gap-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ol className="scrollbar-subtle min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {transcript.messages.length === 0 ? (
-          <li className="text-sm text-muted-foreground">No messages yet.</li>
+          <li className="text-sm text-muted-foreground">
+            Room is open. Seats were spawned on convene.
+          </li>
         ) : (
           transcript.messages.map((message) => {
-            const fromName = meetingSpeakerName(message.from, spaceLabels);
+            const seat = isMeetingSeatSender(message.from) ? message.from : undefined;
+            const fromName = seat ? meetingSpeakerName(seat, spaceLabels) : "human chair";
             const toName = targetNames(message, seats, spaceLabels);
             const parent = message.in_reply_to ? byId.get(message.in_reply_to) : undefined;
-            const tone = seatTone(message.from.persona ?? message.from.participant_id);
-            const initial = fromName.charAt(0).toUpperCase();
+            const tone = seatTone(
+              seat ? seat.persona ?? seat.participant_id : "human-chair",
+            );
+            const initials = seat ? meetingSeatInitials(seat, spaceLabels) : "HC";
             return (
               <li
+                id={`meeting-msg-${message.message_id}`}
                 key={message.message_id}
-                className={cn("flex gap-3", message.in_reply_to ? "ml-6" : undefined)}
+                className={cn(
+                  "flex gap-3 rounded-md transition-colors",
+                  message.in_reply_to ? "ml-6" : undefined,
+                  focusMessageId === message.message_id ? "bg-muted/80 ring-1 ring-border" : undefined,
+                )}
               >
                 <div
                   aria-hidden
@@ -133,38 +206,74 @@ export function MeetingTranscriptPane({
                     tone,
                   )}
                 >
-                  {initial}
+                  {initials}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
                     <span className="font-medium text-foreground">{fromName}</span>
                     <span className="text-muted-foreground"> to {toName}</span>
+                    <time
+                      dateTime={message.created_at}
+                      title={message.created_at}
+                      className="ml-2 font-mono text-xs text-muted-foreground"
+                    >
+                      {meetingClockTime(message.created_at)}
+                    </time>
+                    {parent?.created_at ? (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        reply in{" "}
+                        {latencyLabel(
+                          Math.max(
+                            0,
+                            Date.parse(message.created_at) - Date.parse(parent.created_at),
+                          ),
+                        )}
+                      </span>
+                    ) : null}
                   </p>
                   {parent?.text ? (
                     <p className="mt-1 border-l-2 border-border pl-2 text-xs text-muted-foreground">
-                      {parent.text}
+                      {replyPreview(parent.text, 160)}
                     </p>
                   ) : null}
                   {message.text ? (
                     <div className="mt-1.5 max-w-xl rounded-2xl rounded-tl-md bg-muted px-3.5 py-2.5">
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                        {message.text}
-                      </p>
+                      <MeetingMarkdown text={message.text} />
                     </div>
                   ) : null}
                   {message.artifacts && message.artifacts.length > 0 ? (
-                    <ul className="mt-1.5 space-y-0.5 text-sm">
+                    <ul className="mt-1.5 space-y-1">
                       {message.artifacts.map((id) => (
                         <li key={id}>
-                          <a
-                            href={artifactHref(id, message.from.space_id)}
-                            className="text-primary underline"
-                          >
-                            {id}
-                          </a>
+                          <MeetingArtifactCard
+                            transferId={id}
+                            sessionId={transcript.session_id}
+                            onReply={onReply}
+                            messageId={message.message_id}
+                            fromLabel={fromName}
+                            participantId={seat?.participant_id}
+                          />
                         </li>
                       ))}
                     </ul>
+                  ) : null}
+                  {onReply ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-1 h-7 px-2 text-xs"
+                      onClick={() =>
+                        onReply({
+                          message_id: message.message_id,
+                          preview: replyPreview(message.text ?? ""),
+                          fromLabel: fromName,
+                          participant_id: seat?.participant_id,
+                        })
+                      }
+                    >
+                      Reply
+                    </Button>
                   ) : null}
                   {message.receipts.length > 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -172,9 +281,11 @@ export function MeetingTranscriptPane({
                         .map((receipt) => {
                           const seat = seats.get(receipt.participant_id);
                           const label = seat ? meetingSpeakerName(seat, spaceLabels) : "seat";
-                          if (receipt.status === "delivered") return `${label} delivered`;
+                          if (receipt.status === "delivered") {
+                            return `${label} delivered in ${latencyLabel(receipt.latency_ms)}`;
+                          }
                           const reason = receipt.reason ? ` (${receipt.reason})` : "";
-                          return `${label} failed${reason}`;
+                          return `${label} failed in ${latencyLabel(receipt.latency_ms)}${reason}`;
                         })
                         .join(" · ")}
                     </p>
@@ -185,6 +296,18 @@ export function MeetingTranscriptPane({
           })
         )}
       </ol>
+      {composer}
+      </div>
+      {artifacts.length > 0 ? (
+        <MeetingArtifactsRail
+          sessionId={transcript.session_id}
+          artifacts={artifacts}
+          selectedId={selectedArtifact}
+          onSelect={(ref) => jumpTo(ref.message_id, ref.transfer_id)}
+          onReply={onReply}
+        />
+      ) : null}
+      </div>
     </div>
   );
 }

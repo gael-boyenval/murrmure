@@ -200,7 +200,9 @@ export function buildEmitEventInputSchema(catalog: EmittableEventsCatalog): Reco
   }));
 
   if (branches.length === 1) return branches[0]!;
-  return { oneOf: branches };
+  // Cursor's tools/list validator requires inputSchema.type === "object".
+  // A bare `{ oneOf }` is dropped and the whole catalog shows as 0 tools.
+  return { type: "object", oneOf: branches };
 }
 
 export function validateEmitPayload(

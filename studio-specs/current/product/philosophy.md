@@ -192,7 +192,7 @@ Analogy: Murrmure = **systemd** (unit name, env, deps, logging); space = **unit 
 
 | Surface | Role |
 |---------|------|
-| `{space}/.mrmr.temp/inbox|outbox/` | Local mailbox (gitignored); executors read/write here |
+| `{space}/.mrmr/dev/inbox|outbox/` | Local mailbox (gitignored); executors read/write here |
 | `~/.murrmure/exchanges/{transfer_id}/` | Global staging + **failure recovery**; canonical bytes + manifest |
 
 Same API for same-machine (hardlink/copy into inbox) vs cross-machine (hub exchange store → materialize at target). User should not need to care which path was taken.
@@ -295,14 +295,14 @@ my-backend-space/
   docs/                 # knowledge base (alternative)
   .mrmr/
     space/
-      space.yaml        # slug, tags, link block (space_id + host)
+      space.yaml        # slug, name, description (purpose), link block (space_id + host)
       handlers.yaml     # step + event handlers
       personas.yaml     # optional seat ads (not dispatch)
     flows/              # optional — local or global orchestration (protocol only)
     views/              # optional — view packages (decoupled from flows)
-  .mrmr.temp/           # gitignored exchange mailbox
-    inbox/
-    outbox/
+    dev/                # gitignored runtime + exchange mailbox
+      inbox/
+      outbox/
 ```
 
 - **Space ≈ workspace boundary:** policies, ACLs, audit partition, where work lives.
@@ -443,7 +443,7 @@ Murrmure desktop/shell is **observer-first**, **CLI-first for mutation**.
 
 **First run:** empty sidebar; `[ + Add space ]` → page with CLI instructions. First linked space → suggested **landing space** (per-user; **⋯ → Use as default** on any space).
 
-**Navigation:** sidebar **Spaces** (badges) + **Sessions** (global list); space home shows local / participating / can-run flows + recent sessions.
+**Navigation:** sidebar **Spaces** (badges); header **Meetings** for open rooms; space home shows local / participating / can-run flows and recent sessions.
 
 **Landing:** always **per-user** — never one hub-wide default for all users.
 
@@ -479,7 +479,10 @@ Trigger **definitions** belong in the **space** (`.mrmr/space/handlers.yaml`), n
 
 **v1 partial match (historical):** the retired wake wire and legacy wake routing label approximated an action name (404, phase 16); `payload_map` ≈ params. Missing: space-owned registry, explicit response contract, `cd`+execute primitive, triggers in files — all supplied by the clean handler + `murrmure_emit_event` protocol.
 
-**Executor registration:** something in the space must listen or be spawnable — Murrmure must not silently become the agent runtime. Open design: long-lived MCP vs one-shot CLI vs desktop watcher (deferred).
+**Executor registration:** something in the space must listen or be spawnable —
+Murrmure must not silently become the agent runtime. `shell_spawn` supports
+one-shot execution and an opt-in runtime-owned persistent PTY session; the space
+still owns the command, harness, model, prompt, and tools.
 
 ---
 
@@ -497,10 +500,10 @@ Small JSON, IDs, summaries, short answers — directly in invoke/ask/event respo
 
 | Surface | Role |
 |---------|------|
-| **`.mrmr.temp/`** (per space, gitignored) | Local mailbox: `inbox/` (received), `outbox/` (to send) |
+| **`.mrmr/dev/`** (per space, gitignored) | Local mailbox: `inbox/` (received), `outbox/` (to send) |
 | **`~/.murrmure/exchanges/{transfer_id}/`** | Global staging + recovery: manifest, digest, TTL, payload bytes |
 
-**Flow:** source writes to outbox or exchange store → Murrmure records manifest + ACL → materializes to target `.mrmr.temp/inbox/` → invoke passes `artifacts_in: ["xfr_…"]` → executor reads local path.
+**Flow:** source writes to outbox or exchange store → Murrmure records manifest + ACL → materializes to target `.mrmr/dev/inbox/` → invoke passes `artifacts_in: ["xfr_…"]` → executor reads local path.
 
 Wire ref (sketch):
 
@@ -512,12 +515,15 @@ Wire ref (sketch):
     "digest": "sha256:…",
     "name": "openapi.diff",
     "size_bytes": 48291,
-    "local_path": ".mrmr.temp/inbox/xfr_01J…/openapi.diff"
+    "local_path": ".mrmr/dev/inbox/xfr_01J…/openapi.diff"
   }
 }
 ```
 
-**v1 partial match:** journal `blob_refs`, `blob_read`/`blob_write`, `openapi_diff_ref` in trigger payloads (ref not inline megabytes). Missing: cross-space passthrough spec, `.mrmr.temp/` protocol, exchange manifest linking flow step ↔ local path.
+**Historical v1 partial match:** journal `blob_refs`, `blob_read`/`blob_write`,
+`openapi_diff_ref` in trigger payloads (ref not inline megabytes). The
+cross-space artifact protocol, `.mrmr/dev/` mailbox, and exchange manifest now
+close that earlier gap.
 
 ---
 
@@ -591,11 +597,11 @@ The **philosophy matches** kernel direction (journal, gates, blobs, triggers, `q
 | CLI-first create; shell instructs | Partial retired configure shell |
 | Triggers in space files | Triggers in hub DB + retired configure shell |
 | Action invoke + response contract | Retired wake wire retired (404); handlers + `murrmure_emit_event` now |
-| Artifacts via `.mrmr.temp/` + exchange manifest | Hub `dataDir` blobs + `blob_refs` |
+| Artifacts via `.mrmr/dev/` + exchange manifest | Hub `dataDir` blobs + `blob_refs` |
 | Any client triggers flows | MCP-primary |
 | Flow orchestrates cross-space as main story | Cross-space via `query_ask` + triggers; flow mostly in-space |
 
-**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to `on: event:` handlers + `murrmure_emit_event` + flow triggers + `step:resolve`, with artifacts via `.mrmr.temp/`/exchange store (the `action invoke` spine is removed/historical — Task 15).
+**Existing journey that maps to target model:** backend emits `work.ready` with `openapi_diff_ref` blob ref → trigger wakes frontend space → agent reads blob. See fixture `config/trigger-backend-frontend.json`. Target model generalizes this to `on: event:` handlers + `murrmure_emit_event` + flow triggers + `step:resolve`, with artifacts via `.mrmr/dev/` / exchange store (the `action invoke` spine is removed/historical — Task 15).
 
 v1 is **scaffolding toward** this philosophy, not a full realization.
 
@@ -609,7 +615,6 @@ Captured for later; **do not implement** without a new plan slice:
 |------|---------------------------|
 | **Flows triggering flows** | Valid need (“iron many other things … but not right now”); needs cycle detection, correlation, ACL inheritance |
 | Cron scheduler UI | Protocol may support schedule; product UI later |
-| Executor registration | Long-lived MCP vs one-shot CLI spawn vs desktop watcher |
 | Space directory sync | `watch`, `mrmr space apply`, git hook — how hub learns space root path |
 | Cross-hub artifact passthrough | XS1+; remote orchestrator on different computer |
 | Flow marketplace / remote registry | Out of scope |

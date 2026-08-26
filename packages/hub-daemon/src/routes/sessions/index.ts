@@ -40,6 +40,7 @@ import {
   canReadFlow,
   defaultExecutorTimeoutScheduler,
   failRunWithNotification,
+  extractRunStepResult,
   type RunGraphResolver,
 } from "@murrmure/hub-core";
 import { broadcastSse, type DaemonContext } from "../../context.js";
@@ -446,6 +447,7 @@ export function mountSessionRunRoutes(app: Hono, ctx: DaemonContext): void {
       steps,
       journal_replay,
       open_steps,
+      result: extractRunStepResult(row.exec_context),
     });
   });
 

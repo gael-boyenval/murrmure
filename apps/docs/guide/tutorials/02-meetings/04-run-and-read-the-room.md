@@ -18,7 +18,7 @@ You should see:
 - Goal text from the manifest
 - Roster of **three** seats, labels like `designer@meeting-app`
 - **No messages**
-- **No compose box**
+- Human-chair composer (do not send yet; said handlers arrive in Part 5)
 - Flowchart / journal tabs still exist (operator), not the chat
 - Step `decide` still **open** / working
 
@@ -69,17 +69,17 @@ mrmr.meeting.closed
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| ViewCanvasHost / blank canvas | Someone bound a view or expected 1a | No view on `decide`; open **Sessions** → Transcript |
+| ViewCanvasHost / blank canvas | Someone bound a view or expected 1a | No view on `decide`; open header **Meetings** or the session → Transcript |
 | No **Run** | Flow not applied / wrong space | Apply from `meeting-app` |
 | `PERSONA_NOT_FOUND` | Typo or research not applied | Part 2 apply both; ids match catalog |
 | Convenor / invite error | App run cannot read research | Same hub; both spaces created by you; re-check `spc_…` in the manifest |
-| Compose box | Product bug or stale build | v1 has none — do not “type as designer” |
+| Composer missing for human chair | Stale shell build or chair mismatch | Reload; the composer speaks as **human chair**, never as designer |
 | Run stuck open | Did not Close | You are the chair |
 
 ## Checkpoint
 
 - [ ] **Run** opened Transcript by default
-- [ ] Three seats, 0 messages, no compose box
+- [ ] Three seats, 0 messages, human-chair composer visible
 - [ ] Human **Close** completed `decide` and the run succeeded
 - [ ] You noted `ses_…` / `run_…` on a sticky note
 - [ ] You did **not** emit `said` yet

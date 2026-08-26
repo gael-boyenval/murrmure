@@ -39,7 +39,7 @@ describe("murrmure skill install", () => {
 
     const skillMd = readFileSync(join(result.path, "SKILL.md"), "utf-8");
     expect(skillMd).toMatch(/^name: murrmure-agent/m);
-    expect(skillMd).toContain("Runtime MCP");
+    expect(skillMd).toContain("Runtime skill for Murrmure");
     expect(skillMd).not.toContain("murrmure-flow");
   });
 

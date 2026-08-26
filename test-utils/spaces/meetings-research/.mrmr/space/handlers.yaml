@@ -7,8 +7,15 @@ handlers:
       event:
         type: mrmr.meeting.said
         participant: researcher
-    type: mcp_session
+    type: shell_spawn
     complete: explicit
     prompt: |
       You are the researcher seat in this meeting.
-      Pull transcript if you need prior turns.
+      On convene, pull the transcript and contribute once to the goal.
+      On later turns, reply briefly only when addressed or useful.
+    command: cursor agent --force --approve-mcps --trust {{prompt}}
+    session:
+      mode: persistent
+      transport: pty
+      shutdown_grace_ms: 5000
+    cwd: "{{space_root}}"

@@ -40,7 +40,7 @@ export function isMurrmureDirEmpty(murrmureRoot: string): boolean {
 
 export function scaffoldMurrmureDir(
   targetDir: string,
-  options?: { withExamples?: boolean; slug?: string; name?: string },
+  options?: { withExamples?: boolean; slug?: string; name?: string; description?: string },
 ): {
   created: string[];
   filledEmptyMurrmure: boolean;
@@ -80,6 +80,7 @@ export function scaffoldMurrmureDir(
             apiVersion: "murrmure.space/v1",
             slug: options.slug,
             ...(options.name ? { name: options.name } : {}),
+            ...(options.description?.trim() ? { description: options.description.trim() } : {}),
           })
         : content;
     writeFileSync(dest, rendered, "utf-8");
@@ -100,7 +101,7 @@ export function scaffoldMurrmureDir(
 
 export function writeSpaceIdentity(
   targetDir: string,
-  identity: { slug: string; name: string },
+  identity: { slug: string; name: string; description?: string },
 ): string {
   const path = join(targetDir, ".mrmr", "space", "space.yaml");
   const parsed = existsSync(path)
@@ -113,6 +114,11 @@ export function writeSpaceIdentity(
   doc.apiVersion = "murrmure.space/v1";
   doc.slug = identity.slug;
   doc.name = identity.name;
+  if (identity.description !== undefined) {
+    const trimmed = identity.description.trim();
+    if (trimmed) doc.description = trimmed;
+    else delete doc.description;
+  }
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, stringifyYaml(doc), "utf-8");
   return path;

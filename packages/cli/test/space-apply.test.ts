@@ -97,6 +97,41 @@ describe("space apply integration", () => {
     expect(bundle.flows?.length).toBe(1);
     expect(bundle.flows?.[0]?.flow_id).toBe("flw_flows_demo");
     expect(bundle.personas).toBeUndefined();
+    expect(bundle.space?.file.slug).toBe("demo");
+    expect(bundle.space?.file.description).toBeUndefined();
+  });
+
+  test("readSpaceApplyBundle includes space.yaml name and description", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "name: Demo space",
+        "description: Convenes product seats and chairs the room.",
+        "link:",
+        "  space_id: spc_demo",
+        "  host: local",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    expect(bundle.space?.file).toMatchObject({
+      slug: "demo",
+      name: "Demo space",
+      description: "Convenes product seats and chairs the room.",
+    });
+  });
+
+  test("readSpaceApplyBundle rejects over-long space description", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        `description: ${"x".repeat(501)}`,
+      ].join("\n"),
+    );
+    expect(() => readSpaceApplyBundle(projectDir)).toThrow(/INVALID_SPACE_YAML/);
   });
 
   test("readSpaceApplyBundle loads personas.yaml when present", () => {

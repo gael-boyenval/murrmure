@@ -22,7 +22,7 @@ Verified against code 2026-08-17. Full table: [pitfalls.md](../../plans/2026-08-
 7. **List-personas for invitees is hub-mediated.** Chair tokens cannot `GET` a foreign space.
 8. **Seat prompt is `murrmure.meeting/v1`.** Do not reuse the step envelope that orders `murrmure_resolve_step`.
 9. **`spaces_touched` += full roster at convene.** Artifact readers = roster **spaces**, not `ptc_*`.
-10. **One run per room (flow) / at most one per live seat (headless).** Never run-per-`said`. 5-minute headless sweeper must not kill seats.
+10. **One run/process per live seat.** Never run-per-`said`. A persistent seat is closed only by meeting close, run cancellation, crash, or Hub shutdown.
 
 ---
 
@@ -68,14 +68,16 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 
 - Roster of **participants** (space + optional persona)
 - Space-owned **persona catalog** (free-text ads)
-- Events: `convened` · `said` · `delivered` / `delivery_failed` (hub) · `closed`
+- Events: `convened` · `said` · `delivered` / `delivery_failed` (hub) · `closed` · `resumed`
 - Optional `in_reply_to` — never required
 - Address one seat, several seats, or `{ all: true }`
 - Transcript projection + pull (`since_seq`)
 - Assignment prompt: trigger + cursor, **not** the full room
 - Handler delivery **attaches** to the meeting session
 - Join-once: reuse a live assignment for later `said` (no new `ses_*`)
-- Chair participant **or** human closes
+- Persistent `shell_spawn` seat: one PTY + MCP connection until room close
+- Chair participant closes; a human chair may `said` and close
+- Message timestamps, delivery latency, and reply latency in Transcript
 - Thin meeting flow; **shell transcript lens** (not a space View)
 - Optional validation View when the goal needs human review of artifacts / PRs
 
@@ -84,7 +86,6 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 - Memory / embeddings / hub summaries
 - Crash / dead-host spawn policy (queue until reconnect is enough; do not design host resurrection)
 - MCP `Mcp-Session-Id` as the meeting id (different noun — see ADR-016)
-- `sampling/createMessage` as the wake path
 - Typed `meeting.asked` / schema-validated answers (use `query_ask`)
 - Hub-owned Agent entities, prompts, skills, models
 - Turn-taking engine, typing indicators, “who speaks next”
@@ -153,15 +154,22 @@ Prompts, skills, model, harness stay out of this file (`agent.md`, `agents/{id}/
 
 ## 7. Convene
 
-Creates meeting state on a **session** (not a new entity type). Three start paths — same room, same events:
+Creates meeting state on a **session** (not a new entity type). Four start paths — same room, same events:
 
 | Path | Who | What happens |
 |------|-----|----------------|
 | **Flow step** | Engine, when a step with a `meeting:` contract opens | Convene on **this** session; step stays open until `closed` |
+| **Shell header** | Operator | **New meeting** dialog: pick linked spaces + indexed personas, optional title/goal, `chair: { human: true }`. Same `POST /v1/meetings`. Lands on `/sessions/:id` Transcript |
 | **MCP / HTTP** | Agent or operator | `POST /v1/meetings` / `murrmure_start_meeting` — new session or attach if `session_id` given |
-| **CLI** | Operator | `mrmr meeting start` (same command as HTTP). No shell wizard |
+| **CLI** | Operator | `mrmr meeting start` (same command as HTTP) |
 
-Shell does **not** grow a “New meeting” composer. Space home **Run** on a flow that has a meeting step is the dashboard trigger. An agent chair uses MCP.
+The header dialog convenes the room. Once open, a human chair may compose `said`
+messages to selected seats or everyone from Transcript. The room is a **session**,
+not a space. Header **Meetings** lists open rooms. Space home **Run** on a flow
+that has a meeting step remains an optional flow-bound trigger. An agent chair
+uses MCP.
+
+`mrmr.meeting.convened` is the doorbell: hub journals it and wakes each roster seat. A `mrmr.meeting.said` handler is the seat (convene rings it; later `said` is talk). Each invited space still needs applied personas + that handler and a live MCP handshake in that workspace — one connection is one space.
 
 Creates **one session** (or attaches) with meeting state:
 
@@ -178,15 +186,15 @@ Creates **one session** (or attaches) with meeting state:
 }
 ```
 
-`chair: { "human": true }` is allowed (close in the shell lens).
+`chair: { "human": true }` is allowed (talk and close in the shell lens).
 
 Hub:
 
 1. Resolves each `{ space_id, persona? }` against the indexed catalog. Unknown persona → `PERSONA_NOT_FOUND`.
 2. Mints `ptc_*` per seat. Duplicate `(space_id, persona)` in one roster → reject.
 3. Uses the current `session_id` when convene is a flow step or `session_id` was passed; otherwise creates `ses_*`.
-4. Journals `mrmr.meeting.convened` with roster + chair + goal (goal is opaque text). Updates `spaces_touched` with **every** roster space.
-5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, a later step may convene again on the same session.
+4. Journals `mrmr.meeting.convened` with roster + chair + goal (goal is opaque text). Updates `spaces_touched` with **every** roster space. Then wakes each seat (a `said` handler is the doorbell).
+5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, human chair **Resume** reopens the same roster (`ptc_*` kept) and re-wakes seats (`mrmr.meeting.resumed`). A later flow step may still convene again on the same session (new roster ids).
 
 Convenor needs `space:read` on every invited space. Flow path also needs `flow:run`. Headless path needs session create.
 
@@ -217,7 +225,7 @@ steps:
 
 | On | Hub does |
 |----|----------|
-| Step `decide` **opens** | Convene on **this session** (templates from run input). Seats wake via their `mrmr.meeting.said` handlers — not a step handler for the chat. |
+| Step `decide` **opens** | Convene on **this session** (templates from run input). Seats wake on `mrmr.meeting.convened` via their `said` handlers — not a step handler for the chat. |
 | Meeting **open** | Step stays open (`working`). Shell Transcript is the human lens. Flowchart still shows `decide`. |
 | `mrmr.meeting.closed` | Hub resolves the step `completed` (or `failed` if the close reason says so). Outcome / artifacts land on the step payload. Chair does **not** also call `murrmure_resolve_step` unless they are closing. |
 | Next step | Flow advances as today. |
@@ -243,7 +251,10 @@ All meeting events **MUST** carry `session_id` = the meeting. CloudEvents `subje
 
 ### 8.1 `mrmr.meeting.said`
 
-Agent emit (`event:emit`) while the meeting is open and the emitter is a roster seat in the token’s space.
+Agent emit (`event:emit`) while the meeting is open and the emitter is a roster
+seat in the token’s space. A human chair uses
+`POST /v1/sessions/{id}/meeting/say`; the Hub stamps `from: { human: true }`
+and applies the same target, reply, artifact, and open-room checks.
 
 ```json
 {
@@ -273,7 +284,7 @@ Agent emit (`event:emit`) while the meeting is open and the emitter is a roster 
 | `to` | `{ participant_ids: ptc_*[] }` **xor** `{ all: true }`. Both or neither → `TO_AMBIGUOUS`. Every id must be on the roster (`NOT_MEETING_MEMBER`). Duplicates collapsed, order kept. Speaker is dropped if present. After that the list MUST be non-empty (`TO_EMPTY`). `all` = every roster seat except the speaker. |
 | `in_reply_to` | Optional. Must be a `msg_*` already in this session. Missing is valid. |
 | `text` | Optional if `artifacts` is non-empty. Inline cap 64 KiB. |
-| `artifacts` | Optional `xfr_*`. Must authorize roster members as readers (hub expands ACL on accept). |
+| `artifacts` | Optional `xfr_*`. Seat uploads with `murrmure_put_artifact` (`blob:write`; inline `content`+`name` or space-relative `path`), then references the `xfr_*` here. Hub expands ACL to roster spaces and the session chair actor on accept. A recipient uses `murrmure_get_artifact` to materialize a verified copy under its own `.mrmr/dev/inbox/`. Transcript shows name / size / a capped text preview (`GET /v1/sessions/:id/artifacts/:xfr?preview=1`) — not full bytes, not a PR/diff product. |
 
 Hub assigns `message_id` (`msg_*`). Client-supplied ids are ignored.
 
@@ -318,6 +329,20 @@ Only the chair participant (matching space + persona) or the human chair (**sess
 
 After close: further `said` → `MEETING_CLOSED`. If a flow step is bound, the **engine** `resolveFlowStep` ([step-contract.md](../bridges/step-contract.md)). Meeting status is the snapshot, **not** `deriveSessionStatus`.
 
+### 8.4 `mrmr.meeting.resumed`
+
+Human chair (same authority as close) may reopen the **same** room:
+
+```json
+{
+  "type": "mrmr.meeting.resumed",
+  "session_id": "ses_…",
+  "data": { "roster": [/* same ptc_* */], "chair": { "human": true } }
+}
+```
+
+Hub-only (denylisted on emit). Snapshot status → `open`. Same roster ids. Said handlers ring with `trigger: resumed`. Close already killed the PTY — this starts a replacement process for that `ptc_*`. Already-resolved bound steps stay resolved. Resume while open → `MEETING_ALREADY_OPEN`.
+
 Hub does not understand “goal reached.” Chair or human does.
 
 ---
@@ -342,13 +367,20 @@ Projection over `mrmr.meeting.*` only. Rebuildable from journal.
     {
       "message_id": "msg_…",
       "seq": 850,
-      "from": { "participant_id", "space_id", "persona" },
+      "created_at": "2026-08-17T15:03:21.425Z",
+      "from": { "participant_id", "space_id", "persona" } | { "human": true },
       "to": { "all": false, "participant_ids": ["ptc_des", "ptc_res"] },
       "in_reply_to": "msg_…",
       "text": "…",
       "artifacts": ["xfr_…"],
       "receipts": [
-        { "participant_id": "ptc_res", "status": "delivered" | "failed", "reason": null }
+        {
+          "participant_id": "ptc_res",
+          "status": "delivered" | "failed",
+          "recorded_at": "2026-08-17T15:03:21.448Z",
+          "latency_ms": 23,
+          "reason": null
+        }
       ]
     }
   ]
@@ -359,7 +391,7 @@ Authored `{ all: true }` projects as `{ all: true, participant_ids: [/* roster m
 
 Optional seat status (from live assignment / latest run on this session): `idle` | `working` | `failed`. Enough for “research is still going.” No `meeting.working` event required.
 
-**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls if needed. The shell lens shows the full room.
+**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls if needed. The shell lens shows the full room.
 
 ---
 
@@ -389,14 +421,26 @@ Non-meeting handlers still `createSession`. For `mrmr.meeting.*` that is **forbi
 
 Per participant, while the meeting is open:
 
-1. **First notify** — start **one** long-lived assignment `(session_id, participant_id)`. Prefer `mcp_session`. `shell_spawn` per message is the wrong executor for a room.
-2. **Later `said` to that seat** — if a live assignment exists, **do not spawn and do not create a session.** Publish `murrmure/control.meeting_said` (`notify_live`) on that assignment. Assignment-mode MCP does **not** drop this. Do not call this “pending-wake” — that file is local-auth only.
-3. **No live assignment** — start one on the **same** `session_id`. Hard-crash host resurrection is **out of scope**; queue until reachable.
-4. **`closed`** — revoke assignments; further talk denied.
+1. **First turn (convene, or first `said`)** — attach to the meeting `session_id`, register the live seat **before launch**, then start the handler's `command` (`type: shell_spawn`, `session.mode: persistent`) in one runtime-owned PTY. `{{prompt}}` is passed as a command argument so an interactive CLI starts a real first turn. Dispatch returns when the process starts.
+2. **Persistent lifetime** — the non-print interactive harness remains alive. Murrmure does not restart it after each answer and does not use `continuation.command` / `--resume` for this mode. The child may open MCP to emit/read the room; that pipe is not the later-turn delivery path.
+3. **Later `said`** — write the new turn into that same PTY (`notify_live` → seat controller). Queue writes while the process is producing output; flush after idle; submit with Enter. Do not stamp delivery on a space MCP connection that never bound the seat.
+4. **Seat identity** — all live/resume state is keyed by unique roster `participant_id` (`ptc_*`), never persona. The shell exports meeting `ses_*` + `ptc_*`; the child MCP handshake carries both so the Hub can bind that exact seat after checking the principal's space. Connection-order guessing and operator-chat fallback are forbidden. Two `default` personas in different spaces are independent seats.
+5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
+6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On later turns it may stay silent. If it replies, it should target the relevant participant(s) and avoid acknowledgement/repetition. The hub does not invent turn-taking.
+7. **PTY not attached yet** — queue the notify until the persistent controller attaches. Do not fall back to a pre-existing operator MCP in the same space.
+8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller.
 
-Join-once is shipped: later `said` reuses the live assignment via `murrmure/control.meeting_said` / `notify_live`. `publishToSpace` is too coarse for two personas in one space — address a principal.
+Same room, same logical harness conversation. Later turns go to the seat PTY,
+not `publishToSpace`.
 
-A **run** may be one per live seat (observability) or the optional `room` flow run. Either way the **harness** must not reset on every `said` when the assignment is live.
+Registration-after-launch is forbidden: a child may emit `said` immediately.
+Without pre-registration that reply recursively launches another seat. Keeping
+the registration after process exit is also forbidden: it records false
+delivery to a dead MCP pipe. Unexpected exit is `PERSISTENT_SESSION_EXITED`; a
+later targeted message may create a replacement assignment because the original
+process is no longer live.
+
+A **run** may be one per spawn (observability) or the optional `room` flow run.
 
 `Mcp-Session-Id` is not `ses_*`. MCP reconnects the pipe. `ses_*` re-joins the room.
 
@@ -411,14 +455,24 @@ A **run** may be one per live seat (observability) or the optional `room` flow r
     event:
       type: mrmr.meeting.said
       participant: designer
-  type: mcp_session
+  type: shell_spawn
   complete: explicit
   prompt: |
     You are the designer seat in this meeting.
-    Use local skills/tools as needed. Pull transcript if you need prior turns.
+    On convene, pull the transcript and contribute once to the goal.
+    On later turns you may stay silent unless addressed or useful.
+  command: cursor agent --force --approve-mcps --trust {{prompt}}
+  session:
+    mode: persistent
+    transport: pty
+    shutdown_grace_ms: 5000
+  cwd: "{{space_root}}"
 ```
 
-`on.event.participant` matches the seat’s persona (or the default seat when omitted on a space with no personas).
+`on.event.participant` selects the seat’s persona. Runtime identity and the
+persistent controller use `(ses_*, ptc_*)`, so equal persona names across spaces
+or concurrent rooms cannot collide. Persistent mode rejects `continuation` and
+`timeout_ms`; meeting close owns the lifetime.
 
 If the space declares personas, a handler that omits `participant` MUST NOT match `said` (avoid waking every voice). Apply rejects that combo: `PERSONA_HANDLER_UNSCOPED`.
 
@@ -463,7 +517,10 @@ Headless meeting (agents only, no flow) is valid. Shell still shows the historic
 | `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | Indexed catalog |
 | `POST /v1/meetings` | `murrmure_start_meeting` | Convene |
 | `GET /v1/sessions/{id}/transcript` | `murrmure_meeting_transcript` | Projection |
+| `POST /v1/sessions/{id}/meeting/say` | — | Human-chair `said` to selected seats / everyone |
 | `POST /v1/sessions/{id}/meeting/close` | emit `closed` or dedicated close | Human / chair |
+| `POST /v1/sessions/{id}/meeting/resume` | — | Human / chair reopen same room |
+| `GET /v1/meetings` | — | Open + closed rooms |
 | existing emit | `murrmure_emit_event` | `said` / `closed` (chair) |
 
 Scopes: `space:read` (same-space personas), `event:emit` (talk / chair close), `journal:read` or roster membership (transcript), `flow:run` (convene / flow start). Human close: [bridges/meetings.md](../bridges/meetings.md) session mutation — **not** a view/gate.
@@ -482,7 +539,7 @@ Full tables: [bridges/meetings.md](../bridges/meetings.md).
 | `PERSONA_HANDLER_UNSCOPED` | Apply: meeting handler missing `participant` while personas exist |
 | `NOT_MEETING_MEMBER` | Emitter / target not on roster |
 | `MEETING_CLOSED` | `said` after close |
-| `MEETING_CHAIR_REQUIRED` | Close by a non-chair |
+| `MEETING_CHAIR_REQUIRED` | Close / resume by a non-chair |
 | `REPLY_UNKNOWN` | `in_reply_to` not in this session |
 | `MEETING_SESSION_REQUIRED` | Meeting event missing / wrong `session_id` |
 | `PARTICIPANT_AMBIGUOUS` | Space has several seats and `as_participant_id` omitted |
@@ -525,6 +582,9 @@ Reuse `INLINE_PAYLOAD_EXCEEDED`, `EXECUTOR_UNAVAILABLE`. `QUERY_POLICY_DENIED` i
 8. `query_ask` unchanged; meetings do not use it.
 9. Shell Transcript on `/sessions/:id` needs no `view_resolver` — [shell/spec.md](../shell/spec.md).
 10. Flow with `research → decide (meeting:) → implement`: opening `decide` convenes on the same `ses_*`; close advances to `implement`.
+11. Persistent seat starts one OS process on convene; two later `said` messages create no additional spawn; close terminates it.
+12. Human chair sends to one or many seats; Transcript stamps `{ human: true }`, `HH:mm:ss` source time, delivery latency, and reply latency.
+13. After close, human chair Resume keeps `ses_*` + `ptc_*`, journals `resumed`, and `said` works again.
 
 ---
 
@@ -535,7 +595,7 @@ Reuse `INLINE_PAYLOAD_EXCEEDED`, `EXECUTOR_UNAVAILABLE`. `QUERY_POLICY_DENIED` i
 | [philosophy](../product/philosophy.md) | Session, artifacts, no agent entity; multiple roles per space |
 | [product/spec §8](../product/spec.md) | Journal envelope; handler delivery “create or attach” |
 | [ADR-013](../../ADR/ADR-013-agent-assignment-prompt-protocol.md) | Thin **step** assignment prompt — seats use `murrmure.meeting/v1` |
-| [handlers](../bridges/handlers.md) | `on: event:`; `mcp_session` vs `shell_spawn` |
+| [handlers](../bridges/handlers.md) | `on: event:`; default seat is `shell_spawn` |
 | [artifacts](../bridges/artifacts.md) | Docs in the room |
 | [cross-space](../cross-space/spec.md) | Not this protocol — typed ask/answer |
 | [shell](../shell/spec.md) | Meeting Transcript is shell chrome, not ViewCanvasHost |

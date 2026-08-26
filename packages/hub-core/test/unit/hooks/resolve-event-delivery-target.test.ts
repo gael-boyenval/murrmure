@@ -89,11 +89,15 @@ describe("resolveEventDeliveryTarget", () => {
 
   test("findLive hit selects notify_live", async () => {
     const studio = await studioWithSession("room1");
+    let lookup: { session_id: string; participant?: string } | undefined;
     const result = await resolveEventDeliveryTarget(
       {
         studio,
         liveAssignments: {
-          findLive: async () => ({ run_id: "run_live", handler_id: "meeting-designer" }),
+          findLive: async (input) => {
+            lookup = input;
+            return { run_id: "run_live", handler_id: "meeting-designer" };
+          },
           start: async () => undefined,
           notify: async () => undefined,
           revoke: async () => undefined,
@@ -105,6 +109,7 @@ describe("resolveEventDeliveryTarget", () => {
         space_id: "spc_demo",
         session_id: "ses_room1",
         participant: "designer",
+        participant_id: "ptc_designer",
         payload: {},
       },
     );
@@ -112,6 +117,10 @@ describe("resolveEventDeliveryTarget", () => {
       mode: "notify_live",
       session_id: "ses_room1",
       run_id: "run_live",
+    });
+    expect(lookup).toEqual({
+      session_id: "ses_room1",
+      participant: "ptc_designer",
     });
   });
 

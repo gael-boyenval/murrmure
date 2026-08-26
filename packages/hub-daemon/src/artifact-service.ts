@@ -27,6 +27,49 @@ import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { DaemonContext } from "./context.js";
 import { broadcastSse } from "./context.js";
 
+const TEXT_PREVIEW_MAX_BYTES = 32_768;
+const TEXT_PREVIEW_EXTS = new Set([
+  ".md",
+  ".markdown",
+  ".txt",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".csv",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".py",
+  ".sh",
+  ".html",
+  ".css",
+  ".xml",
+  ".log",
+  ".toml",
+  ".diff",
+  ".patch",
+]);
+
+export type ArtifactTextPreview = {
+  text: string;
+  truncated: boolean;
+  name: string;
+};
+
+function fileExt(name: string): string {
+  const idx = name.lastIndexOf(".");
+  return idx >= 0 ? name.slice(idx).toLowerCase() : "";
+}
+
+function isTextPreviewName(name: string): boolean {
+  return TEXT_PREVIEW_EXTS.has(fileExt(name));
+}
+
+function looksBinary(bytes: Buffer): boolean {
+  return bytes.subarray(0, Math.min(bytes.length, 512)).includes(0);
+}
+
 export class ArtifactService {
   constructor(
     private readonly studio: StudioPersistencePort,
@@ -46,6 +89,23 @@ export class ArtifactService {
     const dest = exchangeFilePath(this.dataDir(), transferId, name);
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, bytes);
+  }
+
+  private textPreview(row: ArtifactRow): ArtifactTextPreview | null {
+    if (!isTextPreviewName(row.name) || row.size_bytes <= 0) return null;
+    try {
+      const bytes = this.readExchangeBytes(row.transfer_id, row.name);
+      if (looksBinary(bytes)) return null;
+      const truncated = bytes.length > TEXT_PREVIEW_MAX_BYTES;
+      const slice = truncated ? bytes.subarray(0, TEXT_PREVIEW_MAX_BYTES) : bytes;
+      return {
+        text: slice.toString("utf8"),
+        truncated,
+        name: row.name,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private rowToManifest(row: ArtifactRow): ArtifactV1 {
@@ -167,6 +227,7 @@ export class ArtifactService {
     transfer_id: string;
     requester_space_id: string;
     requester_actor_id: string;
+    preview?: boolean;
   }) {
     const row = await this.studio.getArtifact(input.transfer_id);
     if (!row) {
@@ -191,6 +252,23 @@ export class ArtifactService {
       body: {
         artifact: this.rowToManifest(row),
         expires_at: row.expires_at,
+        ...(input.preview ? { preview: this.textPreview(row) } : {}),
+      },
+    };
+  }
+
+  /** Transcript-authorized preview: caller already proved they can read the room. */
+  async getMeetingArtifact(input: { transfer_id: string; preview?: boolean }) {
+    const row = await this.studio.getArtifact(input.transfer_id);
+    if (!row) {
+      return { http: 404 as const, body: { code: "ARTIFACT_NOT_FOUND", message: "Artifact not found" } };
+    }
+    return {
+      http: 200 as const,
+      body: {
+        artifact: this.rowToManifest(row),
+        expires_at: row.expires_at,
+        ...(input.preview ? { preview: this.textPreview(row) } : {}),
       },
     };
   }

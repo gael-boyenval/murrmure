@@ -14,6 +14,8 @@ import {
 } from "@murrmure/shell-ui";
 import { NotificationBell } from "../components/NotificationBell.js";
 import { ProfileMenu } from "../components/ProfileMenu.js";
+import { MeetingsMenu } from "../components/MeetingsMenu.js";
+import { StartDirectiveDialog } from "../components/StartDirectiveDialog.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 
 export function AppShell({
@@ -55,6 +57,8 @@ export function AppShell({
           Observer
         </Badge>
         <div className="ml-auto flex items-center gap-2">
+          <MeetingsMenu />
+          <StartDirectiveDialog />
           <NotificationBell />
           <ProfileMenu />
         </div>

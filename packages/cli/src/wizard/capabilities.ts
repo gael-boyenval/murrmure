@@ -28,9 +28,25 @@ export const GRANTABLE_CAPABILITIES = [
   "event:emit",
   "step:resolve",
   "journal:read",
+  "blob:read",
+  "blob:write",
   "executor:poll",
   "hub:admin",
 ] as const;
+
+/** Least-privilege set for a persistent meeting seat (talk + attach). */
+export const MEETING_SEAT_CAPABILITIES = [
+  "space:read",
+  "flow:read",
+  "flow:run",
+  "step:resolve",
+  "event:emit",
+  "journal:read",
+  "blob:write",
+  "blob:read",
+] as const;
+
+export const MEETING_SEAT_CAPABILITIES_CSV = MEETING_SEAT_CAPABILITIES.join(",");
 
 export type GrantableCapability = (typeof GRANTABLE_CAPABILITIES)[number];
 
@@ -78,6 +94,16 @@ export const GRANTABLE_CAPABILITY_OPTIONS: ReadonlyArray<{
     value: "journal:read",
     label: "journal:read",
     hint: "Read journal / event history",
+  },
+  {
+    value: "blob:read",
+    label: "blob:read",
+    hint: "Read artifact bytes / materialize (HTTP)",
+  },
+  {
+    value: "blob:write",
+    label: "blob:write",
+    hint: "Upload artifacts (murrmure_put_artifact / PUT /v1/artifacts)",
   },
   {
     value: "executor:poll",

@@ -192,7 +192,7 @@ export async function startHubDaemon(config: DaemonConfig) {
       ctx.invokeService.publishToPrincipal(principal, message),
     mcpSessionRegistry,
   });
-  ctx.liveAssignments = new InMemoryLiveAssignments(meetingNotifier);
+  ctx.liveAssignments = new InMemoryLiveAssignments(meetingNotifier, mcpSessionRegistry);
   ctx.outOfShellService = createOutOfShellService(ctx);
   wrapHandlerForOutOfShell(handler, ctx.outOfShellService);
 

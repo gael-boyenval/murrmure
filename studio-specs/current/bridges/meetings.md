@@ -15,8 +15,11 @@ Adapters only. Domain lives in `hub-core/src/meetings/` + journal-first emit.
 | `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | `space:read` | **Same-space token.** Ads only. |
 | `POST /v1/meetings` | `murrmure_start_meeting` | `flow:run` + convenor `space:read` on every invitee (hub-enforced) | New session or attach if `session_id` given. Hub reads invitee catalogs. |
 | `GET /v1/sessions/{id}/transcript?since_seq=` | `murrmure_meeting_transcript` | roster space **or** `journal:read` on a roster space | Session-monotonic cursor. Not `GET /v1/journal`. |
+| `GET /v1/meetings` | — | `space:read` | Open + closed rooms. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
 | `POST /v1/sessions/{id}/meeting/close` | chair may `murrmure_emit_event` `closed` **or** this tool | chair / human chair | Same payload as `closed`. Shell uses this. |
+| `POST /v1/sessions/{id}/meeting/resume` | — | chair / human chair | Same `ses_*` + `ptc_*`. Journals `mrmr.meeting.resumed`, re-wakes seats. |
 | existing emit | `murrmure_emit_event` | `event:emit` | `said` / `closed`. **Requires `session_id`.** |
+| `PUT /v1/artifacts` | `murrmure_put_artifact` | `blob:write` | Inline `content`+`name` or space-relative `path`. Meeting attach then `said` with `artifacts`. |
 
 No `/v1/meetings/{id}` collection besides start. The id is `ses_*`.
 
@@ -31,7 +34,7 @@ Shipped:
 1. Journal-first `emitAndDeliver` ([architecture.md](../../plans/2026-08-17-meetings/architecture.md) R2).
 2. Meeting types: top-level `session_id` on the envelope so attach cannot be dropped.
 3. HTTP emit requires `event:emit` (parity with MCP).
-4. Hub-only denylist: `mrmr.meeting.convened`, `delivered`, `delivery_failed`.
+4. Hub-only denylist: `mrmr.meeting.convened`, `delivered`, `delivery_failed`, `resumed`.
 5. Platform `said` / `closed` emittable without `events.yaml`.
 6. `from` hub-stamped; client `from` ignored.
 
@@ -109,6 +112,7 @@ Add to `PLATFORM_TOOLS` + `mcp-tool-schemas.ts` + `mcp-handlers.ts` + `apps/docs
 | `murrmure_list_personas` | — (space from auth) |
 | `murrmure_start_meeting` | participants, chair |
 | `murrmure_meeting_transcript` | `session_id` |
+| `murrmure_put_artifact` | exactly one of `path` or `content`; `name` with `content` |
 | `murrmure_emit_event` | existing + `session_id` when type is `mrmr.meeting.*` |
 
 `docs-proof` does not exact-list tools today; **catalog-schema does**.

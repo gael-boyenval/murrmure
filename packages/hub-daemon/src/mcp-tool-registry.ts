@@ -35,8 +35,12 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
   { name: "murrmure_list_handlers", required_scope: "space:read", description: "List indexed step/event handlers for a space" },
   { name: "murrmure_list_personas", required_scope: "space:read", description: "List indexed persona ads for a space" },
+  { name: "murrmure_list_directive_eligible", required_scope: "hub:admin", description: "List spaces that bind the hub-owned directive handler" },
+  { name: "murrmure_start_directive", required_scope: "hub:admin", description: "Start the hub-owned directive flow on one or more eligible spaces" },
   { name: "murrmure_start_meeting", required_scope: "flow:run", description: "Convene a meeting on a new or existing session" },
   { name: "murrmure_meeting_transcript", required_scope: "space:read", description: "Pull a meeting transcript projection (meeting_seq cursor)" },
+  { name: "murrmure_get_artifact", required_scope: "space:read", description: "Materialize an ACL-authorized artifact into this space's local inbox" },
+  { name: "murrmure_put_artifact", required_scope: "blob:write", description: "Upload an artifact from inline content or a space-relative path" },
   { name: "murrmure_emit_event", required_scope: "event:emit", description: "Emit a platform event from the caller space (source inferred)" },
   { name: "murrmure_create_session", required_scope: "flow:run", description: "Create a correlation session" },
   { name: "murrmure_list_sessions", required_scope: "space:read", description: "List sessions (filtered by grant)" },
@@ -142,6 +146,8 @@ export class McpToolRegistry {
 
   private hasRequiredCapability(effective: Capability[], requiredScope: string): boolean {
     switch (requiredScope) {
+      case "hub:admin":
+        return hasCapability(effective, "hub:admin");
       case "space:admin":
         return hasCapability(effective, "hub:admin");
       case "space:write":
@@ -160,6 +166,10 @@ export class McpToolRegistry {
         return hasCapability(effective, "step:resolve");
       case "journal:read":
         return hasCapability(effective, "journal:read");
+      case "blob:write":
+        return hasCapability(effective, ["blob:write", "space:write"]);
+      case "blob:read":
+        return hasCapability(effective, ["blob:read", "space:read"]);
       default:
         return hasCapability(effective, requiredScope as Capability);
     }

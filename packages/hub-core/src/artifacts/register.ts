@@ -1,7 +1,8 @@
 import type { ArtifactV1 } from "@murrmure/contracts";
 import { computeBytesDigest } from "./digest.js";
 
-export const DEFAULT_ARTIFACT_TTL_DAYS = 7;
+/** Default exchange retention. 90 days ≈ 3 months. */
+export const DEFAULT_ARTIFACT_TTL_DAYS = 90;
 
 export interface RegisterArtifactInput {
   transfer_id: string;

@@ -141,6 +141,55 @@ describe("executor conformance", () => {
     expect(completed?.status).toBe("completed");
   });
 
+  test("shell_spawn meeting seat detaches before the agent responds", async () => {
+    let completed: import("@murrmure/runtime-contracts").DispatchOutcome | undefined;
+    const registry = createExecutorRegistry({
+      mcpSession: { isReachable: () => false, publish: () => {} },
+      shellSpawn: {
+        spawn: () => {
+          const child = new EventEmitter() as NodeJS.EventEmitter & {
+            stdout: EventEmitter;
+            stderr: EventEmitter;
+            kill: () => void;
+          };
+          child.stdout = new EventEmitter();
+          child.stderr = new EventEmitter();
+          process.nextTick(() => child.emit("close", 0));
+          return child;
+        },
+        onShellComplete: async (input) => {
+          completed = input.outcome;
+        },
+      },
+    });
+    const shellBinding = { type: "shell_spawn" as const, executor_id: "shell" };
+    const port = registry.getPort(shellBinding)!;
+
+    const outcome = await port.dispatch(
+      {
+        space_id: "spc_test",
+        action_name: "meeting-default",
+        run_id: "run_meeting",
+        step_id: "hook:meeting-default",
+        params: {
+          session_id: "ses_room",
+          participant_id: "ptc_default",
+          trigger: "convened",
+          since_seq: 0,
+        },
+      },
+      {
+        action: { name: "meeting-default", command: "cursor agent -p --force {{prompt}}" },
+        binding: shellBinding,
+        space_root: "/tmp/project",
+      },
+    );
+
+    expect(outcome.status).toBe("dispatched");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(completed?.status).toBe("completed");
+  });
+
   test("shell_spawn timeout returns ACTION_TIMED_OUT", async () => {
     const registry = createExecutorRegistry({
       mcpSession: { isReachable: () => false, publish: () => {} },

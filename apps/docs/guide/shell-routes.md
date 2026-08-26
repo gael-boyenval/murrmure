@@ -9,7 +9,7 @@ The observer shell is the UI inside **Murrmure Desktop** — not a standalone br
 | Route | Purpose |
 |-------|---------|
 | **`/spaces/new`** | First-run space creation and linking |
-| **`/spaces/:spaceId`** | Space home — sessions, flows, gates (**admin**) |
+| **`/spaces/:spaceId`** | Space home — runs, flows, gates (**admin**) |
 | **`/spaces/:spaceId/flows/:flowId`** | Flow preview (**admin**) |
 | **`/sessions/:sessionId`** | Session — **Transcript** default when the session is a meeting; **Review** tab if a validation View is bound (does not replace Transcript); Flowchart / Journal operator tabs. `?operator=1` defaults to Flowchart. No `/meetings` route. |
 | **`/runs/:runId`** | Run detail — graph, gates, retry (**admin**) |
@@ -38,13 +38,29 @@ When a run pauses at a **checkpoint** step with a space-bound view (a `view_reso
 
 1. Open **`/sessions/:sessionId`** — run graph, pending step observability, retry
 2. Use when debugging — not the primary path when a custom view is bound
-3. Meeting sessions open on **Transcript** — the conversation (who said what). Journal dumps stay on the Journal tab. Close is the human-chair action. There is no compose box and no `/meetings` wizard.
+3. Meeting sessions open on **Transcript** — the conversation (who said what,
+   when, and delivery/reply latency). Journal dumps stay on the Journal tab. A
+   human chair can compose to selected seats/everyone and Close. There is no
+   `/meetings` route. Header **Meetings** + **+** lists rooms and convenes.
+   Closed rooms **Resume** the same session. Header
+   **New directive** sends one prompt to eligible spaces (handler opt-in) and
+   stays in the dialog with success/fail + message. No `/directives` route.
 
 ### Watch a meeting
 
-1. Start a flow that has a `meeting:` step (space home **Run**), or an agent/CLI convene
-2. Open the session from **Sessions** / recent — Transcript is the default pane
-3. Optional **Review** tab if a later validation step binds a View; Transcript stays mounted
+1. Header **+** (pick spaces + personas), or an agent/CLI convene. Optional: **Run** a flow with a `meeting:` step
+2. Open the session from header **Meetings** (open + closed) — Transcript is the default pane. The room is not listed on space home. **Resume** a closed room to continue the same `ses_*`
+3. Convene wakes seats (`mrmr.meeting.convened`). Empty Transcript means no
+   `said` yet; the human-chair composer remains available
+
+### Operator: send a directive
+
+1. Header **New directive** — type a prompt, pick spaces that bound
+   `step.opened::directive.execute` (muted spaces need the handler recipe)
+2. Submit fans out `POST /v1/flows/flw_mrmr_directive/run` per pick
+3. Stay in the dialog: lifecycle, resolve `message`, link to `/sessions/:id`
+4. Not a conversation. Opt in with the handler in
+   [space handlers](./space-handlers) / the developer skill `reference/directive.md`
 
 ### Unbound step (observability-only)
 

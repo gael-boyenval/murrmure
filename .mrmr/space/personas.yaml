@@ -1,0 +1,9 @@
+version: 1
+personas:
+  - id: developer
+    summary: Default seat for Murrmure product work in this repo
+    asks:
+      - review a slice or PR
+      - explain current hub or shell behavior
+    requests:
+      - attach a written brief

@@ -29,6 +29,10 @@ adapter, and saves one reload/resume step. The default
 
 It is space-wide, so flows applied later work without replacing the connection.
 Raw journal access is an advanced permission and is not in this profile.
+`murrmure_get_artifact` is available through `space:read`; artifact ACL and
+digest verification still gate each `xfr_*`, and the verified copy is written
+only into the authenticated space's local inbox. Attach uses
+`murrmure_put_artifact` (`blob:write`).
 
 ## Generated MCP shape
 
@@ -87,7 +91,7 @@ creates a replacement identity and removes the old local credential.
 ### Custom capability grants
 
 `mrmr connection create` always mints the fixed `local-tools/v1` set. To add
-capabilities such as `event:emit`, use:
+capabilities such as `event:emit` or `hub:admin` (directive fan-out MCP), use:
 
 ```bash
 mrmr connection grant --space spc_…
@@ -98,7 +102,7 @@ pre-selected). Headless / `--json` mode requires an explicit list:
 
 ```bash
 mrmr connection grant --space spc_… \
-  --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit
+  --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit,journal:read,blob:write,blob:read
 ```
 
 When the selected set is not exactly `local-tools/v1`, the Hub mint omits that
@@ -133,3 +137,32 @@ unreachable Hub.
 
 See [MCP tools reference](../reference/mcp-tools) and the installed skill's
 `reference/mcp.md`. Meeting walkthrough: [Tutorial 1b](./tutorials/02-meetings/).
+
+## Meetings: one connection per space
+
+`murrmure-mcp --connection con_…` is **one space**. Enabling the Murrmure server in
+this workspace does not install tools in other linked spaces.
+
+- Put that space's `--connection` in **that repo's** `.cursor/mcp.json`.
+  Do not add `murrmure` to `~/.cursor/mcp.json` (user MCP). Same name, wrong
+  space, Cursor shows two servers and disables one.
+- Meeting seats start on convene (`shell_spawn` +
+  `session.mode: persistent`). One interactive process stays alive until room
+  close; later `said` writes the next turn into that PTY. You do not need a
+  Cursor chat open. Copy the handler from
+  [Meetings](./meetings.md#put-this-in-every-invited-space).
+- Default `local-tools/v1` omits `event:emit`. Grant it before a seat can
+  `murrmure_emit_event` `mrmr.meeting.said`.
+- Attach a file with `murrmure_put_artifact({ content, name })`, emit
+  `mrmr.meeting.said` with `artifacts: [xfr_*]`, then the peer resolves it with
+  `murrmure_get_artifact({ transfer_id: "xfr_…" })`. The returned
+  `artifact.local_path` is relative to that seat's space root.
+- After grant, hub, or `mcp.json` changes, reload the MCP server in that
+  window. The bridge refetches `/v1/mcp/catalog` on every `tools/list`. A live
+  stdio process also watches handshake `server_tools` and discovery
+  `pid`/`started_at` (Desktop HMR hub replace) and emits `tools/list_changed`.
+  An already-open agent chat may still keep the tool snapshot from when that
+  chat started — use a new chat to see newly granted tools.
+  Cursor showing **0 tools** usually means it rejected `tools/list` — every
+  tool `inputSchema` must have `type: "object"` (a bare `oneOf` is dropped).
+  The hub catalog for a live connection is not empty.

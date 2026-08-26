@@ -1,22 +1,28 @@
 import type { HubHandler } from "@murrmure/hub-core";
 import {
+  DIRECTIVE_FLOW_ID,
   buildIndexStatus,
   buildEmittableEventsCatalog,
   validateEmitPayload,
 } from "@murrmure/hub-core";
-import { HandlerSpecSchema } from "@murrmure/contracts";
+import { HandlerSpecSchema, isLocalSpaceBinding } from "@murrmure/contracts";
+import { parsePutArtifactArgs } from "./mcp-put-artifact.js";
 import type { StudioPersistencePort } from "@murrmure/hub-persistence";
 import { bareSpaceId, prefixedSpaceId } from "./space-id.js";
 import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { DaemonConfig } from "./context.js";
 import type { TokenContext } from "./auth.js";
+import type { ArtifactService } from "./artifact-service.js";
 
 export function registerPlatformMcpHandlers(
   registry: McpToolRegistry,
   handler: HubHandler,
   config: DaemonConfig,
   studio: StudioPersistencePort,
-  ctx: { invokeService: import("./invoke-service.js").InvokeService },
+  ctx: {
+    invokeService: import("./invoke-service.js").InvokeService;
+    artifactService: ArtifactService;
+  },
 ): void {
   const hubUrl = () => `http://127.0.0.1:${config.port}`;
 
@@ -159,6 +165,57 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Meeting transcript");
   });
 
+  registry.registerHandler("murrmure_put_artifact", async (args, authCtx) => {
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const bare = bareSpaceId(spaceId);
+    const bindings = await studio.getSpaceBindings(bare);
+    const local = bindings.filter(isLocalSpaceBinding);
+    const spaceRoot = local.find((binding) => binding.primary)?.path ?? local[0]?.path;
+    const parsed = parsePutArtifactArgs(args, { spaceId, spaceRoot });
+    const result = await ctx.artifactService.putArtifact({
+      bytes: parsed.bytes,
+      metadata: {
+        space_id: spaceId,
+        name: parsed.name,
+        authorized_readers: parsed.authorized_readers,
+      },
+      actor_id: authCtx.actor_id,
+      token_id: authCtx.token_id,
+    });
+    if (result.http !== 200 && result.http !== 201) {
+      const body = result.body as { code?: string; message?: string };
+      throw new Error(body.message ?? `${body.code ?? "Put artifact failed"} (${result.http})`);
+    }
+    const artifact = result.body.artifact;
+    return {
+      artifact: {
+        transfer_id: artifact.transfer_id,
+        digest: artifact.digest,
+        name: artifact.name,
+        size_bytes: artifact.size_bytes,
+      },
+    };
+  });
+
+  registry.registerHandler("murrmure_get_artifact", async (args, authCtx) => {
+    const transferId = String(args.transfer_id ?? args.artifact_id ?? "").trim();
+    if (!transferId.startsWith("xfr_")) {
+      throw new Error("transfer_id (or artifact_id) must begin with xfr_");
+    }
+    const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
+    const result = await ctx.artifactService.materializeArtifact({
+      transfer_id: transferId,
+      body: { space_id: spaceId },
+      requester_actor_id: authCtx.actor_id,
+    });
+    if (result.http !== 200) {
+      const body = result.body as { code?: string; message?: string };
+      throw new Error(body.message ?? `${body.code ?? "Get artifact failed"} (${result.http})`);
+    }
+    const { authorized_readers: _authorizedReaders, ...artifact } = result.body.artifact;
+    return { artifact };
+  });
+
   registry.registerHandler("murrmure_list_personas", async (args, authCtx) => {
     const spaceId = resolveTargetSpaceId(authCtx, config, args.space_id);
     const bare = bareSpaceId(spaceId);
@@ -171,6 +228,62 @@ export function registerPlatformMcpHandlers(
         asks: row.asks ?? [],
         requests: row.requests ?? [],
       })),
+    };
+  });
+
+  registry.registerHandler("murrmure_list_directive_eligible", async (_args, authCtx) => {
+    const res = await fetch(`${hubUrl()}/v1/directives/eligible`, {
+      headers: mcpHeaders(authCtx),
+    });
+    return assertHttpOk(res, "List directive eligible");
+  });
+
+  registry.registerHandler("murrmure_start_directive", async (args, authCtx) => {
+    const prompt = String(args.prompt ?? "").trim();
+    if (!prompt) throw new Error("prompt is required");
+
+    let spaceIds = collectDirectiveSpaceIds(args);
+    if (spaceIds === undefined) {
+      const eligibleRes = await fetch(`${hubUrl()}/v1/directives/eligible`, {
+        headers: mcpHeaders(authCtx),
+      });
+      const eligible = await assertHttpOk(eligibleRes, "List directive eligible");
+      const spaces = Array.isArray(eligible.spaces) ? eligible.spaces : [];
+      spaceIds = spaces
+        .map((space) => String((space as { space_id?: unknown }).space_id ?? "").trim())
+        .filter(Boolean);
+    }
+
+    const settled = await Promise.allSettled(
+      spaceIds.map(async (space_id) => {
+        const res = await fetch(`${hubUrl()}/v1/flows/${DIRECTIVE_FLOW_ID}/run`, {
+          method: "POST",
+          headers: mcpHeaders(authCtx),
+          body: JSON.stringify({ space_id, input: { prompt } }),
+        });
+        const data = await parseHttpJson(res);
+        if (!res.ok) throw httpProxyError(res, data, "Start directive");
+        const session = data.session as { session_id?: unknown } | undefined;
+        return {
+          space_id,
+          ok: true as const,
+          run_id: String(data.run_id ?? ""),
+          session_id: String(session?.session_id ?? ""),
+        };
+      }),
+    );
+
+    return {
+      starts: settled.map((result, index) => {
+        const space_id = spaceIds[index] ?? "";
+        if (result.status === "fulfilled") return result.value;
+        const err = result.reason;
+        return {
+          space_id,
+          ok: false as const,
+          error: err instanceof Error ? err.message : "Could not start directive",
+        };
+      }),
     };
   });
 
@@ -421,6 +534,29 @@ function resolveSpaceId(ctx: TokenContext, config: DaemonConfig): string {
   if (ctx.space_id !== "bootstrap") return prefixedSpaceId(bareSpaceId(ctx.space_id));
   const env = config.defaultSpaceId || process.env.MURRMURE_SPACE_ID || "";
   return env.startsWith("spc_") ? env : prefixedSpaceId(env);
+}
+
+/** `undefined` = caller omitted targets (fan-out to currently eligible). */
+function collectDirectiveSpaceIds(args: Record<string, unknown>): string[] | undefined {
+  const hasIds = Object.prototype.hasOwnProperty.call(args, "space_ids");
+  const hasId = Object.prototype.hasOwnProperty.call(args, "space_id");
+  if (!hasIds && !hasId) return undefined;
+
+  const out: string[] = [];
+  if (hasIds) {
+    if (!Array.isArray(args.space_ids)) {
+      throw new Error("space_ids must be an array of space ids");
+    }
+    for (const value of args.space_ids) {
+      const id = String(value ?? "").trim();
+      if (id) out.push(prefixedSpaceId(bareSpaceId(id)));
+    }
+  }
+  if (hasId) {
+    const id = String(args.space_id ?? "").trim();
+    if (id) out.push(prefixedSpaceId(bareSpaceId(id)));
+  }
+  return [...new Set(out)];
 }
 
 function resolveTargetSpaceId(

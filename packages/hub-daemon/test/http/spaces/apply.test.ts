@@ -574,4 +574,76 @@ describe("http/spaces/apply", () => {
     const flowRes = await fetch(`${baseUrl}/v1/flows/flw_empty_branches`, { headers: auth() });
     expect(flowRes.status).toBe(404);
   });
+
+  test("apply with space.yaml identity updates hub name and description", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-meta",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Meetings app",
+              description: "Convenes product seats and chairs the room.",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    expect(got.status).toBe(200);
+    const space = await got.json();
+    expect(space.name).toBe("Meetings app");
+    expect(space.description).toBe("Convenes product seats and chairs the room.");
+  });
+
+  test("apply with space section and no description clears hub description", async () => {
+    await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-with-desc",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              description: "Temporary purpose",
+            },
+          },
+        },
+      }),
+    });
+
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-no-desc",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    const space = await got.json();
+    expect(space.description == null || space.description === "").toBe(true);
+  });
 });

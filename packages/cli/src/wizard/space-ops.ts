@@ -1,6 +1,6 @@
 import type { HubAuth } from "../auth.js";
 import { hubFetch, mapHubDenial } from "../lib/hub-request.js";
-import { readSpaceApplyBundle, readSpaceSlug, validateSpaceBundleCycles } from "../lib/space-directory.js";
+import { readSpaceApplyBundle, readSpaceYamlIdentity, validateSpaceBundleCycles } from "../lib/space-directory.js";
 import { defaultLinkHost, readSpaceLink, writeSpaceLink } from "../lib/space-link-file.js";
 import { scaffoldMurrmureDir } from "../lib/space-scaffold.js";
 import { runGlobalScopePreflight, runScopePreflight } from "../lib/preflight.js";
@@ -40,12 +40,13 @@ async function parseHubResponse(res: Response): Promise<Record<string, unknown>>
 
 export async function wizardSpaceInit(
   projectPath: string,
-  options?: { withSkill?: boolean; withExamples?: boolean; slug?: string; name?: string },
+  options?: { withSkill?: boolean; withExamples?: boolean; slug?: string; name?: string; description?: string },
 ): Promise<{ created: string[]; skill_installed: boolean; skill_path?: string }> {
   const { created } = scaffoldMurrmureDir(projectPath, {
     withExamples: options?.withExamples,
     slug: options?.slug,
     name: options?.name,
+    description: options?.description,
   });
   let skill_installed = false;
   let skill_path: string | undefined;
@@ -89,8 +90,13 @@ export async function wizardSpaceLink(
   if (!spaceId && options?.create) {
     const preflight = await runGlobalScopePreflight(flags, "space:admin");
     auth = preflight.auth;
-    const slug = readSpaceSlug(projectPath) ?? "my-space";
-    const space = await createSpaceOnHub(auth, { slug, name: slug });
+    const identity = readSpaceYamlIdentity(projectPath);
+    const slug = identity.slug ?? "my-space";
+    const space = await createSpaceOnHub(auth, {
+      slug,
+      name: identity.name ?? slug,
+      ...(identity.description ? { description: identity.description } : {}),
+    });
     spaceId = space.space_id;
     created = true;
     const linkPreflight = await runScopePreflight(flags, "space:write", spaceId);

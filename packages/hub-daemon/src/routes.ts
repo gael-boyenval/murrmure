@@ -29,6 +29,7 @@ import { mountGrantV2Routes } from "./routes/grants/index.js";
 import { mountExecutorPollRoutes } from "./routes/executor/index.js";
 import { mountJournalRoutes } from "./routes/journal/index.js";
 import { mountMeetingRoutes } from "./routes/meetings/index.js";
+import { mountDirectiveRoutes } from "./routes/directives/index.js";
 import {
   mountGateRoutes,
   mountNotificationRoutes,
@@ -182,6 +183,17 @@ export function createHubApp(ctx: DaemonContext) {
         return c.json({ code: emitted.code, message: emitted.message }, emitted.http);
       }
 
+      broadcastSse(ctx, {
+        event: "journal.append",
+        data: {
+          type: emitted.type,
+          space_id: normalizedSpaceId,
+          ...(session_id ? { session_id } : {}),
+          event_id: emitted.event_id,
+          seq: emitted.seq,
+        },
+      });
+
       await ctx.triggerDispatcher.dispatch({
         event_id: emitted.event_id,
         event_type: emitted.type,
@@ -307,6 +319,7 @@ export function createHubApp(ctx: DaemonContext) {
   mountArtifactRoutes(app, ctx);
   mountSessionRunRoutes(app, ctx);
   mountMeetingRoutes(app, ctx);
+  mountDirectiveRoutes(app, ctx);
   mountResolveStepRoutes(app, ctx);
   mountOpenChildStepRoutes(app, ctx);
   mountStepContractsRoutes(app, ctx);

@@ -37,11 +37,16 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/spaces/{id}/personas` | Same-space persona ads (`space:read`) |
 | `GET` | `/v1/sessions` | List sessions |
 | `POST` | `/v1/sessions` | Create session |
-| `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. |
+| `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. Wakes seats on `mrmr.meeting.convened`. |
+| `GET` | `/v1/meetings` | Open + closed rooms (`space:read`). Not space-owned. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
+| `POST` | `/v1/sessions/{id}/meeting/resume` | Human / chair reopen of the same room (`ses_*` + `ptc_*`). Journals `mrmr.meeting.resumed` and re-wakes seats. |
+| `GET` | `/v1/directives/eligible` | Spaces that bind `step.opened::directive.execute` (`space:read`). Bootstrap / `hub:admin` sees all; other tokens see their space. `{ spaces: [{ space_id, name, slug, handler_id }] }`. MCP: `murrmure_list_directive_eligible` / `murrmure_start_directive` require `hub:admin`. |
+| `POST` | `/v1/sessions/{id}/meeting/say` | Send as the authenticated human chair (`space:read`). Body: `{ to: { all: true } \| { participant_ids }, text, in_reply_to?, artifacts? }`. Hub stamps `from: { human: true }`; non-chair is denied. |
 | `POST` | `/v1/sessions/{id}/meeting/close` | Close the room (human chair / bootstrap). Journals `closed` + snapshot. Not a gate; does not call `resolveFlowStep`. |
-| `GET` | `/v1/sessions/{id}/transcript?since_seq=` | Meeting transcript projection (`mrmr.meeting.*` only). `since_seq` / `up_to_seq` are session-monotonic `meeting_seq`. Auth: token space on the roster **or** `journal:read` on a roster space — not the journal space filter. Closed rooms still 200; no meeting → 404. |
+| `GET` | `/v1/sessions/{id}/transcript?since_seq=` | Meeting transcript projection (`mrmr.meeting.*` only), including message `created_at` and receipt `recorded_at` / `latency_ms`. `since_seq` / `up_to_seq` are session-monotonic `meeting_seq`. Auth: token space on the roster **or** `journal:read` on a roster space — not the journal space filter. Closed rooms still 200; no meeting → 404. |
+| `GET` | `/v1/sessions/{id}/artifacts/{transfer_id}?preview=` | Attachment on this transcript (same auth). `?preview=1` adds a capped text preview. `ARTIFACT_NOT_IN_MEETING` if the `xfr_*` was not said here. |
 | `GET` | `/v1/sessions/{id}` | Get session |
-| `GET` | `/v1/runs/{id}` | Get run (includes step memos; accepts `run_*` or legacy `ins_*`) |
+| `GET` | `/v1/runs/{id}` | Get run (includes step memos and `result: { step_id, status?, message? }` from the resolved step; accepts `run_*` or legacy `ins_*`) |
 | `GET` | `/v1/runs/{id}/step-contracts` | `space:read` | Active step-contract slice + `graph_digest` |
 | `POST` | `/v1/runs/{id}/steps/{step_id}/resolve` | `step:resolve` | Resolve selected branch `{ branch, payload?, upload_intent_id?, artifacts_out?, idempotency_key? }` |
 | `POST` | `/v1/runs/{id}/steps/{step_id}/upload-intents` | `step:resolve` | Pre-authorize ordered artifact metadata and reserve quota |
@@ -85,7 +90,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
 | `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle; optional `bundle.space` copies `name` / `description` onto the space row (omitted description clears it) |
 | `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
 
 ::: warning Retired routes
@@ -287,7 +292,8 @@ Cross-space blob transfer (not MCP `blob_read`/`blob_write` — those were never
 | Method | Path | Scope | Description |
 |--------|------|-------|-------------|
 | `PUT` | `/v1/artifacts` | `blob:write` | Upload artifact `{ space_id, … }` |
-| `GET` | `/v1/artifacts/{transfer_id}?space_id=` | `blob:read` | Fetch artifact metadata/payload |
+| `GET` | `/v1/artifacts/{transfer_id}?space_id=` | `blob:read` or `space:read` | Manifest. `?preview=1` adds a capped text preview when the name is text-like |
+| `GET` | `/v1/sessions/{id}/artifacts/{transfer_id}` | same as transcript | Meeting attachment metadata / `?preview=1`. `xfr_*` must be on a `said` |
 | `POST` | `/v1/artifacts/{transfer_id}/materialize` | `blob:read` | Materialize into target space |
 
 ## Executor queue poll {#executor-queue-poll}

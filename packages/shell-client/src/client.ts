@@ -100,6 +100,52 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) await throwHttpError(res, `spaces.archive failed: ${res.status}`);
         return res.json() as Promise<{ space_id: string }>;
       },
+      async personas(space_id) {
+        const res = await fetch(`${base}/v1/spaces/${encodeURIComponent(space_id)}/personas`, {
+          headers: authHeaders(token),
+        });
+        if (!res.ok) await throwHttpError(res, `spaces.personas failed: ${res.status}`);
+        return res.json() as Promise<{ personas: import("./types.js").SpacePersonaAd[] }>;
+      },
+    },
+    directives: {
+      async eligible() {
+        const res = await fetch(`${base}/v1/directives/eligible`, { headers: authHeaders(token) });
+        if (!res.ok) await throwHttpError(res, `directives.eligible failed: ${res.status}`);
+        return res.json() as Promise<{ spaces: import("./types.js").DirectiveEligibleSpace[] }>;
+      },
+    },
+    artifacts: {
+      async get(transfer_id, opts) {
+        const query = new URLSearchParams({ space_id: opts.space_id });
+        if (opts.preview) query.set("preview", "1");
+        const res = await fetch(
+          `${base}/v1/artifacts/${encodeURIComponent(transfer_id)}?${query}`,
+          { headers: authHeaders(token) },
+        );
+        if (!res.ok) await throwHttpError(res, `artifacts.get failed: ${res.status}`);
+        return res.json() as Promise<{
+          artifact: { transfer_id: string; name: string; size_bytes: number; digest: string };
+          expires_at?: string;
+          preview?: { text: string; truncated: boolean; name: string } | null;
+        }>;
+      },
+    },
+    meetings: {
+      async start(body) {
+        const res = await fetch(`${base}/v1/meetings`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) await throwHttpError(res, `meetings.start failed: ${res.status}`);
+        return res.json() as Promise<import("./types.js").MeetingStartResult>;
+      },
+      async list() {
+        const res = await fetch(`${base}/v1/meetings`, { headers: authHeaders(token) });
+        if (!res.ok) await throwHttpError(res, `meetings.list failed: ${res.status}`);
+        return res.json() as Promise<{ meetings: import("./types.js").MeetingListRow[] }>;
+      },
     },
     me: {
       async get() {
@@ -271,6 +317,15 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         if (!res.ok) await throwHttpError(res, `sessions.transcript failed: ${res.status}`);
         return res.json() as Promise<import("./types.js").MeetingTranscript>;
       },
+      async sayMeeting(session_id, body) {
+        const res = await fetch(`${base}/v1/sessions/${encodeURIComponent(session_id)}/meeting/say`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) await throwHttpError(res, `sessions.sayMeeting failed: ${res.status}`);
+        return res.json() as Promise<{ ok: true; event_id: string; seq: number }>;
+      },
       async closeMeeting(session_id, body) {
         const res = await fetch(`${base}/v1/sessions/${encodeURIComponent(session_id)}/meeting/close`, {
           method: "POST",
@@ -279,6 +334,28 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
         });
         if (!res.ok) await throwHttpError(res, `sessions.closeMeeting failed: ${res.status}`);
         return res.json() as Promise<import("./types.js").MeetingCloseResult>;
+      },
+      async resumeMeeting(session_id) {
+        const res = await fetch(`${base}/v1/sessions/${encodeURIComponent(session_id)}/meeting/resume`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) await throwHttpError(res, `sessions.resumeMeeting failed: ${res.status}`);
+        return res.json() as Promise<import("./types.js").MeetingResumeResult>;
+      },
+      async getMeetingArtifact(session_id, transfer_id, opts) {
+        const query = opts?.preview ? "?preview=1" : "";
+        const res = await fetch(
+          `${base}/v1/sessions/${encodeURIComponent(session_id)}/artifacts/${encodeURIComponent(transfer_id)}${query}`,
+          { headers: authHeaders(token) },
+        );
+        if (!res.ok) await throwHttpError(res, `sessions.getMeetingArtifact failed: ${res.status}`);
+        return res.json() as Promise<{
+          artifact: { transfer_id: string; name: string; size_bytes: number; digest: string };
+          expires_at?: string;
+          preview?: { text: string; truncated: boolean; name: string } | null;
+        }>;
       },
     },
     runs: {

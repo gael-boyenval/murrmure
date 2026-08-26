@@ -20,6 +20,16 @@ Explicit headless CI may inject a hub bearer token at process runtime.
 
 Auth: Bearer on all; path `space_id` matches token.
 
+## Platform flows
+
+Hub-owned orchestration compiled at boot — not authored under `.mrmr/flows/`, not seeded into empty spaces (ADR-006).
+
+| `flow_id` | Name | Indexed when |
+|-----------|------|----------------|
+| `flw_mrmr_directive` | `directive` | Space binds `step.opened::directive.execute` |
+
+`getFlowIndexEntry('flw_mrmr_directive', spaceId)` succeeds only for opted-in spaces. Origin on the entry is `spc_mrmr_platform` so space-home `can_run` stays false. Discovery: `GET /v1/directives/eligible` (`space:read`; bootstrap / `hub:admin` sees all). MCP: `murrmure_list_directive_eligible` and `murrmure_start_directive` require `hub:admin` (default `local-tools/v1` does not see them). Run detail includes `result: { step_id, status?, message? }` from the resolved step.
+
 ### Apply errors
 
 | Code | When |
@@ -57,6 +67,10 @@ Server → notifications (monotonic `seq`):
 ### tools/list (CR1+)
 
 Dynamic `McpToolRegistry.list(ctx: TokenContext)` — identical filter on `/v1/mcp/catalog`.
+The stdio bridge refetches that catalog on every `tools/list`. After a hub
+restart, handshake treats a client `last_ack_seq` ahead of the new seq as 0.
+The bridge also compares `server_tools` and discovery `pid`/`started_at` so
+Cursor gets `tools/list_changed`.
 
 ### tools/call
 

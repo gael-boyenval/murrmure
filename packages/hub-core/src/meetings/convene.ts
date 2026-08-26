@@ -2,6 +2,7 @@ import {
   JOURNAL_EVENT_TYPES,
   MURRMURE_DENIAL_CODES,
   PersonaIdSchema,
+  type Capability,
   type MeetingChair,
   type MeetingConveneBody,
   type MeetingRosterSeat,
@@ -9,7 +10,9 @@ import {
 import { z } from "zod";
 import type { MeetingRosterSeatRow, MeetingSnapshotChair } from "@murrmure/hub-persistence";
 import { stripSpaceId } from "../bridge/ids.js";
+import type { HookDispatchDeps } from "../hooks/dispatch.js";
 import { createSession, type SessionRunDeps } from "../run/service.js";
+import { dispatchMeetingConveneTargets } from "./dispatch.js";
 import { meetingAlreadyOpen, meetingDenial, personaNotFound, sessionNotFound, type MeetingDenial } from "./errors.js";
 import { appendMeetingEvent } from "./journal.js";
 import { mintRoster, prefixedSpace, rejectDuplicateSeats, resolveChair, rosterSpaceIds } from "./roster.js";
@@ -39,6 +42,7 @@ export type ConveneMeetingInput = MeetingConveneBody & {
   convenor_space_id?: string;
   bound_run_id?: string;
   bound_step_id?: string;
+  capabilities?: Capability[];
 };
 
 export type ConveneMeetingResult =
@@ -72,6 +76,10 @@ async function resolveInvitee(
     return personaNotFound(seat.persona, prefixedSpace(bare));
   }
   return null;
+}
+
+function canDispatchSeats(deps: SessionRunDeps): deps is HookDispatchDeps {
+  return "invokeAction" in deps && typeof (deps as HookDispatchDeps).invokeAction === "function";
 }
 
 function mergeSpacesTouched(existing: string[], roster: MeetingRosterSeatRow[]): string[] {
@@ -173,6 +181,20 @@ export async function conveneMeeting(
     updated_at: deps.clock.nowIso(),
   });
   if (!written.ok) return written;
+
+  if (canDispatchSeats(deps)) {
+    await dispatchMeetingConveneTargets(deps, {
+      session_id: sessionId,
+      event_id: journaled.entry_id,
+      convenor_space_id: convenorSpace,
+      title: parsed.data.title,
+      goal: parsed.data.goal,
+      roster,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      capabilities: input.capabilities ?? [],
+    });
+  }
 
   return {
     ok: true,

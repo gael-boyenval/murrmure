@@ -136,4 +136,75 @@ describe("hooks/dispatchEventHandler attach", () => {
     expect(journal.some((row) => row.type === JOURNAL_EVENT_TYPES.SESSION_CREATED)).toBe(false);
     expect(journal.some((row) => row.type === JOURNAL_EVENT_TYPES.HOOK_DELIVERED)).toBe(true);
   });
+
+  test("shell_spawn meeting handler notifies a live assignment instead of spawning again", async () => {
+    const studio = await freshStudio();
+    await studio.insertSession(
+      {
+        session_id: "room1",
+        title: "Existing room",
+        status: "active",
+        created_by: { type: "actor", actor_id: "actor_alice" },
+        spaces_touched: [SPACE],
+        actor_id: "actor_alice",
+      },
+      NOW,
+    );
+    await installHooks(studio, [
+      {
+        id: "meeting-developer",
+        contract_keys: [],
+        on: { event: { type: "mrmr.meeting.said", participant: "developer" } },
+        type: "shell_spawn",
+        complete: "explicit",
+        command: "cursor agent -p --force {{prompt}}",
+      },
+    ]);
+
+    const invokes: Array<Record<string, unknown>> = [];
+    const notify = vi.fn();
+    const start = vi.fn();
+    const { deps } = makeDeps(studio, async (input) => {
+      invokes.push(input);
+      return { http: 200 };
+    });
+    deps.liveAssignments = {
+      findLive: async () => ({ run_id: "run_old", handler_id: "meeting-developer" }),
+      start,
+      notify,
+      revoke: async () => undefined,
+    };
+
+    const results = await dispatchHooksForEvent(
+      deps,
+      {
+        event_id: "evt_said_2",
+        event_type: "mrmr.meeting.said",
+        space_id: "spc_demo",
+        source: "/spaces/spc_demo",
+        session_id: "ses_room1",
+        participant: "developer",
+        participant_id: "ptc_dev",
+        payload: { text: "hello", message_id: "msg_1", participant: "developer" },
+      },
+      {
+        actor_id: "actor_alice",
+        token_id: "tok_1",
+        capabilities: ["event:emit"],
+      },
+    );
+
+    expect(results[0]?.outcome).toBe("delivered");
+    expect(invokes).toHaveLength(0);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: "ses_room1",
+        participant_id: "ptc_dev",
+        message_id: "msg_1",
+        handler_id: "meeting-developer",
+      }),
+    );
+    expect(start).not.toHaveBeenCalled();
+  });
 });

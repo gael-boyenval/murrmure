@@ -1,5 +1,6 @@
 import type {
   MeetingClosedData,
+  MeetingSaidData,
   MeetingTranscript,
   MeetingTranscriptMessage,
 } from "@murrmure/contracts";
@@ -12,6 +13,14 @@ export interface MeetingCloseResult {
   status: "closed";
   outcome: "completed" | "failed";
   close_meeting_seq: number;
+}
+
+export interface MeetingResumeResult {
+  ok: true;
+  session_id: string;
+  status: "open";
+  resume_meeting_seq: number;
+  roster: Array<{ participant_id: string; space_id: string; persona?: string }>;
 }
 
 export interface ShellClientOptions {
@@ -37,6 +46,48 @@ export interface SpaceSummary {
   slug?: string;
   name?: string;
   description?: string;
+}
+
+export interface SpacePersonaAd {
+  id: string;
+  summary: string;
+  asks?: string[];
+  requests?: string[];
+}
+
+export interface DirectiveEligibleSpace {
+  space_id: string;
+  name?: string;
+  slug?: string;
+  handler_id: string;
+}
+
+export interface MeetingStartInput {
+  title: string;
+  goal?: string;
+  session_id?: string;
+  participants: Array<{ space_id: string; persona?: string }>;
+  chair: { human: true } | { space_id: string; persona?: string };
+}
+
+export interface MeetingStartResult {
+  ok: true;
+  session_id: string;
+  status: "open";
+  title: string;
+  goal?: string;
+  chair: { human: true } | { participant_id: string };
+  roster: Array<{ participant_id: string; space_id: string; persona?: string }>;
+  convene_meeting_seq: number;
+}
+
+export interface MeetingListRow {
+  session_id: string;
+  title: string;
+  goal?: string;
+  status: "open" | "closed";
+  roster_count: number;
+  roster: Array<{ space_id: string; persona?: string }>;
 }
 
 export interface SseTicketResponse {
@@ -375,6 +426,8 @@ export interface RunDetailPayload {
       artifact_slots: Record<string, Record<string, unknown>>;
     }>;
   }>;
+  /** Terminal step output — used by the New directive dialog. */
+  result?: { step_id: string; status?: string; message?: string };
 }
 
 export interface SessionDetailPayload {
@@ -405,6 +458,33 @@ export interface ShellClient {
     }>;
     /** Soft-delete: archive the space on the hub (local files are kept). */
     archive(space_id: string): Promise<{ space_id: string }>;
+    /** Indexed persona ads (`GET /v1/spaces/{id}/personas`). */
+    personas(space_id: string): Promise<{ personas: SpacePersonaAd[] }>;
+  };
+  directives: {
+    /** Spaces that bind `step.opened::directive.execute` (`GET /v1/directives/eligible`). */
+    eligible(): Promise<{ spaces: DirectiveEligibleSpace[] }>;
+  };
+  artifacts: {
+    get(
+      transfer_id: string,
+      opts: { space_id: string; preview?: boolean },
+    ): Promise<{
+      artifact: {
+        transfer_id: string;
+        name: string;
+        size_bytes: number;
+        digest: string;
+      };
+      expires_at?: string;
+      preview?: { text: string; truncated: boolean; name: string } | null;
+    }>;
+  };
+  meetings: {
+    /** Convene a room (`POST /v1/meetings`). Operator chair is `{ human: true }`. */
+    start(body: MeetingStartInput): Promise<MeetingStartResult>;
+    /** Open and closed rooms (`GET /v1/meetings`). Not space-scoped. */
+    list(): Promise<{ meetings: MeetingListRow[] }>;
   };
   me: {
     get(): Promise<UserProfile>;
@@ -443,8 +523,30 @@ export interface ShellClient {
     listRuns(session_id: string): Promise<{ runs: Array<{ run_id: string; lifecycle: string; flow_id?: string | null }> }>;
     /** Meeting projection. `null` when the session has no meeting (HTTP 404). */
     transcript(session_id: string, opts?: { since_seq?: number }): Promise<MeetingTranscript | null>;
+    /** Send one message as the authenticated human chair. */
+    sayMeeting(
+      session_id: string,
+      body: Omit<MeetingSaidData, "as_participant_id">,
+    ): Promise<{ ok: true; event_id: string; seq: number }>;
     /** Human / chair close. Not `gates.resolve` or `runs.cancel`. */
     closeMeeting(session_id: string, body?: MeetingClosedData): Promise<MeetingCloseResult>;
+    /** Reopen the same room and re-wake the same seats. */
+    resumeMeeting(session_id: string): Promise<MeetingResumeResult>;
+    /** Transcript-authorized artifact metadata / capped preview. */
+    getMeetingArtifact(
+      session_id: string,
+      transfer_id: string,
+      opts?: { preview?: boolean },
+    ): Promise<{
+      artifact: {
+        transfer_id: string;
+        name: string;
+        size_bytes: number;
+        digest: string;
+      };
+      expires_at?: string;
+      preview?: { text: string; truncated: boolean; name: string } | null;
+    }>;
   };
   runs: {
     get(run_id: string): Promise<RunDetailPayload>;

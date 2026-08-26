@@ -36,24 +36,6 @@ function cleanEnv(extra: Record<string, string>): Record<string, string> {
   return { ...env, ...extra };
 }
 
-async function waitFor<T>(
-  fn: () => Promise<T>,
-  predicate: (value: T) => boolean,
-  timeoutMs = 5_000,
-): Promise<T> {
-  const started = Date.now();
-  while (true) {
-    const value = await fn();
-    if (predicate(value)) {
-      return value;
-    }
-    if (Date.now() - started > timeoutMs) {
-      throw new Error("Timed out while waiting for expected MCP response");
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
-  }
-}
-
 function firstText(result: unknown): string {
   if (!result || typeof result !== "object") return "";
   const content = (result as { content?: unknown }).content;
@@ -73,11 +55,10 @@ afterEach(() => {
 });
 
 describe("stdio bridge proxy", () => {
-  test("proxies list/call and relays hub wake without space_id", async () => {
-    const wakePrompt = "Hub wake prompt: execute feedback action.";
+  test("proxies list/call and refetches catalog without space_id", async () => {
     const audit: HubRequestAudit = { sawSpaceId: false, toolCalls: 0 };
-    let handshakeDelivered = false;
 
+    let includeDirective = false;
     const hub = createServer(async (req, res) => {
       const host = req.headers.host ?? "127.0.0.1";
       const url = new URL(req.url ?? "/", `http://${host}`);
@@ -87,15 +68,21 @@ describe("stdio bridge proxy", () => {
       }
 
       if (req.method === "GET" && url.pathname === "/v1/mcp/catalog") {
-        return json(res, 200, {
-          tools: [
-            {
-              name: "murrmure_space_status",
-              description: "Read current space status",
-              inputSchema: { type: "object", additionalProperties: true },
-            },
-          ],
-        });
+        const tools: Array<Record<string, unknown>> = [
+          {
+            name: "murrmure_space_status",
+            description: "Read current space status",
+            inputSchema: { type: "object", additionalProperties: true },
+          },
+        ];
+        if (includeDirective) {
+          tools.push({
+            name: "murrmure_start_directive",
+            description: "Start a directive",
+            inputSchema: { type: "object", properties: { prompt: { type: "string" } } },
+          });
+        }
+        return json(res, 200, { tools });
       }
 
       if (req.method === "POST" && url.pathname === "/v1/mcp/tools/call") {
@@ -118,23 +105,12 @@ describe("stdio bridge proxy", () => {
         if ("space_id" in body) {
           audit.sawSpaceId = true;
         }
-        const messages = handshakeDelivered
-          ? []
-          : [
-              {
-                method: "murrmure/control.invoke_action",
-                params: {
-                  seq: 1,
-                  action_name: "write_improvement_feedback",
-                  prompt: wakePrompt,
-                },
-              },
-            ];
-        handshakeDelivered = true;
         return json(res, 200, {
           handshake_ack_seq: 1,
-          messages,
-          server_tools: ["murrmure_space_status"],
+          messages: [],
+          server_tools: includeDirective
+            ? ["murrmure_space_status", "murrmure_start_directive"]
+            : ["murrmure_space_status"],
         });
       }
 
@@ -163,7 +139,7 @@ describe("stdio bridge proxy", () => {
         "--import",
         "tsx",
         "-e",
-        "import('./src/main.ts').then((m) => m.startMcpBridge({ bridgeArgv: ['--headless-ci'] }))",
+        `import('./src/main.ts').then((m) => m.startMcpBridge({ bridgeArgv: ['--headless-ci', '--hub', 'http://127.0.0.1:${hubPort}'] }))`,
       ],
       cwd: packageRoot,
       env: cleanEnv({
@@ -194,7 +170,13 @@ describe("stdio bridge proxy", () => {
       const listed = await client.listTools();
       const names = listed.tools.map((tool) => tool.name);
       expect(names).toContain("murrmure_space_status");
-      expect(names).toContain("murrmure_get_pending_wake");
+      expect(names).not.toContain("murrmure_start_directive");
+
+      includeDirective = true;
+      const relisted = await client.listTools();
+      const relistedNames = relisted.tools.map((tool) => tool.name);
+      expect(relistedNames).toContain("murrmure_space_status");
+      expect(relistedNames).toContain("murrmure_start_directive");
 
       const invoked = await client.callTool({
         name: "murrmure_space_status",
@@ -203,18 +185,6 @@ describe("stdio bridge proxy", () => {
       const invokeText = firstText(invoked);
       expect(invokeText).toContain("\"status\":\"ok\"");
       expect(audit.toolCalls).toBeGreaterThanOrEqual(1);
-
-      const wakeResult = await waitFor(
-        async () =>
-          client.callTool({
-            name: "murrmure_get_pending_wake",
-            arguments: {},
-          }),
-        (value) => firstText(value).includes(wakePrompt),
-      );
-
-      const wakeText = firstText(wakeResult);
-      expect(wakeText).toContain(wakePrompt);
       expect(audit.sawSpaceId).toBe(false);
     } finally {
       await client.close();

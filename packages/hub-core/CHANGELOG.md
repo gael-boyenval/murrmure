@@ -11,8 +11,42 @@
 
 ## Unreleased
 
+### Fixed
+
+- `murrmure_emit_event` catalog schema now sets `type: "object"` on multi-event
+  `oneOf`. Cursor otherwise rejects the whole tool list (0 tools enabled).
+- `shell_spawn` meeting seats are registered before invocation. A fast first
+  `said` can no longer recursively spawn the same seat or create a false
+  `EXECUTOR_UNAVAILABLE` receipt.
+- Live meeting assignments use roster `participant_id`, so equal persona names
+  in different spaces no longer overwrite each other.
+
+### Changed
+
+- Meeting `said` artifacts add `actor:{session.actor_id}` to
+  `authorized_readers` (human chair preview) plus roster spaces.
+- Default artifact TTL is 90 days (`DEFAULT_ARTIFACT_TTL_DAYS`). Existing
+  rows keep their stored `expires_at`. Put may still set `ttl_days`.
+- Meeting wake envelope includes session `subject` (convene goal) so seats
+  skip `murrmure_get_session` on first turn.
+- Meeting seats start one persistent assignment/process on convene. Later
+  messages write the next turn into that PTY (`notify_live` → controller).
+  Queued writes flush after idle. Convene prompts require one contribution;
+  later turns allow concise, targeted silence.
+
 ### Added
 
+- `resumeMeeting` reopens a closed room (same `ses_*` + `ptc_*`), journals
+  `mrmr.meeting.resumed`, and re-wakes said handlers with `trigger: resumed`.
+- `GET` meeting list includes closed rooms and roster seats.
+- Platform flow `flw_mrmr_directive`: compiled at boot, merged into a space
+  index only when a handler binds `step.opened::directive.execute`.
+  `listEligibleDirectiveSpaces` / `extractRunStepResult` for the operator
+  eligible list and run-detail message.
+- Step-handler dispatch passes run `input` into invoke params so
+  `{{input.prompt}}` interpolates (same convention as flow templates).
+- Convene wakes roster seats (`mrmr.meeting.convened` rings a `said` handler).
+  `toMeetingListRow` / `listOpenMeetings` for the operator meeting list.
 - `meeting:` flow step: compile copies the facet onto the catalog entry;
   `openStepContract` convenes on this `session_id` and writes `bound_run_id` /
   `bound_step_id`; close (HTTP or `MEETING_CLOSED` emit) calls
@@ -24,15 +58,16 @@
   before journal and fans out only to resolved targets. Convene unions
   `spaces_touched` with every roster space.
 - `buildMeetingTranscript` folds `mrmr.meeting.*` on session-monotonic
-  `meeting_seq`. Seat wakes use `renderMurrmureMeetingProtocolEnvelope`
+  `meeting_seq`, preserving message/receipt timestamps and computing delivery
+  latency. Human-chair messages project as `from: { human: true }`. Seat wakes use `renderMurrmureMeetingProtocolEnvelope`
   (`murrmure.meeting/v1`) — trigger ids + `since_seq`, not the step envelope.
 - Journal-first `emitAndDeliver` and `resolveEventDeliveryTarget` (`create` |
   `attach` | `notify_live`). Event handlers with a live `session_id` attach
   instead of minting a new session. `eventExecContext` no longer spreads the
   full payload into run input.
-- Join-once `LiveAssignmentPort` (`findLive` / `start` / `notify` / `revoke`).
-  A live seat's later `said` is `notify_live` (no new session or run). Close
-  revokes the session's live map.
+- `LiveAssignmentPort` (`findLive` / `start` / `notify` / `revoke`) keyed by
+  roster participant. A currently live seat's later `said` is `notify_live`;
+  process completion and room close revoke the live map.
 
 ### Added
 

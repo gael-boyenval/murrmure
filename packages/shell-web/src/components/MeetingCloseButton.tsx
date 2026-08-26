@@ -19,6 +19,7 @@ export function MeetingCloseButton({ sessionId, onClosed }: MeetingCloseButtonPr
         queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] }),
         queryClient.invalidateQueries({ queryKey: ["session", sessionId] }),
         queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] }),
+        queryClient.invalidateQueries({ queryKey: ["meetings"] }),
       ]);
       await onClosed?.();
     },

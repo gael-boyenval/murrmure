@@ -171,9 +171,17 @@ export function SpaceHomePage() {
     <AppShell>
       <div className="mx-auto w-full min-w-2xl max-w-2xl space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {space?.name ?? space?.slug ?? spaceId}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {space?.name ?? space?.slug ?? spaceId}
+            </h1>
+            {space?.slug && space.name && space.slug !== space.name ? (
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{space.slug}</p>
+            ) : null}
+            {space?.description ? (
+              <p className="mt-1 text-sm text-muted-foreground">{space.description}</p>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {viewDevSession?.view_id ? (
               <Button

@@ -46,7 +46,7 @@ export function resolveChair(
   roster: MeetingRosterSeatRow[],
   chair: MeetingChair,
 ): MeetingSnapshotChair | MeetingDenial {
-  if ("human" in chair && chair.human) {
+  if (!("space_id" in chair)) {
     return { human: true };
   }
   const match = roster.find(

@@ -134,6 +134,13 @@ describe("http/meetings/convene", () => {
       headers: bootstrapAuth(bootstrapToken),
     }).then((r) => r.json() as Promise<{ spaces_touched: string[] }>);
     expect(session.spaces_touched).toEqual(expect.arrayContaining([appSpace, researchSpace]));
+
+    const listed = await fetch(`${baseUrl}/v1/meetings`, {
+      headers: bootstrapAuth(bootstrapToken),
+    }).then((r) => r.json() as Promise<{ meetings: Array<{ session_id: string; title: string }> }>);
+    expect(listed.meetings.some((row) => row.session_id === body.session_id && row.title === "API shape")).toBe(
+      true,
+    );
   });
 
   test("MCP start and attach to existing session_id", async () => {
@@ -168,5 +175,57 @@ describe("http/meetings/convene", () => {
     const body = (await mcp.json()) as { result?: { session_id?: string }; session_id?: string };
     const returned = body.result?.session_id ?? body.session_id;
     expect(returned).toBe(sessionId);
+  });
+
+  test("human chair can message selected seats with timestamped latency", async () => {
+    const convene = await fetch(`${baseUrl}/v1/meetings`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+      body: JSON.stringify({
+        title: "Human chair room",
+        participants: [
+          { space_id: appSpace, persona: "designer" },
+          { space_id: researchSpace, persona: "researcher" },
+        ],
+        chair: { human: true },
+      }),
+    });
+    expect(convene.status).toBe(201);
+    const room = (await convene.json()) as {
+      session_id: string;
+      roster: Array<{ participant_id: string; persona?: string }>;
+    };
+    const researcher = room.roster.find((seat) => seat.persona === "researcher")!;
+
+    const said = await fetch(
+      `${baseUrl}/v1/sessions/${room.session_id}/meeting/say`,
+      {
+        method: "POST",
+        headers: bootstrapAuth(bootstrapToken),
+        body: JSON.stringify({
+          to: { participant_ids: [researcher.participant_id] },
+          text: "Please check the current latency.",
+        }),
+      },
+    );
+    expect(said.status).toBe(200);
+
+    const transcript = await fetch(
+      `${baseUrl}/v1/sessions/${room.session_id}/transcript`,
+      { headers: bootstrapAuth(bootstrapToken) },
+    ).then((res) => res.json() as Promise<{
+      messages: Array<{
+        created_at: string;
+        from: { human: true };
+        to: { participant_ids: string[] };
+        receipts: Array<{ recorded_at: string; latency_ms: number }>;
+      }>;
+    }>);
+    expect(transcript.messages[0]).toMatchObject({
+      from: { human: true },
+      to: { participant_ids: [researcher.participant_id] },
+    });
+    expect(Date.parse(transcript.messages[0]!.created_at)).not.toBeNaN();
+    expect(transcript.messages[0]!.receipts[0]?.latency_ms).toBeGreaterThanOrEqual(0);
   });
 });

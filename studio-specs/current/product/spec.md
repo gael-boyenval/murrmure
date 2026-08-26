@@ -93,7 +93,7 @@ Murrmure is an **agentic operating system**: a hardened **communication protocol
 4. **Reliable invoke** — Action + Executor with preflight; no invoke into void.
 5. **Durable run projection** — step memoization; journal replayable; flowchart is projection not mutation.
 6. **CLI-first mutation; shell-first observation** — shell reacts in real time to CLI.
-7. **Artifact exchange** — `.mrmr.temp/` + global exchange store.
+7. **Artifact exchange** — `.mrmr/dev/` + global exchange store.
 8. **Harness-agnostic clients** — Cursor, Claude Desktop, CLI, cron, federation.
 9. **Preserve v1** — cutover complete; migration aliases removed (historical record in [§10.8](#108-v1-migration-aliases-historical-non-normative)).
 
@@ -125,7 +125,7 @@ Concepts (not stored)
 | **Session** | Correlation grouping; user-facing label; optional `subject` path prefix; list/filter anchor | Own step state machines; store worktree as sole truth |
 | **Run** | Immutable execution unit; lifecycle; step memo; exec context; gate attachment; terminal immutability | Restart after terminal (refine = new Run); store prompts |
 | **Gate** | Run in `input-required`; approve/reject/reschedule; assignee routing | Define business validation rules |
-| **Artifact** | `transfer_id`, digest, size, TTL, authorized readers; materialize to `.mrmr.temp/` | Interpret file semantics |
+| **Artifact** | `transfer_id`, digest, size, TTL, authorized readers; materialize to `.mrmr/dev/` | Interpret file semantics |
 | **Grant** | Capability tokens on `(actor, space[, flow[, action]])` | Duplicate visibility ladder; store agent config |
 
 ### 2.3 Responsibility table — space-owned (files)
@@ -527,6 +527,16 @@ child or resolves its own branch. Nested `route.step` is rejected.
 
 **No `scope: local|global`.** Visibility = grants. File living in catalog space + `flow:run` grant to team = "global" behavior.
 
+### 5.1.1 Platform flows (hub-owned, handler-gated)
+
+The hub may compile a **platform flow** at boot (`flw_mrmr_directive`, name `directive`). It is **not** written into `.mrmr/flows/` and is **not** a seeded package catalog (ADR-006).
+
+- Identity is stable: `flow_id` `flw_mrmr_directive`, origin `spc_mrmr_platform`.
+- Apply merges the compiled entry into a space index **only if** that space binds `step.opened::directive.execute`. Unused spaces stay empty.
+- Start uses the existing verb: `POST /v1/flows/flw_mrmr_directive/run` with `{ space_id, input: { prompt } }`.
+- Space home **Run** stays hidden: `can_run` is local-origin only. Header **New directive** is the operator start. MCP start (`murrmure_list_directive_eligible`, `murrmure_start_directive`) requires `hub:admin`.
+- Execution is space-owned: one `shell_spawn` handler. Resolve `completed` / `failed` with `{ message }`. Not a meeting; not `said`.
+
 ### 5.2.1 Matrix parallel expansion (closed 2026-06-30)
 
 When the flow engine **enters** a `parallel.matrix` step and the matrix value is **resolved** (typically from run `input` at start):
@@ -706,8 +716,8 @@ Pattern: GitHub private repo issue assignment.
 
 | Surface | Role |
 |---------|------|
-| `{space}/.mrmr.temp/inbox/` | Received files (gitignored) |
-| `{space}/.mrmr.temp/outbox/` | Pending send |
+| `{space}/.mrmr/dev/inbox/` | Received files (gitignored) |
+| `{space}/.mrmr/dev/outbox/` | Pending send |
 | `~/.murrmure/exchanges/{transfer_id}/` | Global staging + recovery |
 
 ### 7.3 Wire shape
@@ -720,7 +730,7 @@ Pattern: GitHub private repo issue assignment.
     "digest": "sha256:…",
     "name": "openapi.diff",
     "size_bytes": 48291,
-    "local_path": ".mrmr.temp/inbox/xfr_01J…/openapi.diff",
+    "local_path": ".mrmr/dev/inbox/xfr_01J…/openapi.diff",
     "authorized_readers": ["spc_frontend", "actor:alice"]
   }
 }
@@ -728,7 +738,7 @@ Pattern: GitHub private repo issue assignment.
 
 ### 7.4 GC (closed 2026-06-30)
 
-- **Now:** 64 KiB inline cap; default artifact TTL 7 days (configurable per hub)
+- **Now:** 64 KiB inline cap; default artifact TTL 90 days (override via `ttl_days` on put)
 - **Sweeper:** daemon scheduled tick (default daily) invokes hub-core `ArtifactGcCommand`; exchange store deletes eligible bytes; journal `mrmr.artifact.expired`
 - **Cross-hub (slice I):** each hub GCs its own materialized copy by local TTL; canonical `transfer_id` unchanged
 - **Legal hold:** `hold: true` on manifest skips GC — **shipped** (artifact GC sweeper respects hold)
@@ -832,8 +842,10 @@ Capabilities are strings granted to `(actor_id, resource)`:
 | `step:resolve` | run | Resolve flow steps (`murrmure_resolve_step`) |
 | `event:emit` | space | Emit platform events (`murrmure_emit_event`) |
 | `journal:read` | space or session | Logs access |
+| `blob:read` | space | HTTP artifact bytes / materialize |
+| `blob:write` | space | Upload artifacts (`murrmure_put_artifact`, `PUT /v1/artifacts`) without `space:write` |
 | `executor:poll` | executor | External worker poll API §4.6, §10.5 |
-| `hub:admin` | hub | Breakglass: federation keys, global config |
+| `hub:admin` | hub | Breakglass: federation keys, global config, directive fan-out MCP |
 
 **Visibility:** No `hidden` enum. Space absent from sidebar when actor lacks `space:read`. Session visibility uses redaction rules (§6.4).
 
@@ -1025,6 +1037,8 @@ Catalog = connection-filtered platform tools. Runtime onboarding flow:
 | `murrmure_attach_orchestration` | `flow:run` | `POST /v1/sessions/{id}/orchestration/attach` |
 | `murrmure_get_run_graph` | `flow:read` | `GET /v1/runs/{id}/graph` |
 | `murrmure_list_personas` | `space:read` | `GET /v1/spaces/{id}/personas` — ads only |
+| `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — all opted-in spaces |
+| `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. `prompt` required; omit `space_ids` to start on every currently eligible space |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` |
 | `murrmure_meeting_transcript` | roster space or `journal:read` | `GET /v1/sessions/{id}/transcript` |
 | `murrmure_emit_event` | `event:emit` | Journal-first emit; `session_id` required for `mrmr.meeting.*` |
@@ -1034,7 +1048,11 @@ legacy gate-wait MCP tool, legacy gate-resolve MCP tool,
 `murrmure_grant_mint`) stay absent; use handlers +
 `murrmure_resolve_step` and manage authorization through connection lifecycle.
 
-Catalog refresh remains required after grant changes or `mrmr space apply`.
+The stdio bridge refetches the catalog on every `tools/list`. After a hub
+restart, handshake `server_tools` and discovery `pid`/`started_at` are compared
+so Cursor receives `tools/list_changed`. An already-open agent chat may still
+keep its original tool snapshot — open a new chat after grant or platform-tool
+changes.
 
 ---
 
@@ -1048,20 +1066,19 @@ my-space/
   src/ | docs/
   .mrmr/
     space/
-      space.yaml                # slug, tags, link block (space_id + host)
+      space.yaml                # slug, name, description (purpose), link block (space_id + host)
       handlers.yaml             # canonical — step + event handlers (only indexed file)
     flows/
       preview-review/           # example — only when scaffolded with --with-examples
         flow.manifest.yaml      # protocol only
         schemas/                # optional branch payload shapes
     views/                      # optional client packages — not hub registry
-    dev/                        # local runtime outputs (gitignored)
-  .mrmr.temp/
-    inbox/
-    outbox/
+    dev/                        # local runtime outputs + artifact mailbox (gitignored)
+      inbox/
+      outbox/
 ```
 
-**Migration note:** The handlers-only cutover is complete (Task 15) — only `.mrmr/` indexes, and `mrmr space apply` reads `.mrmr/space/handlers.yaml` alone. Legacy `murrmure/` layout and `triggers.yaml` / `hooks.yaml` / `actions.yaml` / `executors.yaml` are removed (historical record only). `.murrmure/link.json` is deprecated — use `space.yaml` `link:` block.
+**Migration note:** The handlers-only cutover is complete (Task 15) — only `.mrmr/` indexes. `mrmr space apply` reads `.mrmr/space/handlers.yaml` for execution bindings and `.mrmr/space/space.yaml` for slug / name / description. Legacy `murrmure/` layout and `triggers.yaml` / `hooks.yaml` / `actions.yaml` / `executors.yaml` are removed (historical record only). `.murrmure/link.json` is deprecated — use `space.yaml` `link:` block.
 
 ---
 
@@ -1092,7 +1109,7 @@ Left sidebar — Spaces only:
 Sessions reached via:
   1. Notification click → /sessions/:id
   2. /sessions global list
-  3. Space home → Active / Recent
+  3. Header **Meetings** / space home Active / Recent
   4. Command palette
 ```
 
@@ -1106,6 +1123,8 @@ Space: frontend
 ├── Receiving from           ← flows whose steps bind handlers in this space
 └── Recent completed         ← at most 20, fixed-height; links to full history
 ```
+
+Header **Meetings** lists open and closed rooms (`GET /v1/meetings`). **+** convenes. Closed rooms **Resume** the same session. A user-triggered meeting is a session, not a space-home object.
 
 The Hub deduplicates and sorts the authorized Flows projection. Each row carries
 its current applied digest plus server-computed `can_preview`, `can_run`,
@@ -1222,7 +1241,7 @@ Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 1. Backend emits mrmr.spec.published
 2. Hook on-spec-published fires → Session auto-created + Run run_…
 3. Invoke wake_review in frontend space (preflight executor)
-4. Artifact xfr_… materialized to .mrmr.temp/inbox/
+4. Artifact xfr_… materialized to .mrmr/dev/inbox/
 5. Journal replay visible even without flow graph bound
 6. Optional: start_flow attaches graph mid-session
 ```
@@ -1294,7 +1313,7 @@ Optional: `mrmr dev` opens shell + shows test invoke button for first action.
 | 5 | hub.admin | **Closed** — breakglass + per-space write (§9.3) |
 | 6 | Failure UX | Failed row + badge + typed error + retry-from-step |
 | 7 | Flows triggering flows | **Shipped** — `start_flow` step (§5.5) |
-| 8 | Inline threshold / GC | **64 KiB** now; TTL 7d; daemon sweeper → core GC command (§7.4) |
+| 8 | Inline threshold / GC | **64 KiB** now; TTL 90d; daemon sweeper → core GC command (§7.4) |
 | 9 | Remote space no local path | Virtual binding `type: remote_hub`; remote executor required; preflight + 3× retry with backoff (§16b F3) |
 
 ### 16b. Architecture resolutions (2026-06-30)
@@ -1330,7 +1349,7 @@ Resolved from [architecture.md](./architecture.md) §3. Normative detail in sect
 |-------|-------|------------|
 | **A** — Docs & types | philosophy update, Zod: Session, Run, Gate, Action, Journal CE shape, artifact v1 | — |
 | **B** — Space directory index | `mrmr space init/link/apply`; index handlers, flows, views | A |
-| **D** — Handlers + artifacts | handler dispatch + `step:resolve` completion, `.mrmr.temp/`, exchange store (action-invoke spine removed — Task 15) | B |
+| **D** — Handlers + artifacts | handler dispatch + `step:resolve` completion, `.mrmr/dev/`, exchange store (action-invoke spine removed — Task 15) | B |
 | **C** — Session + Run protocol | CRUD, journal linkage, step memo, journal replay view | D |
 | **H** — Notifications + logs | Needs you, `/notifications`, `/logs` filters, SSE | C |
 | **E** — Flow index + start conditions | space apply, manual/event/schedule, space home sections | C |

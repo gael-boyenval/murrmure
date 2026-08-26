@@ -29,6 +29,7 @@ export const JOURNAL_EVENT_TYPES = {
   MEETING_DELIVERED: "mrmr.meeting.delivered",
   MEETING_DELIVERY_FAILED: "mrmr.meeting.delivery_failed",
   MEETING_CLOSED: "mrmr.meeting.closed",
+  MEETING_RESUMED: "mrmr.meeting.resumed",
 } as const;
 
 export type JournalEventType = (typeof JOURNAL_EVENT_TYPES)[keyof typeof JOURNAL_EVENT_TYPES];

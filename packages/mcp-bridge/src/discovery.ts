@@ -6,6 +6,8 @@ const SHARED_DISCOVERY_RELATIVE_PATH = ".murrmure/hubs/shared.json";
 
 interface SharedHubEntry {
   endpoint?: unknown;
+  pid?: unknown;
+  started_at?: unknown;
 }
 
 interface SharedDiscoveryFile {
@@ -16,6 +18,11 @@ interface SharedDiscoveryFile {
 export interface HubDiscoveryResult {
   endpoint: string;
   sharedPath: string;
+}
+
+export interface HubInstance {
+  pid?: number;
+  started_at?: string;
 }
 
 function normalizeEndpoint(endpoint: string): string | null {
@@ -41,6 +48,23 @@ function parseSharedDiscovery(raw: string, sharedPath: string): SharedDiscoveryF
 
 export function resolveSharedDiscoveryPath(homePath: string = homedir()): string {
   return join(homePath, SHARED_DISCOVERY_RELATIVE_PATH);
+}
+
+/** pid + started_at from Desktop/HMR discovery — used to decache after hub replace. */
+export function readHubInstance(sharedPath: string): HubInstance | null {
+  if (!existsSync(sharedPath)) return null;
+  try {
+    const parsed = parseSharedDiscovery(readFileSync(sharedPath, "utf-8"), sharedPath);
+    const first = Array.isArray(parsed.hubs) ? parsed.hubs[0] : undefined;
+    if (!first || typeof first !== "object") return null;
+    const entry = first as SharedHubEntry;
+    const pid = typeof entry.pid === "number" ? entry.pid : undefined;
+    const started_at = typeof entry.started_at === "string" ? entry.started_at : undefined;
+    if (pid == null && !started_at) return null;
+    return { pid, started_at };
+  } catch {
+    return null;
+  }
 }
 
 export function discoverHubEndpoint(options?: {

@@ -52,6 +52,56 @@ export function createMockShellClient(
       run_id: "run_demo",
       flow_digest: "sha256:demo",
     }),
+    archive: async (space_id) => ({ space_id }),
+    personas: async (space_id) => ({
+      personas:
+        space_id === "spc_ops"
+          ? [{ id: "ops", summary: "On-call" }]
+          : [{ id: "designer", summary: "Product design" }],
+    }),
+  },
+  directives: {
+    eligible: async () => ({
+      spaces: [{ space_id: "spc_demo", name: "Demo space", slug: "demo", handler_id: "directive" }],
+    }),
+  },
+  artifacts: {
+    get: async (transfer_id) => ({
+      artifact: {
+        transfer_id,
+        name: "note.md",
+        size_bytes: 12,
+        digest: "sha256:demo",
+      },
+      preview: { text: "hello world", truncated: false, name: "note.md" },
+    }),
+  },
+  meetings: {
+    start: async (body) => ({
+      ok: true as const,
+      session_id: "ses_meet",
+      status: "open" as const,
+      title: body.title,
+      goal: body.goal,
+      chair: { human: true as const },
+      roster: body.participants.map((seat, index) => ({
+        participant_id: `ptc_${index}`,
+        space_id: seat.space_id,
+        persona: seat.persona,
+      })),
+      convene_meeting_seq: 1,
+    }),
+    list: async () => ({
+      meetings: [
+        {
+          session_id: "ses_meet",
+          title: "Demo meeting",
+          status: "open",
+          roster_count: 1,
+          roster: [{ space_id: "spc_demo", persona: "designer" }],
+        },
+      ],
+    }),
   },
   me: {
     get: async () => ({
@@ -114,12 +164,29 @@ export function createMockShellClient(
     get: async () => ({ session_id: "ses_demo", title: "Demo", status: "active" }),
     listRuns: async () => ({ runs: [] }),
     transcript: async () => null,
+    sayMeeting: async () => ({ ok: true as const, event_id: "evt_demo", seq: 1 }),
     closeMeeting: async (session_id) => ({
       ok: true as const,
       session_id,
       status: "closed" as const,
       outcome: "completed" as const,
       close_meeting_seq: 1,
+    }),
+    getMeetingArtifact: async (session_id, transfer_id) => ({
+      artifact: {
+        transfer_id,
+        name: "note.md",
+        size_bytes: 12,
+        digest: "sha256:demo",
+      },
+      preview: { text: "hello world", truncated: false, name: "note.md" },
+    }),
+    resumeMeeting: async (session_id) => ({
+      ok: true as const,
+      session_id,
+      status: "open" as const,
+      resume_meeting_seq: 2,
+      roster: [],
     }),
   },
   runs: {

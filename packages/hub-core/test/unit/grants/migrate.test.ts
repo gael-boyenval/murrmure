@@ -22,6 +22,14 @@ describe("unit/grants/migrate", () => {
     expect(resolveEffectiveCapabilities({ scopes: ["event:read"] })).toEqual(["journal:read"]);
     expect(resolveEffectiveCapabilities({ scopes: ["event:emit"] })).toEqual(["event:emit"]);
     expect(resolveEffectiveCapabilities({ scopes: ["federation:emit"] })).toEqual(["event:emit"]);
+    expect(resolveEffectiveCapabilities({ scopes: ["blob:write"] })).toEqual(["space:write"]);
+    expect(resolveEffectiveCapabilities({ scopes: ["blob:read"] })).toEqual(["space:read"]);
+  });
+
+  test("native blob capabilities pass through without collapsing to space:*", () => {
+    expect(
+      resolveEffectiveCapabilities({ scopes: [], capabilities: ["blob:write", "blob:read"] }),
+    ).toEqual(["blob:write", "blob:read"]);
   });
 
   test("space:admin expands to admin capability bundle", () => {

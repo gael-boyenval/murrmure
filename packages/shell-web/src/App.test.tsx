@@ -23,7 +23,13 @@ vi.mock("@murrmure/shell-client", async (importOriginal) => {
   return {
     ...actual,
     createShellClient: vi.fn(() => ({
-      spaces: { list: vi.fn().mockResolvedValue([]) },
+      spaces: {
+        list: vi.fn().mockResolvedValue([]),
+        personas: vi.fn().mockResolvedValue({ personas: [] }),
+      },
+      directives: { eligible: vi.fn().mockResolvedValue({ spaces: [] }) },
+      meetings: { start: vi.fn(), list: vi.fn().mockResolvedValue({ meetings: [] }) },
+      notifications: { list: vi.fn().mockResolvedValue({ notifications: [], pending_count: 0 }) },
       auth: { mintSseTicket: vi.fn() },
       journal: { subscribe: () => () => undefined },
       me: { get: vi.fn() },

@@ -95,6 +95,29 @@ describe("emittable-catalog", () => {
     };
     const schema = buildEmitEventInputSchema(catalog);
     expect(schema).toHaveProperty("oneOf");
+    expect(schema.type).toBe("object");
+  });
+
+  test("buildEmitEventInputSchema always sets type object (empty and single)", () => {
+    const empty: EmittableEventsCatalog = {
+      caller_space_id: "spc_my_space",
+      caller_source: "/spaces/spc_my_space",
+      events: [],
+    };
+    expect(buildEmitEventInputSchema(empty).type).toBe("object");
+
+    const single: EmittableEventsCatalog = {
+      ...empty,
+      events: [
+        {
+          event_type: "a.event",
+          listeners: [],
+          payload_hints: [],
+          origins: ["handler"],
+        },
+      ],
+    };
+    expect(buildEmitEventInputSchema(single).type).toBe("object");
   });
 
   test("validateEmitPayload rejects missing required fields", () => {

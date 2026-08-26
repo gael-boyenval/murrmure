@@ -18,6 +18,7 @@ export const HUB_ONLY_EMIT_DENYLIST = [
   "mrmr.meeting.convened",
   "mrmr.meeting.delivered",
   "mrmr.meeting.delivery_failed",
+  "mrmr.meeting.resumed",
 ] as const;
 
 export type EmitAndDeliverInput = {
@@ -29,6 +30,9 @@ export type EmitAndDeliverInput = {
   actor_id: string;
   token_id: string;
   capabilities?: Capability[];
+  /** Trusted HTTP chair path; ordinary space event emitters never set this. */
+  human_chair?: boolean;
+  bootstrap?: boolean;
 };
 
 export type EmitAndDeliverResult =
@@ -104,6 +108,9 @@ export async function emitAndDeliver(
       space_id: spaceId,
       session_id: sessionId,
       payload,
+      actor_id: input.actor_id,
+      human_chair: input.human_chair,
+      bootstrap: input.bootstrap,
     });
     if (!saidPrepared.ok) return saidPrepared;
     payload = "prepared" in saidPrepared ? saidPrepared.prepared.payload : saidPrepared.payload;
@@ -123,7 +130,9 @@ export async function emitAndDeliver(
 
   const speakerPersona =
     saidPrepared && saidPrepared.ok && "prepared" in saidPrepared
-      ? saidPrepared.prepared.speaker.persona
+      ? "persona" in saidPrepared.prepared.speaker
+        ? saidPrepared.prepared.speaker.persona
+        : undefined
       : resolveHookParticipant({ payload });
 
   let journaled: { seq: number; entry_id: string };

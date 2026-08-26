@@ -42,7 +42,7 @@ export function mountArtifactRoutes(app: Hono, ctx: DaemonContext): void {
     const transfer_id = c.req.param("transfer_id");
     const auth = await requireToken(murrmurePersistence, c.req.raw, c.req.query("space_id") ?? undefined);
     if (auth instanceof Response) return auth;
-    const scopeCheck = requireScope(auth, "blob:read");
+    const scopeCheck = requireAnyScope(auth, ["blob:read", "space:read"]);
     if (scopeCheck) return scopeCheck;
 
     const spaceId =
@@ -56,6 +56,7 @@ export function mountArtifactRoutes(app: Hono, ctx: DaemonContext): void {
       transfer_id,
       requester_space_id: spaceId,
       requester_actor_id: auth.actor_id,
+      preview: c.req.query("preview") === "1" || c.req.query("preview") === "true",
     });
     return c.json(result.body, result.http);
   });

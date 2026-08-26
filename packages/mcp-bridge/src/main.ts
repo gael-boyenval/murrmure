@@ -10,6 +10,7 @@ import {
 import { readActiveConnection } from "./active-connection.js";
 import {
   discoverHubEndpoint,
+  readHubInstance,
   resolveSharedDiscoveryPath,
 } from "./discovery.js";
 import { readStoredConnection } from "./stored-connection.js";
@@ -22,15 +23,37 @@ import {
 } from "./hub-client.js";
 import {
   buildPendingWakeRecord,
+  coalesceMeetingSaidMessages,
   isMeetingSaidMessage,
   isWakeMessage,
   writePendingWakeFile,
   type PendingWakeRecord,
 } from "./wake-relay.js";
 import { readMacOsConnectionToken } from "./credential-store.js";
+import { ensureObjectInputSchema } from "./input-schema.js";
+import {
+  handshakeSeqReset,
+  hubInstanceChanged,
+  hubInstanceKey,
+  hubToolNamesChanged,
+} from "./catalog-refresh.js";
 
 const PENDING_WAKE_TOOL = "murrmure_get_pending_wake";
-const DEFAULT_POLL_INTERVAL_MS = 5_000;
+export const DEFAULT_POLL_INTERVAL_MS = 750;
+export const MEETING_RESPONSE_MAX_TOKENS = 1200;
+export const MEETING_SAID_SYSTEM_PROMPT =
+  "You are a live Murrmure meeting seat. One or more said events arrived. Pull murrmure_meeting_transcript once with session_id and since_seq. You may stay silent: emit mrmr.meeting.said only when directly addressed or when you have distinct useful content. Never repeat, paraphrase, acknowledge, or re-introduce material already in the transcript. Keep a reply concise (normally 1-3 short paragraphs), set in_reply_to when appropriate, and target the relevant speaker with to.participant_ids; use to.all only when everyone genuinely needs the message. Do not call murrmure_resolve_step for this room.";
+
+export function meetingAssignmentFromEnv(
+  env: NodeJS.ProcessEnv,
+): { session_id: string; participant_id: string } | undefined {
+  const session_id = env.MURRMURE_MEETING_SESSION_ID?.trim();
+  const participant_id = env.MURRMURE_MEETING_PARTICIPANT_ID?.trim();
+  if (!session_id?.startsWith("ses_") || !participant_id?.startsWith("ptc_")) {
+    return undefined;
+  }
+  return { session_id, participant_id };
+}
 
 const LOCAL_BRIDGE_INSTRUCTIONS =
   "Murrmure MCP bridge. Call murrmure_get_pending_wake at session start only when you were woken by a Murrmure hook/control message — not for ordinary chat.";
@@ -71,6 +94,19 @@ function argumentValue(argv: string[], name: string): string | undefined {
   return value || undefined;
 }
 
+function resolveHubDiscovery(options: {
+  homePath?: string;
+  explicitHub?: string;
+}): { endpoint: string; sharedPath: string } {
+  if (options.explicitHub) {
+    return {
+      endpoint: normalizeHubId(options.explicitHub),
+      sharedPath: resolveSharedDiscoveryPath(options.homePath),
+    };
+  }
+  return discoverHubEndpoint({ homePath: options.homePath });
+}
+
 function normalizeHubId(value: string): string {
   const parsed = new URL(value);
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -106,7 +142,7 @@ function mapCatalogTools(tools: CatalogTool[]): Array<{
     name: tool.name,
     description:
       tool.description ?? (tool.flow_id ? `${tool.flow_id} tool` : tool.name),
-    inputSchema: tool.inputSchema ?? { type: "object", additionalProperties: true },
+    inputSchema: ensureObjectInputSchema(tool.inputSchema),
   }));
 }
 
@@ -120,9 +156,10 @@ export function resolveBridgeConfig(options?: {
   const env = options?.env ?? process.env;
   if (argv.includes("--headless-ci")) {
     const explicitHub = argumentValue(argv, "--hub");
-    const discovery = explicitHub
-      ? null
-      : discoverHubEndpoint({ homePath: options?.homePath });
+    const discovery = resolveHubDiscovery({
+      homePath: options?.homePath,
+      explicitHub,
+    });
     const token = env.MURRMURE_HUB_TOKEN?.trim() ?? "";
     if (!token) {
       throw new Error(
@@ -130,10 +167,9 @@ export function resolveBridgeConfig(options?: {
       );
     }
     return {
-      hubUrl: explicitHub ? normalizeHubId(explicitHub) : discovery!.endpoint,
+      hubUrl: discovery.endpoint,
       token,
-      discoveryPath:
-        discovery?.sharedPath ?? resolveSharedDiscoveryPath(options?.homePath),
+      discoveryPath: discovery.sharedPath,
       authMode: "headless-ci",
     };
   }
@@ -143,8 +179,11 @@ export function resolveBridgeConfig(options?: {
   // transitional/override; adapters do not write it.
   const explicitHub = argumentValue(argv, "--hub");
   const explicitConnection = argumentValue(argv, "--connection");
-  const discovery = discoverHubEndpoint({ homePath: options?.homePath });
-  const hubUrl = explicitHub ? normalizeHubId(explicitHub) : discovery.endpoint;
+  const discovery = resolveHubDiscovery({
+    homePath: options?.homePath,
+    explicitHub,
+  });
+  const hubUrl = discovery.endpoint;
   const assignmentScope = env.MURRMURE_ASSIGNMENT_SCOPE?.trim();
   const assignmentToken = env.MURRMURE_HUB_TOKEN?.trim();
   if (assignmentScope) {
@@ -239,6 +278,7 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
   const fetchImpl = options.fetchImpl ?? fetch;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const clientId = `murrmure-mcp-${randomUUID()}`;
+  const meetingAssignment = meetingAssignmentFromEnv(process.env);
 
   let catalogTools = await fetchCatalog({
     hubUrl: config.hubUrl,
@@ -248,9 +288,11 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
   let pendingWake: PendingWakeRecord | null = null;
   let lastAckSeq = 0;
   let polling = false;
+  let announcedCatalog = false;
+  let hubInstance = hubInstanceKey(readHubInstance(config.discoveryPath));
 
   const server = new Server(
-    { name: "murrmure-mcp-bridge", version: "0.1.0" },
+    { name: "murrmure-mcp-bridge", version: "0.1.1" },
     {
       capabilities: { tools: {}, logging: {} },
       instructions: bridgeInstructions(config.authMode),
@@ -259,25 +301,28 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
 
   const exposePendingWake = config.authMode === "local";
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [
-      ...(exposePendingWake
-        ? [
-            {
-              name: PENDING_WAKE_TOOL,
-              description:
-                "Returns the latest relayed Murrmure wake prompt (hook/control wake only — skip during handler assignments).",
-              inputSchema: {
-                type: "object",
-                additionalProperties: false,
-                properties: {},
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    await refreshCatalog();
+    return {
+      tools: [
+        ...(exposePendingWake
+          ? [
+              {
+                name: PENDING_WAKE_TOOL,
+                description:
+                  "Returns the latest relayed Murrmure wake prompt (hook/control wake only — skip during handler assignments).",
+                inputSchema: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {},
+                },
               },
-            },
-          ]
-        : []),
-      ...mapCatalogTools(catalogTools),
-    ],
-  }));
+            ]
+          : []),
+        ...mapCatalogTools(catalogTools),
+      ],
+    };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
@@ -328,11 +373,16 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
   });
 
   async function refreshCatalog(): Promise<void> {
-    catalogTools = await fetchCatalog({
-      hubUrl: config.hubUrl,
-      token: config.token,
-      fetchImpl,
-    });
+    try {
+      catalogTools = await fetchCatalog({
+        hubUrl: config.hubUrl,
+        token: config.token,
+        fetchImpl,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`murrmure-mcp catalog refresh failed (${detail})`);
+    }
   }
 
   async function pollHandshake(): Promise<void> {
@@ -344,9 +394,31 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
         token: config.token,
         clientId,
         lastAckSeq,
+        meetingAssignment,
         fetchImpl,
       });
-      for (const message of handshake.messages) {
+      const ackSeq = Number(handshake.handshake_ack_seq ?? 0);
+      const nextInstance = hubInstanceKey(readHubInstance(config.discoveryPath));
+      const instanceReset = hubInstanceChanged(hubInstance, nextInstance);
+      if (nextInstance) {
+        hubInstance = nextInstance;
+      }
+      const seqReset = handshakeSeqReset(lastAckSeq, ackSeq);
+      if (
+        instanceReset ||
+        seqReset ||
+        hubToolNamesChanged(catalogTools, handshake.server_tools)
+      ) {
+        if (instanceReset || seqReset) {
+          lastAckSeq = 0;
+        }
+        await refreshCatalog();
+        // First poll races Client.connect; notify only after the client is up.
+        if (announcedCatalog) {
+          await sendToolListChanged(server);
+        }
+      }
+      for (const message of coalesceMeetingSaidMessages(handshake.messages)) {
         const seq = Number(message.params.seq ?? 0);
         if (seq <= lastAckSeq) {
           continue;
@@ -366,9 +438,8 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
             try {
               await server.createMessage({
                 messages: [{ role: "user", content: { type: "text", text: prompt } }],
-                maxTokens: 8192,
-                systemPrompt:
-                  "You are a Murrmure meeting seat. A new said arrived. Pull murrmure_meeting_transcript with session_id and since_seq, then reply with murrmure_emit_event type mrmr.meeting.said. Do not call murrmure_resolve_step for this room.",
+                maxTokens: MEETING_RESPONSE_MAX_TOKENS,
+                systemPrompt: MEETING_SAID_SYSTEM_PROMPT,
               });
             } catch (error) {
               const detail = error instanceof Error ? error.message : String(error);
@@ -390,6 +461,7 @@ export async function startMcpBridge(options: StartMcpBridgeOptions = {}): Promi
         }
       }
       lastAckSeq = Math.max(lastAckSeq, handshake.handshake_ack_seq, maxSeq(handshake.messages));
+      announcedCatalog = true;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error(`murrmure-mcp handshake poll failed (${detail})`);

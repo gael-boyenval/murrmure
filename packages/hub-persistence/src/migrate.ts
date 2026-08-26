@@ -340,7 +340,6 @@ export function migrateStudio(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_journal_index_time ON journal_index(time);
     CREATE INDEX IF NOT EXISTS idx_journal_index_session ON journal_index(session_id, time);
     CREATE INDEX IF NOT EXISTS idx_journal_index_type ON journal_index(type, time);
-    CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq);
 
     CREATE TABLE IF NOT EXISTS meeting_sessions (
       session_id TEXT PRIMARY KEY,
@@ -460,8 +459,10 @@ export function migrateStudio(db: Database.Database): void {
   const journalColNames = new Set(journalCols.map((c) => c.name));
   if (!journalColNames.has("meeting_seq")) {
     db.exec(`ALTER TABLE journal_index ADD COLUMN meeting_seq INTEGER`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq)`);
   }
+  // After ALTER — CREATE TABLE IF NOT EXISTS cannot add columns, and this index
+  // must not run in the bootstrap exec (existing DBs have no meeting_seq yet).
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq)`);
 }
 
 function migrateFlowIndexCompositeKey(db: Database.Database): void {

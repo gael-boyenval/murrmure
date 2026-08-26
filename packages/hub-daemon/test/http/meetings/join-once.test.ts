@@ -26,7 +26,7 @@ describe("MeetingNotifier control bus", () => {
 
     await notifier.notifyLiveSeat({
       session_id: "ses_room1",
-      participant_id: "qa",
+      participant_id: "ptc_qa",
       message_id: "msg_01JOINONCE000000000001",
       since_seq: 3,
       handler_id: "meeting-qa",
@@ -37,7 +37,7 @@ describe("MeetingNotifier control bus", () => {
     expect(published[0]?.method).toBe("murrmure/control.meeting_said");
     expect(published[0]?.params).toMatchObject({
       session_id: "ses_room1",
-      participant_id: "qa",
+      participant_id: "ptc_qa",
       message_id: "msg_01JOINONCE000000000001",
       since_seq: 3,
       handler_id: "meeting-qa",
@@ -200,7 +200,7 @@ describe("http/meetings/join-once", () => {
     expect(typeof params.since_seq).toBe("number");
     expect(params.session_id).toBe(sessionId);
     expect(params.handler_id).toBe("meeting-qa");
-    expect(params.participant_id).toBe("qa");
+    expect(params.participant_id).toBe(qa);
     publish.mockRestore();
   });
 });

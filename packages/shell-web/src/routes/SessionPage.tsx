@@ -8,6 +8,9 @@ import { GatePanel } from "../components/GatePanel.js";
 import { SharedFlowPage } from "../components/SharedFlowPage.js";
 import { MeetingTranscriptPane, isHumanMeetingChair } from "../components/MeetingTranscriptPane.js";
 import { MeetingCloseButton } from "../components/MeetingCloseButton.js";
+import { MeetingResumeButton } from "../components/MeetingResumeButton.js";
+import { MeetingComposer } from "../components/MeetingComposer.js";
+import type { MeetingReplyTarget } from "../lib/meeting-reply.js";
 import { useShellClient } from "../providers/ShellClientProvider.js";
 import { useStepCanvasBinding } from "../hooks/useStepCanvasBinding.js";
 import { useRunStepInspector } from "../hooks/useRunStepInspector.js";
@@ -24,6 +27,19 @@ const PANE_LABEL: Record<SessionPane, string> = {
   journal: "Journal",
 };
 
+export function sessionPaneLabel(pane: SessionPane, isMeeting: boolean): string {
+  return isMeeting && pane === "flowchart" ? "Agent activity" : PANE_LABEL[pane];
+}
+
+export function defaultSessionRunId(
+  runs: Array<{ run_id: string; lifecycle: string }>,
+): string | undefined {
+  return (
+    runs.find((candidate) => candidate.lifecycle === "working" || candidate.lifecycle === "input-required")
+      ?.run_id ?? runs[0]?.run_id
+  );
+}
+
 export function SessionPage() {
   const { sessionId } = useParams();
   const [searchParams] = useSearchParams();
@@ -33,6 +49,7 @@ export function SessionPage() {
   const navigate = useNavigate();
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>();
   const [userPane, setUserPane] = useState<SessionPane | null>(null);
+  const [replyTo, setReplyTo] = useState<MeetingReplyTarget | null>(null);
 
   const runsQuery = useQuery({
     queryKey: ["session-runs", sessionId],
@@ -77,7 +94,9 @@ export function SessionPage() {
     return labels;
   }, [spacesQuery.data]);
 
-  const focusRunId = selectedRunId ?? runsQuery.data?.runs[0]?.run_id;
+  const runs = runsQuery.data?.runs ?? [];
+  const defaultFocusRunId = defaultSessionRunId(runs);
+  const focusRunId = selectedRunId ?? defaultFocusRunId;
 
   const runQuery = useQuery({
     queryKey: ["run", focusRunId],
@@ -102,7 +121,6 @@ export function SessionPage() {
   });
 
   const session = sessionQuery.data;
-  const runs = runsQuery.data?.runs ?? [];
   const focusedRun = runs.find((r) => r.run_id === focusRunId);
   const run = runQuery.data;
   const orchestrationGate = gatesQuery.data?.find(
@@ -146,8 +164,9 @@ export function SessionPage() {
     hasView: Boolean(showCanvas && canvas),
   });
   const pane = userPane && panes.includes(userPane) ? userPane : resolvedPane;
-  const canClose =
-    Boolean(sessionId) && isMeeting && transcript.status === "open" && isHumanMeetingChair(transcript.chair);
+  const isHumanChair = Boolean(transcript && isHumanMeetingChair(transcript.chair));
+  const canClose = Boolean(sessionId) && isMeeting && transcript.status === "open" && isHumanChair;
+  const canResume = Boolean(sessionId) && isMeeting && transcript.status === "closed" && isHumanChair;
 
   const flowchartSecondary = (
     <>
@@ -238,7 +257,7 @@ export function SessionPage() {
               )}
               onClick={() => setUserPane(id)}
             >
-              {PANE_LABEL[id]}
+              {sessionPaneLabel(id, isMeeting)}
             </button>
           ))}
         </div>
@@ -258,7 +277,26 @@ export function SessionPage() {
               goal={session?.subject}
               transcript={transcript}
               spaceLabels={spaceLabels}
-              closeAction={canClose && sessionId ? <MeetingCloseButton sessionId={sessionId} /> : null}
+              onReply={canClose ? setReplyTo : undefined}
+              closeAction={
+                canClose && sessionId ? (
+                  <MeetingCloseButton sessionId={sessionId} />
+                ) : canResume && sessionId ? (
+                  <MeetingResumeButton sessionId={sessionId} />
+                ) : null
+              }
+              composer={
+                canClose && sessionId ? (
+                  <MeetingComposer
+                    sessionId={sessionId}
+                    transcript={transcript}
+                    spaceLabels={spaceLabels}
+                    replyTo={replyTo}
+                    onClearReply={() => setReplyTo(null)}
+                    onSent={() => transcriptQuery.refetch().then(() => undefined)}
+                  />
+                ) : null
+              }
             />
           </div>
         ) : null}
@@ -283,13 +321,29 @@ export function SessionPage() {
             aria-label="Flowchart"
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
+            {isMeeting && transcript ? (
+              <p className="mb-2 shrink-0 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                {transcript.status === "open"
+                  ? "Meeting is open. Each seat keeps one process for the room; later messages reuse it."
+                  : "Meeting is closed. Each lane represents one seat assignment."}
+              </p>
+            ) : null}
             <SharedFlowPage
               embedded
               title={session?.title ?? graphQuery.data?.flow_name ?? "Session"}
               subtitle={sessionId}
               status={session?.status}
               graph={graphQuery.data}
-              graphFallback={runQuery.data ? <JournalWaterfallView run={runQuery.data} /> : null}
+              graphFallback={
+                runQuery.data ? (
+                  <JournalWaterfallView run={runQuery.data} />
+                ) : isMeeting ? (
+                  <p className="text-sm text-muted-foreground">
+                    No run on this session. New meeting creates a room, not a flow — flowchart
+                    stays empty until a flow binds.
+                  </p>
+                ) : null
+              }
               execContext={run?.exec_context as Record<string, unknown> | undefined}
               selectedRunId={focusRunId}
               selectedStepId={selectedStepId}
@@ -305,7 +359,11 @@ export function SessionPage() {
             {runQuery.data ? (
               <JournalWaterfallView run={runQuery.data} journalEntries={journalEntries} />
             ) : (
-              <p className="text-sm text-muted-foreground">No journal replay yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {isMeeting
+                  ? "No run on this session. New meeting creates a room, not a flow — journal stays empty until a flow binds."
+                  : "No journal replay yet."}
+              </p>
             )}
           </div>
         ) : null}

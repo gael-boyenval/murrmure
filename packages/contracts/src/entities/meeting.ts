@@ -114,6 +114,17 @@ export const MeetingRosterParticipantSchema = z.object({
   persona: PersonaIdSchema.optional(),
 });
 
+export const MeetingHumanChairSenderSchema = z
+  .object({
+    human: z.literal(true),
+  })
+  .strict();
+
+export const MeetingTranscriptSenderSchema = z.union([
+  MeetingRosterParticipantSchema,
+  MeetingHumanChairSenderSchema,
+]);
+
 export const MeetingSnapshotChairSchema = z.union([
   z.object({ participant_id: ParticipantIdSchema }),
   z.object({ human: z.literal(true) }),
@@ -128,12 +139,15 @@ export const MeetingTranscriptReceiptSchema = z.object({
   participant_id: ParticipantIdSchema,
   status: z.enum(["delivered", "failed"]),
   reason: z.string().optional(),
+  recorded_at: z.string().datetime(),
+  latency_ms: z.number().int().nonnegative(),
 });
 
 export const MeetingTranscriptMessageSchema = z.object({
   message_id: MessageIdSchema,
   seq: z.number().int().nonnegative(),
-  from: MeetingRosterParticipantSchema,
+  created_at: z.string().datetime(),
+  from: MeetingTranscriptSenderSchema,
   to: MeetingTranscriptToSchema,
   in_reply_to: MessageIdSchema.optional(),
   text: z.string().optional(),
@@ -161,6 +175,7 @@ export type MeetingTo = z.infer<typeof MeetingToSchema>;
 export type MeetingSaidData = z.infer<typeof MeetingSaidDataSchema>;
 export type MeetingClosedData = z.infer<typeof MeetingClosedDataSchema>;
 export type MeetingRosterParticipant = z.infer<typeof MeetingRosterParticipantSchema>;
+export type MeetingTranscriptSender = z.infer<typeof MeetingTranscriptSenderSchema>;
 export type MeetingSnapshotChair = z.infer<typeof MeetingSnapshotChairSchema>;
 export type MeetingTranscriptTo = z.infer<typeof MeetingTranscriptToSchema>;
 export type MeetingTranscriptReceipt = z.infer<typeof MeetingTranscriptReceiptSchema>;

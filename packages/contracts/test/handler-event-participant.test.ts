@@ -31,4 +31,54 @@ describe("handler event participant", () => {
     });
     expect(parsed.success).toBe(false);
   });
+
+  test("shell_spawn meeting handler keeps its harness-owned continuation contract", () => {
+    const parsed = HandlerSpecSchema.parse({
+      id: "meeting-designer",
+      on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+      type: "shell_spawn",
+      command: "cursor agent -p {{prompt}}",
+      continuation: {
+        command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+      },
+    });
+    expect(parsed).toMatchObject({
+      continuation: {
+        command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+        token_field: "session_id",
+      },
+    });
+  });
+
+  test("shell_spawn accepts a persistent PTY session with assignment-owned lifetime", () => {
+    const parsed = HandlerSpecSchema.parse({
+      id: "meeting-designer",
+      on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+      type: "shell_spawn",
+      command: "cursor agent --force {{prompt}}",
+      session: { mode: "persistent" },
+    });
+    expect(parsed).toMatchObject({
+      session: {
+        mode: "persistent",
+        transport: "pty",
+        shutdown_grace_ms: 5_000,
+      },
+    });
+  });
+
+  test("persistent shell session rejects continuation and process timeout", () => {
+    const parsed = HandlerSpecSchema.safeParse({
+      id: "meeting-designer",
+      on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+      type: "shell_spawn",
+      command: "cursor agent --force {{prompt}}",
+      continuation: {
+        command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+      },
+      session: { mode: "persistent" },
+      timeout_ms: 60_000,
+    });
+    expect(parsed.success).toBe(false);
+  });
 });

@@ -15,7 +15,11 @@ import { resolveTemplateString, resolveStepParams } from "../flow-engine/templat
 import type { HookSourceEvent } from "./matcher.js";
 import { computeHookDedupKey, hookStepId, matchHooks, resolveHookParticipant } from "./matcher.js";
 import { matchEventHandlers } from "../index/parse-handlers.js";
-import { buildMeetingWakeData, meetingWakeExecContext } from "../meetings/assignment-prompt.js";
+import {
+  buildMeetingWakeData,
+  formatLiveSaidPrompt,
+  meetingWakeExecContext,
+} from "../meetings/assignment-prompt.js";
 
 export type EventDeliveryMode = "create" | "attach" | "notify_live";
 
@@ -51,6 +55,7 @@ export type LiveAssignmentPort = {
     message_id: string;
     since_seq: number;
     handler_id: string;
+    prompt?: string;
   }): Promise<void>;
   revoke(input: { session_id: string; participant_id?: string }): Promise<void>;
 };
@@ -97,9 +102,9 @@ function prefixedSessionId(session_id: string): string {
   return session_id.startsWith("ses_") ? session_id : `ses_${session_id}`;
 }
 
-/** Live-map key: persona used by match (`designer`), not `ptc_*`. */
+/** Live-map key: unique roster seat id. Persona names are only handler selectors. */
 export function liveSeatParticipantId(event: HookSourceEvent): string {
-  return resolveHookParticipant(event) ?? event.participant_id ?? "";
+  return event.participant_id?.trim() || resolveHookParticipant(event) || "";
 }
 
 export async function resolveEventDeliveryTarget(
@@ -137,7 +142,7 @@ export async function resolveEventDeliveryTarget(
   if (deps.liveAssignments) {
     const live = await deps.liveAssignments.findLive({
       session_id: existingId,
-      participant: resolveHookParticipant(event),
+      participant: liveSeatParticipantId(event),
     });
     if (live) {
       return { mode: "notify_live", session_id: existingId, run_id: live.run_id };
@@ -399,29 +404,65 @@ async function deliverToAssignment(
   );
   const params = meetingWake ? { ...resolvedParams, ...meetingWake } : resolvedParams;
   const step_id = hookStepId(input.handler.id);
-  const invokeResult = await deps.invokeAction({
-    space_id: hookSpace,
-    action_name: input.handler.id,
-    session_id: sessionId,
-    run_id: created.run.run_id,
-    step_id,
-    params,
-    actor_id: input.actor_id,
-    token_id: input.token_id,
-    idempotency_key: `${created.run.run_id}:${step_id}:${input.dedupKey}`,
-  });
+  const meetingAttachment =
+    input.target.mode === "attach" &&
+    (input.event.event_type === JOURNAL_EVENT_TYPES.MEETING_SAID ||
+      input.event.event_type === JOURNAL_EVENT_TYPES.MEETING_CONVENED ||
+      input.event.event_type === JOURNAL_EVENT_TYPES.MEETING_RESUMED) &&
+    deps.liveAssignments;
+  const liveParticipant = liveSeatParticipantId(input.event);
+  const preRegisteredShellSeat = Boolean(
+    meetingAttachment && input.handler.type === "shell_spawn",
+  );
+
+  // Register before spawning. A fast child can emit said before invokeAction
+  // returns; registering afterward turns that reply into a recursive spawn.
+  if (preRegisteredShellSeat) {
+    await deps.liveAssignments!.start({
+      session_id: sessionId,
+      participant_id: liveParticipant,
+      handler_id: input.handler.id,
+      run_id: created.run.run_id,
+      space_id: hookSpace,
+    });
+  }
+
+  let invokeResult: Awaited<ReturnType<HookDispatchDeps["invokeAction"]>>;
+  try {
+    invokeResult = await deps.invokeAction({
+      space_id: hookSpace,
+      action_name: input.handler.id,
+      session_id: sessionId,
+      run_id: created.run.run_id,
+      step_id,
+      params,
+      actor_id: input.actor_id,
+      token_id: input.token_id,
+      idempotency_key: `${created.run.run_id}:${step_id}:${input.dedupKey}`,
+    });
+  } catch (error) {
+    if (preRegisteredShellSeat) {
+      await deps.liveAssignments!.revoke({
+        session_id: sessionId,
+        participant_id: liveParticipant,
+      });
+    }
+    throw error;
+  }
   if (invokeResult.http >= 400) {
+    if (preRegisteredShellSeat) {
+      await deps.liveAssignments!.revoke({
+        session_id: sessionId,
+        participant_id: liveParticipant,
+      });
+    }
     return { outcome: "failed", message: "invoke_failed" };
   }
 
-  if (
-    input.target.mode === "attach" &&
-    input.event.event_type === JOURNAL_EVENT_TYPES.MEETING_SAID &&
-    deps.liveAssignments
-  ) {
-    await deps.liveAssignments.start({
+  if (meetingAttachment && input.handler.type !== "shell_spawn") {
+    await deps.liveAssignments!.start({
       session_id: sessionId,
-      participant_id: liveSeatParticipantId(input.event),
+      participant_id: liveParticipant,
       handler_id: input.handler.id,
       run_id: created.run.run_id,
       principal: invokeResult.principal,
@@ -477,6 +518,9 @@ async function deliverLiveNotify(
       message_id,
       since_seq,
       handler_id: input.handler.id,
+      prompt: meetingWake
+        ? formatLiveSaidPrompt(meetingWake, input.event.payload)
+        : undefined,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "notify_failed";

@@ -63,6 +63,16 @@ function principalKey(p: ControlPrincipal): string {
   return `${p.space_id}:${p.token_id}:${p.client_id}`;
 }
 
+/**
+ * After a hub restart the in-memory seq resets. A live MCP bridge still
+ * sends its old last_ack_seq, which would hide the new handshake ack.
+ */
+export function handshakeDrainCursor(lastAckSeq: number, currentSeq: number): number {
+  if (!Number.isFinite(lastAckSeq) || lastAckSeq < 0) return 0;
+  if (lastAckSeq > currentSeq) return 0;
+  return lastAckSeq;
+}
+
 export class ControlBus {
   private readonly outboxes = new Map<string, { messages: ControlMessage[]; expiresAt: number }>();
   private readonly seq = new Map<string, number>();

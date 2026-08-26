@@ -6,7 +6,7 @@ import { mapHubDenial } from "../../lib/hub-request.js";
 import { isJsonMode, printErr, printOk } from "../../lib/output.js";
 import { runGlobalScopePreflight, runScopePreflight } from "../../lib/preflight.js";
 import { defaultLinkHost, writeSpaceLink } from "../../lib/space-link-file.js";
-import { readSpaceSlug, resolveMurrmureRoot } from "../../lib/space-directory.js";
+import { readSpaceYamlIdentity, resolveMurrmureRoot } from "../../lib/space-directory.js";
 import { discoverMurrmureProject } from "../../lib/space-doctor.js";
 import { createSpaceOnHub } from "./commands.js";
 
@@ -77,10 +77,12 @@ export const spaceLinkCommand = defineCommand({
     if (!spaceId && args.create) {
       const preflight = await runGlobalScopePreflight(flags, "space:admin");
       auth = preflight.auth;
-      const slug = readSpaceSlug(projectPath) ?? "my-space";
+      const identity = readSpaceYamlIdentity(projectPath);
+      const slug = identity.slug ?? "my-space";
       const created = await createSpaceOnHub(auth, {
         slug,
-        name: slug,
+        name: identity.name ?? slug,
+        ...(identity.description ? { description: identity.description } : {}),
       });
       spaceId = created.space_id;
       const linkPreflight = await runScopePreflight(flags, "space:write", spaceId);

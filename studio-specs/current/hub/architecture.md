@@ -241,6 +241,8 @@ Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-
 | `murrmure_resolve_step` | `step:resolve` | `POST /v1/runs/{id}/steps/{step_id}/resolve` |
 | `murrmure_wait_for_run` | `space:read` | long-poll run status |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
+| `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` |
+| `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run` |
 
 **Deprecated (v1 mount / instance model):** `get_space_state`, `transition`, `emit_event`, `wait_for_state`, `wait_for_gate`, `blob_read`, `blob_write`, legacy complete-action MCP tool, legacy gate-resolve MCP tool. Do not document for new integrations.
 
@@ -395,7 +397,7 @@ Timeout returns **200 + structured snapshot**, not silent hang.
 
 ## Part 9 — Async coordination plane
 
-Meeting `said` delivery attaches to the meeting `session_id` and, when a seat assignment is live, publishes `murrmure/control.meeting_said` (`notify_live`) instead of `createSession`. See [meetings/spec.md](../meetings/spec.md).
+Meeting `said` delivery attaches to the meeting `session_id` and, when a seat assignment is live, writes the next turn into that seat's persistent PTY (`notify_live`) instead of `createSession`. See [meetings/spec.md](../meetings/spec.md).
 
 ### Trigger registration (required fields)
 

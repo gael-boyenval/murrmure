@@ -10,6 +10,7 @@ import { compileFlowIr } from "./compile.js";
 import { compileStepContractCatalog, lintActionMurrmureTokens, lintStepContractManifest } from "./step-contract-compile.js";
 import { lintHandlerCatalogCoverage } from "../index/handler-catalog-lint.js";
 import { validatePersonaHandlers } from "../index/validate-persona-handlers.js";
+import { flowsIncludingPlatformForHandlers } from "../platform/directive.js";
 
 /** Step kinds the flow engine advance runner dispatches (phase 03). */
 export const ENGINE_DISPATCH_KINDS = ["invoke", "start_flow", "parallel", "gate", "step_contract"] as const;
@@ -195,10 +196,13 @@ export function lintSpaceApplyBundle(bundle: SpaceApplyBundle): FlowApplyLintWar
   if (handlers) {
     const handlerWarnings = lintHandlerCatalogCoverage({
       handlers,
-      flows: (bundle.flows ?? []).map((flow) => ({
-        flow_id: flow.flow_id,
-        manifest: flow.manifest,
-      })),
+      flows: flowsIncludingPlatformForHandlers(
+        (bundle.flows ?? []).map((flow) => ({
+          flow_id: flow.flow_id,
+          manifest: flow.manifest,
+        })),
+        handlers.handlers,
+      ),
     });
     for (const warning of handlerWarnings) {
       warnings.push({

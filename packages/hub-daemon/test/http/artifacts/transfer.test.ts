@@ -163,6 +163,267 @@ describe("http/artifacts/transfer", () => {
     expect(readFileSync(inbox, "utf-8")).toBe(diff);
   });
 
+  test("MCP materializes an authorized xfr into the caller space inbox", async () => {
+    const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceB}/grants`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        label: "artifact-reader",
+        capabilities: ["space:read"],
+      }),
+    });
+    expect(grantRes.status).toBe(200);
+    const grant = (await grantRes.json()) as { token: string };
+
+    const put = await fetch(`${baseUrl}/v1/artifacts`, {
+      method: "PUT",
+      headers: {
+        ...authHeaders(),
+        "Content-Type": "application/octet-stream",
+        "x-murrmure-space-id": spaceA,
+        "x-murrmure-name": "meeting-feedback.txt",
+        "x-murrmure-authorized-readers": spaceB,
+      },
+      body: Buffer.from("artifact feedback", "utf-8"),
+    });
+    expect(put.status).toBe(201);
+    const { artifact } = (await put.json()) as {
+      artifact: { transfer_id: string };
+    };
+
+    const catalog = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceB}`, {
+      headers: { Authorization: `Bearer ${grant.token}` },
+    }).then((res) => res.json() as Promise<{ tools: Array<{ name: string }> }>);
+    expect(catalog.tools.map((tool) => tool.name)).toContain("murrmure_get_artifact");
+
+    const call = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${grant.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceB,
+        name: "murrmure_get_artifact",
+        arguments: { transfer_id: artifact.transfer_id },
+      }),
+    });
+    expect(call.status).toBe(200);
+    const body = (await call.json()) as {
+      result: { artifact: { transfer_id: string; local_path: string } };
+    };
+    expect(body.result.artifact).toMatchObject({
+      transfer_id: artifact.transfer_id,
+      local_path: `.mrmr/dev/inbox/${artifact.transfer_id}/meeting-feedback.txt`,
+    });
+    expect(body.result.artifact).not.toHaveProperty("authorized_readers");
+    expect(
+      readFileSync(inboxFilePath(projectB, artifact.transfer_id, "meeting-feedback.txt"), "utf-8"),
+    ).toBe("artifact feedback");
+
+    const aliasCall = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${grant.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceB,
+        name: "murrmure_get_artifact",
+        arguments: { artifact_id: artifact.transfer_id },
+      }),
+    });
+    expect(aliasCall.status).toBe(200);
+
+    const crossSpaceCall = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${grant.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceB,
+        name: "murrmure_get_artifact",
+        arguments: {
+          transfer_id: artifact.transfer_id,
+          space_id: spaceA,
+        },
+      }),
+    });
+    expect(crossSpaceCall.status).toBe(500);
+    expect(await crossSpaceCall.json()).toMatchObject({
+      message: "Token not valid for this space or action",
+    });
+  });
+
+  test("MCP artifact tool is included in the default space-read catalog", async () => {
+    const grantRes = await fetch(`${baseUrl}/v1/spaces/${spaceB}/grants`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        label: "artifact-metadata-only",
+        capabilities: ["space:read"],
+      }),
+    });
+    expect(grantRes.status).toBe(200);
+    const grant = (await grantRes.json()) as { token: string };
+
+    const catalog = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceB}`, {
+      headers: { Authorization: `Bearer ${grant.token}` },
+    }).then((res) => res.json() as Promise<{ tools: Array<{ name: string }> }>);
+    expect(catalog.tools.map((tool) => tool.name)).toContain("murrmure_get_artifact");
+    expect(catalog.tools.map((tool) => tool.name)).not.toContain("murrmure_put_artifact");
+  });
+
+  test("MCP put_artifact uploads inline content and peer get materializes it", async () => {
+    const writerRes = await fetch(`${baseUrl}/v1/spaces/${spaceA}/grants`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        label: "artifact-writer",
+        capabilities: ["space:read", "blob:write"],
+      }),
+    });
+    expect(writerRes.status).toBe(200);
+    const writer = (await writerRes.json()) as { token: string };
+
+    const readerRes = await fetch(`${baseUrl}/v1/spaces/${spaceB}/grants`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        label: "artifact-reader-peer",
+        capabilities: ["space:read"],
+      }),
+    });
+    expect(readerRes.status).toBe(200);
+    const reader = (await readerRes.json()) as { token: string };
+
+    const writerCatalog = await fetch(`${baseUrl}/v1/mcp/catalog?space_id=${spaceA}`, {
+      headers: { Authorization: `Bearer ${writer.token}` },
+    }).then((res) => res.json() as Promise<{ tools: Array<{ name: string }> }>);
+    expect(writerCatalog.tools.map((tool) => tool.name)).toContain("murrmure_put_artifact");
+
+    const put = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${writer.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceA,
+        name: "murrmure_put_artifact",
+        arguments: {
+          content: "kb surprise notes",
+          name: "surprise.txt",
+          authorized_readers: [spaceB],
+        },
+      }),
+    });
+    expect(put.status).toBe(200);
+    const putBody = (await put.json()) as {
+      result: { artifact: { transfer_id: string; name: string; size_bytes: number } };
+    };
+    expect(putBody.result.artifact.transfer_id).toMatch(/^xfr_/);
+    expect(putBody.result.artifact.name).toBe("surprise.txt");
+    expect(putBody.result.artifact.size_bytes).toBe(Buffer.byteLength("kb surprise notes"));
+    expect(putBody.result.artifact).not.toHaveProperty("authorized_readers");
+
+    const get = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${reader.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceB,
+        name: "murrmure_get_artifact",
+        arguments: { transfer_id: putBody.result.artifact.transfer_id },
+      }),
+    });
+    expect(get.status).toBe(200);
+    const getBody = (await get.json()) as {
+      result: { artifact: { local_path: string } };
+    };
+    expect(getBody.result.artifact.local_path).toBe(
+      `.mrmr/dev/inbox/${putBody.result.artifact.transfer_id}/surprise.txt`,
+    );
+    expect(
+      readFileSync(
+        inboxFilePath(projectB, putBody.result.artifact.transfer_id, "surprise.txt"),
+        "utf-8",
+      ),
+    ).toBe("kb surprise notes");
+
+    const xor = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${writer.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceA,
+        name: "murrmure_put_artifact",
+        arguments: { content: "x", path: "notes.txt", name: "notes.txt" },
+      }),
+    });
+    expect(xor.status).toBe(500);
+    expect(await xor.json()).toMatchObject({
+      message: "exactly one of path or content is required",
+    });
+  });
+
+  test("MCP put_artifact reads a space-relative path", async () => {
+    mkdirSync(join(projectA, "notes"), { recursive: true });
+    writeFileSync(join(projectA, "notes", "desk.md"), "canon notes", "utf-8");
+
+    const writerRes = await fetch(`${baseUrl}/v1/spaces/${spaceA}/grants`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        label: "artifact-path-writer",
+        capabilities: ["blob:write"],
+      }),
+    });
+    expect(writerRes.status).toBe(200);
+    const writer = (await writerRes.json()) as { token: string };
+
+    const put = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${writer.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceA,
+        name: "murrmure_put_artifact",
+        arguments: { path: "notes/desk.md" },
+      }),
+    });
+    expect(put.status).toBe(200);
+    const putBody = (await put.json()) as {
+      result: { artifact: { name: string; size_bytes: number } };
+    };
+    expect(putBody.result.artifact.name).toBe("desk.md");
+    expect(putBody.result.artifact.size_bytes).toBe(Buffer.byteLength("canon notes"));
+
+    const escape = await fetch(`${baseUrl}/v1/mcp/tools/call`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${writer.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceA,
+        name: "murrmure_put_artifact",
+        arguments: { path: "../outside.txt" },
+      }),
+    });
+    expect(escape.status).toBe(500);
+    expect(await escape.json()).toMatchObject({
+      message: "path escapes the space root",
+    });
+  });
+
   test("action invoke route is removed — inline cap unreachable via invoke (404)", async () => {
     const oversized = "x".repeat(70_000);
     const invoke = await fetch(`${baseUrl}/v1/spaces/${spaceB}/actions/consume_diff/invoke`, {

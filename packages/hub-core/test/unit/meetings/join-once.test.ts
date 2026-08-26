@@ -164,6 +164,7 @@ async function seedRoom(studio: MemoryStudioPersistence): Promise<void> {
 function saidEvent(input: {
   event_id: string;
   participant: string;
+  participant_id?: string;
   message_id: string;
 }): Parameters<typeof dispatchHooksForEvent>[1] {
   return {
@@ -173,7 +174,7 @@ function saidEvent(input: {
     source: "/spaces/spc_demo",
     session_id: "ses_room1",
     participant: input.participant,
-    participant_id: `ptc_${input.participant}`,
+    participant_id: input.participant_id ?? `ptc_${input.participant}`,
     payload: {
       text: "hello",
       participant: input.participant,
@@ -214,17 +215,85 @@ describe("meetings/join-once", () => {
     expect(live.starts).toHaveLength(1);
     expect(live.starts[0]).toMatchObject({
       session_id: "ses_room1",
-      participant_id: "designer",
+      participant_id: "ptc_designer",
       handler_id: "meeting-designer",
     });
     expect(live.notifies).toHaveLength(1);
     expect(live.notifies[0]).toMatchObject({
       session_id: "ses_room1",
-      participant_id: "designer",
+      participant_id: "ptc_designer",
       message_id: "msg_2",
       handler_id: "meeting-designer",
     });
     expect(await studio.listSessions()).toHaveLength(1);
+  });
+
+  test("shell_spawn seat: first said starts, later said notifies (no second spawn)", async () => {
+    const studio = await freshStudio();
+    await seedRoom(studio);
+    await installHooks(studio, [
+      {
+        ...designerHandler,
+        type: "shell_spawn",
+        command: "cursor agent -p --force {{prompt}}",
+      },
+    ]);
+    const live = fakeLivePort();
+    const { deps, createdIds, invokes } = makeDeps(studio, live.port);
+
+    const first = await dispatchHooksForEvent(
+      deps,
+      saidEvent({ event_id: "evt_said_1", participant: "designer", message_id: "msg_1" }),
+      actor,
+    );
+    const second = await dispatchHooksForEvent(
+      deps,
+      saidEvent({ event_id: "evt_said_2", participant: "designer", message_id: "msg_2" }),
+      actor,
+    );
+
+    expect(first[0]?.outcome).toBe("delivered");
+    expect(second[0]?.outcome).toBe("delivered");
+    expect(createdIds).toEqual([]);
+    expect(invokes).toHaveLength(1);
+    expect(live.starts).toHaveLength(1);
+    expect(live.notifies).toHaveLength(1);
+    expect(live.notifies[0]).toMatchObject({
+      session_id: "ses_room1",
+      participant_id: "ptc_designer",
+      message_id: "msg_2",
+    });
+  });
+
+  test("registers shell_spawn seat before invoking the child", async () => {
+    const studio = await freshStudio();
+    await seedRoom(studio);
+    await installHooks(studio, [
+      {
+        ...designerHandler,
+        type: "shell_spawn",
+        command: "cursor agent -p --force {{prompt}}",
+      },
+    ]);
+    const live = fakeLivePort();
+    let liveDuringInvoke: LiveAssignmentRecord | null = null;
+    const { deps } = makeDeps(studio, live.port, async () => {
+      liveDuringInvoke = await live.port.findLive({
+        session_id: "ses_room1",
+        participant: "ptc_designer",
+      });
+      return { http: 200 };
+    });
+
+    await dispatchHooksForEvent(
+      deps,
+      saidEvent({ event_id: "evt_said_race", participant: "designer", message_id: "msg_race" }),
+      actor,
+    );
+
+    expect(liveDuringInvoke).toMatchObject({
+      handler_id: "meeting-designer",
+    });
   });
 
   test("same event_id → dedup one wake", async () => {
@@ -282,23 +351,62 @@ describe("meetings/join-once", () => {
       "meeting-designer",
       "meeting-qa",
     ]);
-    expect(live.starts.map((row) => row.participant_id).sort()).toEqual(["designer", "qa"]);
+    expect(live.starts.map((row) => row.participant_id).sort()).toEqual([
+      "ptc_designer",
+      "ptc_qa",
+    ]);
     expect(invokes).toHaveLength(2);
     expect(live.notifies).toHaveLength(2);
     expect(live.notifies).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          participant_id: "designer",
+          participant_id: "ptc_designer",
           handler_id: "meeting-designer",
           message_id: "msg_d2",
         }),
         expect.objectContaining({
-          participant_id: "qa",
+          participant_id: "ptc_qa",
           handler_id: "meeting-qa",
           message_id: "msg_q2",
         }),
       ]),
     );
+  });
+
+  test("same persona on two roster seats uses participant_id, not persona, as live key", async () => {
+    const studio = await freshStudio();
+    await seedRoom(studio);
+    await installHooks(studio, [designerHandler]);
+    const live = fakeLivePort();
+    const { deps, invokes } = makeDeps(studio, live.port);
+
+    await dispatchHooksForEvent(
+      deps,
+      saidEvent({
+        event_id: "evt_default_a",
+        participant: "designer",
+        participant_id: "ptc_default_a",
+        message_id: "msg_default_a",
+      }),
+      actor,
+    );
+    await dispatchHooksForEvent(
+      deps,
+      saidEvent({
+        event_id: "evt_default_b",
+        participant: "designer",
+        participant_id: "ptc_default_b",
+        message_id: "msg_default_b",
+      }),
+      actor,
+    );
+
+    expect(invokes).toHaveLength(2);
+    expect(live.starts.map((row) => row.participant_id)).toEqual([
+      "ptc_default_a",
+      "ptc_default_b",
+    ]);
+    expect(live.notifies).toHaveLength(0);
   });
 
   test("closeMeeting revokes live seats for the session", async () => {
@@ -338,9 +446,10 @@ describe("meetings/join-once", () => {
     expect(room.ok).toBe(true);
     if (!room.ok) return;
 
+    const participantId = room.roster[0]!.participant_id;
     await live.port.start({
       session_id: room.session_id,
-      participant_id: "designer",
+      participant_id: participantId,
       handler_id: "meeting-designer",
       run_id: "run_seat",
     });
@@ -353,7 +462,7 @@ describe("meetings/join-once", () => {
     expect(closed.ok).toBe(true);
     expect(live.revokes).toEqual([{ session_id: room.session_id }]);
     expect(
-      await live.port.findLive({ session_id: room.session_id, participant: "designer" }),
+      await live.port.findLive({ session_id: room.session_id, participant: participantId }),
     ).toBeNull();
   });
 });

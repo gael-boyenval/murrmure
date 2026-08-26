@@ -1,5 +1,21 @@
 # @murrmure/contracts
 
+## Unreleased
+
+### Added
+
+- Journal type `mrmr.meeting.resumed`.
+- `SpaceYamlFileSchema` and optional apply-bundle `space` section for
+  directory-owned `name` / `description` (purpose, max 500 characters).
+- Native capabilities `blob:read` and `blob:write` (meeting-seat attach without
+  `space:write`). Legacy v1 scopes still map `blob:write` → `space:write`.
+- Executor handlers and indexed actions may declare `continuation.command` and
+  `continuation.token_field` for opaque harness continuation.
+- `shell_spawn` handlers/actions may declare a persistent PTY `session`;
+  persistent mode rejects `continuation` and `timeout_ms`.
+- Meeting transcript messages carry `created_at` and support
+  `from: { human: true }`; receipts carry `recorded_at` and `latency_ms`.
+
 ## 0.2.0
 
 ### Minor Changes

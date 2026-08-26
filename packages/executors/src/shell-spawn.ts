@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { spawn as spawnPty, type IPty } from "node-pty";
 import type {
   DispatchAudit,
   DispatchContext,
@@ -13,11 +16,15 @@ import {
   buildInvokeTemplateBindings,
   resolveInvokePrompt,
 } from "./invoke-shell-prompt.js";
-import { resolveSafeShellCommand, HandlerBindingError } from "./shell-command.js";
+import {
+  resolveSafeShellCommand,
+  HandlerBindingError,
+} from "./shell-command.js";
 import {
   ArtifactMaterializationError,
   consumerInputPath,
   consumerInputsDirPath,
+  isMeetingWakeParams,
   materializeConsumerCopy,
   materializeConsumerCopyDirectory,
   runScratchDir,
@@ -28,6 +35,9 @@ export { shellQuote } from "./shell-command.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const TERMINATION_GRACE_MS = 5_000;
+const PERSISTENT_IDLE_MS = process.env.VITEST ? 0 : 1_500;
+const PERSISTENT_SUBMIT_DELAY_MS = process.env.VITEST ? 0 : 80;
+const PERSISTENT_BOOT_MS = process.env.VITEST ? 0 : 8_000;
 /** Keep MURRMURE_PROMPT in env only for small prompts — large values blow ARG_MAX / env limits. */
 const MAX_ENV_PROMPT_CHARS = 32_000;
 const POSIX_SHELL = "/bin/sh";
@@ -54,9 +64,37 @@ export interface ShellCompleteInput {
   outcome: DispatchOutcome;
 }
 
+export interface PersistentShellSessionController {
+  close(reason?: string): Promise<void>;
+  /** Queue one later turn. Flushed when the PTY is idle. */
+  write(text: string): void;
+}
+
+export type PersistentPtySpawn = (
+  file: string,
+  args: string[],
+  options: {
+    name: string;
+    cols: number;
+    rows: number;
+    cwd: string;
+    env: Record<string, string>;
+  },
+) => IPty;
+
 export interface ShellSpawnDeps {
   spawn?: typeof spawn;
+  spawnPty?: PersistentPtySpawn;
   onProcessStart?: (input: { run_id?: string; step_id: string; child: ReturnType<typeof spawn> }) => (() => void) | void;
+  onPersistentSessionStart?: (input: {
+    run_id?: string;
+    step_id: string;
+    action_name: string;
+    session_id: string;
+    participant_id: string;
+    pid: number;
+    controller: PersistentShellSessionController;
+  }) => (() => void) | void;
   onOutputChunk?: (input: ShellStreamChunk) => void;
   onShellComplete?: (input: ShellCompleteInput) => void | Promise<void>;
 }
@@ -68,6 +106,89 @@ function shouldDeliverPromptViaStdin(command: string, promptTemplate?: string): 
 
 function sanitizeStepId(step_id: string): string {
   return step_id.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+type MeetingContinuationState = {
+  protocol: "murrmure.meeting-continuation/v1";
+  token: string;
+  token_field: string;
+  updated_at: string;
+};
+
+function continuationPathSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+export function meetingContinuationStatePath(input: {
+  space_root: string;
+  session_id: string;
+  participant_id: string;
+  action_name: string;
+}): string {
+  return join(
+    input.space_root,
+    ".mrmr",
+    "dev",
+    "meeting-seats",
+    continuationPathSegment(input.session_id),
+    continuationPathSegment(input.participant_id),
+    `${continuationPathSegment(input.action_name)}.json`,
+  );
+}
+
+function readTokenField(value: unknown, field: string): unknown {
+  let current = value;
+  for (const segment of field.split(".")) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+/** Extract one opaque continuation token from JSON or JSONL stdout. */
+export function extractContinuationToken(stdout: string, tokenField: string): string | undefined {
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const token = readTokenField(JSON.parse(trimmed), tokenField);
+      if (typeof token === "string" && token.trim()) return token.trim();
+    } catch {
+      // Stream output may mix human-readable lines with JSON; ignore those.
+    }
+  }
+  return undefined;
+}
+
+async function readMeetingContinuationToken(path: string): Promise<string | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as Partial<MeetingContinuationState>;
+    return typeof parsed.token === "string" && parsed.token.trim()
+      ? parsed.token.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function persistMeetingContinuationToken(input: {
+  path: string;
+  stdout: string;
+  token_field: string;
+}): Promise<void> {
+  const token = extractContinuationToken(input.stdout, input.token_field);
+  if (!token) return;
+  await mkdir(dirname(input.path), { recursive: true });
+  const state: MeetingContinuationState = {
+    protocol: "murrmure.meeting-continuation/v1",
+    token,
+    token_field: input.token_field,
+    updated_at: new Date().toISOString(),
+  };
+  await writeFile(input.path, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
 }
 
 async function materializePromptArtifacts(input: {
@@ -243,8 +364,14 @@ export function resolveShellInvocation(
   invoke: InvokeRequest,
   context: DispatchContext,
   artifactBindings?: Record<string, string | null>,
+  options: {
+    command?: string;
+    continuation_token?: string;
+    /** Persistent seats pass `{{prompt}}` as argv so interactive CLIs start a real first turn. */
+    persistent?: boolean;
+  } = {},
 ): ShellInvocation {
-  const command = context.action.command;
+  const command = options.command ?? context.action.command;
   if (!command) {
     throw new Error(`Action '${context.action.name}' has no command for shell_spawn`);
   }
@@ -252,10 +379,12 @@ export function resolveShellInvocation(
   const templateContext = buildTemplateContext(invoke, context);
   const bindings = {
     ...buildInvokeTemplateBindings(templateContext),
+    continuation_token: options.continuation_token,
     ...(artifactBindings ?? {}),
   };
   const resolvedPrompt = resolveInvokePrompt(templateContext, context.action.prompt);
-  const viaStdin = shouldDeliverPromptViaStdin(command, context.action.prompt);
+  const viaStdin =
+    !options.persistent && shouldDeliverPromptViaStdin(command, context.action.prompt);
 
   const resolved = resolveSafeShellCommand(command, bindings, {
     stripPrompt: viaStdin,
@@ -368,8 +497,10 @@ export function buildArtifactReferenceBindings(
   return bindings;
 }
 
-function shouldDetachShell(context: DispatchContext): boolean {
-  return Boolean(context.step_contract);
+function shouldDetachShell(invoke: InvokeRequest, context: DispatchContext): boolean {
+  // Meeting seats are long-lived assignments. Return as soon as the process
+  // starts so the hub can register the live seat before the child emits said.
+  return Boolean(context.step_contract) || isMeetingWakeParams(invoke.params);
 }
 
 type ShellRunResult = { stdout: string; stderr: string; code: number | null };
@@ -622,6 +753,227 @@ function runCommandDetached(
   });
 }
 
+const PERSISTENT_OUTPUT_TAIL_CHARS = 12_000;
+const PERSISTENT_INLINE_TURN_CHARS = 240;
+
+function persistLiveTurnFile(session_id: string, text: string): string | null {
+  if (!text.includes("\n") && text.length <= PERSISTENT_INLINE_TURN_CHARS) return null;
+  const safeSession = session_id.replace(/[^A-Za-z0-9_-]/g, "_");
+  const dir = join(tmpdir(), "murrmure-live-turns", safeSession);
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `turn-${Date.now()}.md`);
+  writeFileSync(path, text, "utf8");
+  return path;
+}
+
+function ptyEnvironment(extraEnv: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value != null) env[key] = value;
+  }
+  return { ...env, ...extraEnv };
+}
+
+function terminatePtyProcessGroup(
+  pty: IPty,
+  signal: "SIGTERM" | "SIGKILL",
+): void {
+  try {
+    process.kill(-pty.pid, signal);
+    return;
+  } catch {
+    // The PTY host may not expose a separate process group on every platform.
+  }
+  try {
+    pty.kill(signal);
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * Keep one interactive terminal alive for the assignment.
+ * First turn is the command argv (`{{prompt}}`). Later turns are written to
+ * the PTY after the process goes idle, then submitted with Enter.
+ */
+function runPersistentCommand(
+  command: string,
+  cwd: string,
+  extraEnv: Record<string, string>,
+  spawnPtyFn: PersistentPtySpawn,
+  deps: Pick<ShellSpawnDeps, "onPersistentSessionStart" | "onShellComplete" | "onOutputChunk">,
+  processMeta: {
+    run_id?: string;
+    step_id: string;
+    action_name: string;
+    session_id: string;
+    participant_id: string;
+    shutdown_grace_ms: number;
+  },
+): void {
+  const pty = spawnPtyFn(POSIX_SHELL, ["-e", "-c", command], {
+    name: "xterm-256color",
+    cols: 120,
+    rows: 40,
+    cwd,
+    env: ptyEnvironment(extraEnv),
+  });
+
+  let settled = false;
+  let closeRequested = false;
+  let closeReason = "assignment_closed";
+  let outputTail = "";
+  let turnBusy = true;
+  const turnQueue: string[] = [];
+  let gracefulTimer: ReturnType<typeof setTimeout> | undefined;
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let submitTimer: ReturnType<typeof setTimeout> | undefined;
+  let bootTimer: ReturnType<typeof setTimeout> | undefined;
+  let unregister: (() => void) | void;
+  let resolveExit!: () => void;
+  const exited = new Promise<void>((resolve) => {
+    resolveExit = resolve;
+  });
+
+  const clearTimers = () => {
+    if (gracefulTimer) clearTimeout(gracefulTimer);
+    if (killTimer) clearTimeout(killTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (submitTimer) clearTimeout(submitTimer);
+    if (bootTimer) clearTimeout(bootTimer);
+  };
+
+  const submitTurn = (text: string) => {
+    const body = text.replace(/\s+$/g, "");
+    if (!body) return;
+    const turnPath = persistLiveTurnFile(processMeta.session_id, body);
+    const submitted = turnPath
+      ? `New meeting message. Read ${turnPath} and follow those instructions now.`
+      : body;
+    turnBusy = true;
+    try {
+      pty.write(submitted);
+    } catch {
+      return;
+    }
+    const sendEnter = () => {
+      if (settled || closeRequested) return;
+      try {
+        pty.write("\r");
+      } catch {
+        /* process may already be exiting */
+      }
+    };
+    if (PERSISTENT_SUBMIT_DELAY_MS === 0) {
+      sendEnter();
+      return;
+    }
+    submitTimer = setTimeout(sendEnter, PERSISTENT_SUBMIT_DELAY_MS);
+  };
+
+  const flushNextTurn = () => {
+    if (settled || closeRequested || turnBusy || turnQueue.length === 0) return;
+    const next = turnQueue.shift();
+    if (next) submitTurn(next);
+  };
+
+  const markIdle = () => {
+    turnBusy = false;
+    flushNextTurn();
+  };
+
+  const scheduleIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(markIdle, PERSISTENT_IDLE_MS);
+  };
+
+  const controller: PersistentShellSessionController = {
+    write(text) {
+      if (settled || closeRequested) return;
+      const body = text.trim();
+      if (!body) return;
+      turnQueue.push(body);
+      if (!turnBusy) flushNextTurn();
+    },
+    async close(reason) {
+      if (settled) return;
+      if (!closeRequested) {
+        closeRequested = true;
+        closeReason = reason?.trim() || closeReason;
+        try {
+          // Ctrl-D asks an idle interactive CLI to exit without starting a new
+          // turn. Escalate only if the harness does not honor it.
+          pty.write("\x04");
+        } catch {
+          /* process may already be exiting */
+        }
+        gracefulTimer = setTimeout(() => {
+          terminatePtyProcessGroup(pty, "SIGTERM");
+          killTimer = setTimeout(
+            () => terminatePtyProcessGroup(pty, "SIGKILL"),
+            TERMINATION_GRACE_MS,
+          );
+        }, processMeta.shutdown_grace_ms);
+      }
+      await exited;
+    },
+  };
+
+  pty.onData((chunk) => {
+    outputTail = `${outputTail}${chunk}`.slice(-PERSISTENT_OUTPUT_TAIL_CHARS);
+    deps.onOutputChunk?.({
+      run_id: processMeta.run_id,
+      step_id: processMeta.step_id,
+      stream: "stdout",
+      chunk,
+    });
+    turnBusy = true;
+    scheduleIdle();
+  });
+
+  pty.onExit(({ exitCode, signal }) => {
+    if (settled) return;
+    settled = true;
+    clearTimers();
+    unregister?.();
+    resolveExit();
+    const outcome: DispatchOutcome = closeRequested
+      ? {
+          status: "completed",
+          run_id: processMeta.run_id,
+          step_id: processMeta.step_id,
+          result: { persistent_session: true, close_reason: closeReason },
+        }
+      : {
+          status: "failed",
+          run_id: processMeta.run_id,
+          step_id: processMeta.step_id,
+          error_code: "PERSISTENT_SESSION_EXITED",
+          detail: `Persistent shell session exited before assignment close (code ${exitCode}, signal ${signal})`,
+          result: { persistent_session: true, output_tail: outputTail, exit_code: exitCode, signal },
+        };
+    void deps.onShellComplete?.({
+      run_id: processMeta.run_id,
+      step_id: processMeta.step_id,
+      action_name: processMeta.action_name,
+      outcome,
+    });
+  });
+
+  unregister = deps.onPersistentSessionStart?.({
+    run_id: processMeta.run_id,
+    step_id: processMeta.step_id,
+    action_name: processMeta.action_name,
+    session_id: processMeta.session_id,
+    participant_id: processMeta.participant_id,
+    pid: pty.pid,
+    controller,
+  });
+
+  bootTimer = setTimeout(markIdle, PERSISTENT_BOOT_MS);
+}
+
 function parseShellResult(
   stdout: string,
   requiresJson: boolean,
@@ -695,6 +1047,7 @@ function buildShellOutcome(
 
 export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPort {
   const spawnFn = deps.spawn ?? spawn;
+  const spawnPtyFn = deps.spawnPty ?? spawnPty;
   const onProcessStart = deps.onProcessStart;
 
   return {
@@ -743,7 +1096,29 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           run_id: invoke.run_id,
           consumer_step: step_id,
         });
-        const invocation = resolveShellInvocation(invoke, context, artifactBindings);
+        const meetingWake = isMeetingWakeParams(invoke.params) ? invoke.params : undefined;
+        const meetingContinuation =
+          meetingWake && context.action.continuation
+            ? {
+                path: meetingContinuationStatePath({
+                  space_root: context.space_root,
+                  session_id: meetingWake.session_id,
+                  participant_id: meetingWake.participant_id,
+                  action_name: invoke.action_name,
+                }),
+                config: context.action.continuation,
+              }
+            : undefined;
+        const continuationToken = meetingContinuation
+          ? await readMeetingContinuationToken(meetingContinuation.path)
+          : undefined;
+        const invocation = resolveShellInvocation(invoke, context, artifactBindings, {
+          command: continuationToken
+            ? meetingContinuation?.config.command
+            : context.action.command,
+          continuation_token: continuationToken,
+          persistent: context.action.session?.mode === "persistent",
+        });
         const prompt = resolveShellPrompt(invoke, context);
 
         const invokeEnv: Record<string, string> = {
@@ -752,10 +1127,22 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           MURRMURE_RUN_ID: invoke.run_id ?? "",
           MURRMURE_SESSION_ID: invoke.session_id ?? "",
           MURRMURE_STEP_ID: step_id,
-          MURRMURE_ASSIGNMENT_SCOPE: `${invoke.run_id ?? ""}:${step_id}:${invoke.action_name}`,
           MURRMURE_INVOKE_PARAMS: JSON.stringify(invoke.params ?? {}),
           MURRMURE_INPUT: JSON.stringify(context.exec_input ?? invoke.exec_input ?? {}),
         };
+        if (meetingWake) {
+          // Meeting shells use the space connection, not a step-scoped resolve
+          // credential. These ids let the child bridge bind its exact `ptc_*`
+          // instead of guessing by persona or connection order.
+          invokeEnv.MURRMURE_MEETING_SESSION_ID = meetingWake.session_id;
+          invokeEnv.MURRMURE_MEETING_PARTICIPANT_ID = meetingWake.participant_id;
+        } else {
+          invokeEnv.MURRMURE_ASSIGNMENT_SCOPE =
+            `${invoke.run_id ?? ""}:${step_id}:${invoke.action_name}`;
+        }
+        if (continuationToken) {
+          invokeEnv.MURRMURE_CONTINUATION_TOKEN = continuationToken;
+        }
         const promptArtifacts = await materializePromptArtifacts({
           prompt,
           space_root: context.space_root,
@@ -778,14 +1165,64 @@ export function createShellSpawnExecutor(deps: ShellSpawnDeps = {}): ExecutorPor
           }
         }
 
-        if (shouldDetachShell(context)) {
+        if (context.action.session?.mode === "persistent") {
+          if (!meetingWake) {
+            return {
+              status: "failed",
+              run_id: invoke.run_id,
+              step_id,
+              error_code: "PERSISTENT_SESSION_IDENTITY_MISSING",
+              detail: "persistent shell_spawn currently requires a meeting session and participant",
+            };
+          }
+          runPersistentCommand(
+            invocation.command,
+            invocation.cwd,
+            invokeEnv,
+            spawnPtyFn,
+            deps,
+            {
+              run_id: invoke.run_id,
+              step_id,
+              action_name: invoke.action_name,
+              session_id: meetingWake.session_id,
+              participant_id: meetingWake.participant_id,
+              shutdown_grace_ms: context.action.session.shutdown_grace_ms,
+            },
+          );
+          return {
+            status: "dispatched",
+            run_id: invoke.run_id,
+            step_id,
+          };
+        }
+
+        if (shouldDetachShell(invoke, context)) {
+          const detachedDeps = meetingContinuation
+            ? {
+                ...deps,
+                onShellComplete: async (input: ShellCompleteInput) => {
+                  const stdout =
+                    input.outcome.result &&
+                    typeof input.outcome.result.stdout === "string"
+                      ? input.outcome.result.stdout
+                      : "";
+                  await persistMeetingContinuationToken({
+                    path: meetingContinuation.path,
+                    stdout,
+                    token_field: meetingContinuation.config.token_field,
+                  });
+                  await deps.onShellComplete?.(input);
+                },
+              }
+            : deps;
           runCommandDetached(
             invocation.command,
             invocation.cwd,
             timeoutMs,
             spawnFn,
             invokeEnv,
-            deps,
+            detachedDeps,
             {
               run_id: invoke.run_id,
               step_id,

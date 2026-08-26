@@ -26,6 +26,7 @@ import {
   resolveRunPolicies,
   buildRunPolicyRows,
   assertSpaceQuiescent,
+  mergePlatformFlows,
 } from "@murrmure/hub-core";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
@@ -359,18 +360,22 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
         studio: murrmurePersistence,
         target_space_id: originSpaceId,
       });
-      const mergedFlowEntries = [
+      const localAndBound: FlowIndexEntry[] = [
         ...result.next.flows.map((row) => {
           const { payload_json: _payload, ...entry } = row;
           return entry;
         }),
       ];
-      const seenFlowIds = new Set(mergedFlowEntries.map((entry) => entry.flow_id));
+      const seenFlowIds = new Set(localAndBound.map((entry) => entry.flow_id));
       for (const entry of bound.flows) {
         if (seenFlowIds.has(entry.flow_id)) continue;
-        mergedFlowEntries.push(entry);
+        localAndBound.push(entry);
         seenFlowIds.add(entry.flow_id);
       }
+      const mergedFlowEntries = mergePlatformFlows(
+        localAndBound,
+        parsed.data.handlers?.file.handlers,
+      );
       const mergedFlowRows = flowRowsFromEntries(mergedFlowEntries);
       const flowChanges = recomputeFlowChanges(current.flows, mergedFlowRows);
       result.next.flows = mergedFlowRows;
@@ -465,6 +470,20 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
       const warnings = [...lintSpaceApplyBundle(parsed.data), ...bound.warnings];
 
       await murrmurePersistence.replaceSpaceIndex(bare, result.next);
+
+      const spaceYaml = parsed.data.space?.file;
+      if (spaceYaml) {
+        const name = spaceYaml.name?.trim();
+        const description = spaceYaml.description?.trim() || undefined;
+        await murrmurePersistence.updateSpace(bare, {
+          ...(name ? { name } : {}),
+          description,
+        });
+        broadcastSse(ctx, {
+          event: "space.list_changed",
+          data: { space_id: originSpaceId },
+        });
+      }
 
       broadcastSse(ctx, {
         event: JOURNAL_EVENT_TYPES.SPACE_INDEX_UPDATED,

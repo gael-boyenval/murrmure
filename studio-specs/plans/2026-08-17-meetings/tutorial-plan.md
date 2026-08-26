@@ -491,7 +491,7 @@ In **each** folder:
 
 ```bash
 mrmr connection grant --space spc_… \
-  --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit,journal:read
+  --capabilities=space:read,flow:read,flow:run,step:resolve,event:emit,journal:read,blob:write,blob:read
 ```
 
 Reload both tools. Chat A should see `murrmure_emit_event` and `murrmure_meeting_transcript` (exact names: bind at write time from `mcp-tools.md`). Chat B the same.

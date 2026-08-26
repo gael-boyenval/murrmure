@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   formatInvokeShellPrompt,
   resolveActionTemplate,
@@ -6,16 +6,72 @@ import {
 } from "../src/invoke-shell-prompt.js";
 import {
   createShellSpawnExecutor,
+  extractContinuationToken,
+  meetingContinuationStatePath,
+  type PersistentShellSessionController,
   resolveShellCommand,
+  resolveShellInvocation,
   resolveShellPrompt,
   shellQuote,
 } from "../src/shell-spawn.js";
 import type { DispatchContext, InvokeRequest } from "@murrmure/runtime-contracts";
 import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("shell-spawn helpers", () => {
   test("shellQuote escapes single quotes", () => {
     expect(shellQuote("it's")).toBe(`'it'"'"'s'`);
+  });
+
+  test("extracts an opaque continuation token from JSONL", () => {
+    const stdout = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "chat_123" }),
+      JSON.stringify({ type: "result", session_id: "chat_123" }),
+    ].join("\n");
+    expect(extractContinuationToken(stdout, "session_id")).toBe("chat_123");
+  });
+
+  test("resolves a continuation command with the saved token", () => {
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "said",
+        since_seq: 2,
+      },
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent -p {{prompt}}",
+        continuation: {
+          command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+          token_field: "session_id",
+        },
+        prompt: "Continue the room",
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: "/tmp/demo",
+    };
+    const resolved = resolveShellInvocation(invoke, context, undefined, {
+      command: context.action.continuation!.command,
+      continuation_token: "chat_123",
+    });
+    expect(resolved.command).toBe("cursor agent --resume 'chat_123' -p");
+    expect(resolved.stdin_prompt).toContain("Continue the room");
+    expect(
+      meetingContinuationStatePath({
+        space_root: "/tmp/demo",
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        action_name: "meeting-developer",
+      }),
+    ).toContain("/meeting-seats/ses_room/ptc_developer/meeting-developer.json");
   });
 
   test("resolveActionTemplate substitutes invoke params", () => {
@@ -226,5 +282,263 @@ describe("shell-spawn helpers", () => {
     );
     expect(capturedEnv?.MURRMURE_RUN_ID).toBe("run_demo");
     expect(capturedEnv?.MURRMURE_STEP_ID).toBe("build.build-loop");
+  });
+
+  test("persists the first cursor chat id and resumes it on the next meeting turn", async () => {
+    const root = mkdtempSync(join(tmpdir(), "murrmure-meeting-continuation-"));
+    const commands: string[] = [];
+    const environments: NodeJS.ProcessEnv[] = [];
+    const spawnStub = ((
+      _binary: string,
+      args: string[],
+      options: { env?: NodeJS.ProcessEnv },
+    ) => {
+      commands.push(args[2]!);
+      environments.push(options.env ?? {});
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+        unref: () => void;
+      };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.unref = () => undefined;
+      queueMicrotask(() => {
+        child.stdout.emit(
+          "data",
+          Buffer.from(
+            `${JSON.stringify({
+              type: "system",
+              subtype: "init",
+              session_id: "cursor_chat_1",
+            })}\n`,
+          ),
+        );
+        child.emit("close", 0);
+      });
+      return child as never;
+    }) as unknown as typeof import("node:child_process").spawn;
+    const onShellComplete = vi.fn();
+    const executor = createShellSpawnExecutor({ spawn: spawnStub, onShellComplete });
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent -p {{prompt}}",
+        continuation: {
+          command: "cursor agent --resume {{continuation_token}} -p {{prompt}}",
+          token_field: "session_id",
+        },
+        prompt: "Continue the meeting",
+        timeout_ms: 10_000,
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: root,
+    };
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      run_id: "run_1",
+      step_id: "hook:meeting-developer",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "convened",
+        since_seq: 0,
+      },
+    };
+
+    try {
+      await executor.dispatch(invoke, context);
+      const statePath = meetingContinuationStatePath({
+        space_root: root,
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        action_name: "meeting-developer",
+      });
+      await vi.waitFor(() => {
+        expect(JSON.parse(readFileSync(statePath, "utf8")).token).toBe("cursor_chat_1");
+      });
+
+      await executor.dispatch(
+        {
+          ...invoke,
+          run_id: "run_2",
+          params: {
+            ...invoke.params,
+            trigger: "said",
+            message_id: "msg_2",
+            since_seq: 2,
+          },
+        },
+        context,
+      );
+      expect(commands).toEqual([
+        "cursor agent -p",
+        "cursor agent --resume 'cursor_chat_1' -p",
+      ]);
+      expect(environments[0]).toMatchObject({
+        MURRMURE_MEETING_SESSION_ID: "ses_room",
+        MURRMURE_MEETING_PARTICIPANT_ID: "ptc_developer",
+      });
+      expect(environments[0]?.MURRMURE_ASSIGNMENT_SCOPE).toBeUndefined();
+      await vi.waitFor(() => expect(onShellComplete).toHaveBeenCalledTimes(2));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps one PTY alive until the meeting assignment closes", async () => {
+    const writes: string[] = [];
+    let spawnedCommand = "";
+    let exitListener:
+      | ((event: { exitCode: number; signal?: number }) => void)
+      | undefined;
+    const pty = {
+      pid: 4242,
+      cols: 120,
+      rows: 40,
+      process: "cursor",
+      handleFlowControl: false,
+      onData: () => ({ dispose: () => undefined }),
+      onExit: (listener: typeof exitListener) => {
+        exitListener = listener;
+        return { dispose: () => undefined };
+      },
+      resize: () => undefined,
+      clear: () => undefined,
+      write: (data: string | Buffer) => writes.push(String(data)),
+      kill: () => undefined,
+      pause: () => undefined,
+      resume: () => undefined,
+    };
+    let controller: PersistentShellSessionController | undefined;
+    const onShellComplete = vi.fn();
+    const executor = createShellSpawnExecutor({
+      spawnPty: vi.fn((_file, args) => {
+        spawnedCommand = String(args[2] ?? "");
+        return pty as never;
+      }),
+      onPersistentSessionStart: (input) => {
+        controller = input.controller;
+      },
+      onShellComplete,
+    });
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      run_id: "run_seat",
+      step_id: "hook:meeting-developer",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "convened",
+        since_seq: 0,
+      },
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent --force {{prompt}}",
+        prompt: "Stay in this meeting.",
+        session: {
+          mode: "persistent",
+          transport: "pty",
+          shutdown_grace_ms: 5_000,
+        },
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: "/tmp/demo",
+    };
+
+    const outcome = await executor.dispatch(invoke, context);
+    expect(outcome.status).toBe("dispatched");
+    expect(spawnedCommand).toContain("Stay in this meeting.");
+    expect(writes).toEqual([]);
+    expect(controller).toBeDefined();
+    expect(onShellComplete).not.toHaveBeenCalled();
+
+    controller!.write("New message in this meeting.");
+    await vi.waitFor(() => {
+      expect(writes.some((chunk) => chunk.includes("New message in this meeting."))).toBe(true);
+      expect(writes).toContain("\r");
+    });
+
+    const closing = controller!.close("meeting_closed");
+    expect(writes).toContain("\x04");
+    exitListener?.({ exitCode: 0 });
+    await closing;
+    await vi.waitFor(() =>
+      expect(onShellComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outcome: expect.objectContaining({
+            status: "completed",
+            result: expect.objectContaining({ persistent_session: true }),
+          }),
+        }),
+      ),
+    );
+  });
+
+  test("writes a multiline later turn as a file path plus Enter", async () => {
+    const writes: string[] = [];
+    const pty = {
+      pid: 4243,
+      cols: 120,
+      rows: 40,
+      process: "cursor",
+      handleFlowControl: false,
+      onData: () => ({ dispose: () => undefined }),
+      onExit: () => ({ dispose: () => undefined }),
+      resize: () => undefined,
+      clear: () => undefined,
+      write: (data: string | Buffer) => writes.push(String(data)),
+      kill: () => undefined,
+      pause: () => undefined,
+      resume: () => undefined,
+    };
+    let controller: PersistentShellSessionController | undefined;
+    const executor = createShellSpawnExecutor({
+      spawnPty: vi.fn(() => pty as never),
+      onPersistentSessionStart: (input) => {
+        controller = input.controller;
+      },
+    });
+    const invoke: InvokeRequest = {
+      action_name: "meeting-developer",
+      space_id: "spc_demo",
+      session_id: "ses_room",
+      run_id: "run_seat",
+      step_id: "hook:meeting-developer",
+      params: {
+        session_id: "ses_room",
+        participant_id: "ptc_developer",
+        trigger: "convened",
+        since_seq: 0,
+      },
+    };
+    const context: DispatchContext = {
+      action: {
+        name: "meeting-developer",
+        command: "cursor agent --force {{prompt}}",
+        prompt: "Stay in this meeting.",
+        session: {
+          mode: "persistent",
+          transport: "pty",
+          shutdown_grace_ms: 5_000,
+        },
+      },
+      binding: { type: "shell_spawn", executor_id: "handler:meeting-developer" },
+      space_root: "/tmp/demo",
+    };
+
+    await executor.dispatch(invoke, context);
+    controller!.write("New message in this meeting.\n\nfrom: human chair\ntext: hello");
+    await vi.waitFor(() => {
+      expect(writes.some((chunk) => chunk.includes("murrmure-live-turns"))).toBe(true);
+      expect(writes.some((chunk) => chunk.includes("Read "))).toBe(true);
+      expect(writes).toContain("\r");
+    });
   });
 });

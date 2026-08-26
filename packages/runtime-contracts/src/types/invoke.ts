@@ -77,6 +77,15 @@ export interface DispatchContext {
   action: {
     name: string;
     command?: string;
+    continuation?: {
+      command: string;
+      token_field: string;
+    };
+    session?: {
+      mode: "persistent";
+      transport: "pty";
+      shutdown_grace_ms: number;
+    };
     prompt?: string;
     cwd?: string;
     timeout_ms?: number;

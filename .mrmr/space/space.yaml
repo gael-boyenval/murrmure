@@ -1,6 +1,8 @@
 # Worker space: event handlers in handlers.yaml react to feedback events from spc_my_space.
 apiVersion: murrmure.space/v1
 slug: murrmure
+name: Murrmure
+description: Worker space for the Murrmure platform monorepo (hub, CLI, contracts, shell, view SDK). Maintainers ship protocol and kernel code here; handlers run operator directives, meeting dev seats, and triage cross-repo failure and DX feedback into feedbacks/. Not for user workflows—those live in dedicated spaces; examples and CI fixtures in test-utils/.
 link:
   space_id: spc_murrmure
   host: gaelboyenval.home

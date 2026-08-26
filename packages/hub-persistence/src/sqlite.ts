@@ -1591,6 +1591,20 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     return row ? this.rowToMeetingSession(row) : null;
   }
 
+  async listOpenMeetings(): Promise<MeetingSessionRow[]> {
+    const rows = this.db
+      .prepare("SELECT * FROM meeting_sessions WHERE status = ? ORDER BY updated_at DESC")
+      .all("open") as Array<Record<string, string | number | null>>;
+    return rows.map((row) => this.rowToMeetingSession(row));
+  }
+
+  async listMeetings(): Promise<MeetingSessionRow[]> {
+    const rows = this.db
+      .prepare("SELECT * FROM meeting_sessions ORDER BY updated_at DESC")
+      .all() as Array<Record<string, string | number | null>>;
+    return rows.map((row) => this.rowToMeetingSession(row));
+  }
+
   async upsertMeetingSnapshot(row: MeetingSessionRow): Promise<UpsertMeetingSnapshotResult> {
     const bare = this.bareSessionId(row.session_id);
     const existing = await this.getMeetingBySession(bare);

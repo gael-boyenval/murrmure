@@ -2,8 +2,37 @@
 
 ## Unreleased
 
+### Changed
+
+- `murrmure-agent` **1.3.12**: meeting seat `trigger: resumed` continues the
+  same `ses_*` / `ptc_*` from the transcript.
+- `murrmure-agent` **1.3.11**: admin directive MCP
+  (`murrmure_list_directive_eligible`, `murrmure_start_directive`, `hub:admin`).
+- `murrmure-developer` **1.2.11**: directive recipe sets `timeout_ms: 3600000`.
+- `murrmure-developer` **1.2.10**: directive start via admin MCP.
+- `murrmure-developer` **1.2.9**: `space.yaml` `description` is the space
+  purpose. Apply copies `name` / `description` onto the hub space.
+- Meeting seat docs/skills: default handler uses one persistent
+  `shell_spawn` PTY process from convene through close. First turn is the
+  command argument; later `said` writes into that PTY. Do not put `murrmure` in
+  `~/.cursor/mcp.json`.
+- `murrmure-developer` **1.2.8**: handler-only directive recipe
+  (`reference/directive.md`) so a space appears under header **New directive**.
+- `murrmure-agent` **1.3.10** and `murrmure-developer` **1.2.7**: meeting-seat
+  grant includes `blob:write` / `blob:read`. Attach with `murrmure_put_artifact`,
+  then `said` with `artifacts: [xfr_*]`; peers still `murrmure_get_artifact`.
+- `connection grant` accepts `blob:read` and `blob:write`. Meeting-seat recipe:
+  `space:read,flow:read,flow:run,step:resolve,event:emit,journal:read,blob:write,blob:read`.
+
+### Fixed
+
+- `mrmr space doctor` warns when a catalog tool lacks `inputSchema.type: object`
+  (Cursor then shows 0 tools).
+
 ### Added
 
+- `mrmr space apply` includes `space.yaml` in the apply bundle.
+  `space init --description` and `space link --create` seed purpose from yaml.
 - `mrmr meeting start` convenes a room via `POST /v1/meetings`
   (`--title --goal --chair --participant --session`).
 

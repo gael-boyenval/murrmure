@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SpaceIdSchema } from "../ids.js";
+import { HandlerContinuationSchema, HandlerSessionSchema } from "./handler.js";
 
 export const ActionIdempotencySchema = z.enum(["caller_key", "none"]);
 
@@ -12,6 +13,8 @@ export const IndexedActionSchema = z.object({
   response_schema: z.string().optional(),
   idempotency: ActionIdempotencySchema.optional(),
   command: z.string().optional(),
+  continuation: HandlerContinuationSchema.optional(),
+  session: HandlerSessionSchema.optional(),
   /** Multiline template for agent/shell prompts; supports `{{param}}` from invoke params. */
   prompt: z.string().optional(),
   cwd: z.string().optional(),

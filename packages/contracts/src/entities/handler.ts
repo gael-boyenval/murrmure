@@ -48,6 +48,30 @@ export const HandlerTypeSchema = z.enum([
   "view_resolver",
 ]);
 
+/**
+ * Optional harness-owned continuation contract for one-shot shell processes.
+ * Murrmure stores the opaque token read from JSON/JSONL stdout and uses the
+ * continuation command on the next delivery for the same meeting seat.
+ */
+export const HandlerContinuationSchema = z
+  .object({
+    command: z.string().min(1),
+    token_field: z.string().min(1).default("session_id"),
+  })
+  .strict();
+
+/**
+ * Runtime-owned long-lived shell session. The handler supplies the command;
+ * Murrmure owns the PTY and closes it with the assignment lifecycle.
+ */
+export const HandlerSessionSchema = z
+  .object({
+    mode: z.literal("persistent"),
+    transport: z.literal("pty").default("pty"),
+    shutdown_grace_ms: z.number().int().positive().max(30_000).default(5_000),
+  })
+  .strict();
+
 export const HandlerCompleteSchema = z.enum(["auto", "cli", "explicit"]);
 
 /** Fields shared by every handler. `contract_keys` is prompt scope only. */
@@ -66,6 +90,8 @@ const ExecutorHandlerSpecSchema = z
     complete: HandlerCompleteSchema.default("explicit"),
     prompt: z.string().optional(),
     command: z.string().optional(),
+    continuation: HandlerContinuationSchema.optional(),
+    session: HandlerSessionSchema.optional(),
     cwd: z.string().optional(),
     timeout_ms: z.number().int().positive().optional(),
     delivery: z.enum(["fail_fast", "queue_until_executor"]).optional(),
@@ -82,10 +108,35 @@ const ViewResolverHandlerSpecSchema = z
   })
   .strict();
 
-export const HandlerSpecSchema = z.discriminatedUnion("type", [
-  ViewResolverHandlerSpecSchema,
-  ExecutorHandlerSpecSchema,
-]);
+export const HandlerSpecSchema = z
+  .discriminatedUnion("type", [
+    ViewResolverHandlerSpecSchema,
+    ExecutorHandlerSpecSchema,
+  ])
+  .superRefine((handler, ctx) => {
+    if (handler.type === "view_resolver" || !handler.session) return;
+    if (handler.type !== "shell_spawn") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "session.mode persistent is supported only by shell_spawn",
+        path: ["session"],
+      });
+    }
+    if (handler.continuation) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "persistent shell_spawn cannot also declare continuation",
+        path: ["continuation"],
+      });
+    }
+    if (handler.timeout_ms) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "persistent shell_spawn lifetime is assignment-owned; remove timeout_ms",
+        path: ["timeout_ms"],
+      });
+    }
+  });
 
 /**
  * Authored run policy — per-flow run capacity declared in `handlers.yaml`.
@@ -119,6 +170,8 @@ export type HandlerEventFilter = z.infer<typeof HandlerEventFilterSchema>;
 export type HandlerOn = z.infer<typeof HandlerOnSchema>;
 export type HandlerType = z.infer<typeof HandlerTypeSchema>;
 export type HandlerComplete = z.infer<typeof HandlerCompleteSchema>;
+export type HandlerContinuation = z.infer<typeof HandlerContinuationSchema>;
+export type HandlerSession = z.infer<typeof HandlerSessionSchema>;
 export type HandlerSpec = z.infer<typeof HandlerSpecSchema>;
 export type HandlersFile = z.infer<typeof HandlersFileSchema>;
 export type RunPolicy = z.infer<typeof RunPolicySchema>;

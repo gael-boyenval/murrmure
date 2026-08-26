@@ -22,7 +22,7 @@ From **chat A** (`flow:run` is enough for `murrmure_start_meeting`). Same roster
 You should see:
 
 - New `ses_…`
-- Sessions list meeting badge
+- Header **Meetings** (not space home / Active runs — there is no run)
 - Transcript default
 - **No** `api-shape` run / no `decide` node
 - Same `said` / Close rules
@@ -43,7 +43,7 @@ mrmr meeting start \
 
 ## Step 2 — What headless is for
 
-Agents / automation. Humans still **Run** a meeting flow when they want a dashboard trigger. Do not add a shell “New meeting” habit.
+Agents / automation. Humans can also use the shell header **Meetings** + **+** (spaces + personas, you chair) or **Run** a meeting flow when they want a dashboard trigger.
 
 ## Step 3 — Commit (cleanup last)
 
@@ -59,7 +59,7 @@ git commit -m "chore: configure meeting tutorial spaces"
 
 ## You wired
 
-Two spaces · ads · `meeting:` step · Transcript · `mcp_session` said handlers · chair close → implement · headless convene.
+Two spaces · ads · `meeting:` step · Transcript · `shell_spawn` said handlers · chair close → implement · headless convene.
 
 ## Next paths
 

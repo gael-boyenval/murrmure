@@ -25,7 +25,10 @@ execution is internal dispatch only and gate approval uses `flow:run`.
 | `blob:read` | `space:read` |
 | `blob:write` | `space:write` |
 
-Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `executor:poll`, `hub:admin`.
+Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `blob:read`, `blob:write`, `executor:poll`, `hub:admin`.
+
+Legacy v1 `blob:*` scopes still map as above. New grants may mint `blob:write`
+directly so a meeting seat can `murrmure_put_artifact` without `space:write`.
 
 ## MCP tool ↔ capability
 
@@ -33,7 +36,11 @@ Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`,
 |----------|-------------------------------|
 | `murrmure_resolve_step` | `step:resolve` |
 | `murrmure_emit_event` | `event:emit` (v1 `event:emit` scope) |
+| `murrmure_put_artifact` | `blob:write` (or `space:write`) |
+| `murrmure_get_artifact` | `space:read` + artifact ACL |
 | `murrmure_create_run` | `flow:run` |
+| `murrmure_list_directive_eligible` | `hub:admin` |
+| `murrmure_start_directive` | `hub:admin` |
 
 ## API
 

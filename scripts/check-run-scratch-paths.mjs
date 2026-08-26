@@ -4,10 +4,10 @@
 // Two invariants are enforced across active surfaces:
 //   1. No `.mrmr.temp/runs` remains in active code, tests, fixtures, specs,
 //      tutorials, skills, or scaffolds. `.mrmr/dev/runs/{run_id}/` is the only
-//      local run-scratch root. (`.mrmr.temp/inbox` cross-space exchange and the
-//      `space-doctor` legacy-root cleanup list are separate concepts and not
-//      flagged; archived plans and the legacy v2 example fixture are excluded —
-//      the v2 cutover is owned by the clean-slate task.)
+//      local run-scratch root. Artifact inbox/outbox also live under
+//      `.mrmr/dev/`, but this rule only polices the run subtree; the
+//      `space-doctor` legacy-root cleanup list is separate. Archived plans and
+//      the legacy v2 example fixture are excluded.
 //   2. No literal run-root construction in production source outside the
 //      canonical helper `packages/hub-core/src/flow-engine/run-scratch-paths.ts`.
 //      All run-scratch paths must be built via `runScratchDir` / `spaceRunsDir`

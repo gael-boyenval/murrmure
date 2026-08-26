@@ -202,8 +202,8 @@ mrmr space archive spc_ui_sandbox
 | Command | Requires | HTTP |
 |---------|----------|------|
 | `init` | none (local) | Scaffolds `.mrmr/` (empty handlers by default; `--with-examples` adds starter flow) |
-| `link` | `space:write` | `POST /v1/spaces/:id/link` — use `--create` to mint space from `space.yaml` slug |
-| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `.mrmr/` and index |
+| `link` | `space:write` | `POST /v1/spaces/:id/link` — use `--create` to mint space from `space.yaml` slug, name, and description |
+| `apply` | `space:write` | `POST /v1/spaces/:id/apply` — validate local `.mrmr/` and index; copies `space.yaml` name / description |
 | `doctor` | `space:read` | Handler coverage, bindings, MCP hints |
 | `status` | `space:read` | `GET /v1/spaces/:id/index/status` |
 | `list` | `space:enter` | `GET /v1/spaces` |

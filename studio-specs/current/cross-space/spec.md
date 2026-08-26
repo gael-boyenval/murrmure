@@ -204,7 +204,7 @@ Cross-space **file handoff** uses the artifact protocol ([../bridges/artifacts.m
 | Inline (`params`, journal `data`) | ≤ 64 KiB | Small structured data |
 | Artifact (`PUT /v1/artifacts`, `artifacts_in` on invoke) | TTL-bound, ACL-scoped | Diffs, logs, binaries |
 
-Typical flow: source space registers artifact → target space invoke with `artifacts_in` → executor reads `.mrmr.temp/inbox/{transfer_id}/`.
+Typical flow: source space registers artifact → target space invoke with `artifacts_in` → executor reads `.mrmr/dev/inbox/{transfer_id}/`.
 
 ## Related
 

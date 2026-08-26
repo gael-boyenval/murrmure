@@ -83,6 +83,18 @@ export function matchStepResolvedHandlers(
   return index.step_resolved_by_alias[alias] ?? [];
 }
 
+function handlerMatchesMeetingSeat(
+  handlerType: string,
+  eventType: string,
+): boolean {
+  if (handlerType === eventType) return true;
+  // Invite doorbell: a said handler is the seat. Convene / resume rings it.
+  return (
+    (eventType === "mrmr.meeting.convened" || eventType === "mrmr.meeting.resumed") &&
+    handlerType === "mrmr.meeting.said"
+  );
+}
+
 export function matchEventHandlers(
   handlers: HandlerSpec[],
   event: { event_type: string; source: string; participant?: string },
@@ -90,7 +102,7 @@ export function matchEventHandlers(
   return handlers.filter((handler) => {
     if (typeof handler.on === "string") return false;
     const on = handler.on.event;
-    if (on.type !== event.event_type) return false;
+    if (!handlerMatchesMeetingSeat(on.type, event.event_type)) return false;
     if (on.source) {
       if (typeof on.source === "string") {
         if (on.source !== event.source) return false;
@@ -98,7 +110,12 @@ export function matchEventHandlers(
         return false;
       }
     }
-    if (event.event_type === "mrmr.meeting.said" && on.participant) {
+    if (
+      (event.event_type === "mrmr.meeting.said" ||
+        event.event_type === "mrmr.meeting.convened" ||
+        event.event_type === "mrmr.meeting.resumed") &&
+      on.participant
+    ) {
       return on.participant === event.participant;
     }
     return true;

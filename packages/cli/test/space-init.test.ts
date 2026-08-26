@@ -112,4 +112,26 @@ describe("space init scaffold", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(existsSync(join(targetDir, ".cursor", "mcp.json"))).toBe(false);
   });
+
+  test("writes description when --description is passed", async () => {
+    await (spaceInitCommand as { run: (ctx: unknown) => Promise<void> }).run({
+      args: {
+        path: targetDir,
+        json: true,
+        "no-skill": true,
+        "no-examples": true,
+        name: "Meetings app",
+        slug: "meetings-app",
+        description: "Convenes product seats and chairs the room.",
+      },
+      rawArgs: [],
+    });
+
+    const manifest = parseYaml(
+      readFileSync(join(targetDir, ".mrmr", "space", "space.yaml"), "utf-8"),
+    ) as { name: string; slug: string; description?: string };
+    expect(manifest.name).toBe("Meetings app");
+    expect(manifest.slug).toBe("meetings-app");
+    expect(manifest.description).toBe("Convenes product seats and chairs the room.");
+  });
 });

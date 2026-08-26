@@ -1,10 +1,126 @@
 # Changelog
 
+## Meeting transcript rail (2026-08-26)
+
+### Added
+
+- Transcript right rail lists shared artifacts; click jumps to the share
+  and previews via `GET /v1/sessions/:id/artifacts/:xfr`. Header can
+  minimize. Chair preview no longer needs the sender space token.
+  Artifact **Expand** is a modal; **Reply** / **Cite** attach `xfr_*`.
+
+## Artifact TTL (2026-08-26)
+
+### Changed
+
+- Default Hub artifact TTL is **90 days** (was 7). Already-stored
+  `expires_at` is unchanged; Test-meeting files stay gone.
+
+## Meeting transcript (2026-08-26)
+
+### Added
+
+- Transcript renders Markdown. **Reply** sends `in_reply_to` to that seat.
+  Shared artifacts show name/size plus a capped text preview.
+
+## Meeting resume (2026-08-26)
+
+### Added
+
+- Header **Meetings** + **+** lists open and closed rooms. Closed rooms
+  **Resume** the same `ses_*` / `ptc_*` (`POST /v1/sessions/:id/meeting/resume`).
+
+## Directive timeout (2026-08-24)
+
+### Fixed
+
+- Directive `cursor agent -p` recipe now sets `timeout_ms: 3600000`. The 30s
+  default was killing one-shot agents mid-apply. Developer skill **1.2.11**.
+
+## MCP catalog reload (2026-08-24)
+
+### Fixed
+
+- `murrmure-mcp` refetches the hub catalog on every `tools/list`. After a hub
+  restart it compares handshake `server_tools`, discovery `pid`/`started_at`,
+  and a reset control seq, then emits `tools/list_changed`. An already-open
+  agent chat may still keep its original snapshot — open a new chat.
+
+## Directive MCP (2026-08-24)
+
+### Added
+
+- `murrmure_list_directive_eligible` and `murrmure_start_directive` on the
+  connection catalog, gated by `hub:admin`. Default `local-tools/v1` stays
+  hidden. Omit `space_ids` to fan out to every currently eligible space.
+
+## Space purpose (2026-08-24)
+
+### Added
+
+- `.mrmr/space/space.yaml` may declare `name` and `description` (purpose, max
+  500 characters). `mrmr space apply` copies them onto the hub space; omitted
+  description clears the hub field. `link --create` and `space init
+  --description` seed the same fields.
+- Desktop space home shows the description under the title.
+- Developer skill **1.2.9** — `space.yaml` purpose in `reference/space-directory.md`.
+
+## Directives — top-bar fan-out (2026-08-18)
+
+### Added
+
+- Header **New directive** next to **New meeting**: one prompt, pick spaces that
+  opted in with a handler, fan-out `flw_mrmr_directive`. Dialog stays open with
+  completed/failed + `message` and a session link. Not a conversation.
+- Hub-owned platform flow `flw_mrmr_directive` (name `directive`) is compiled at
+  boot and indexed **only** when a space binds `step.opened::directive.execute`.
+  Not written into `.mrmr/flows/`. Space home **Run** stays hidden.
+- `GET /v1/directives/eligible` lists opted-in spaces. `GET /v1/runs/:id`
+  includes `result.message` from the resolved step.
+- Developer skill **1.2.8** — handler-only recipe in `reference/directive.md`.
+
+## Meetings — spawn the seat (2026-08-17)
+
+### Changed
+
+- Meeting seats use one persistent PTY process from convene through close.
+  First turn is the command argument. Later `said` writes the next turn into
+  that PTY after idle — it does not respawn Cursor per message and does not
+  pretend a space MCP connection received the chat. Seat state uses
+  `(ses_*, ptc_*)`. Copy the handler from
+  [Meetings](apps/docs/guide/meetings.md).
+- Meeting close owns graceful PTY/process-group shutdown. Unexpected exit
+  revokes the live seat and records `PERSISTENT_SESSION_EXITED`; child
+  handshakes bind the exact `ptc_*`.
+- Skills: `murrmure-agent` 1.3.10 / `murrmure-developer` 1.2.7 — if asked to
+  join a meeting, add the `shell_spawn` said handler in **this** space.
+  Put `murrmure` only in the repo `.cursor/mcp.json`, never `~/.cursor/mcp.json`.
+  Meeting-seat grants include `blob:write` so seats can
+  `murrmure_put_artifact` without `space:write`.
+- MCP `murrmure_put_artifact` uploads inline content or a space-relative path
+  and returns `xfr_*`. Attach recipe: put → `said` with `artifacts` → peer
+  `get_artifact`. Convene/said wakes include session `subject`.
+- Human chairs can message selected seats or everyone in Transcript. Messages
+  show source timestamps; receipts show Hub delivery latency; replies show
+  elapsed response time. Transcript still refreshes over SSE with polling fallback.
+- Meeting seats can resolve Transcript `xfr_*` references with
+  `murrmure_get_artifact`; the Hub checks ACL + digest and materializes a local
+  copy under the recipient space's `.mrmr/dev/inbox/`.
+
+## MCP — Cursor 0 tools (2026-08-17)
+
+### Fixed
+
+- `murrmure_emit_event` catalog used a bare `oneOf` schema. Cursor rejects that
+  (`inputSchema.type` must be `"object"`) and shows **0 tools**. Multi-event
+  emit schemas now set `type: "object"`; the MCP bridge coerces the same.
+
 ## Meetings — convene, Transcript, Tutorial 1b (2026-08-17)
 
 ### Shipped
 
 - Convene / `said` / close on a session (`mrmr.meeting.*`); personas catalog; shell Transcript on `/sessions/:id`.
+- Header **Meetings** lists open rooms. Convene wakes seats (`mrmr.meeting.convened`).
 - MCP: `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript`; emit `said` / `closed` with `session_id`.
 - `meeting:` step facet — open convenes, close resolves the step. Join-once: later `said` reuses the live assignment (`murrmure/control.meeting_said` / `notify_live`).
 - CLI `mrmr meeting start`. Tutorial 1b (`02-meetings/`) + [Meetings](apps/docs/guide/meetings.md).

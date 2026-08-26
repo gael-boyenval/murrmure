@@ -173,6 +173,59 @@ describe("http/meetings/said-dispatch", () => {
     expect(targets.filter((id) => id === researcher).length).toBeGreaterThanOrEqual(1);
   });
 
+  test("said broadcasts an immediate transcript invalidation over SSE", async () => {
+    const ticketRes = await fetch(`${baseUrl}/v1/auth/sse-ticket`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+    });
+    const { ticket } = (await ticketRes.json()) as { ticket: string };
+    const controller = new AbortController();
+    const stream = await fetch(`${baseUrl}/v1/journal/subscribe?ticket=${ticket}`, {
+      headers: { Accept: "text/event-stream" },
+      signal: controller.signal,
+    });
+    const reader = stream.body?.getReader();
+    expect(reader).toBeDefined();
+
+    const saidEvent = (async () => {
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+        for (const block of blocks) {
+          if (!block.includes("event: journal.append")) continue;
+          const raw = block
+            .split("\n")
+            .find((line) => line.startsWith("data: "))
+            ?.slice(6);
+          if (!raw) continue;
+          const data = JSON.parse(raw) as Record<string, unknown>;
+          if (data.type === "mrmr.meeting.said") return data;
+        }
+      }
+      throw new Error("meeting said SSE event not received");
+    })();
+
+    await emitSaid({ participant_ids: [researcher] }, "Refresh the transcript now.");
+    const data = await Promise.race([
+      saidEvent,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("meeting said SSE timeout")), 5_000),
+      ),
+    ]);
+    controller.abort();
+
+    expect(data).toMatchObject({
+      type: "mrmr.meeting.said",
+      space_id: appSpace,
+      session_id: sessionId,
+    });
+  });
+
   test("said to two seats writes two receipts; orphan seat is not woken", async () => {
     const before = await receipts();
     await emitSaid({ participant_ids: [qa, researcher] }, "Both of you look at this.");

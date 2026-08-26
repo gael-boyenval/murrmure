@@ -38,6 +38,8 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 - Space mutations via CLI (`mrmr space init`, `link`, `apply`)
 - Local connections via `mrmr connection create` (no token-bearing retired configure shell)
 - Legacy `/configure` and `/setup` redirect to `/spaces/new`
+- Header **Meetings** + **+** button group: list open and closed rooms (`GET /v1/meetings`); **+** convenes (`POST /v1/meetings`). Closed rooms offer **Resume** (`POST /v1/sessions/{id}/meeting/resume`)
+- Header **New directive** fans out the hub-owned `flw_mrmr_directive` run (`POST /v1/flows/flw_mrmr_directive/run`) to spaces that bind `step.opened::directive.execute`. Stays in the dialog (lifecycle + message + session link). No `/directives` route. Agent fan-out uses `murrmure_list_directive_eligible` / `murrmure_start_directive` (`hub:admin` only).
 
 ---
 
@@ -47,13 +49,13 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 |-------|---------|
 | `/` | Redirect to first space or `/spaces/new` |
 | `/spaces/new` | CLI instructions + SSE waiting indicator |
-| `/spaces/:id` | Space home (six sections + Run) |
+| `/spaces/:id` | Space home (title + optional `description` purpose, runs/flows + Run) |
 | `/spaces/:id/flows/:flowId` | Flow preview (`flow:read`) |
 | `/connect` | Hub URL + token + MCP snippet (non-bundled) |
 | `/notifications` | Actionable inbox linking bound checkpoints to their custom Views |
 | `/logs` | Journal explorer with filter chips (retrieval only) |
 | `/runs/:id?gate=chk_*` | Run detail with flowchart or journal replay + gate tab |
-| `/sessions/:id` | Session tabs: **Transcript** (meeting when `GET /v1/sessions/:id/transcript` is 200), **Review** (bound validation View), **Flowchart**, **Journal**. Meeting default is Transcript. Non-meeting + bound view defaults to Review. `?operator=1` defaults to Flowchart. A bound View is a tab — it must not unmount Transcript. No `/meetings` or `/chat` route. |
+| `/sessions/:id` | Session tabs: **Transcript** (meeting when `GET /v1/sessions/:id/transcript` is 200), **Review** (bound validation View), **Agent activity** for meeting turn runs / **Flowchart** otherwise, **Journal**. Meeting default is Transcript. Non-meeting + bound view defaults to Review. `?operator=1` defaults to Flowchart. A bound View is a tab — it must not unmount Transcript. No `/meetings` or `/chat` route. |
 | `/spaces/:id/dev/views/:viewId` | View dev — author iframe + fixture tabs (`mrmr view dev`) |
 
 ---
@@ -79,11 +81,11 @@ v2 retires the retired configure shell. Default shell routes are **admin/operato
 
 A meeting is a session. Humans read talk on `/sessions/:id` — not a space View and not `/logs`.
 
-- **Transcript** is the conversation: title, opaque goal (`session.subject`), `open` / `closed`, roster as `persona@space` (slug, not raw `spc_*` / `ptc_*`), each `said` as a chat turn (speaker, to/everyone, text). Receipts stay quiet under the bubble. `in_reply_to` quotes the prior text. Artifact refs are **links** to existing artifact routes — no in-shell PR/diff renderer. Journal lines (`hook.delivered`, `run.started`) stay on the **Journal** tab — they must not paint under Transcript.
-- **No compose box.** Humans who need to talk use a later slice or a validation View. Human chair **Close** is `POST /v1/sessions/{id}/meeting/close` — not `gates.resolve`, not `runs.cancel`.
-- Live updates: `JournalProvider` invalidates `["session-transcript", sessionId]` on `journal.append` for that session. Needs-you is **not** invalidated on every `said`.
-- Closed meetings stay readable (historical).
-- Access is Sessions / space-home recent. Start is Run / MCP / CLI — no shell wizard.
+- **Transcript** is the conversation: title, opaque goal (`session.subject`), `open` / `closed`, roster as `persona@space` (slug, not raw `spc_*` / `ptc_*`), each `said` as a chat turn (speaker, to/everyone, **Markdown** text, `HH:mm:ss`; full ISO on hover). The header chevron collapses goal + roster. Receipts show Hub delivery latency. Replies show elapsed time from the parent message. `in_reply_to` quotes the prior text. Artifact refs show **name + size + a capped text preview** via `GET /v1/sessions/:id/artifacts/:xfr?preview=1` (same auth as the transcript). A right rail lists unique attachments; click jumps to the sharing turn and opens the preview. Not a PR/diff product, not full bytes in the pane. Journal lines (`hook.delivered`, `run.started`) stay on the **Journal** tab — they must not paint under Transcript.
+- **Human-chair compose.** While open, `{ human: true }` chair may send text to selected seats or everyone through `POST /v1/sessions/{id}/meeting/say`. **Reply** on a turn sets `in_reply_to` and defaults `to` to that sender seat. Artifact cards **Expand** into a modal; **Reply** / **Cite** from that modal set `in_reply_to` and/or `artifacts: [xfr_*]` on the next say. The Hub stamps `from: { human: true }`; the UI never impersonates an agent seat. Human chair **Close** remains `POST /v1/sessions/{id}/meeting/close` — not `gates.resolve`, not `runs.cancel`. Human chair **Resume** on a closed room is `POST /v1/sessions/{id}/meeting/resume` — same `ses_*` and `ptc_*`, seats re-woken with `trigger: resumed`.
+- Live updates: every accepted `said` broadcasts `journal.append` with its `session_id`; `JournalProvider` immediately invalidates `["session-transcript", sessionId]`. An open Transcript also polls every second as a reconnect/failure fallback. Needs-you is **not** invalidated on every `said`.
+- Closed meetings stay readable (historical) and remain in header **Meetings**. **Resume** reopens that room.
+- Access is header **Meetings** (`GET /v1/meetings`, open + closed) — the room is not owned by a space. Operator start is header **+** (spaces + personas → `POST /v1/meetings`, human chair) plus optional Run / MCP / CLI. No `/meetings` UI route. Convene wakes seats (`mrmr.meeting.convened`). Resume re-wakes the same seats (`mrmr.meeting.resumed`). Empty Transcript means no `said` yet.
 
 ### Must show
 
@@ -91,24 +93,26 @@ A meeting is a session. Humans read talk on `/sessions/:id` — not a space View
 - Roster: persona + space (not raw `ptc_*` as the only label; id available in detail)
 - Each `said`: from, resolved `to` (names, or “everyone” when `all: true`), text, time / seq
 - `in_reply_to` as a thread hook (indent or “re: …”), not a second product
-- Artifact refs: **name + authorized open/download** (existing artifact routes). No in-shell PR/diff renderer
+- Artifact refs: **name + size + capped text preview** (session artifact GET). **Expand** modal. **Reply** / **Cite** from the modal. Right rail lists unique `xfr_*` and jumps to the share. No in-shell PR/diff renderer
+- Header minimize (title + status stay)
 - Per-target receipts (`delivered` / `failed`)
 - Seat status `working` when a live assignment exists
+- Meeting **Agent activity** explains that one seat assignment owns one persistent process until close.
 
 ### Must not
 
 - Inline the raw journal (`hook.delivered`, `run.started`)
 - Paste full artifact bytes into the pane
-- Invent a compose box for operators to impersonate seats
+- Let a non-chair compose, or stamp a human message as an agent seat
 - Hide the transcript because a validation View is open
 
 ### Human actions
 
 | Who | Action |
 |-----|--------|
-| Human chair | **Close** (reason / outcome optional). Same protocol as `mrmr.meeting.closed`. |
+| Human chair | **Send** to selected seats / everyone; **Reply** to a turn (`in_reply_to`); **Close** with optional reason / outcome; **Resume** a closed room. |
 | Anyone with `journal:read` | Read transcript, open artifacts they are allowed to read |
-| Human seat speaking | **Out.** No synthesized `said` form |
+| Non-chair human speaking | **Out.** No seat impersonation |
 
 Needs-you: only if a human chair must close. Do not badge every `said`.
 
@@ -122,9 +126,13 @@ If the goal needs a human to **validate** something agents produced (PR, spec ar
 2. Messages are a conversation (speaker, text, to/all, quiet receipts). `/logs` and the Journal tab are not the primary chat.
 3. Artifact on a message is a link, not a built-in review UI.
 4. Bound validation View does not remove the Transcript tab.
-5. No compose control. Human chair can Close. Non-chair Close denied.
-6. Closed meeting remains readable (historical).
-7. No `/meetings` route. Start is Run / MCP / CLI, not a shell wizard.
+5. Human-chair compose stamps `{ human: true }`; selected/all targeting works.
+   Human chair can Close. Non-chair say/Close denied.
+6. Closed meeting remains readable (historical). Human chair can Resume the same `ses_*`.
+7. Message time, delivery latency, and reply latency remain visible and derive
+   from journal timestamps.
+8. No `/meetings` route. Header **Meetings** + **+** lists rooms and convenes (spaces + indexed personas, human chair) then opens Transcript. Run / MCP / CLI remain valid starts.
+9. No `/directives` route. Header **New directive** lists eligible spaces (`GET /v1/directives/eligible`), requires a prompt, starts one run per pick, and shows completed/failed + `message` in the dialog.
 
 ---
 

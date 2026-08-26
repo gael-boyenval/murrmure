@@ -4,11 +4,15 @@ import { fileURLToPath } from "node:url";
 import { ensureBootstrapSession } from "../src/session.js";
 import { linkCliGlobal, unlinkCliGlobal } from "./dev-hmr-cli.js";
 import { killDevDesktopOrphans, killProcessTree } from "./dev-hmr-process.js";
+import { observeDevHubHealth, type DevHubHealthState } from "../src/dev-hub-health.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const hubPort = process.env.PORT ?? process.env.HUB_PORT ?? "8787";
 const hubHealthUrl = `http://127.0.0.1:${hubPort}/v1/health`;
 const shellDevUrl = `http://127.0.0.1:${process.env.VITE_PORT ?? process.env.SHELL_DEV_PORT ?? "5174"}/`;
+// `tsx watch` waits up to five seconds before force-killing the previous Hub
+// process. Leave enough room for that shutdown plus the replacement startup.
+const hubUnhealthyGraceMs = 12_000;
 
 function start(command: string, args: string[], env?: NodeJS.ProcessEnv): ChildProcess {
   return spawn(command, args, {
@@ -46,6 +50,15 @@ async function waitForOk(url: string, label: string, timeoutMs = 60_000): Promis
   throw new Error(`${label} not ready at ${url} (${lastError})`);
 }
 
+async function isHealthy(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 const children: ChildProcess[] = [];
 let cliLinked = false;
 let shuttingDown = false;
@@ -74,6 +87,32 @@ async function shutdown(exitCode = 0): Promise<void> {
   }
 
   process.exit(exitCode);
+}
+
+async function superviseHubHealth(): Promise<void> {
+  let state: DevHubHealthState = {};
+  while (!shuttingDown) {
+    await Bun.sleep(500);
+    const wasUnhealthy = Boolean(state.unhealthy_since);
+    const healthy = await isHealthy(hubHealthUrl);
+    const decision = observeDevHubHealth(state, {
+      healthy,
+      now: Date.now(),
+      grace_ms: hubUnhealthyGraceMs,
+    });
+    state = decision.state;
+    if (wasUnhealthy && healthy && !decision.failed) {
+      console.log(
+        "[desktop:dev:hmr] Hub is back. Reload the Murrmure MCP server in Cursor (or open a new chat) to pick up catalog changes.",
+      );
+    }
+    if (!decision.failed) continue;
+    console.error(
+      `[desktop:dev:hmr] Hub stayed unavailable for ${hubUnhealthyGraceMs}ms; stopping shell and desktop. The daemon error above is the primary failure.`,
+    );
+    await shutdown(1);
+    return;
+  }
 }
 
 process.on("SIGINT", () => {
@@ -105,6 +144,7 @@ try {
     MURRMURE_BOOTSTRAP_ACTOR_ID: session.actor_id,
   });
   children.push(window);
+  void superviseHubHealth();
 
   for (const child of children) {
     child.on("exit", (code, signal) => {

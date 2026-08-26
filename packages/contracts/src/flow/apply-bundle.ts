@@ -6,6 +6,7 @@ import { HooksFileSchema } from "../entities/hook.js";
 import { EventsFileSchema } from "../entities/event-declaration.js";
 import { PersonasFileSchema } from "../entities/persona.js";
 import { BindingsFileSchema } from "../entities/bindings.js";
+import { SpaceYamlFileSchema } from "../entities/space.js";
 import { FlowManifestSchema } from "./manifest.js";
 import { ViewManifestSchema } from "./view-manifest.js";
 
@@ -41,6 +42,10 @@ export const SpaceApplyBindingsSchema = DigestPayloadSchema.extend({
   file: BindingsFileSchema,
 });
 
+export const SpaceApplySpaceSchema = DigestPayloadSchema.extend({
+  file: SpaceYamlFileSchema,
+});
+
 export const SpaceApplyFlowSchema = DigestPayloadSchema.extend({
   flow_id: z.string(),
   rel_path: z.string(),
@@ -64,6 +69,7 @@ export type SpaceApplyView = z.infer<typeof SpaceApplyViewSchema>;
 export type SpaceApplyViewBuildStatus = z.infer<typeof SpaceApplyViewBuildStatusSchema>;
 
 export const SpaceApplyBundleSchema = z.object({
+  space: SpaceApplySpaceSchema.optional(),
   actions: SpaceApplyActionsSchema.optional(),
   executors: SpaceApplyExecutorsSchema.optional(),
   hooks: SpaceApplyHooksSchema.optional(),

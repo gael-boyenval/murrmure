@@ -39,3 +39,4 @@ export * from "./federation/index.js";
 export * from "./cross-space/index.js";
 export * from "./events/index.js";
 export * from "./meetings/index.js";
+export * from "./platform/index.js";

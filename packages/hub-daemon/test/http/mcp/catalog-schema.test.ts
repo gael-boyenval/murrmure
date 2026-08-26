@@ -16,8 +16,12 @@ const PLATFORM_TOOL_NAMES = [
   "murrmure_list_emittable_events",
   "murrmure_list_handlers",
   "murrmure_list_personas",
+  "murrmure_list_directive_eligible",
+  "murrmure_start_directive",
   "murrmure_start_meeting",
   "murrmure_meeting_transcript",
+  "murrmure_get_artifact",
+  "murrmure_put_artifact",
   "murrmure_emit_event",
   "murrmure_create_session",
   "murrmure_list_sessions",
@@ -47,8 +51,12 @@ const P0_REQUIRED: Record<string, string[]> = {
   murrmure_space_health: [],
   murrmure_list_handlers: [],
   murrmure_list_personas: [],
+  murrmure_list_directive_eligible: [],
+  murrmure_start_directive: ["prompt"],
   murrmure_start_meeting: ["participants", "chair"],
   murrmure_meeting_transcript: ["session_id"],
+  murrmure_get_artifact: ["transfer_id"],
+  murrmure_put_artifact: [],
 };
 
 const ALL_PLATFORM_CAPABILITIES = [
@@ -61,6 +69,8 @@ const ALL_PLATFORM_CAPABILITIES = [
   "journal:read",
   "event:emit",
   "space:enter",
+  "blob:read",
+  "blob:write",
   "executor:poll",
 ];
 
@@ -146,6 +156,7 @@ describe("http/mcp/catalog-schema", () => {
     for (const toolName of PLATFORM_TOOL_NAMES) {
       const schema = byName.get(toolName)?.inputSchema;
       expect(schema).toBeTruthy();
+      expect(schema?.type).toBe("object");
       expect(Object.keys(schema ?? {}).length).toBeGreaterThan(0);
     }
 
@@ -153,6 +164,33 @@ describe("http/mcp/catalog-schema", () => {
       const actualRequired = requiredKeys(byName.get(toolName)?.inputSchema).sort();
       expect(actualRequired).toEqual([...expectedRequired].sort());
     }
+  });
+
+  test("handshake with a stale last_ack_seq still returns the live catalog", async () => {
+    const res = await fetch(`${baseUrl}/v1/mcp/session/handshake`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${fullToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        space_id: spaceId,
+        client_id: "stale-ack-client",
+        last_ack_seq: 99,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      handshake_ack_seq: number;
+      server_tools: string[];
+      messages: Array<{ method: string }>;
+    };
+    expect(body.handshake_ack_seq).toBeGreaterThan(0);
+    expect(body.server_tools).toContain("murrmure_list_directive_eligible");
+    expect(body.server_tools).toContain("murrmure_start_directive");
+    expect(body.messages.some((message) => message.method === "murrmure/control.handshake_ack")).toBe(
+      true,
+    );
   });
 
   test("removed grant/action MCP paths have no public call surface", async () => {

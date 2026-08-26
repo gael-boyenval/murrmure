@@ -241,14 +241,15 @@ Business logic lives in `packages/cli/src/{init,build,push,validate,dev}.ts` —
 **`space init`:** Offline-only scaffold of `.mrmr/space/space.yaml`,
 `.mrmr/space/handlers.yaml`, and `.mrmr/dev/.gitignore`. The name defaults from
 the target folder and the slug is normalized unless `--name` / `--slug` are
-passed. **Default:** empty handlers only (no example flow, no
+passed. Optional `--description` writes purpose/about into `space.yaml`.
+**Default:** empty handlers only (no example flow, no
 `.mrmr/README.md`). **`--with-examples`** adds
 `flows/example/flow.manifest.yaml` and `.mrmr/README.md`. It never contacts the
 Hub or creates a token, grant, connection, or credential.
 
-**`space link`:** Registers `{ host, path, primary }` binding with hub; persists **`link.space_id`** and machine-local **`link.host`** in `.mrmr/space/space.yaml` (not `.murrmure/link.json`). Use `--create` to create hub space from `space.yaml` slug.
+**`space link`:** Registers `{ host, path, primary }` binding with hub; persists **`link.space_id`** and machine-local **`link.host`** in `.mrmr/space/space.yaml` (not `.murrmure/link.json`). Use `--create` to create hub space from `space.yaml` slug, name, and description.
 
-**`space apply`:** Strict-parses each flow manifest (`triggers`-only; the removed `start`, flow-level view binding field, `role`, `presentation`, role-derivation field, wait shapes, wrapper branches, and `invoke:`/`checkpoint:`/`gate:` kinds are rejected with specific codes — no dual parser), compiles a `StepContractCatalog` per flow, lints handler coverage, and POSTs the bundle to the hub index. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [step-contract bridge](../bridges/step-contract.md) for the full lint code table and [flow-engine bridge](../bridges/flow-engine.md).
+**`space apply`:** Strict-parses each flow manifest (`triggers`-only; the removed `start`, flow-level view binding field, `role`, `presentation`, role-derivation field, wait shapes, wrapper branches, and `invoke:`/`checkpoint:`/`gate:` kinds are rejected with specific codes — no dual parser), compiles a `StepContractCatalog` per flow, lints handler coverage, and POSTs the bundle to the hub index. The apply bundle includes `.mrmr/space/space.yaml` when present; a successful apply copies authored `name` and `description` (purpose, max 500 characters) onto the hub space row. Omitted `description` clears the hub field. Warnings print to stdout by default; **`--strict`** exits 1 on lint warnings. Hub response includes `warnings: [{ flow_id, step_id, code, message }]`. Idempotent when digests unchanged. See [step-contract bridge](../bridges/step-contract.md) for the full lint code table and [flow-engine bridge](../bridges/flow-engine.md).
 
 **Apply lint (clean cutover):** Hard-rejected at parse (HTTP 400, no `--strict` needed): `LEGACY_START_KEY`, `LEGACY_VIEW_BINDING`, `LEGACY_STEP_KIND`, `REMOVED_FIELD`, `INLINE_SCRIPT_STEP`, `EMPTY_BRANCHES`. `--strict` warnings (print by default, exit 1 under `--strict`): `CUSTOM_BRANCH_REQUIRES_ROUTE`, `ROUTE_TARGET_NOT_FOUND`, `RESUME_TARGET_NOT_ANCESTOR`, `DEAD_STEP`, `HANDLER_KEY_CONFLICT`, `HANDLER_ORPHAN_KEY`, `UNKNOWN_MURRMURE_TOKEN`. Unbound steps (`resolver: null`) are valid and produce no warning.
 

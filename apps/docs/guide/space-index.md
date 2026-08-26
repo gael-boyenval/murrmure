@@ -10,7 +10,7 @@ Use **Murrmure Desktop** to observe runs and gates; use **CLI** to init, link, a
 my-project/
   .mrmr/
     space/
-      space.yaml              # slug hint for link --create; optional link.host override
+      space.yaml              # slug, name, description (purpose); link after link --create
       handlers.yaml           # step + event handlers (on::key binding; contract_keys is prompt-scope)
       personas.yaml           # optional — seat ads (handles + blurbs; not dispatch)
       bindings.yaml           # optional — remote flow/view refs for worker spaces
@@ -24,16 +24,18 @@ my-project/
       contract-keys.json      # codegen from apply (optional)
 ```
 
+`space.yaml` may include `name` and `description` (purpose, max 500 characters). `mrmr space apply` copies those fields onto the hub space; Desktop space home shows the description under the title.
+
 The handlers-only cutover is complete (Task 15): `mrmr space init` scaffolds only `space.yaml` + `handlers.yaml` under `.mrmr/space/` — no `actions.yaml`, `executors.yaml`, or `hooks.yaml`. Authoring uses `handlers.yaml` only. See [Space handlers](./space-handlers).
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `mrmr space init` | Scaffold `.mrmr/` templates locally |
+| `mrmr space init` | Scaffold `.mrmr/` templates locally (`--description` writes purpose) |
 | `mrmr space link --path . --space spc_…` | Register `{ host, path, primary }` binding on hub |
-| `mrmr space link --path . --create` | Create hub space from `space.yaml` slug, then link |
-| `mrmr space apply` | Validate local YAML and POST index to hub |
+| `mrmr space link --path . --create` | Create hub space from `space.yaml` slug, name, and description, then link |
+| `mrmr space apply` | Validate local YAML and POST index to hub; copies `name` / `description` onto the hub space |
 | `mrmr space status` | Show indexed counts and digests |
 | `mrmr flow run <flow_id>` | Start an indexed flow manually |
 | `mrmr step resolve` | Resolve current step from shell env (handler `complete: cli`) |

@@ -14,6 +14,7 @@ import {
   failRunWithNotification,
   enqueueTaskOffer,
   DEFAULT_WORKER_TTL_MS,
+  registerRunExecutorCancel,
   registerShellProcessCancel,
   buildFlowInvokeStepContract,
   isMeetingSaidHandler,
@@ -36,7 +37,7 @@ import {
   type InvokeMemoStore,
   type QueuedInvokeItem,
 } from "@murrmure/hub-core";
-import type { InvokeRequest } from "@murrmure/runtime-contracts";
+import type { DispatchOutcome, InvokeRequest } from "@murrmure/runtime-contracts";
 import type { ExecutorBinding } from "@murrmure/runtime-contracts";
 import type { IndexedAction } from "@murrmure/contracts";
 import type { HubHandler } from "@murrmure/hub-core";
@@ -58,6 +59,60 @@ import { projectStepMemoFromJournal } from "./routes/sessions/index.js";
 const DEFAULT_RESOLVE_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 /** Grace added past the action timeout so a handler can still resolve near the deadline. */
 const RESOLVE_TOKEN_GRACE_MS = 5 * 60 * 1000;
+const MAX_MEETING_SHELL_TEXT_BYTES = 12_000;
+
+function compactText(value: unknown): {
+  text?: string;
+  bytes?: number;
+  truncated?: boolean;
+} {
+  if (typeof value !== "string") return {};
+  const bytes = Buffer.byteLength(value);
+  if (bytes <= MAX_MEETING_SHELL_TEXT_BYTES) return { text: value, bytes };
+  return {
+    text: Buffer.from(value).subarray(0, MAX_MEETING_SHELL_TEXT_BYTES).toString("utf8"),
+    bytes,
+    truncated: true,
+  };
+}
+
+/** Keep detached meeting shell completion below the journal inline ceiling. */
+export function compactMeetingShellOutcome(outcome: DispatchOutcome): DispatchOutcome {
+  const stdout = compactText(outcome.result?.stdout);
+  const stderr = compactText(outcome.result?.stderr);
+  const detail = compactText(outcome.detail);
+  const { stdout: _stdout, stderr: _stderr, ...result } = outcome.result ?? {};
+  return {
+    ...outcome,
+    detail: detail.text,
+    result: {
+      ...result,
+      ...(stdout.text === undefined ? {} : { stdout: stdout.text }),
+      ...(stderr.text === undefined ? {} : { stderr: stderr.text }),
+      ...(stdout.bytes === undefined ? {} : { stdout_bytes: stdout.bytes }),
+      ...(stderr.bytes === undefined ? {} : { stderr_bytes: stderr.bytes }),
+      ...(stdout.truncated ? { stdout_truncated: true } : {}),
+      ...(stderr.truncated ? { stderr_truncated: true } : {}),
+      ...(detail.truncated ? { detail_truncated: true } : {}),
+    },
+  };
+}
+
+export function meetingWakeFromRunExecContext(
+  execContext: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const directEvent = execContext.event;
+  if (directEvent && typeof directEvent === "object") {
+    const data = (directEvent as { data?: unknown }).data;
+    if (data && typeof data === "object") return data as Record<string, unknown>;
+  }
+  const legacyInput = execContext.input;
+  if (!legacyInput || typeof legacyInput !== "object") return undefined;
+  const nestedEvent = (legacyInput as { event?: unknown }).event;
+  if (!nestedEvent || typeof nestedEvent !== "object") return undefined;
+  const data = (nestedEvent as { data?: unknown }).data;
+  return data && typeof data === "object" ? (data as Record<string, unknown>) : undefined;
+}
 
 function resolveTokenTtlMs(actionTimeoutMs?: number): number {
   if (!actionTimeoutMs || actionTimeoutMs <= 0) return DEFAULT_RESOLVE_TOKEN_TTL_MS;
@@ -96,11 +151,44 @@ export class InvokeService {
           // executor can deregister on finish (once-only termination).
           return registerShellProcessCancel(run_id, step_id, child);
         },
+        onPersistentSessionStart: ({
+          run_id,
+          step_id,
+          session_id,
+          participant_id,
+          pid,
+          controller,
+        }) => {
+          if (run_id) {
+            void mergeSpawnAuditIntoRun(this.studio, {
+              run_id,
+              step_id,
+              pid,
+              spawned_at: new Date().toISOString(),
+            });
+          }
+          this.ctx.liveAssignments.attachController(session_id, participant_id, controller);
+          if (!run_id) return;
+          const normalized = run_id.startsWith("run_") ? run_id : `run_${run_id}`;
+          let termination: Promise<void> | undefined;
+          return registerRunExecutorCancel(`${normalized}:${step_id}`, {
+            cancel() {
+              termination ??= controller.close("run_cancelled");
+            },
+            awaitTermination() {
+              return termination ?? Promise.resolve();
+            },
+          });
+        },
         onOutputChunk: (chunk) => {
-          void this.handleShellOutputChunk(chunk);
+          void this.handleShellOutputChunk(chunk).catch((error) => {
+            console.error("[murrmure] shell output projection failed:", error);
+          });
         },
         onShellComplete: (input) => {
-          void this.handleShellComplete(input);
+          void this.handleShellComplete(input).catch((error) => {
+            console.error("[murrmure] shell completion projection failed:", error);
+          });
         },
       },
       mcpSession: {
@@ -394,6 +482,17 @@ export class InvokeService {
     const run = await this.studio.getRun(bare);
     if (!run?.space_id) return;
 
+    const meetingWake = meetingWakeFromRunExecContext(run.exec_context);
+    if (isMeetingWakeParams(meetingWake)) {
+      // Any meeting shell exit removes the live seat. One-shot handlers may
+      // respawn with continuation; persistent handlers remain registered until
+      // this exit is caused by meeting close, cancellation, or a crash.
+      await this.ctx.liveAssignments.revoke({
+        session_id: String(meetingWake.session_id),
+        participant_id: String(meetingWake.participant_id),
+      });
+    }
+
     // The handler process has terminated (completed or failed); its ephemeral
     // resolve credential is revoked immediately so it cannot outlive the
     // assignment. Run-terminal revocation is a separate safety net.
@@ -403,7 +502,9 @@ export class InvokeService {
     const session_id = run.session_id ? `ses_${run.session_id}` : undefined;
     const actor_id = this.lastActor?.actor_id ?? "system_invoke";
     const token_id = this.lastActor?.token_id ?? "system";
-    const outcome = input.outcome;
+    const outcome = isMeetingWakeParams(meetingWake)
+      ? compactMeetingShellOutcome(input.outcome)
+      : input.outcome;
 
     if (outcome.status === "completed") {
       await this.appendJournalAndProject({
@@ -616,6 +717,8 @@ export class InvokeService {
         executor: `handler:${indexedHandler.id}`,
         timeout_ms: indexedHandler.timeout_ms,
         command: indexedHandler.command,
+        continuation: indexedHandler.continuation,
+        session: indexedHandler.session,
         prompt: indexedHandler.prompt,
         cwd: indexedHandler.cwd,
         delivery: indexedHandler.delivery,

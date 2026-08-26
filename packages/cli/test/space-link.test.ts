@@ -19,7 +19,15 @@ describe("space link --create", () => {
     projectDir = mkdtempSync(join(tmpdir(), "cli-space-link-"));
     const root = join(projectDir, ".mrmr", "space");
     mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "space.yaml"), "apiVersion: murrmure.space/v1\nslug: my-link-space\n");
+    writeFileSync(
+      join(root, "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: my-link-space",
+        "name: Link space",
+        "description: Seeds purpose on create.",
+      ].join("\n"),
+    );
     writeFileSync(join(root, "actions.yaml"), "version: 1\nactions:\n  hello:\n    executor: shell\n");
   });
 
@@ -45,13 +53,24 @@ describe("space link --create", () => {
         };
       }
       if (url.endsWith("/v1/spaces") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as {
+          slug: string;
+          name: string;
+          description?: string;
+        };
+        expect(body).toMatchObject({
+          slug: "my-link-space",
+          name: "Link space",
+          description: "Seeds purpose on create.",
+        });
         return {
           ok: true,
           status: 200,
           json: async () => ({
             space_id: "spc_my_link_space",
             slug: "my-link-space",
-            name: "my-link-space",
+            name: "Link space",
+            description: "Seeds purpose on create.",
             status: "active",
           }),
         };

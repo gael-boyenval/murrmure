@@ -1125,6 +1125,21 @@ export async function probeMcpLiveHealth(
         fix: "Update/restart hub daemon so MCP catalog emits full inputSchema metadata",
       });
     }
+
+    const cursorRejected = catalog.tools.filter((tool) => {
+      const type = tool.inputSchema?.type;
+      return type !== "object";
+    });
+    if (cursorRejected.length > 0) {
+      pushIssue(issues, {
+        code: "MCP_SCHEMA_PRESENT",
+        severity: "warning",
+        message: `MCP catalog tool(s) missing inputSchema.type "object" — Cursor shows 0 tools: ${cursorRejected
+          .map((tool) => tool.name)
+          .join(", ")}`,
+        fix: "Restart the hub and reload the Murrmure MCP server in Cursor",
+      });
+    }
   }
 
   try {

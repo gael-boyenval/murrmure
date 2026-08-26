@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   CUSTOM_CONNECTION_PROFILE,
   GRANTABLE_CAPABILITIES,
+  MEETING_SEAT_CAPABILITIES,
   isLocalToolsCapabilitySet,
   parseGrantableCapabilities,
 } from "../src/wizard/capabilities.js";
@@ -28,6 +29,14 @@ describe("parseGrantableCapabilities", () => {
   test("exposes the full grantable set", () => {
     expect(GRANTABLE_CAPABILITIES).toContain("event:emit");
     expect(GRANTABLE_CAPABILITIES).toContain("hub:admin");
+    expect(GRANTABLE_CAPABILITIES).toContain("blob:write");
+    expect(GRANTABLE_CAPABILITIES).toContain("blob:read");
+  });
+
+  test("parses the meeting-seat recipe", () => {
+    expect(parseGrantableCapabilities(MEETING_SEAT_CAPABILITIES.join(","))).toEqual([
+      ...MEETING_SEAT_CAPABILITIES,
+    ]);
   });
 });
 

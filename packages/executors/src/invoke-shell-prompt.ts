@@ -1,4 +1,5 @@
 /** Render an invoke param as inline prompt text (not shell-quoted). */
+import { isMeetingWakeParams, renderMurrmureMeetingProtocolEnvelope } from "@murrmure/hub-core";
 import {
   HandlerBindingError,
   placeholderQuickFixHint,
@@ -52,6 +53,11 @@ export function buildInvokeTemplateBindings(context: InvokeTemplateContext): Rec
 
   for (const [key, value] of Object.entries(context.params ?? {})) {
     bindings[key] = formatTemplateValue(value);
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      for (const [child, childVal] of Object.entries(value as Record<string, unknown>)) {
+        bindings[`${key}.${child}`] = formatTemplateValue(childVal);
+      }
+    }
   }
 
   if (context.murrmure_bindings) {
@@ -206,6 +212,34 @@ export function resolveInvokePrompt(
       run_id: context.run_id,
       session_id: context.session_id,
     });
+  }
+
+  if (isMeetingWakeParams(context.params)) {
+    const trigger =
+      context.params.trigger === "convened" || !context.params.message_id
+        ? ("convened" as const)
+        : ("said" as const);
+    const message_id =
+      typeof context.params.message_id === "string" && context.params.message_id
+        ? context.params.message_id
+        : undefined;
+    return [
+      MURRMURE_TASK_BEGIN,
+      "# Task",
+      "",
+      taskBody,
+      MURRMURE_TASK_END,
+      "",
+      MURRMURE_PROTOCOL_BEGIN,
+      renderMurrmureMeetingProtocolEnvelope({
+        session_id: String(context.params.session_id),
+        participant_id: String(context.params.participant_id),
+        message_id,
+        trigger,
+        since_seq: Number(context.params.since_seq),
+      }),
+      MURRMURE_PROTOCOL_END,
+    ].join("\n");
   }
 
   if (!contractMarkdown || !context.run_id) {

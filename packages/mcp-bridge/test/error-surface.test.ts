@@ -3,8 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { fetchCatalog, callTool, performHandshake } from "../src/hub-client.js";
-import { bridgeInstructions, resolveBridgeConfig } from "../src/main.js";
-import { isMeetingSaidMessage, isWakeMessage } from "../src/wake-relay.js";
+import {
+  bridgeInstructions,
+  DEFAULT_POLL_INTERVAL_MS,
+  MEETING_RESPONSE_MAX_TOKENS,
+  MEETING_SAID_SYSTEM_PROMPT,
+  meetingAssignmentFromEnv,
+  resolveBridgeConfig,
+} from "../src/main.js";
+import {
+  coalesceMeetingSaidMessages,
+  isMeetingSaidMessage,
+  isWakeMessage,
+} from "../src/wake-relay.js";
 
 const tempDirs: string[] = [];
 const envSnapshot = { ...process.env };
@@ -145,6 +156,21 @@ describe("bridge error surfaces", () => {
     expect(config.token).toBe("tok_override");
   });
 
+  test("assignment mode with --hub does not require shared discovery", () => {
+    const homePath = makeTempHome("mcp-bridge-errors-assignment-hub-only-");
+    const config = resolveBridgeConfig({
+      homePath,
+      argv: ["--hub", "http://127.0.0.1:8787", "--connection", "con_tutorial"],
+      env: {
+        MURRMURE_ASSIGNMENT_SCOPE: "run_live:build:dev_build",
+        MURRMURE_HUB_TOKEN: "tok_ephemeral",
+      },
+    });
+    expect(config.authMode).toBe("assignment");
+    expect(config.hubUrl).toBe("http://127.0.0.1:8787");
+    expect(config.token).toBe("tok_ephemeral");
+  });
+
   test("handler assignment mode uses ephemeral authority without reading the connection", () => {
     const homePath = makeTempHome("mcp-bridge-errors-assignment-");
     writeSharedDiscovery(homePath, "http://127.0.0.1:8787");
@@ -234,6 +260,94 @@ describe("bridge error surfaces", () => {
     expect(isWakeMessage("murrmure/control.meeting_said")).toBe(false);
     expect(isMeetingSaidMessage("murrmure/control.meeting_said")).toBe(true);
     expect(isMeetingSaidMessage("murrmure/control.invoke_action")).toBe(false);
+  });
+
+  test("meeting control poll is responsive and coalesces one seat into one turn", () => {
+    expect(DEFAULT_POLL_INTERVAL_MS).toBe(750);
+    expect(MEETING_RESPONSE_MAX_TOKENS).toBe(1200);
+    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("You may stay silent");
+    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("to.participant_ids");
+    expect(MEETING_SAID_SYSTEM_PROMPT).toContain("use to.all only when everyone genuinely needs");
+    const messages = coalesceMeetingSaidMessages([
+      {
+        method: "murrmure/control.meeting_said",
+        params: {
+          seq: 4,
+          session_id: "ses_room",
+          participant_id: "developer",
+          handler_id: "meeting-developer",
+          message_id: "msg_1",
+          since_seq: 3,
+          prompt: "message_id: msg_1\nsince_seq: 3",
+        },
+      },
+      {
+        method: "murrmure/control.tools_changed",
+        params: { seq: 5 },
+      },
+      {
+        method: "murrmure/control.meeting_said",
+        params: {
+          seq: 6,
+          session_id: "ses_room",
+          participant_id: "developer",
+          handler_id: "meeting-developer",
+          message_id: "msg_2",
+          since_seq: 5,
+          prompt: "message_id: msg_2\nsince_seq: 5",
+        },
+      },
+    ]);
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      method: "murrmure/control.meeting_said",
+      params: {
+        seq: 6,
+        message_id: "msg_2",
+        since_seq: 3,
+        coalesced_count: 2,
+      },
+    });
+    expect(messages[0]?.params.prompt).toContain("message_id: msg_2");
+    expect(messages[0]?.params.prompt).toContain("since_seq: 3");
+    expect(messages[0]?.params.prompt).toContain("answer the room once");
+    expect(messages[1]?.method).toBe("murrmure/control.tools_changed");
+  });
+
+  test("meeting child handshake carries its exact roster participant", async () => {
+    expect(
+      meetingAssignmentFromEnv({
+        MURRMURE_MEETING_SESSION_ID: "ses_room",
+        MURRMURE_MEETING_PARTICIPANT_ID: "ptc_default_memory",
+      }),
+    ).toEqual({
+      session_id: "ses_room",
+      participant_id: "ptc_default_memory",
+    });
+
+    let requestBody: Record<string, unknown> | undefined;
+    await performHandshake({
+      hubUrl: "http://127.0.0.1:8787",
+      token: "tok_test",
+      clientId: "child-1",
+      lastAckSeq: 0,
+      meetingAssignment: {
+        session_id: "ses_room",
+        participant_id: "ptc_default_memory",
+      },
+      fetchImpl: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({ handshake_ack_seq: 1, messages: [], server_tools: [] }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      },
+    });
+    expect(requestBody?.meeting_assignment).toEqual({
+      session_id: "ses_room",
+      participant_id: "ptc_default_memory",
+    });
   });
 
   test("performHandshake surfaces non-JSON errors", async () => {

@@ -1,5 +1,18 @@
 # @murrmure/shell-client
 
+## Unreleased
+
+### Added
+
+- `sessions.getMeetingArtifact` → `GET /v1/sessions/:id/artifacts/:xfr`.
+- `artifacts.get(transfer_id, { space_id, preview })` → `GET /v1/artifacts/:id`.
+- `sessions.resumeMeeting` → `POST /v1/sessions/:id/meeting/resume`.
+- `MeetingListRow` includes `status: closed` and `roster`.
+- `directives.eligible()` → `GET /v1/directives/eligible`.
+- `RunDetailPayload.result` carries the resolved step `message`.
+- `sessions.sayMeeting` sends a message as the authenticated human chair.
+- Meeting transcript types expose source timestamps and delivery latency.
+
 ## 0.2.0
 
 ### Minor Changes
@@ -79,6 +92,9 @@
 
 ### Added
 
+- `meetings.list` (`GET /v1/meetings`) for open rooms.
+- `spaces.personas` (`GET /v1/spaces/{id}/personas`) and `meetings.start`
+  (`POST /v1/meetings`) for the operator New meeting dialog.
 - `sessions.transcript` (`GET /v1/sessions/{id}/transcript`) and
   `sessions.closeMeeting` (`POST /v1/sessions/{id}/meeting/close`). Transcript
   404 is `null` (session is not a meeting). Close is the human-chair mutation,

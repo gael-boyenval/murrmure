@@ -197,4 +197,38 @@ describe("meetings/said", () => {
     });
     expect((said?.data as { from?: { spoof?: boolean } })?.from?.spoof).toBeUndefined();
   });
+
+  test("said artifacts add roster spaces and chair actor to ACL", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const { deps } = makeDeps(studio);
+    const room = await openRoom(deps);
+    await studio.insertArtifact({
+      transfer_id: "xfr_note",
+      source_space_id: APP,
+      name: "note.md",
+      digest: "sha256:note",
+      size_bytes: 4,
+      hold: false,
+      authorized_readers: [`spc_${APP}`],
+      expires_at: "2026-12-01T00:00:00.000Z",
+      created_at: NOW,
+    });
+    const designer = room.roster[0]!;
+    const prepared = await prepareMeetingSaid(deps, {
+      space_id: `spc_${APP}`,
+      session_id: room.session_id,
+      payload: {
+        as_participant_id: designer.participant_id,
+        to: { all: true },
+        text: "note",
+        artifacts: ["xfr_note"],
+      },
+    });
+    expect(prepared.ok).toBe(true);
+    const row = await studio.getArtifact("xfr_note");
+    expect(row?.authorized_readers).toEqual(
+      expect.arrayContaining([`spc_${APP}`, `spc_${RESEARCH}`, "actor:actor_alice"]),
+    );
+  });
 });

@@ -3,6 +3,7 @@ import {
   type Capability,
   type MeetingRosterParticipant,
   type MeetingSnapshotChair,
+  type MeetingTranscriptSender,
   type MeetingTranscript,
   type MeetingTranscriptMessage,
   type MeetingTranscriptReceipt,
@@ -19,6 +20,7 @@ const MEETING_TYPES = new Set<string>([
   JOURNAL_EVENT_TYPES.MEETING_DELIVERED,
   JOURNAL_EVENT_TYPES.MEETING_DELIVERY_FAILED,
   JOURNAL_EVENT_TYPES.MEETING_CLOSED,
+  JOURNAL_EVENT_TYPES.MEETING_RESUMED,
 ]);
 
 function prefixedSessionId(session_id: string): string {
@@ -100,8 +102,9 @@ function projectTo(
 function fromSeat(
   data: Record<string, unknown>,
   roster: MeetingRosterSeatRow[],
-): MeetingRosterParticipant {
+): MeetingTranscriptSender {
   const stamped = asRecord(data.from);
+  if (stamped?.human === true) return { human: true };
   if (stamped && typeof stamped.participant_id === "string" && typeof stamped.space_id === "string") {
     return {
       participant_id: stamped.participant_id,
@@ -164,6 +167,8 @@ export async function buildMeetingTranscript(
         status = "open";
       } else if (row.type === JOURNAL_EVENT_TYPES.MEETING_CLOSED) {
         status = "closed";
+      } else if (row.type === JOURNAL_EVENT_TYPES.MEETING_RESUMED) {
+        status = "open";
       }
     }
   }
@@ -181,14 +186,16 @@ export async function buildMeetingTranscript(
       const message_id = typeof data.message_id === "string" ? data.message_id : "";
       if (!message_id) continue;
       const from = fromSeat(data, roster);
+      const speakerId = "participant_id" in from ? from.participant_id : "";
       const artifacts = Array.isArray(data.artifacts)
         ? data.artifacts.filter((id): id is string => typeof id === "string")
         : undefined;
       messages.set(message_id, {
         message_id,
         seq,
+        created_at: row.time,
         from,
-        to: projectTo(data.to, from.participant_id, roster),
+        to: projectTo(data.to, speakerId, roster),
         ...(typeof data.in_reply_to === "string" ? { in_reply_to: data.in_reply_to } : {}),
         ...(typeof data.text === "string" ? { text: data.text } : {}),
         ...(artifacts && artifacts.length > 0 ? { artifacts } : {}),
@@ -207,9 +214,16 @@ export async function buildMeetingTranscript(
     const participant_id = typeof data.participant_id === "string" ? data.participant_id : "";
     const message = messages.get(message_id);
     if (!message || !participant_id) continue;
+    const receiptAt = row.time;
+    const latency_ms = Math.max(
+      0,
+      Date.parse(receiptAt) - Date.parse(message.created_at),
+    );
     const receipt: MeetingTranscriptReceipt = {
       participant_id,
       status: row.type === JOURNAL_EVENT_TYPES.MEETING_DELIVERED ? "delivered" : "failed",
+      recorded_at: receiptAt,
+      latency_ms: Number.isFinite(latency_ms) ? latency_ms : 0,
       ...(row.type === JOURNAL_EVENT_TYPES.MEETING_DELIVERY_FAILED && typeof data.reason === "string"
         ? { reason: data.reason }
         : {}),

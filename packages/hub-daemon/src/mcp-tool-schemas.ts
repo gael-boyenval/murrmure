@@ -130,6 +130,17 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
   murrmure_list_personas: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
+  murrmure_list_directive_eligible: objectSchema({}),
+  murrmure_start_directive: objectSchema(
+    {
+      prompt: stringSchema("Directive prompt delivered as {{input.prompt}}"),
+      space_ids: stringArraySchema(
+        "Eligible space ids. Omit to fan out to every space currently eligible for this token",
+      ),
+      space_id: stringSchema("Single eligible space id (alias of space_ids with one entry)"),
+    },
+    { required: ["prompt"] },
+  ),
   murrmure_start_meeting: objectSchema(
     {
       title: stringSchema("Meeting title"),
@@ -165,6 +176,22 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     { required: ["session_id"] },
   ),
+  murrmure_get_artifact: objectSchema(
+    {
+      transfer_id: stringSchema("Artifact transfer id (xfr_*)"),
+      artifact_id: stringSchema("Compatibility alias for transfer_id"),
+      space_id: stringSchema("Optional bootstrap target; regular tokens cannot override their space"),
+    },
+    { required: ["transfer_id"] },
+  ),
+  murrmure_put_artifact: objectSchema({
+    path: stringSchema("Relative path under this space root (xor content)"),
+    content: stringSchema("Inline UTF-8 bytes, max 64 KiB (xor path)"),
+    name: stringSchema("Filename; required with content, defaults from path basename"),
+    authorized_readers: stringArraySchema(
+      "Optional ACL; defaults to this space. Meeting said expands the roster.",
+    ),
+  }),
   murrmure_create_session: objectSchema({
     title: stringSchema("Session title"),
     subject: {

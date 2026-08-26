@@ -31,11 +31,16 @@ function readTaskInstruction(params: Record<string, unknown> | undefined): strin
 
 function formatMeetingWake(params: InvokeActionParams): string {
   const data = params.params ?? {};
+  const message_id = typeof data.message_id === "string" && data.message_id ? data.message_id : undefined;
+  const trigger = data.trigger === "convened" || !message_id ? ("convened" as const) : ("said" as const);
+  const subject = typeof data.subject === "string" && data.subject.trim() ? data.subject.trim() : undefined;
   const wake = {
     session_id: String(data.session_id ?? params.session_id ?? ""),
     participant_id: String(data.participant_id ?? ""),
-    message_id: String(data.message_id ?? ""),
+    message_id,
+    trigger,
     since_seq: Number(data.since_seq ?? 0),
+    ...(subject ? { subject } : {}),
   };
   const instruction = readTaskInstruction(data);
   const lines = [
@@ -55,6 +60,7 @@ function formatMeetingWake(params: InvokeActionParams): string {
       {
         session_id: wake.session_id,
         participant_id: wake.participant_id,
+        trigger: wake.trigger,
         message_id: wake.message_id,
         since_seq: wake.since_seq,
       },
@@ -100,12 +106,16 @@ export function formatMeetingSaidWake(params: {
   message_id?: string;
   since_seq?: number;
   handler_id?: string;
+  subject?: string;
 }): string {
+  const subject = params.subject?.trim();
   const wake = {
     session_id: String(params.session_id ?? ""),
     participant_id: String(params.participant_id ?? ""),
+    trigger: "said" as const,
     message_id: String(params.message_id ?? ""),
     since_seq: Number(params.since_seq ?? 0),
+    ...(subject ? { subject } : {}),
   };
   const lines = [
     "Murrmure control wake: meeting said",

@@ -3,6 +3,7 @@ import type { MeetingRosterSeatRow, MeetingSessionRow } from "@murrmure/hub-pers
 import { stripSpaceId } from "../bridge/ids.js";
 import {
   meetingClosed,
+  meetingChairRequired,
   notMeetingMember,
   participantAmbiguous,
   replyUnknown,
@@ -10,17 +11,30 @@ import {
   toEmpty,
   type MeetingDenial,
 } from "./errors.js";
-import { findSeat, mintMessageId, prefixedSpace, rosterSpaceIds, seatsForSpace } from "./roster.js";
+import {
+  findSeat,
+  isHumanChair,
+  mintMessageId,
+  prefixedSpace,
+  rosterSpaceIds,
+  seatsForSpace,
+} from "./roster.js";
 import { loadMeeting } from "./snapshot.js";
 import type { MeetingJournalDeps } from "./journal.js";
 
+export type MeetingMessageSpeaker = MeetingRosterSeatRow | { human: true };
+
 export type PreparedSaid = {
   payload: Record<string, unknown>;
-  speaker: MeetingRosterSeatRow;
+  speaker: MeetingMessageSpeaker;
   targets: MeetingRosterSeatRow[];
   message_id: string;
   meeting: MeetingSessionRow;
 };
+
+function isMeetingDenial(value: object): value is MeetingDenial {
+  return "ok" in value && value.ok === false;
+}
 
 function parseTo(
   raw: unknown,
@@ -62,17 +76,18 @@ function resolveSpeaker(
 
 function resolveTargets(
   meeting: MeetingSessionRow,
-  speaker: MeetingRosterSeatRow,
+  speaker: MeetingMessageSpeaker,
   to: { kind: "all" } | { kind: "list"; participant_ids: string[] },
 ): MeetingRosterSeatRow[] | MeetingDenial {
+  const speakerId = "participant_id" in speaker ? speaker.participant_id : undefined;
   if (to.kind === "all") {
-    const targets = meeting.roster.filter((seat) => seat.participant_id !== speaker.participant_id);
+    const targets = meeting.roster.filter((seat) => seat.participant_id !== speakerId);
     if (targets.length === 0) return toEmpty();
     return targets;
   }
   const targets: MeetingRosterSeatRow[] = [];
   for (const id of to.participant_ids) {
-    if (id === speaker.participant_id) continue;
+    if (id === speakerId) continue;
     const seat = findSeat(meeting.roster, id);
     if (!seat) return notMeetingMember(`Target ${id} is not on the roster`);
     targets.push(seat);
@@ -107,6 +122,8 @@ async function expandArtifactReaders(
 ): Promise<void> {
   if (!Array.isArray(artifacts)) return;
   const readers = rosterSpaceIds(meeting.roster);
+  const session = await deps.studio.getSession(meeting.session_id);
+  if (session?.actor_id) readers.push(`actor:${session.actor_id}`);
   for (const id of artifacts) {
     if (typeof id !== "string") continue;
     await deps.studio.updateArtifactAuthorizedReaders(id, readers);
@@ -119,6 +136,9 @@ export async function prepareMeetingSaid(
     space_id: string;
     session_id: string;
     payload: Record<string, unknown>;
+    actor_id?: string;
+    human_chair?: boolean;
+    bootstrap?: boolean;
   },
 ): Promise<{ ok: true; prepared: PreparedSaid } | MeetingDenial | { ok: true; legacy: true; payload: Record<string, unknown> }> {
   const meeting = await loadMeeting(deps.studio, input.session_id);
@@ -128,13 +148,25 @@ export async function prepareMeetingSaid(
   if (meeting.status === "closed") return meetingClosed();
 
   const to = parseTo(input.payload.to);
-  if ("ok" in to && to.ok === false) return to;
+  if (isMeetingDenial(to)) return to;
 
-  const speaker = resolveSpeaker(meeting, input.space_id, input.payload.as_participant_id);
-  if ("ok" in speaker && speaker.ok === false) return speaker;
+  let speaker: MeetingMessageSpeaker | MeetingDenial;
+  if (input.human_chair) {
+    const session = await deps.studio.getSession(input.session_id);
+    if (
+      !isHumanChair(meeting.chair) ||
+      (!input.bootstrap && (!input.actor_id || session?.actor_id !== input.actor_id))
+    ) {
+      return meetingChairRequired();
+    }
+    speaker = { human: true };
+  } else {
+    speaker = resolveSpeaker(meeting, input.space_id, input.payload.as_participant_id);
+  }
+  if (isMeetingDenial(speaker)) return speaker;
 
   const targets = resolveTargets(meeting, speaker, to);
-  if ("ok" in targets && targets.ok === false) return targets;
+  if (isMeetingDenial(targets)) return targets;
 
   const inReplyTo = input.payload.in_reply_to;
   if (typeof inReplyTo === "string" && inReplyTo.length > 0) {
@@ -157,14 +189,20 @@ export async function prepareMeetingSaid(
   await expandArtifactReaders(deps, meeting, input.payload.artifacts);
 
   const message_id = mintMessageId(deps.ids.ulid);
-  const from = {
-    participant_id: speaker.participant_id,
-    space_id: prefixedSpace(speaker.space_id),
-    ...(speaker.persona ? { persona: speaker.persona } : {}),
-  };
+  const from =
+    "human" in speaker
+      ? { human: true as const }
+      : {
+          participant_id: speaker.participant_id,
+          space_id: prefixedSpace(speaker.space_id),
+          ...(speaker.persona ? { persona: speaker.persona } : {}),
+        };
+  const { as_participant_id: _asParticipantId, ...rest } = input.payload;
   const payload = {
-    ...input.payload,
-    as_participant_id: speaker.participant_id,
+    ...rest,
+    ...("participant_id" in speaker
+      ? { as_participant_id: speaker.participant_id }
+      : {}),
     message_id,
     from,
   };

@@ -2,9 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../../../src/handlers/hub.js";
+import type { HookDispatchDeps } from "../../../src/hooks/dispatch.js";
 import { conveneMeeting } from "../../../src/meetings/convene.js";
 import type { SessionRunDeps } from "../../../src/run/service.js";
 import { SpaceConcurrencyGuard } from "../../../src/run/space-guard.js";
+import { matchEventHandlers } from "../../../src/index/parse-handlers.js";
+import type { HandlerSpec } from "@murrmure/contracts";
 
 const NOW = "2026-08-17T00:00:00.000Z";
 const APP = "app";
@@ -43,6 +46,30 @@ async function seedSpaces(studio: MemoryStudioPersistence): Promise<void> {
         payload_json: JSON.stringify({ id: "qa", summary: "Quality" }),
       },
     ],
+    hooks: [
+      {
+        key: "meeting-designer",
+        digest: "sha256:hd",
+        payload_json: JSON.stringify({
+          id: "meeting-designer",
+          contract_keys: [],
+          on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+          type: "mcp_session",
+          complete: "explicit",
+        }),
+      },
+      {
+        key: "meeting-qa",
+        digest: "sha256:hq",
+        payload_json: JSON.stringify({
+          id: "meeting-qa",
+          contract_keys: [],
+          on: { event: { type: "mrmr.meeting.said", participant: "qa" } },
+          type: "mcp_session",
+          complete: "explicit",
+        }),
+      },
+    ],
   });
   await studio.replaceSpaceIndex(RESEARCH, {
     ...emptySnapshot(),
@@ -51,6 +78,19 @@ async function seedSpaces(studio: MemoryStudioPersistence): Promise<void> {
         key: "researcher",
         digest: "sha256:r",
         payload_json: JSON.stringify({ id: "researcher", summary: "Prior art" }),
+      },
+    ],
+    hooks: [
+      {
+        key: "meeting-researcher",
+        digest: "sha256:hr",
+        payload_json: JSON.stringify({
+          id: "meeting-researcher",
+          contract_keys: [],
+          on: { event: { type: "mrmr.meeting.said", participant: "researcher" } },
+          type: "mcp_session",
+          complete: "explicit",
+        }),
       },
     ],
   });
@@ -146,5 +186,74 @@ describe("meetings/convene", () => {
       code: MURRMURE_DENIAL_CODES.MEETING_ALREADY_OPEN,
       http: 409,
     });
+  });
+
+  test("said handler matches convene doorbell", () => {
+    const handler = {
+      id: "meeting-designer",
+      contract_keys: [],
+      on: { event: { type: "mrmr.meeting.said", participant: "designer" } },
+      type: "mcp_session",
+      complete: "explicit",
+    } as HandlerSpec;
+    expect(
+      matchEventHandlers([handler], {
+        event_type: "mrmr.meeting.convened",
+        source: "/spaces/spc_app",
+        participant: "designer",
+      }),
+    ).toHaveLength(1);
+    expect(
+      matchEventHandlers([handler], {
+        event_type: "mrmr.meeting.convened",
+        source: "/spaces/spc_app",
+        participant: "qa",
+      }),
+    ).toHaveLength(0);
+    expect(
+      matchEventHandlers([handler], {
+        event_type: "mrmr.meeting.resumed",
+        source: "/spaces/spc_app",
+        participant: "designer",
+      }),
+    ).toHaveLength(1);
+  });
+
+  test("convene wakes each said handler", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedSpaces(studio);
+    const invokes: string[] = [];
+    let n = 0;
+    const deps: HookDispatchDeps = {
+      studio,
+      handler: {
+        appendSpaceJournal: vi.fn(async () => {
+          n += 1;
+          return { seq: n, entry_id: `evt_${n}` };
+        }),
+      } as unknown as HubHandler,
+      ids: { ulid: () => `id${++n}` },
+      clock: { nowIso: () => NOW },
+      guard: new SpaceConcurrencyGuard(),
+      invokeAction: async (input) => {
+        invokes.push(input.action_name);
+        return { http: 200 };
+      },
+    };
+    const result = await conveneMeeting(deps, {
+      title: "API shape",
+      participants: [
+        { space_id: `spc_${APP}`, persona: "designer" },
+        { space_id: `spc_${APP}`, persona: "qa" },
+        { space_id: `spc_${RESEARCH}`, persona: "researcher" },
+      ],
+      chair: { human: true },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+      convenor_space_id: `spc_${APP}`,
+      capabilities: ["space:read", "flow:run"],
+    });
+    expect(result.ok).toBe(true);
+    expect(invokes.sort()).toEqual(["meeting-designer", "meeting-qa", "meeting-researcher"]);
   });
 });

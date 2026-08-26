@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 import { MURRMURE_DENIAL_CODES } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
-import type { ControlPrincipal } from "../../control-bus.js";
+import { handshakeDrainCursor, type ControlPrincipal } from "../../control-bus.js";
 import { bareSpaceId } from "../../space-id.js";
 
 export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
@@ -32,14 +32,30 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
       token_id: auth.token_id,
       client_id,
     };
+    const rawMeeting = body.meeting_assignment;
+    const meetingAssignment =
+      rawMeeting &&
+      typeof rawMeeting === "object" &&
+      typeof rawMeeting.session_id === "string" &&
+      rawMeeting.session_id.startsWith("ses_") &&
+      typeof rawMeeting.participant_id === "string" &&
+      rawMeeting.participant_id.startsWith("ptc_")
+        ? {
+            session_id: rawMeeting.session_id,
+            participant_id: rawMeeting.participant_id,
+          }
+        : undefined;
 
     ctx.controlBus.registerPrincipal(principal);
-    ctx.mcpSessionRegistry.connect(principal);
+    ctx.mcpSessionRegistry.connect(principal, meetingAssignment);
 
     const serverTools = (await ctx.mcpToolRegistry.listForToken(auth)).map((t) => t.name);
 
     const ack = ctx.controlBus.publishHandshakeAck(principal, serverTools, []);
-    const drained = ctx.controlBus.drain(principal, last_ack_seq);
+    const drained = ctx.controlBus.drain(
+      principal,
+      handshakeDrainCursor(last_ack_seq, ack.params.seq),
+    );
 
     return c.json({
       handshake_ack_seq: ack.params.seq,

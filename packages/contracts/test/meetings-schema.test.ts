@@ -67,12 +67,13 @@ describe("meetings/ids and journal types", () => {
     expect(ParticipantIdSchema.safeParse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV").success).toBe(false);
   });
 
-  test("five mrmr.meeting.* journal types", () => {
+  test("mrmr.meeting.* journal types", () => {
     expect(JOURNAL_EVENT_TYPES.MEETING_CONVENED).toBe("mrmr.meeting.convened");
     expect(JOURNAL_EVENT_TYPES.MEETING_SAID).toBe("mrmr.meeting.said");
     expect(JOURNAL_EVENT_TYPES.MEETING_DELIVERED).toBe("mrmr.meeting.delivered");
     expect(JOURNAL_EVENT_TYPES.MEETING_DELIVERY_FAILED).toBe("mrmr.meeting.delivery_failed");
     expect(JOURNAL_EVENT_TYPES.MEETING_CLOSED).toBe("mrmr.meeting.closed");
+    expect(JOURNAL_EVENT_TYPES.MEETING_RESUMED).toBe("mrmr.meeting.resumed");
   });
 
   test("meeting denial codes", () => {
@@ -153,10 +154,16 @@ describe("meetings/convene and to xor", () => {
         {
           message_id: MSG,
           seq: 2,
+          created_at: "2026-08-17T15:00:00.000Z",
           from: { participant_id: PTC, space_id: SPC, persona: "designer" },
           to: { all: true, participant_ids: [PTC_B] },
           text: "hello",
-          receipts: [{ participant_id: PTC_B, status: "delivered" }],
+          receipts: [{
+            participant_id: PTC_B,
+            status: "delivered",
+            recorded_at: "2026-08-17T15:00:00.025Z",
+            latency_ms: 25,
+          }],
         },
       ],
     });

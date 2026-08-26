@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@murrmure/hub-core": "workspace:*",
-    "@murrmure/runtime-contracts": "workspace:*"
+    "@murrmure/runtime-contracts": "workspace:*",
+    "node-pty": "1.2.0-beta.15"
   },
   "devDependencies": {
     "@murrmure/contracts": "workspace:*",

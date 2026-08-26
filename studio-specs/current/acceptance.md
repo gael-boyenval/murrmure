@@ -162,10 +162,10 @@ Requirements:
 |-----|--------|----------------|
 | Convene two personas + one other space | Three `ptc_*`, one `ses_*` | `hub-core` meetings convene tests · `fixtures/meetings/convene.json` |
 | `said` to one seat | That handler only; transcript `delivered` | `fixtures/meetings/said.json` |
-| Join-once | Second `said` same `session_id`; `notify_live` | hub-core / mcp-bridge meeting notify tests |
+| Seat continuity | One PTY/process per `(session, ptc_*)`; first turn is argv; later `said` writes into that PTY after idle without respawn; close terminates the process | hub-core join-once · executors shell-spawn · hub-daemon live assignments |
 | Close XOR resolve | Chair `closed` resolves bound step; non-chair `MEETING_CHAIR_REQUIRED` | `fixtures/meetings/close.json` · `step-resolve-meeting.test.ts` |
-| Transcript pull | `since_seq` is `meeting_seq`; not `journal_query` | `fixtures/meetings/transcript.json` |
-| Shell Transcript | `/sessions/:id` default; no compose; no `/meetings` | [shell/spec.md](./shell/spec.md) |
+| Transcript pull | `since_seq` is `meeting_seq`; message/receipt timestamps and latency project from journal; not `journal_query` | `fixtures/meetings/transcript.json` |
+| Shell Transcript | `/sessions/:id` default; human-chair compose to selected/all; `HH:mm:ss` + ISO hover; header New meeting; no `/meetings` | [shell/spec.md](./shell/spec.md) |
 | Tutorial 1b fences | Progressive snapshots match pages | `packages/cli/test/tutorial-meetings-harness.test.ts` |
 
 ## Gate

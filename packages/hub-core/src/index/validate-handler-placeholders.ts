@@ -156,6 +156,7 @@ export function validateHandlerPlaceholders(
     if (handler.type === "view_resolver") continue;
     const fields: Array<{ label: string; value?: string }> = [
       { label: "command", value: handler.command },
+      { label: "continuation.command", value: handler.continuation?.command },
       { label: "prompt", value: handler.prompt },
       { label: "cwd", value: handler.cwd },
     ];
