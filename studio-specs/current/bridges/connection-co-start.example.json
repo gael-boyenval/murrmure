@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "murrmure": {
+      "command": "~/.murrmure/bin/murrmure-mcp",
+      "args": ["--connection", "con_01EXAMPLE"]
+    },
+    "memory": {
+      "command": "bunx",
+      "args": [
+        "memory-mcp",
+        "--db",
+        "${MURRMURE_DATA_DIR}/memory.db",
+        "--profile",
+        "serve"
+      ],
+      "cwd": "/path/to/memory-package"
+    }
+  },
+  "_hub_notes": {
+    "pre_warm": "After tools/list on memory child: recall({ bank: <space memory_bank>, query: \".\", limit: 1 }) — fire-and-forget",
+    "catalog_ready": "initialize + tools/list success on memory stdio client",
+    "subjects_optional": "Add --subjects /path/to/subjects.yaml to memory args when desk handbook is ready (phase 2)"
+  }
+}
