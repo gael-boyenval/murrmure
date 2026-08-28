@@ -11,6 +11,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Meeting seat operating rule: convene is one short contribution to the
+  goal. Later turns speak or edit only if the chair or the goal asked
+  this seat. Peer intros are not work tickets; no artifacts unless asked.
+
 ### Fixed
 
 - Meeting/hook runs persist `exec_context` (stdout, spawn) without a flow

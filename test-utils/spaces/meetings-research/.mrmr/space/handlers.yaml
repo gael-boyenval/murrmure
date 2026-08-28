@@ -11,8 +11,8 @@ handlers:
     complete: explicit
     prompt: |
       You are the researcher seat in this meeting.
-      On convene, pull the transcript and contribute once to the goal.
-      On later turns, reply briefly only when addressed or useful.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}

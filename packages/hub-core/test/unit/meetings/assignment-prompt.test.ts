@@ -57,6 +57,7 @@ describe("meetings/assignment-prompt", () => {
     expect(protocol).toContain("You were invited");
     expect(protocol).toContain("This process is your seat");
     expect(protocol).toContain("make one concise initial contribution");
+    expect(protocol).toContain("Do not start work");
     expect(protocol).toContain("subject: KB goal check read the desk");
     expect(protocol).not.toContain("message_id:");
   });
@@ -71,7 +72,7 @@ describe("meetings/assignment-prompt", () => {
     expect(protocol).toContain("trigger: resumed");
     expect(protocol).toContain("This room resumed");
     expect(protocol).toContain("same session_id and participant_id");
-    expect(protocol).toContain("Continue from the existing conversation");
+    expect(protocol).toContain("Continue only if the chair or the meeting goal");
     expect(protocol).not.toContain("You were invited");
   });
 
@@ -85,9 +86,9 @@ describe("meetings/assignment-prompt", () => {
     });
     expect(protocol).toContain("already joined");
     expect(protocol).toContain("addressed_to_you");
-    expect(protocol).toContain("do that work this turn");
+    expect(protocol).toContain("chair or the meeting goal");
+    expect(protocol).toContain("not a ticket");
     expect(protocol).toContain("to.participant_ids");
-    expect(protocol).toContain("Stay silent only when");
     expect(protocol).not.toContain("You were invited");
   });
 

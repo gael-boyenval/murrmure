@@ -4,6 +4,9 @@
 
 ### Changed
 
+- `murrmure-agent` **1.3.15** / `murrmure-developer` **1.2.14**: meeting
+  seats stay silent unless the chair or the goal asked that seat. Intros
+  are not tickets; no artifacts unless asked.
 - `murrmure-agent` **1.3.14**: meeting-seat recipe mints a Cursor chat id
   and `--resume`s it on the next process after close/crash.
 - `murrmure-developer` **1.2.13**: meeting-seat recipe matches that resume

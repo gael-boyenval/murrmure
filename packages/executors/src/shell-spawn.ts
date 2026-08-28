@@ -811,6 +811,9 @@ function runCommandDetached(
   });
 }
 
+/** Watch-only wterm in shell-web must use the same grid or spinner CSI wraps. */
+export const PERSISTENT_PTY_COLS = 120;
+export const PERSISTENT_PTY_ROWS = 40;
 const PERSISTENT_OUTPUT_TAIL_CHARS = 256_000;
 const PERSISTENT_INLINE_TURN_CHARS = 240;
 
@@ -872,8 +875,8 @@ function runPersistentCommand(
 ): void {
   const pty = spawnPtyFn(POSIX_SHELL, ["-e", "-c", command], {
     name: "xterm-256color",
-    cols: 120,
-    rows: 40,
+    cols: PERSISTENT_PTY_COLS,
+    rows: PERSISTENT_PTY_ROWS,
     cwd,
     env: ptyEnvironment(extraEnv),
   });

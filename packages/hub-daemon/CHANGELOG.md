@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Meeting later-turn protocol: speak or edit only if the chair or the
+  goal asked this seat. Peer intros are not tickets.
 - Meeting handler dispatch still passes authored `continuation` (including
   `mint_command`) into `shell_spawn`, so Resume after close can reopen the
   same harness chat.

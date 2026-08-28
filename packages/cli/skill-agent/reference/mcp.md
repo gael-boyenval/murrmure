@@ -57,8 +57,8 @@ installation or `mrmr space apply`.
 
 1. `murrmure_meeting_transcript` once with the prompt `session_id`, `since_seq`, and **your** `participant_id` — read `you` and `addressed_to_you`. Do not paste the journal.
 2. To attach a file: `murrmure_put_artifact({ content, name })` → `xfr_*`, then `murrmure_emit_event` `mrmr.meeting.said` with `artifacts: [xfr_*]`. For a received `xfr_*`, call `murrmure_get_artifact({ transfer_id })` and read `artifact.local_path` relative to the space root. Never guess a sender-local path.
-3. On `trigger: convened`, contribute once when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. On `trigger: resumed`, continue — do not re-introduce. If the room asked you to do work, do it this turn.
-4. Stay silent later only when nothing new was asked of you and you have no open work. Do not answer with only “working”. Target the relevant speaker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
+3. On `trigger: convened`, one short contribution to the goal when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Do not start work or attach files unless the goal names this seat. On `trigger: resumed`, continue — do not re-introduce or invent work.
+4. Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked. If the chair/goal did ask for work, do it this turn — do not answer with only “working”. Target the asker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
 5. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`.
 5. Do **not** `murrmure_resolve_step` the room.
 6. Prefer `shell_spawn` with `session.mode: persistent`. Convene starts one interactive process; later `said` writes the next turn into that PTY until close. Do not call `murrmure_get_pending_wake`.

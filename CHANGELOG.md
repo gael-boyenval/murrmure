@@ -1,12 +1,20 @@
 # Changelog
 
+## Meeting seat silence (2026-08-26)
+
+### Changed
+
+- Seats contribute once on convene. Later turns speak or edit only if
+  the chair or the goal asked that seat. Peer intros are not work
+  tickets; no artifacts unless asked.
+
 ## Meeting agent activity (2026-08-26)
 
 ### Changed
 
 - Agent activity lists every roster seat and streams that seat’s PTY
-  into a wterm emulator (watch-only). Meeting/hook runs now persist
-  stdout even without a flow.
+  into a wterm + Ghostty emulator (watch-only, 120×40). Meeting/hook
+  runs now persist stdout even without a flow.
 
 ## Meeting chat resume (2026-08-26)
 

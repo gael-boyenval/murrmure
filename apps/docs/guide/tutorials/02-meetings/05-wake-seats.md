@@ -4,8 +4,8 @@
 That process and its MCP connection stay alive until meeting close. Later `said`
 messages create turns in the same process—no spawn-per-message. Close or crash
 starts a replacement with `--resume` of a minted chat id, so Resume is the same
-Cursor chat. A seat contributes once on convene; on later turns it may stay
-silent. `personas.yaml` does not wake anyone. `type: shell_spawn` +
+Cursor chat. A seat contributes once on convene and stays silent later unless the
+chair or the goal asked that seat. `personas.yaml` does not wake anyone. `type: shell_spawn` +
 `session.mode: persistent` + `continuation` is the seat.
 
 ## Before you start
@@ -44,9 +44,8 @@ handlers:
     prompt: |
       You are the researcher seat in this meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once to the goal.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
@@ -79,9 +78,8 @@ handlers:
     prompt: |
       You are the researcher seat in this meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once to the goal.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
@@ -112,9 +110,8 @@ handlers:
     prompt: |
       You are the designer seat in this meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once to the goal.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
@@ -136,9 +133,8 @@ handlers:
     prompt: |
       You are the QA seat in this meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once to the goal.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}

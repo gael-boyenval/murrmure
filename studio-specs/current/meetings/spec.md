@@ -398,7 +398,7 @@ Authored `{ all: true }` projects as `{ all: true, participant_ids: [/* roster m
 
 Optional seat status (from live assignment / latest run on this session): `idle` | `working` | `failed`. Enough for “research is still going.” No `meeting.working` event required.
 
-**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`: if asked to do work, do it this turn. The shell lens shows the full room.
+**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`. Convene is one short contribution to the goal. Later turns speak or edit only if the chair or the goal asked this seat. A peer intro is not a ticket. The shell lens shows the full room.
 
 ---
 
@@ -433,7 +433,7 @@ Per participant, while the meeting is open:
 3. **Later `said`** — write the new turn into that same PTY (`notify_live` → seat controller). Queue writes while the process is producing output; flush after idle; submit with Enter. Do not stamp delivery on a space MCP connection that never bound the seat.
 4. **Seat identity** — all live/resume state is keyed by unique roster `participant_id` (`ptc_*`), never persona. The shell exports meeting `ses_*` + `ptc_*`; the child MCP handshake carries both so the Hub can bind that exact seat after checking the principal's space. Connection-order guessing and operator-chat fallback are forbidden. Two `default` personas in different spaces are independent seats.
 5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
-6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Pull the transcript with this seat's `participant_id` and read `you` / `addressed_to_you`. If the room asked this seat to do work, do that work on the turn — a status reply is not the job. Stay silent later only when nothing new was asked and there is no open work. If it replies, target the relevant participant(s) and avoid acknowledgement/repetition. The hub does not invent turn-taking.
+6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Do not start work or attach artifacts on convene unless the goal names this seat. Later turns speak or edit only if the chair or the meeting goal asked this seat (question, named task, or explicit work request). Another seat's intro, role dump, or peer design talk is not a ticket. If the chair or goal did ask this seat for work, do that work on the turn. If it replies, target the asker and avoid acknowledgement/repetition. The hub does not invent turn-taking.
 7. **PTY not attached yet** — queue the notify until the persistent controller attaches. Do not fall back to a pre-existing operator MCP in the same space.
 8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller.
 
@@ -468,9 +468,8 @@ A **run** may be one per spawn (observability) or the optional `room` flow run.
   prompt: |
     You are the designer seat in this meeting.
     Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-    Know the goal and what was asked of you. If asked to do work, do it this turn.
-    On convene, contribute once to the goal.
-    Stay silent later only when nothing new was asked of you.
+    Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+    Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
   command: cursor agent --force --approve-mcps --trust {{prompt}}
   continuation:
     command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}

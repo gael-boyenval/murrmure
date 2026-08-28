@@ -11,6 +11,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- Meeting Agent activity uses Ghostty VT + the same 120×40 grid as the
+  seat PTY, and no longer remounts wterm on every snapshot. Spinner /
+  loader frames overwrite in place instead of stacking.
+
 ### Added
 
 - Transcript renders `said` text as Markdown (GFM). **Reply** sets

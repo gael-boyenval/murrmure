@@ -39,7 +39,7 @@ Header **+** creates a **session**, not a space object and not a run. Find it in
 ## Put this in every invited space
 
 Ask the agent **in that repo**. Skills `murrmure-agent` / `murrmure-developer`
-(v1.3.14 / v1.2.13) tell it to add **`type: shell_spawn`** with a persistent session and a minted chat id. If doctor says the
+(v1.3.15 / v1.2.14) tell it to add **`type: shell_spawn`** with a persistent session and a minted chat id. If doctor says the
 skill is outdated: `mrmr skill install --variant all` in that folder.
 
 Copy, change `id` / `participant` / the prompt voice, then `mrmr space apply --strict`:
@@ -60,9 +60,8 @@ handlers:
     prompt: |
       You are the <persona> seat in this Murrmure meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once to the goal.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
@@ -92,10 +91,10 @@ Live seats check for control messages every 750 ms. Multiple `said` events for
 the same seat between polls—and messages queued while the seat is answering—are
 coalesced before the next transcript pull/model turn.
 Seats contribute once on convene when another roster seat exists (a one-seat
-room stays silent because self-delivery is dropped). They pull the transcript
-with their `participant_id` and read `you` / `addressed_to_you`. If asked to
-do work, they do it on that turn. Stay silent later only when nothing new was
-asked. When they reply they should target the relevant speaker,
+room stays silent because self-delivery is dropped). They do not start work
+or attach files unless the goal names that seat. Later they speak or edit
+only if the chair or the goal asked them — another seat's intro is not a
+ticket. When they reply they should target the asker,
 use `in_reply_to` when useful, and avoid `to: { all: true }` unless every seat
 genuinely needs the message.
 
@@ -113,7 +112,9 @@ chevron collapses goal + roster. While the room is open, the human chair can
 attaches it without threading. Journal
 `/logs` is retrieval, not the chat. **Agent activity** lists every roster
 seat and watches that seat’s live PTY in a [wterm](https://wterm.dev)
-emulator (watch-only). Close keeps the last output until the hub restarts.
+emulator with the Ghostty VT core (watch-only, 120×40 — same grid as the
+seat PTY, so loaders overwrite in place). Close keeps the last output
+until the hub restarts.
 
 Transcript carries artifact references (`xfr_*`), not file bytes. The shell
 shows a right-hand list of unique attachments; click jumps to the share and

@@ -467,6 +467,9 @@ importers:
       '@wterm/dom':
         specifier: ^0.3.4
         version: 0.3.4
+      '@wterm/ghostty':
+        specifier: 0.3.4
+        version: 0.3.4
       '@wterm/react':
         specifier: ^0.3.4
         version: 0.3.4(@wterm/dom@0.3.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2762,6 +2765,9 @@ packages:
 
   '@wterm/dom@0.3.4':
     resolution: {integrity: sha512-4TYaCJpAo9B3CMsCuApS65X7nExbMZ7QjcLbJCI0132hzccQ2EdG8NX2I2AELbGbDIeWNcDYD3ReqVtbEcQwqA==}
+
+  '@wterm/ghostty@0.3.4':
+    resolution: {integrity: sha512-oa53vgUFuNfIt+p8vvEeKlr8M4NRciEmHqY8pIXBxV3NRH6OGjMb1TiSxKBi+hySP61uXKqVbbu9YdW+7fWNMg==}
 
   '@wterm/react@0.3.4':
     resolution: {integrity: sha512-/DwzDyvLp2x6wOc5Ng49GRTy46gfhdVfqlYTnZNh4y3DJBb82/f2JKpxKJtQkI3m6HL7VQqwgAnysIX+DavugQ==}
@@ -7640,6 +7646,10 @@ snapshots:
   '@wterm/core@0.3.4': {}
 
   '@wterm/dom@0.3.4':
+    dependencies:
+      '@wterm/core': 0.3.4
+
+  '@wterm/ghostty@0.3.4':
     dependencies:
       '@wterm/core': 0.3.4
 

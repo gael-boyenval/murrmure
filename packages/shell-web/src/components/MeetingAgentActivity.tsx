@@ -17,7 +17,6 @@ export function MeetingAgentActivity({
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [ptyText, setPtyText] = useState("");
   const [ptyLive, setPtyLive] = useState(false);
-  const [ptyEpoch, setPtyEpoch] = useState(0);
 
   const seatsQuery = useQuery({
     queryKey: ["session-seats", sessionId],
@@ -41,12 +40,10 @@ export function MeetingAgentActivity({
     }
     setPtyText("");
     setPtyLive(selected.live);
-    setPtyEpoch((n) => n + 1);
     return client.sessions.subscribeSeatPty(sessionId, selected.participant_id, (event) => {
       if (event.type === "snapshot") {
         setPtyText(event.text);
         setPtyLive(event.live);
-        setPtyEpoch((n) => n + 1);
         return;
       }
       setPtyText((prior) => `${prior}${event.text}`);
@@ -73,7 +70,7 @@ export function MeetingAgentActivity({
       </ul>
       {selected ? (
         <SeatTerminal
-          key={`${selected.participant_id}:${ptyEpoch}`}
+          key={selected.participant_id}
           text={ptyText}
           live={ptyLive}
           emptyLabel={

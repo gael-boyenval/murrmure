@@ -17,10 +17,10 @@
   token and start the PTY with `continuation.command` (`--resume`); later
   `said` still writes into the live process.
 - Persistent `shell_spawn` sessions run one interactive PTY process for the
-  assignment. First turn is the `{{prompt}}` argument. Later turns are written
-  to the PTY after idle and submitted with Enter. Close is Ctrl-D →
-  process-group TERM/KILL. The controller exposes `snapshot` / `subscribe`
-  for a watch-only operator pane.
+  assignment (120×40, `xterm-256color`). First turn is the `{{prompt}}`
+  argument. Later turns are written to the PTY after idle and submitted with
+  Enter. Close is Ctrl-D → process-group TERM/KILL. The controller exposes
+  `snapshot` / `subscribe` for a watch-only operator pane.
 - Meeting shells export their exact session and roster participant to the child
   bridge, and do not masquerade as step-scoped assignment MCP processes.
 

@@ -36,9 +36,8 @@ Append to `.mrmr/space/handlers.yaml`. `participant` **must** match the persona 
     prompt: |
       You are the default seat in this Murrmure meeting.
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
-      Know the goal and what was asked of you. If asked to do work, do it this turn.
-      On convene, contribute once if another seat exists.
-      Stay silent later only when nothing new was asked of you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
     continuation:
       command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
@@ -83,3 +82,5 @@ to put.
 - Do not add a talk flow
 - Do not call `murrmure_resolve_step` for the room
 - Do not wait for the operator to ask an open chat to poll
+- Do not treat another seat's intro as a work ticket
+- Do not attach artifacts unless the chair or the goal asked

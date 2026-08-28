@@ -5,8 +5,9 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
-    include: ["@wterm/react", "@wterm/dom", "@wterm/core"],
+    include: ["@wterm/react", "@wterm/dom", "@wterm/core", "@wterm/ghostty"],
   },
+  assetsInclude: ["**/*.wasm"],
   server: {
     host: "127.0.0.1",
     port: 5174,

@@ -12,6 +12,10 @@ import { defaultSessionRunId, SessionPage, sessionPaneLabel } from "./SessionPag
 const capturedCanvasProps: ViewCanvasHostProps[] = [];
 
 vi.mock("@wterm/react/css", () => ({}));
+vi.mock("@wterm/ghostty", () => ({
+  GhosttyCore: { load: async () => ({}) },
+}));
+vi.mock("@wterm/ghostty/ghostty-vt.wasm?url", () => ({ default: "" }));
 vi.mock("@wterm/react", async () => {
   const { forwardRef } = await import("react");
   return {
