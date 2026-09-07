@@ -30,6 +30,11 @@ x-feedback-prompt: &feedback_prompt |
   - You write the file; confirm the path when done.
   - Workspace root: {{space_root}}
 
+x-meeting-session: &meeting_session
+  mode: persistent
+  transport: pty
+  shutdown_grace_ms: 5000
+
 handlers:
   - id: on-dev-failure
     description: Write a failure feedback report when spc_my_space reports a Murrmure failure
@@ -91,29 +96,204 @@ handlers:
     delivery: fail_fast
     timeout_ms: 600000
 
-  - id: meeting-developer
-    description: Developer seat in a meeting room
+  - id: meeting-murrmure-architect
+    description: Architect seat in a Murrmure meeting
     contract_keys: []
     on:
       event:
         type: mrmr.meeting.said
-        participant: developer
+        participant: murrmure-architect
     type: shell_spawn
     complete: explicit
     prompt: |
-      You are the developer seat in this Murrmure meeting.
+      You are the architect seat for the Murrmure platform monorepo in this meeting.
+      Focus on protocol boundaries, ADRs, federation, and cross-package design — not line-level implementation unless asked.
+
       Pull the transcript with your participant_id. Read `you` and addressed_to_you.
       Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
       Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
-    command: cursor agent --force --approve-mcps --trust {{prompt}}
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
     continuation:
-      command: cursor agent --resume {{continuation_token}} --force --approve-mcps --trust {{prompt}}
+      command: cursor agent --resume {{continuation_token}} --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
       token_field: session_id
       mint_command: cursor agent create-chat
-    session:
-      mode: persistent
-      transport: pty
-      shutdown_grace_ms: 5000
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-developer
+    description: Developer seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-developer
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the developer seat for the Murrmure platform monorepo in this meeting.
+      Focus on hub, CLI, contracts, shell, and view SDK implementation — ship working slices with tests and doc sync when asked.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model cursor-grok-4.6-medium --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model cursor-grok-4.6-medium --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-ui-designer
+    description: UI designer seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-ui-designer
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the UI designer seat for the Murrmure platform monorepo in this meeting.
+      Focus on visual design for shell, desktop, and view surfaces — layout, tokens, typography, and polish — not protocol logic unless asked.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model gpt-5.6-sol-medium --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model gpt-5.6-sol-medium --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-ux-designer
+    description: UX designer seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-ux-designer
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the UX designer seat for the Murrmure platform monorepo in this meeting.
+      Focus on operator and author journeys — meetings, runs, directives, and view ergonomics — not low-level code unless asked.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model gpt-5.6-sol-high --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model gpt-5.6-sol-high --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-ai-harness-engineer
+    description: AI harness engineer seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-ai-harness-engineer
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the AI harness engineer seat for the Murrmure platform monorepo in this meeting.
+      Focus on handlers, MCP bridge, skills, meeting seats, and Cursor agent integration — safe shell_spawn and resolve contracts.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model claude-opus-5-medium --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model claude-opus-5-medium --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-qa-engineer
+    description: QA engineer seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-qa-engineer
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the QA engineer seat for the Murrmure platform monorepo in this meeting.
+      Focus on edge cases, conformance tests, regression risk, and lifecycle invariants — challenge assumptions before sign-off.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-researcher
+    description: Researcher seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-researcher
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the researcher seat for the Murrmure platform monorepo in this meeting.
+      Focus on prior art, protocol comparisons, and evidence for spec and ADR decisions — recommend options, do not unilaterally decide architecture.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
+    cwd: "{{space_root}}"
+
+  - id: meeting-murrmure-manager
+    description: Manager seat in a Murrmure meeting
+    contract_keys: []
+    on:
+      event:
+        type: mrmr.meeting.said
+        participant: murrmure-manager
+    type: shell_spawn
+    complete: explicit
+    prompt: |
+      You are the manager seat for the Murrmure platform monorepo in this meeting.
+      Focus on slice planning, prioritization, dependencies, and doc-sync gates — coordinate seats, do not implement unless the goal names you.
+
+      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
+      Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
+      Careful: any change on this repo while the server is up will break active sessions. Inform other seats when asked to do work.
+    command: cursor agent --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+    continuation:
+      command: cursor agent --resume {{continuation_token}} --model claude-opus-5-high --force --approve-mcps --trust {{prompt}}
+      token_field: session_id
+      mint_command: cursor agent create-chat
+    session: *meeting_session
     cwd: "{{space_root}}"
 
   - id: directive
@@ -127,4 +307,3 @@ handlers:
     command: cursor agent -p --force --approve-mcps --trust --output-format stream-json --stream-partial-output {{prompt}}
     timeout_ms: 3600000
     cwd: "{{space_root}}"
-

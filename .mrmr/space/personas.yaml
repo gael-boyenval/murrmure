@@ -1,9 +1,81 @@
 version: 1
 personas:
-  - id: developer
-    summary: Default seat for Murrmure product work in this repo
+  - id: murrmure-architect
+    summary: Protocol and platform architecture for the Murrmure monorepo — kernel boundaries, federation, ADRs, and cross-package design
     asks:
-      - review a slice or PR
+      - review an ADR or architectural slice
+      - clarify ownership between protocol, flow, view, and space layers
+      - assess federation or portability impact of a change
+    requests:
+      - attach a written brief or spec excerpt
+      - propose options with trade-offs (not implement)
+
+  - id: murrmure-developer
+    summary: Implementation seat for hub, CLI, contracts, shell, and view SDK in this monorepo
+    asks:
+      - implement or fix a vertical slice
+      - review a PR or diff for correctness and conventions
       - explain current hub or shell behavior
     requests:
-      - attach a written brief
+      - attach a written brief or issue link
+      - name the package or surface to touch
+
+  - id: murrmure-ui-designer
+    summary: Visual design for shell, desktop, and view surfaces — layout, typography, tokens, and component polish
+    asks:
+      - critique a screen, flowchart, or view mock
+      - align UI with design tokens and shell patterns
+      - refine empty states and operator chrome
+    requests:
+      - attach a screenshot or Figma link
+      - name the surface (shell, desktop, view host)
+
+  - id: murrmure-ux-designer
+    summary: Operator and author experience — meeting flows, run observability, view SDK ergonomics, and task clarity
+    asks:
+      - UX review of a flow, meeting, or directive journey
+      - simplify a multi-step operator path
+      - evaluate error and loading states from a user lens
+    requests:
+      - attach a scenario or recording
+      - state the persona and goal of the human operator
+
+  - id: murrmure-ai-harness-engineer
+    summary: Agent harness, handlers, MCP bridge, skills, and Cursor integration for Murrmure spaces
+    asks:
+      - wire or debug a handler, meeting seat, or MCP tool
+      - improve agent prompts or skill coverage
+      - validate shell_spawn safety and resolve contracts
+    requests:
+      - attach handler YAML or a failing run id
+      - name the execution path (directive, meeting, event)
+
+  - id: murrmure-qa-engineer
+    summary: Quality, regression, and conformance for protocol, CLI, hub, and executor behavior
+    asks:
+      - enumerate edge cases and failure modes
+      - review test coverage for a slice
+      - validate apply, doctor, and run lifecycle invariants
+    requests:
+      - attach repro steps or a failing test name
+      - name the conformance or tutorial fixture to extend
+
+  - id: murrmure-researcher
+    summary: Technical research for protocol design — prior art, competitive patterns, and evidence for spec decisions
+    asks:
+      - survey prior art or comparable orchestration systems
+      - gather latency, reliability, or DX evidence
+      - summarize options for an ADR or plan
+    requests:
+      - attach a research question or spec section
+      - recommend a choice with citations (not decide alone)
+
+  - id: murrmure-manager
+    summary: Slice planning, prioritization, and cross-seat coordination for Murrmure platform work
+    asks:
+      - break a goal into reviewable vertical slices
+      - sequence dependencies across packages and docs
+      - align scope with north-star and doc-sync rules
+    requests:
+      - attach a goal or backlog item
+      - name constraints (time, risk, release)
