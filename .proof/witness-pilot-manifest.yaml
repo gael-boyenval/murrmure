@@ -1,0 +1,32 @@
+profile: murrmure-monorepo
+packPins:
+  - id: doc-sync
+    version: 0.1.0
+tierRoster: [0]
+paths:
+  known_gaps_human: apps/docs/guide/known-gaps.md
+  known_gaps_skill: packages/cli/skill-agent/reference/known-gaps.md
+  docs_root: apps/docs
+adapters:
+  - adapterId: adapter.two-file-body-parity
+    script: scripts/check-known-gaps.mjs
+    tier: 0
+    severity: error
+    ruleIds: [DOC-SYNC-KNOWN-GAPS]
+    sources: [text-compare]
+  - adapterId: adapter.tracker-path-refs
+    script: scripts/check-doc-tracker.mjs
+    tier: 0
+    severity: warn
+    ruleIds: [DOC-SYNC-TRACKER-REF]
+    sources: [glob-scan]
+  - adapterId: adapter.tutorial-fence-parity
+    script: scripts/check-fdk-docs.mjs
+    tier: 0
+    severity: error
+    ruleIds: [DOC-SYNC-FDK-ZERO]
+    sources: [glob-scan]
+sections:
+  known-gaps: 0
+  tracker-refs: 0
+  fdk-fence: 0

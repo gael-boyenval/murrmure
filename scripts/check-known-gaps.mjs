@@ -1,32 +1,24 @@
 #!/usr/bin/env node
 /**
  * Phase 10 — human known-gaps.md must match skill known-gaps body (10-U4).
+ * Witness: `node scripts/check-known-gaps.mjs --json` → DOC-SYNC-KNOWN-GAPS findings.
  */
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  emitJsonFindings,
+  filterFindings,
+  relFromRoot,
+  witnessArgv,
+} from "./lib/witness-findings.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const HUMAN = join(REPO_ROOT, "apps/docs/guide/known-gaps.md");
 const SKILL = join(REPO_ROOT, "packages/cli/skill-agent/reference/known-gaps.md");
-
-function normalizeBody(content, stripPrefix) {
-  const idx = content.indexOf("---");
-  const afterFront = idx >= 0 ? content.slice(content.indexOf("\n", idx) + 1) : content;
-  let body = afterFront.trim();
-  if (stripPrefix) {
-    body = body.replace(/^# Known gaps \(agents\)\s*/m, "# Known gaps (Murrmure v2)\n");
-    body = body.replace(
-      /Read this before assuming declarative flows fully work\.[^\n]+\n\n\*\*Note:\*\*[^\n]+\n\n## Human docs\n\n\[apps\/docs\/guide\/known-gaps\.md\][^\n]+\n\n---\n\n/s,
-      "",
-    );
-    body = body.replace(
-      /See \[flow-authoring\.md\][^\n]+\n/,
-      "See [Creating flows](./creating-flows) and [Quick start](./quick-start).\n",
-    );
-  }
-  return body.replace(/\r\n/g, "\n").trim();
-}
+const HUMAN_REL = relFromRoot(REPO_ROOT, HUMAN);
+const SKILL_REL = relFromRoot(REPO_ROOT, SKILL);
+const WITNESS = witnessArgv();
 
 function extractComparableSections(human, skill) {
   const normalizeEntities = (text) =>
@@ -44,10 +36,16 @@ function extractComparableSections(human, skill) {
   return { humanWhatWorks, skillWhatWorks: skillNormalized };
 }
 
-function main() {
+function knownGapsFindings() {
   if (!existsSync(HUMAN) || !existsSync(SKILL)) {
-    console.error("check:known-gaps — missing known-gaps file(s)");
-    process.exit(1);
+    return [
+      {
+        ruleId: "DOC-SYNC-KNOWN-GAPS",
+        file: HUMAN_REL,
+        smell: "check:known-gaps — missing known-gaps file(s)",
+        severity: "error",
+      },
+    ];
   }
 
   const human = readFileSync(HUMAN, "utf-8");
@@ -55,6 +53,28 @@ function main() {
   const { humanWhatWorks, skillWhatWorks } = extractComparableSections(human, skill);
 
   if (humanWhatWorks !== skillWhatWorks) {
+    return [
+      {
+        ruleId: "DOC-SYNC-KNOWN-GAPS",
+        file: HUMAN_REL,
+        smell:
+          "Human vs skill drift in 'What works today' section (apps/docs/guide/known-gaps.md ↔ packages/cli/skill-agent/reference/known-gaps.md)",
+        severity: "error",
+      },
+    ];
+  }
+
+  return [];
+}
+
+function main() {
+  const findings = filterFindings(knownGapsFindings(), WITNESS.path);
+
+  if (WITNESS.json) {
+    emitJsonFindings(findings);
+  }
+
+  if (findings.length) {
     console.error("check:known-gaps — human vs skill drift in 'What works today' section");
     console.error(`  human: ${HUMAN}`);
     console.error(`  skill: ${SKILL}`);

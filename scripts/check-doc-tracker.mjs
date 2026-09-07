@@ -1,25 +1,31 @@
 #!/usr/bin/env node
 /**
  * Doc drift check — warn-only phases 01–09; strict (exit 1) from phase 10.
- * Tracker + decision archived with the shipped product plan (2026-07):
- * studio-specs/archives/plans/shipped-2026-07/product-plan/
+ * Witness: `node scripts/check-doc-tracker.mjs --json` → DOC-SYNC-TRACKER-REF findings.
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import {
+  emitJsonFindings,
+  filterFindings,
+  relFromRoot,
+  witnessArgv,
+} from "./lib/witness-findings.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TRACKER = join(
   REPO_ROOT,
   "studio-specs/archives/plans/shipped-2026-07/product-plan/00-doc-skill-mcp-tracker.md",
 );
-const STRICT = process.argv.includes("--strict") || process.env.DOC_TRACKER_STRICT === "1";
+const TRACKER_REL = relFromRoot(REPO_ROOT, TRACKER);
+const WITNESS = witnessArgv();
+const STRICT = WITNESS.strict || process.argv.includes("--strict") || process.env.DOC_TRACKER_STRICT === "1";
 const IS_CI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
 const CODE_PREFIXES = ["packages/", "apps/", "studio-specs/plans/"];
 
-/** Doc/skill paths referenced in the tracker (backtick paths). */
 function extractTrackerDocPaths(content) {
   const paths = new Set();
   const re = /`((?:apps|packages|studio-specs)[^`\s]+)`/g;
@@ -49,7 +55,6 @@ function collectFilesUnder(relDir) {
   return out;
 }
 
-/** Expand brace/glob tracker paths (e.g. guide/{a,b,tutorials/**}) to concrete repo paths. */
 function expandTrackerPath(pattern) {
   const braceStart = pattern.indexOf("{");
   if (braceStart === -1) return [pattern];
@@ -175,6 +180,45 @@ function gitChangedFiles() {
   return gitChangedFilesWorkingTree();
 }
 
+function trackerFinding(smell, baseSeverity = "warn") {
+  return {
+    ruleId: "DOC-SYNC-TRACKER-REF",
+    file: TRACKER_REL,
+    smell,
+    severity: STRICT ? "error" : baseSeverity,
+  };
+}
+
+function collectFindings() {
+  if (!existsSync(TRACKER)) {
+    return [
+      trackerFinding(`check:doc-tracker — tracker not found at ${TRACKER_REL}`, STRICT ? "error" : "warn"),
+    ];
+  }
+
+  const trackerContent = readFileSync(TRACKER, "utf-8");
+  const docPaths = extractTrackerDocPaths(trackerContent);
+  const expandedDocPaths = expandAllTrackerPaths(docPaths);
+  const changed = gitChangedFiles();
+  const codeChanges = changed.filter((f) => CODE_PREFIXES.some((p) => f.startsWith(p)));
+
+  if (codeChanges.length === 0) {
+    return [];
+  }
+
+  const overlap = changed.filter((f) => fileMatchesTrackerDoc(f, expandedDocPaths));
+  if (overlap.length === 0) {
+    const sample = codeChanges.slice(0, 8).join(", ");
+    return [
+      trackerFinding(
+        `Code changed (${codeChanges.length} file(s): ${sample}${codeChanges.length > 8 ? "…" : ""}) but no tracker-listed doc/skill file updated — see ${TRACKER_REL}`,
+      ),
+    ];
+  }
+
+  return [];
+}
+
 function failOrWarn(message) {
   if (STRICT) {
     console.error(message);
@@ -184,6 +228,12 @@ function failOrWarn(message) {
 }
 
 function main() {
+  const findings = filterFindings(collectFindings(), WITNESS.path);
+
+  if (WITNESS.json) {
+    emitJsonFindings(findings);
+  }
+
   if (!existsSync(TRACKER)) {
     const msg = `check:doc-tracker — tracker not found at ${TRACKER}`;
     if (STRICT) {
