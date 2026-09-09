@@ -59,6 +59,8 @@ export async function failRunWithNotification(
     actor_id: string;
     token_id: string;
     reason?: string;
+    /** Skip operator notification + RUN_FAILED journal (still marks the run failed). */
+    notify?: boolean;
   },
 ) {
   const runBare = bare(input.run_id);
@@ -78,9 +80,10 @@ export async function failRunWithNotification(
   });
   await deps.studio.updateRunLifecycle(runBare, "failed", ts);
 
+  const notify = input.notify !== false;
   const spaceBare = run.space_id;
   const { title, summary } = runFailedNotificationCopy(input.reason);
-  if (spaceBare) {
+  if (spaceBare && notify) {
     const session = await deps.studio.getSession(run.session_id);
     const space = await deps.studio.getSpace(spaceBare);
     const grants = await deps.studio.listGrants(spaceBare);

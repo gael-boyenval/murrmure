@@ -13,6 +13,7 @@ export interface HubTestFixture {
 }
 
 export interface SpaceApplyBundle {
+  space?: { digest: string; file: Record<string, unknown> };
   actions?: { digest: string; file: Record<string, unknown> };
   executors?: { digest: string; file: Record<string, unknown> };
   hooks?: { digest: string; file: Record<string, unknown> };
@@ -37,6 +38,7 @@ export async function startHubTestFixtureAsync(opts?: {
     dataDir,
     defaultSpaceId: "",
     bootstrapToken,
+    memoryMcp: false,
   });
   const addr = daemon.server.address();
   const port = typeof addr === "object" && addr ? addr.port : 8787;

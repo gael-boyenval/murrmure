@@ -26,6 +26,62 @@ describe("space.yaml schema", () => {
     expect(parsed.description).toBeUndefined();
   });
 
+  test("accepts optional memory_bank", () => {
+    const parsed = SpaceYamlFileSchema.parse({
+      apiVersion: "murrmure.space/v1",
+      slug: "demo",
+      memory_bank: "doctrine",
+    });
+    expect(parsed.memory_bank).toBe("doctrine");
+  });
+
+  test("accepts optional memory_tags and memory_subjects", () => {
+    const parsed = SpaceYamlFileSchema.parse({
+      apiVersion: "murrmure.space/v1",
+      slug: "demo",
+      memory_bank: "doctrine",
+      memory_tags: ["project:atlas"],
+      memory_subjects: "skills/memory-use/subjects.yaml",
+    });
+    expect(parsed.memory_tags).toEqual(["project:atlas"]);
+    expect(parsed.memory_subjects).toBe("skills/memory-use/subjects.yaml");
+  });
+
+  test("rejects invalid memory_tags and memory_subjects", () => {
+    expect(
+      SpaceYamlFileSchema.safeParse({
+        apiVersion: "murrmure.space/v1",
+        slug: "demo",
+        memory_tags: [""],
+      }).success,
+    ).toBe(false);
+    expect(
+      SpaceYamlFileSchema.safeParse({
+        apiVersion: "murrmure.space/v1",
+        slug: "demo",
+        memory_subjects: "../etc/passwd.yaml",
+      }).success,
+    ).toBe(false);
+    expect(
+      SpaceYamlFileSchema.safeParse({
+        apiVersion: "murrmure.space/v1",
+        slug: "demo",
+        memory_subjects: "/abs/subjects.yaml",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("rejects invalid memory_bank", () => {
+    for (const memory_bank of ["KB", "kb_foo", "", "a".repeat(33)]) {
+      const parsed = SpaceYamlFileSchema.safeParse({
+        apiVersion: "murrmure.space/v1",
+        slug: "demo",
+        memory_bank,
+      });
+      expect(parsed.success, memory_bank).toBe(false);
+    }
+  });
+
   test("rejects description longer than 500 characters", () => {
     const parsed = SpaceYamlFileSchema.safeParse({
       apiVersion: "murrmure.space/v1",

@@ -122,6 +122,45 @@ describe("space apply integration", () => {
     });
   });
 
+  test("readSpaceApplyBundle includes space.yaml memory_bank", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "name: Demo space",
+        "memory_bank: doctrine",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    expect(bundle.space?.file.memory_bank).toBe("doctrine");
+  });
+
+  test("readSpaceApplyBundle includes memory_tags and memory_subjects", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "memory_bank: doctrine",
+        "memory_tags:",
+        "  - project:atlas",
+        "memory_subjects: skills/memory-use/subjects.yaml",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    expect(bundle.space?.file.memory_tags).toEqual(["project:atlas"]);
+    expect(bundle.space?.file.memory_subjects).toBe("skills/memory-use/subjects.yaml");
+  });
+
+  test("readSpaceApplyBundle rejects invalid memory_bank", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      ["apiVersion: murrmure.space/v1", "slug: demo", "memory_bank: KB"].join("\n"),
+    );
+    expect(() => readSpaceApplyBundle(projectDir)).toThrow(/INVALID_SPACE_YAML/);
+  });
+
   test("readSpaceApplyBundle rejects over-long space description", () => {
     writeFileSync(
       join(projectDir, ".mrmr", "space", "space.yaml"),

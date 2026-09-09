@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { startHubDaemon } from "../../../src/main.js";
@@ -645,5 +645,179 @@ describe("http/spaces/apply", () => {
     const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
     const space = await got.json();
     expect(space.description == null || space.description === "").toBe(true);
+  });
+
+  test("apply with space.yaml memory_bank persists on the hub space", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-memory-bank",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    expect(got.status).toBe(200);
+    const space = await got.json();
+    expect(space.memory_bank).toBe("doctrine");
+  });
+
+  test("apply with space section and no memory_bank clears hub memory_bank", async () => {
+    await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-with-bank",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+            },
+          },
+        },
+      }),
+    });
+
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-no-bank",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    const space = await got.json();
+    expect(space.memory_bank == null || space.memory_bank === "").toBe(true);
+  });
+
+  test("apply with space.yaml memory_tags persists", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-memory-grants",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+              memory_tags: ["project:atlas"],
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    const space = await got.json();
+    expect(space.memory_bank).toBe("doctrine");
+    expect(space.memory_tags).toEqual(["project:atlas"]);
+  });
+
+  test("apply persists memory_subjects when the handbook exists on the binding path", async () => {
+    mkdirSync("/tmp/demo-space/skills/memory-use", { recursive: true });
+    writeFileSync("/tmp/demo-space/skills/memory-use/subjects.yaml", "- name: architecture\n  when: Shape.\n");
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-subjects-ok",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+              memory_subjects: "skills/memory-use/subjects.yaml",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const got = await fetch(`${baseUrl}/v1/spaces/${spaceId}`, { headers: auth() });
+    const space = await got.json();
+    expect(space.memory_subjects).toBe("skills/memory-use/subjects.yaml");
+  });
+
+  test("apply rejects missing memory_subjects when the space has a local binding", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-missing-subjects",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+              memory_subjects: "skills/memory-use/missing.yaml",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("MEMORY_SUBJECTS_MISSING");
+  });
+
+  test("apply rejects invalid memory_bank", async () => {
+    const res = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-bad-bank",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              memory_bank: "KB",
+            },
+          },
+        },
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("INVALID_APPLY_BUNDLE");
   });
 });

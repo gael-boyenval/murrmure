@@ -8,6 +8,9 @@ import {
 import { bareSpaceId } from "./space-id.js";
 import type { TokenContext } from "./auth.js";
 import { buildPlatformToolInputSchema } from "./mcp-tool-schemas.js";
+import { MEMORY_TOOLS, memoryToolsForDiscovery } from "./memory-tools.js";
+import type { MemoryMcpClient } from "./memory-mcp-client.js";
+import { DISABLED_MEMORY_MCP } from "./memory-mcp-client.js";
 
 export interface ToolDef {
   name: string;
@@ -58,8 +61,13 @@ const PLATFORM_TOOLS: Array<{
 
 export class McpToolRegistry {
   private readonly handlers = new Map<string, ToolHandler>();
+  private memoryMcp: MemoryMcpClient = DISABLED_MEMORY_MCP;
 
   constructor(private readonly studio: StudioPersistencePort) {}
+
+  setMemoryMcp(client: MemoryMcpClient): void {
+    this.memoryMcp = client;
+  }
 
   registerHandler(name: string, handler: ToolHandler): void {
     this.handlers.set(name, handler);
@@ -121,6 +129,25 @@ export class McpToolRegistry {
       }
     }
 
+    if (this.memoryMcp.isReady()) {
+      const space = bareSpace ? await this.studio.getSpace(bareSpace) : null;
+      const advertised = memoryToolsForDiscovery({
+        grantedTags: space?.memory_tags === undefined ? null : space.memory_tags,
+        subjectNames: this.memoryMcp.subjectNames?.() ?? [],
+      });
+      for (const tool of advertised) {
+        if (this.hasRequiredCapability(effective, tool.required_scope)) {
+          out.push({
+            name: tool.name,
+            package_id: tool.package_id,
+            description: tool.description,
+            required_scope: tool.required_scope,
+            inputSchema: tool.inputSchema,
+          });
+        }
+      }
+    }
+
     return out;
   }
 
@@ -129,10 +156,11 @@ export class McpToolRegistry {
     const tool = tools.find((t) => t.name === toolName);
     if (!tool) {
       const platform = PLATFORM_TOOLS.find((t) => t.name === toolName);
-      if (platform) {
+      const memory = MEMORY_TOOLS.find((t) => t.name === toolName);
+      if (platform || memory) {
         return {
           ok: false,
-          hint: { required_scope: platform.required_scope },
+          hint: { required_scope: (platform ?? memory)?.required_scope },
         };
       }
       return { ok: false, hint: {} };

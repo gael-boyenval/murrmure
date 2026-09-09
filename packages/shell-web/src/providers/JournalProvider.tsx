@@ -30,34 +30,45 @@ export function JournalProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!client) return;
 
-    return client.journal.subscribe((payload) => {
-      if (!INVALIDATION_EVENTS.has(payload.event)) return;
+    return client.journal.subscribe(
+      (payload) => {
+        if (!INVALIDATION_EVENTS.has(payload.event)) return;
 
-      void queryClient.invalidateQueries({ queryKey: ["spaces"] });
+        void queryClient.invalidateQueries({ queryKey: ["spaces"] });
 
-      if (NOTIFICATION_INVALIDATION_EVENTS.has(payload.event)) {
-        void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      }
-
-      if (payload.event === "journal.append") {
-        const sessionId = payload.data.session_id;
-        if (typeof sessionId === "string") {
-          void queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
+        if (NOTIFICATION_INVALIDATION_EVENTS.has(payload.event)) {
+          void queryClient.invalidateQueries({ queryKey: ["notifications"] });
         }
-      }
 
-      if (RUN_STATE_INVALIDATION_EVENTS.has(payload.event)) {
-        invalidateRunStateQueries(queryClient, payload.data);
-      } else {
-        const spaceId = payload.data.space_id;
-        if (typeof spaceId === "string") {
-          void queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
-          void queryClient.invalidateQueries({ queryKey: ["sessions", spaceId] });
-          void queryClient.invalidateQueries({ queryKey: ["runs", spaceId] });
-          void queryClient.invalidateQueries({ queryKey: ["journal"] });
+        if (payload.event === "journal.append") {
+          const sessionId = payload.data.session_id;
+          if (typeof sessionId === "string") {
+            void queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] });
+          }
         }
-      }
-    });
+
+        if (RUN_STATE_INVALIDATION_EVENTS.has(payload.event)) {
+          invalidateRunStateQueries(queryClient, payload.data);
+        } else {
+          const spaceId = payload.data.space_id;
+          if (typeof spaceId === "string") {
+            void queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
+            void queryClient.invalidateQueries({ queryKey: ["sessions", spaceId] });
+            void queryClient.invalidateQueries({ queryKey: ["runs", spaceId] });
+            void queryClient.invalidateQueries({ queryKey: ["journal"] });
+          }
+        }
+      },
+      {
+        onReconnect: () => {
+          void queryClient.invalidateQueries({ queryKey: ["session-transcript"] });
+          void queryClient.invalidateQueries({ queryKey: ["session"] });
+          void queryClient.invalidateQueries({ queryKey: ["session-runs"] });
+          void queryClient.invalidateQueries({ queryKey: ["meetings"] });
+          void queryClient.invalidateQueries({ queryKey: ["spaces"] });
+        },
+      },
+    );
   }, [client, queryClient]);
 
   return children;

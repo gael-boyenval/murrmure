@@ -1,19 +1,6 @@
-import type { Capability } from "@murrmure/contracts";
+import { CAPABILITY_STRINGS, type Capability } from "@murrmure/contracts";
 
-const VALID_CAPABILITIES: Capability[] = [
-  "space:read",
-  "space:write",
-  "space:enter",
-  "flow:read",
-  "flow:run",
-  "event:emit",
-  "step:resolve",
-  "journal:read",
-  "blob:read",
-  "blob:write",
-  "executor:poll",
-  "hub:admin",
-];
+const VALID_CAPABILITIES: readonly Capability[] = CAPABILITY_STRINGS;
 
 /** v1 PLATFORM_SCOPES → v2 capabilities (grants-migration.md). */
 const V1_SCOPE_TO_CAPABILITIES: Record<string, Capability[]> = {

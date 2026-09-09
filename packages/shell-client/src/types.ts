@@ -459,6 +459,11 @@ export interface ViewDevSessionPayload {
   started_at: string;
 }
 
+export type JournalSubscribeOptions = {
+  /** Fired after EventSource reconnects (not the first successful open). */
+  onReconnect?: () => void;
+};
+
 export interface ShellClient {
   spaces: {
     list(): Promise<SpaceSummary[]>;
@@ -526,7 +531,10 @@ export interface ShellClient {
     ): Promise<{ context: Record<string, unknown> }>;
   };
   journal: {
-    subscribe(onEvent: (payload: JournalSsePayload) => void): () => void;
+    subscribe(
+      onEvent: (payload: JournalSsePayload) => void,
+      options?: JournalSubscribeOptions,
+    ): () => void;
     query(params: Record<string, string | undefined>): Promise<JournalEntryItem[]>;
   };
   auth: {

@@ -17,7 +17,7 @@ Adapters only. Domain lives in `hub-core/src/meetings/` + journal-first emit.
 | `GET /v1/sessions/{id}/transcript?since_seq=&participant_id=` | `murrmure_meeting_transcript` | roster space **or** `journal:read` on a roster space | Session-monotonic cursor. Pass this seat's `ptc_*` for `you` / `addressed_to_you`. Not `GET /v1/journal`. |
 | `GET /v1/meetings` | — | `space:read` | Open + closed rooms. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
 | `POST /v1/sessions/{id}/meeting/close` | chair may `murrmure_emit_event` `closed` **or** this tool | chair / human chair | Same payload as `closed`. Shell uses this. |
-| `POST /v1/sessions/{id}/meeting/resume` | — | chair / human chair | Same `ses_*` + `ptc_*`. Journals `mrmr.meeting.resumed`, re-wakes seats. |
+| `POST /v1/sessions/{id}/meeting/resume` | — | chair / human chair | Same `ses_*` + `ptc_*`. Journals `mrmr.meeting.resumed`, re-wakes seats. Hub boot rehydrate of an already-open room does **not** use this route or journal `resumed`. |
 | existing emit | `murrmure_emit_event` | `event:emit` | `said` / `closed`. **Requires `session_id`.** |
 | `PUT /v1/artifacts` | `murrmure_put_artifact` | `blob:write` | Inline `content`+`name` or space-relative `path`. Meeting attach then `said` with `artifacts`. |
 

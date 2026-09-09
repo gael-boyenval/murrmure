@@ -4,6 +4,12 @@
 
 ### Added
 
+- Native capabilities `memory:read` and `memory:write` for Hub-proxied
+  memory tools. `space.yaml` / space row may declare optional `memory_bank`
+  (`^[a-z][a-z0-9-]{0,31}$`), `memory_tags` (inbound tag grant), and
+  `memory_subjects` (space-relative subjects handbook path).
+- Denial codes `MEMORY_GRANT_DENIED`, `MEMORY_BANK_UNKNOWN`,
+  `MEMORY_MCP_UNAVAILABLE`, `MEMORY_ENGINE_ERROR`.
 - Meeting transcript may include seat-scoped `you`, per-message
   `addressed_to_you`, and `from.label`.
 - Journal type `mrmr.meeting.resumed`.

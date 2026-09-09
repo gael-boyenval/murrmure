@@ -25,7 +25,11 @@ execution is internal dispatch only and gate approval uses `flow:run`.
 | `blob:read` | `space:read` |
 | `blob:write` | `space:write` |
 
-Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `blob:read`, `blob:write`, `executor:poll`, `hub:admin`.
+Native v2 capabilities: `space:read`, `space:write`, `space:enter`, `flow:read`, `flow:run`, `step:resolve`, `event:emit`, `journal:read`, `blob:read`, `blob:write`, `memory:read`, `memory:write`, `executor:poll`, `hub:admin`.
+
+`memory:read` / `memory:write` are grantable now. When the memory child is
+connected, Hub merges bare tools `retain`, `recall`, `reflect`, `recent`,
+`retire` into the agent catalog. `local-tools/v1` does not include the caps.
 
 Legacy v1 `blob:*` scopes still map as above. New grants may mint `blob:write`
 directly so a meeting seat can `murrmure_put_artifact` without `space:write`.

@@ -12,6 +12,7 @@ import type { ExecutorPollStore } from "@murrmure/hub-core";
 import type { OutOfShellService } from "./out-of-shell-service.js";
 import type { FederationPort } from "@murrmure/hub-core";
 import type { UploadIntentService } from "./upload-intent-service.js";
+import type { MemoryMcpClient } from "./memory-mcp-client.js";
 
 export interface DaemonConfig {
   databasePath: string;
@@ -24,6 +25,11 @@ export interface DaemonConfig {
   listenHost?: string;
   /** Session cancel cascade cap (default 30s). Tests may set lower. */
   cancelTimeoutMs?: number;
+  /**
+   * Memory MCP child. `false` skips spawn. An object is used as-is (tests).
+   * Omitted: start the real child unless VITEST or MURRMURE_MEMORY_MCP=0.
+   */
+  memoryMcp?: MemoryMcpClient | false;
 }
 
 export interface DaemonContext {
@@ -46,6 +52,9 @@ export interface DaemonContext {
   uploadIntentService: UploadIntentService;
   /** Per-space guard shared by run admission and apply (apply quiescence). */
   spaceRunGuard: SpaceConcurrencyGuard;
+  memoryMcp: MemoryMcpClient;
+  /** Re-resolve `--subjects` and restart the memory child when the handbook path changes. */
+  refreshMemorySubjects?: () => Promise<void>;
 }
 
 export type SseOutboundEvent =

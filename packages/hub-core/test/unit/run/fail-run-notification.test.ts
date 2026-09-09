@@ -69,4 +69,60 @@ describe("failRunWithNotification", () => {
       }),
     );
   });
+
+  test("notify: false marks failed without notification or journal", async () => {
+    const studio = new MemoryStudioPersistence();
+    const now = "2026-06-30T12:00:00.000Z";
+    const journalAppend = vi.fn(async () => ({ seq: 1, entry_id: "evt_1" }));
+    const handler = { appendSpaceJournal: journalAppend } as unknown as HubHandler;
+
+    await studio.insertSpace(
+      { space_id: "demo", slug: "demo", name: "Demo", status: "active", members: [] },
+      now,
+    );
+    await studio.insertSession(
+      {
+        session_id: "ses1",
+        title: "Test session",
+        status: "active",
+        created_by: { type: "actor", actor_id: "actor_alice" },
+        spaces_touched: ["demo"],
+        actor_id: "actor_alice",
+      },
+      now,
+    );
+    await studio.insertRun(
+      {
+        run_id: "run1",
+        session_id: "ses1",
+        space_id: "demo",
+        flow_id: null,
+        lifecycle: "working",
+        exec_context: {},
+        reference_run_ids: [],
+        started_at: now,
+      },
+      now,
+    );
+
+    await failRunWithNotification(
+      {
+        studio,
+        handler,
+        ids: { ulid: () => "ntf_silent" },
+        clock: { nowIso: () => now },
+      },
+      {
+        run_id: "run_run1",
+        actor_id: "actor_alice",
+        token_id: "tok_1",
+        reason: "HUB_RESTART_ORPHANED",
+        notify: false,
+      },
+    );
+
+    expect((await studio.getRun("run1"))?.lifecycle).toBe("failed");
+    expect(await studio.listNotifications("actor_alice", { status: "pending" })).toEqual([]);
+    expect(journalAppend).not.toHaveBeenCalled();
+  });
 });

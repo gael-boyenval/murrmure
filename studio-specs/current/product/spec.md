@@ -844,6 +844,8 @@ Capabilities are strings granted to `(actor_id, resource)`:
 | `journal:read` | space or session | Logs access |
 | `blob:read` | space | HTTP artifact bytes / materialize |
 | `blob:write` | space | Upload artifacts (`murrmure_put_artifact`, `PUT /v1/artifacts`) without `space:write` |
+| `memory:read` | space | Recall / reflect / recent via Hub-proxied memory tools (catalog when memory child connected) |
+| `memory:write` | space | Retain / retire via Hub-proxied memory tools |
 | `executor:poll` | executor | External worker poll API §4.6, §10.5 |
 | `hub:admin` | hub | Breakglass: federation keys, global config, directive fan-out MCP |
 

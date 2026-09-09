@@ -87,4 +87,9 @@ describe("dev-hmr-process", () => {
     expect(() => killProcessTree(undefined)).not.toThrow();
     expect(() => killProcessTree(0)).not.toThrow();
   });
+
+  test("orphan sweep includes leftover memory-mcp bun children", async () => {
+    const { DEV_DESKTOP_ORPHAN_PATTERNS } = await import("../scripts/dev-hmr-process.js");
+    expect(DEV_DESKTOP_ORPHAN_PATTERNS).toContain("memory/src/mcp/index.ts");
+  });
 });

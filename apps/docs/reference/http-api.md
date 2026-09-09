@@ -90,7 +90,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
 | `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle; optional `bundle.space` copies `name` / `description` onto the space row (omitted description clears it) |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle; optional `bundle.space` copies `name` / `description` / `memory_bank` / `memory_tags` / `memory_subjects` onto the space row (omitted fields clear those hub values) |
 | `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
 
 ::: warning Retired routes

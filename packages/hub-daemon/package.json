@@ -26,6 +26,7 @@
     "@murrmure/hub-persistence": "workspace:*",
     "@murrmure/executors": "workspace:*",
     "@murrmure/runtime-contracts": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^11.8.1",
     "hono": "^4.7.10",
     "ulid": "^2.3.0"

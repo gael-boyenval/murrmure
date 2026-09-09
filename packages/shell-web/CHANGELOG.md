@@ -11,8 +11,15 @@
 
 ## Unreleased
 
+### Added
+
+- Transcript **Reload**. Goal auto-collapses after more than five messages.
+  Opening a room scrolls to the last turn.
+
 ### Fixed
 
+- SSE reconnect invalidates transcript/session/meetings so a hub replace
+  does not leave a frozen pane.
 - Meeting Agent activity uses Ghostty VT + the same 120×40 grid as the
   seat PTY, and no longer remounts wterm on every snapshot. Spinner /
   loader frames overwrite in place instead of stacking.

@@ -34,8 +34,8 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
   async insertSpace(space: Space, created_at: string): Promise<void> {
     this.db
       .prepare(
-        `INSERT INTO spaces (space_id, slug, status, parent_space_id, created_at, name, install_policy, preview_policy, description)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO spaces (space_id, slug, status, parent_space_id, created_at, name, install_policy, preview_policy, description, memory_bank, memory_tags_json, memory_subjects)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         space.space_id,
@@ -47,6 +47,9 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         space.install_policy ?? "human_only",
         space.preview_policy ?? "same_origin_only",
         space.description ?? null,
+        space.memory_bank ?? null,
+        space.memory_tags === undefined ? null : JSON.stringify(space.memory_tags),
+        space.memory_subjects ?? null,
       );
   }
 
@@ -66,6 +69,11 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
       install_policy: (row.install_policy as Space["install_policy"]) ?? "human_only",
       preview_policy: (row.preview_policy as Space["preview_policy"]) ?? "same_origin_only",
       description: row.description ?? undefined,
+      memory_bank: row.memory_bank ?? undefined,
+      ...(row.memory_tags_json !== undefined && row.memory_tags_json !== null
+        ? { memory_tags: JSON.parse(row.memory_tags_json) as Space["memory_tags"] }
+        : {}),
+      memory_subjects: row.memory_subjects ?? undefined,
       query_policy,
       ...(bindings ? { bindings } : {}),
     };
@@ -100,7 +108,7 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
     const next = { ...current, ...patch };
     this.db
       .prepare(
-        `UPDATE spaces SET name = ?, status = ?, install_policy = ?, preview_policy = ?, description = ?, parent_space_id = ?, query_policy_json = ? WHERE space_id = ?`,
+        `UPDATE spaces SET name = ?, status = ?, install_policy = ?, preview_policy = ?, description = ?, memory_bank = ?, memory_tags_json = ?, memory_subjects = ?, parent_space_id = ?, query_policy_json = ? WHERE space_id = ?`,
       )
       .run(
         next.name ?? next.slug,
@@ -108,6 +116,9 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
         next.install_policy ?? "human_only",
         next.preview_policy ?? "same_origin_only",
         next.description ?? null,
+        next.memory_bank ?? null,
+        next.memory_tags === undefined ? null : JSON.stringify(next.memory_tags),
+        next.memory_subjects ?? null,
         next.parent_space_id
           ? next.parent_space_id.startsWith("spc_")
             ? next.parent_space_id.slice(4)

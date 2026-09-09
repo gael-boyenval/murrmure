@@ -8,7 +8,7 @@ Murrmure stores **protocol configuration** in `.mrmr/` at the project root. The 
 my-space/
   .mrmr/
     space/
-      space.yaml              # slug, name, description (purpose); link.space_id after link
+      space.yaml              # slug, name, description, optional memory_bank / memory_tags / memory_subjects; link.space_id after link
       handlers.yaml           # execution handlers (required for agent steps)
       personas.yaml           # optional seat ads (handles + blurbs; not dispatch)
       bindings.yaml           # optional federation / worker bindings
@@ -18,7 +18,7 @@ my-space/
     dev/contracts/contract-keys.json   # apply output — contract key catalog
 ```
 
-`space.yaml` `description` is the space purpose (max 500 characters). Apply copies `name` and `description` onto the hub space; Shell space home shows it under the title.
+`space.yaml` `description` is the space purpose (max 500 characters). Optional `memory_bank` (`^[a-z][a-z0-9-]{0,31}$`) is the MCP bank id. Optional `memory_tags` is the inbound tag grant (omit = all scopes). Optional `memory_subjects` is a space-relative path to the subjects handbook (default `skills/memory-use/subjects.yaml`). Apply copies those fields onto the hub space; omitted fields clear the hub value. Shell space home shows the description under the title.
 
 Legacy `murrmure/` paths are removed — the handlers-only cutover is complete (Task 15); spaces use `.mrmr/` only.
 
@@ -33,7 +33,7 @@ Legacy `murrmure/` paths are removed — the handlers-only cutover is complete (
 | `mrmr view dev <id>` | Dev loop — Vite + fixture context |
 | `mrmr space link --path . --space spc_…` | Register host path binding |
 | `mrmr space link --path . --create` | Create hub space from slug, name, and description, then link |
-| `mrmr space apply [--strict]` | Validate local files and POST index apply; copies `name` / `description` onto the hub space |
+| `mrmr space apply [--strict]` | Validate local files and POST index apply; copies `name` / `description` / optional `memory_bank` / `memory_tags` / `memory_subjects` onto the hub space |
 | `mrmr space status` | Indexed counts and digests |
 | `mrmr space doctor [--strict]` | Handler coverage, skill version, warnings |
 | `mrmr skill install --variant all` | Install murrmure-agent + murrmure-developer into `.cursor/skills/` |

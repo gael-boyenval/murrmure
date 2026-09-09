@@ -123,6 +123,8 @@ process.on("SIGTERM", () => {
 });
 
 try {
+  killDevDesktopOrphans();
+
   console.log("[desktop:dev:hmr] building + linking CLI + bridge globally (mrmr / murrmure / murrmure-mcp)…");
   linkCliGlobal(repoRoot);
   cliLinked = true;

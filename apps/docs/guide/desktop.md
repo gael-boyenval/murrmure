@@ -33,6 +33,9 @@ This starts three processes:
 3. **Electrobun** — native window loading the Vite URL with HMR
 
 Use this for day-to-day shell and hub development inside a real desktop window.
+Hub replace kills in-memory meeting PTYs; boot respawns open rooms and fails
+leftover `working` handler runs (`HUB_RESTART_ORPHANED`). Reload Transcript if
+the pane looks stale.
 
 ### Smoke test (single URL, no HMR)
 

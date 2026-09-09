@@ -4,6 +4,8 @@
 
 ### Added
 
+- `journal.subscribe(onEvent, { onReconnect })` fires after EventSource
+  reconnects (hub replace / dropped stream).
 - `sessions.getMeetingArtifact` → `GET /v1/sessions/:id/artifacts/:xfr`.
 - `artifacts.get(transfer_id, { space_id, preview })` → `GET /v1/artifacts/:id`.
 - `sessions.resumeMeeting` → `POST /v1/sessions/:id/meeting/resume`.

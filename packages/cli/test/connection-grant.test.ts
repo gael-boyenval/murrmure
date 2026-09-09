@@ -31,6 +31,8 @@ describe("parseGrantableCapabilities", () => {
     expect(GRANTABLE_CAPABILITIES).toContain("hub:admin");
     expect(GRANTABLE_CAPABILITIES).toContain("blob:write");
     expect(GRANTABLE_CAPABILITIES).toContain("blob:read");
+    expect(GRANTABLE_CAPABILITIES).toContain("memory:read");
+    expect(GRANTABLE_CAPABILITIES).toContain("memory:write");
   });
 
   test("parses the meeting-seat recipe", () => {

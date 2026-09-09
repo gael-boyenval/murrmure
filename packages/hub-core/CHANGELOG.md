@@ -11,6 +11,13 @@
 
 ## Unreleased
 
+### Added
+
+- Hub boot: `failOrphanedWorkingRuns` + `rehydrateOpenMeetings`. Open rooms
+  get silent seat respawn (`trigger: resumed`, no `mrmr.meeting.resumed`
+  journal). Leftover `working` runs fail as `HUB_RESTART_ORPHANED` except
+  `input-required` and a meeting-bound flow run.
+
 ### Changed
 
 - Meeting seat operating rule: convene is one short contribution to the

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { MeetingTranscript } from "@murrmure/shell-client";
-import { MeetingTranscriptPane, meetingSeatLabel } from "./MeetingTranscriptPane.js";
+import { MeetingTranscriptPane, meetingSeatLabel, shouldCollapseMeetingGoal } from "./MeetingTranscriptPane.js";
 
 afterEach(() => cleanup());
 
@@ -91,6 +91,40 @@ describe("MeetingTranscriptPane", () => {
     expect(screen.getByTestId("meeting-artifacts-rail")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("collapses the goal after more than five messages", () => {
+    const long: MeetingTranscript = {
+      ...transcript,
+      messages: Array.from({ length: 6 }, (_, i) => ({
+        ...transcript.messages[0]!,
+        message_id: `msg_${i + 1}`,
+        seq: i + 2,
+      })),
+    };
+    renderPane(
+      <MeetingTranscriptPane
+        title="API shape"
+        goal="Pick an approach for the public list endpoint"
+        transcript={long}
+      />,
+    );
+    expect(screen.queryByText("Pick an approach for the public list endpoint")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand meeting header" })).toBeTruthy();
+  });
+
+  it("reloads the transcript on demand", () => {
+    const onReload = vi.fn();
+    renderPane(
+      <MeetingTranscriptPane title="API shape" transcript={transcript} onReload={onReload} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reload transcript" }));
+    expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-collapses the goal after five messages", () => {
+    expect(shouldCollapseMeetingGoal(5)).toBe(false);
+    expect(shouldCollapseMeetingGoal(6)).toBe(true);
   });
 
   it("minimizes the meeting header", () => {

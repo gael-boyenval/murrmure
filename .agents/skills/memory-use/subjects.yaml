@@ -1,0 +1,81 @@
+# Shared core handbook for every space. Source of truth next to this skill.
+# Agents pick from these names on retain. They do not add names.
+# Stack when more than one applies. Do not retain a mixed transcript as one write.
+
+- name: identity
+  when: >
+    Who this space is for, its job, and what is not its job. Mission and
+    non-goals. Not bank or slug — those stay in AGENTS.md.
+
+- name: product
+  when: >
+    How the thing is structured and used: features, user journeys, the shape
+    people actually go through. Not the mission (identity). Not the domain
+    model (ontology).
+
+- name: ontology
+  when: >
+    The domain model: named entities (people, agents, and product things),
+    what we call them, how they relate, what actions they take. Personas
+    (end-user or coding-agent) are entities. Not features or journeys
+    (product). Not folder layout (architecture).
+
+- name: placement
+  when: >
+    Which space owns it. Lives here versus there.
+
+- name: architecture
+  when: >
+    Where inside this space: tree, layers, where to look, code and
+    information architecture.
+
+- name: process
+  when: >
+    How work goes from idea to shipped: phases, steps, who does what, what
+    done means.
+
+- name: ops
+  when: >
+    How the running system is kept alive: environments, deploy, incidents,
+    the live door.
+
+- name: ai-harness
+  when: >
+    How coding agents are set up here: skills, rules, context (what goes in
+    the window), and tools. Not what proves the work correct (evidence).
+    Not user journeys (product). Not the ship pipeline (process).
+
+- name: evidence
+  when: >
+    What establishes that something holds: tests, evals, benches, fixtures,
+    invariants, and what a given run is allowed to claim. A measured result
+    and the conditions it was measured under. Not the tooling agents are set
+    up with (ai-harness). Not how work ships (process). Not system shape
+    (architecture).
+
+- name: history
+  when: >
+    A settled or withdrawn decision later work must not re-argue. What we
+    tried and refused. A date that matters. Not the thread.
+
+- name: preference
+  when: >
+    How the agent should behave with the operator: tone, how it thinks out
+    loud, what to ask versus assume. Not tools, skills, or rules
+    (ai-harness).
+
+- name: goals
+  when: >
+    Current objectives and work streams: where this space is heading.
+    Not the standing job or non-goals (identity). Not the ship pipeline
+    (process). A retain of a goal must name a horizon: `context` of
+    `goal-short` or `goal-long` (optional date in the passage). Retire
+    when that horizon has passed or the goal is dropped.
+
+- name: research
+  when: >
+    What we learned by looking something up: a finding from a source we
+    want to keep. Stack with the topic. Not a call we made (history).
+    Not something learned while doing the work with no source. A retain
+    of research must cite the source in `context` (`research: <cite>`).
+    One source per write.

@@ -147,7 +147,7 @@ explicitly and writes no integration config. Headless PATH setup is separate.
 
 ## Contributor workflow
 
-- **Primary dev path:** `pnpm desktop:dev:hmr` — native Electrobun window, shell HMR via Vite (`:5174`), hub API-only watch (`tsx watch` on `:8787`). Vite proxies `/v1`, `/api`, `/flows` to the hub.
+- **Primary dev path:** `pnpm desktop:dev:hmr` — native Electrobun window, shell HMR via Vite (`:5174`), hub API-only watch (`tsx watch` on `:8787`). Vite proxies `/v1`, `/api`, `/flows` to the hub. Hub replace kills in-memory PTYs, then boot rehydrates open meetings and fails leftover `working` handler runs (`HUB_RESTART_ORPHANED`).
 - **Smoke / regression:** `pnpm desktop:dev:smoke` — system browser via `dev-main.ts`, hub serves bundled shell static (single-URL path).
 - Full packaged build remains optional/manual for MVP (`pnpm desktop:build`, Bun/Electrobun toolchain required).
 

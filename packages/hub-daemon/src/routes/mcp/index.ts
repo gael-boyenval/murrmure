@@ -4,6 +4,8 @@ import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { handshakeDrainCursor, type ControlPrincipal } from "../../control-bus.js";
 import { bareSpaceId } from "../../space-id.js";
+import { MemoryProxyDenial, proxyMemoryTool } from "../../memory-proxy.js";
+import { isMemoryTool } from "../../memory-tools.js";
 
 export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
   const { murrmurePersistence } = ctx;
@@ -91,6 +93,21 @@ export function mountMcpRoutes(app: Hono, ctx: DaemonContext): void {
         const result = await platformHandler(args, auth);
         return c.json({ result });
       } catch (e) {
+        return c.json(
+          { code: "tool_invoke_failed", message: e instanceof Error ? e.message : "Invoke failed" },
+          500,
+        );
+      }
+    }
+
+    if (isMemoryTool(toolName)) {
+      try {
+        const result = await proxyMemoryTool(ctx, auth, toolName, args);
+        return c.json({ result });
+      } catch (e) {
+        if (e instanceof MemoryProxyDenial) {
+          return c.json({ code: e.code, message: e.message, ...e.extra }, e.httpStatus);
+        }
         return c.json(
           { code: "tool_invoke_failed", message: e instanceof Error ? e.message : "Invoke failed" },
           500,

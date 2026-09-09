@@ -7,7 +7,7 @@ import { serve } from "@hono/node-server";
 import { ulid } from "ulid";
 import { createRuntimePersistence } from "@murrmure/runtime-persistence";
 import { createSqliteStudioPersistence, ensureBootstrapToken, migrateStudio } from "@murrmure/hub-persistence";
-import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, awaitAllShellExecutorsTerminated, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
+import { createHubKernel, HubHandler, createInProcessExecutorPollStore, reconcileHeadlessRuns, failOrphanedWorkingRuns, rehydrateOpenMeetings, startExecutorTimeoutSweep, renderMurrmureProtocolEnvelope, SpaceConcurrencyGuard, cancelAllShellExecutors, awaitAllShellExecutorsTerminated, setResolveCredentialRevoker, revokeAllResolveCredentials } from "@murrmure/hub-core";
 import { setMurrmureProtocolRenderer } from "@murrmure/executors";
 import type { DaemonConfig, DaemonContext } from "./context.js";
 import { createHubApp } from "./routes.js";
@@ -16,7 +16,7 @@ import { McpToolRegistry } from "./mcp-tool-registry.js";
 import { ControlBus } from "./control-bus.js";
 import { McpSessionRegistry } from "./mcp-session-registry.js";
 import { registerPlatformMcpHandlers } from "./mcp-handlers.js";
-import { dispatchHooksFromJournal, journalEventToHookSource } from "./hook-dispatch.js";
+import { dispatchHooksFromJournal, hookDispatchDeps, journalEventToHookSource } from "./hook-dispatch.js";
 import { TriggerDispatcher } from "./trigger-dispatcher.js";
 import { InvokeService } from "./invoke-service.js";
 import { InMemoryLiveAssignments } from "./live-assignments.js";
@@ -27,8 +27,10 @@ import { registerFlowSchedulerCron, matchFlowEventStarts, flowRunDeps } from "./
 import { registerArtifactGcCron } from "./artifact-gc-cron.js";
 import { createRunRetentionDeps, registerRunRetentionGc } from "./run-retention-gc.js";
 import { createOutOfShellService, wrapHandlerForOutOfShell } from "./out-of-shell-service.js";
-import type { EventAppendCommand } from "@murrmure/contracts";
+import type { Capability, EventAppendCommand } from "@murrmure/contracts";
 import { UploadIntentService } from "./upload-intent-service.js";
+import { resolveMemoryMcp, shouldStartMemoryMcp, startStdioMemoryMcp } from "./memory-mcp-client.js";
+import { resolveMemorySubjectsPath } from "./memory-subjects.js";
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 
@@ -147,7 +149,15 @@ export async function startHubDaemon(config: DaemonConfig) {
   const { kernel } = createHubKernel({ kernelPersistence, murrmurePersistence, ids, clock });
   const handler = new HubHandler(kernel, murrmurePersistence, ids, clock);
 
+  const resolveSubjects = async () =>
+    resolveMemorySubjectsPath({
+      env: process.env,
+      spaces: await murrmurePersistence.listSpaces(),
+      bindingsFor: (spaceId) => murrmurePersistence.getSpaceBindings(spaceId),
+    });
+  const memoryMcp = await resolveMemoryMcp(config, await resolveSubjects());
   const mcpToolRegistry = new McpToolRegistry(murrmurePersistence);
+  mcpToolRegistry.setMemoryMcp(memoryMcp);
   const controlBus = new ControlBus();
   const mcpSessionRegistry = new McpSessionRegistry(controlBus);
   const triggerDispatcher = new TriggerDispatcher(murrmurePersistence, handler);
@@ -172,6 +182,18 @@ export async function startHubDaemon(config: DaemonConfig) {
     federationPort,
     uploadIntentService,
     spaceRunGuard,
+    memoryMcp,
+    refreshMemorySubjects: async () => {
+      if (config.memoryMcp === false || config.memoryMcp) return;
+      if (!shouldStartMemoryMcp(config)) return;
+      const nextPath = await resolveSubjects();
+      if (nextPath === ctx.memoryMcp.subjectsPath?.()) return;
+      const previous = ctx.memoryMcp;
+      await previous.stop();
+      const next = await startStdioMemoryMcp(config, nextPath);
+      ctx.memoryMcp = next;
+      mcpToolRegistry.setMemoryMcp(next);
+    },
     invokeService: undefined as never,
     artifactService: undefined as never,
     outOfShellService: undefined as never,
@@ -204,6 +226,12 @@ export async function startHubDaemon(config: DaemonConfig) {
     executorPollStore: executorPollStore,
   });
 
+  const bootRecover = {
+    actor_id: "actor_bootstrap",
+    token_id: bootstrapBare,
+    capabilities: ["hub:admin", "flow:run"] as Capability[],
+  };
+
   void reconcileHeadlessRuns({ studio: murrmurePersistence, handler, ids, clock })
     .then((stats) => {
       const total = stats.completed + stats.failed + stats.stale_failed;
@@ -215,6 +243,18 @@ export async function startHubDaemon(config: DaemonConfig) {
     })
     .catch((error) => {
       console.warn("[murrmure] headless run reconcile failed:", error);
+    });
+
+  const orphansFailed = failOrphanedWorkingRuns(hookDispatchDeps(ctx), bootRecover)
+    .then((stats) => {
+      if (stats.failed > 0) {
+        console.log(
+          `[murrmure] hub-restart orphans: failed=${stats.failed} skipped_bound=${stats.skipped_bound}`,
+        );
+      }
+    })
+    .catch((error) => {
+      console.warn("[murrmure] hub-restart orphan fail failed:", error);
     });
 
   const stopArtifactGc = registerArtifactGcCron(ctx.artifactService);
@@ -275,6 +315,19 @@ export async function startHubDaemon(config: DaemonConfig) {
 
   writeDiscovery(config, port);
 
+  // Seats need the HTTP/MCP listener. Wait for orphan fail so a respawn
+  // is not immediately marked HUB_RESTART_ORPHANED.
+  void orphansFailed
+    .then(() => rehydrateOpenMeetings(hookDispatchDeps(ctx), bootRecover))
+    .then((stats) => {
+      if (stats && stats.rooms > 0) {
+        console.log(`[murrmure] rehydrated ${stats.rooms} open meeting(s)`);
+      }
+    })
+    .catch((error) => {
+      console.warn("[murrmure] open meeting rehydrate failed:", error);
+    });
+
   let shuttingDown: Promise<void> | null = null;
   const shutdown = async () => {
     if (shuttingDown) {
@@ -283,6 +336,9 @@ export async function startHubDaemon(config: DaemonConfig) {
     shuttingDown = (async () => {
       process.off("SIGINT", handleSigint);
       process.off("SIGTERM", handleSigterm);
+      // Reap memory-mcp first. tsx watch SIGKILLs this process after ~5s; bun
+      // grandchildren survive that and spin a core until we kill them ourselves.
+      await ctx.memoryMcp.stop();
       // Terminate every spawned shell handler process tree and revoke all
       // ephemeral resolve credentials so nothing outlives the daemon stop.
       cancelAllShellExecutors();

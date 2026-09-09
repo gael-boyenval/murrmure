@@ -184,4 +184,42 @@ describe("JournalProvider", () => {
     });
     expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ["space", expect.anything()] });
   });
+
+  it("invalidates transcript queries on SSE reconnect", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    let reconnect: (() => void) | undefined;
+    const mockClient = {
+      spaces: { list: async () => [] },
+      me: { get: async () => ({ actor_id: "test" }), patch: async () => ({ actor_id: "test" }) },
+      notifications: { list: async () => ({ notifications: [], pending_count: 0 }), dismiss: async () => undefined },
+      gates: { listForRun: async () => [], resolve: async () => ({}) as never },
+      auth: { mintSseTicket: async () => ({ ticket: "tkt_test", expires_in: 60 }) },
+      journal: {
+        subscribe(
+          _onEvent: (payload: JournalSsePayload) => void,
+          options?: { onReconnect?: () => void },
+        ) {
+          reconnect = options?.onReconnect;
+          return () => undefined;
+        },
+        query: async () => [],
+      },
+    } as unknown as ShellClient;
+
+    render(
+      <JournalProvider>
+        <div>child</div>
+      </JournalProvider>,
+      { wrapper: wrapper(mockClient, queryClient) },
+    );
+
+    reconnect?.();
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["session-transcript"] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["meetings"] });
+    });
+  });
 });

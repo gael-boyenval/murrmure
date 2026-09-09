@@ -18,6 +18,7 @@ export * from "./session/status.js";
 export * from "./session/index.js";
 export * from "./run/lifecycle.js";
 export * from "./run/service.js";
+export * from "./boot-recover.js";
 export * from "./run/admission.js";
 export * from "./run/space-guard.js";
 export * from "./grants/migrate.js";

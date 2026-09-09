@@ -1,5 +1,50 @@
 # Changelog
 
+## Hub restart recovers meetings (2026-09-09)
+
+### Fixed
+
+- Hub start respawns open meeting seats with the stored continuation token
+  (HMR / `tsx watch` no longer leaves a live-looking room with dead PTYs).
+- Leftover `working` handler runs are marked `HUB_RESTART_ORPHANED` so Retry
+  works. Gates and a flow run bound to an open meeting stay.
+
+### Changed
+
+- Transcript opens scrolled to the last message, auto-collapses the goal after
+  more than five messages, and has **Reload**. SSE reconnect refetches the room.
+
+## Memory MCP child lifetime (2026-09-08)
+
+### Fixed
+
+- Hub stop reaps the `memory-mcp` bun child first (SIGTERM then SIGKILL).
+  Start and HMR also kill leftovers for the same `memory.db`, so `tsx watch`
+  restarts cannot leave 90% CPU orphans.
+
+## Memory tools on Murrmure MCP (2026-09-07)
+
+### Added
+
+- Hub starts `memory-mcp` and puts `retain` / `recall` / `reflect` / `recent` /
+  `retire` on the Murrmure connection when the grant has `memory:read` /
+  `memory:write`. Bank comes from `space.yaml` `memory_bank`. Tool schemas
+  match the engine: `tags`, `subjects`, `factTypes`, `includeBasedOn`.
+- `space.yaml` `memory_tags` is the inbound tag grant. Retain rejects unknown
+  tags; reads apply the grant as the visibility filter (empty list is empty
+  scope, not “no filter”). `memory_subjects` is the space-relative handbook
+  path; Hub starts memory with `--subjects` and restarts when that path changes.
+  MCP catalog enums list this space’s granted tags and the shared handbook
+  subject names.
+
+## Memory bank on apply (2026-09-07)
+
+### Added
+
+- Connections may grant `memory:read` and `memory:write`.
+- `mrmr space apply` copies optional `space.yaml` `memory_bank` onto the
+  hub space (omitted field clears it). Memory tools are not in the catalog yet.
+
 ## Meeting seat silence (2026-08-26)
 
 ### Changed

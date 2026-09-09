@@ -32,6 +32,12 @@ describe("unit/grants/migrate", () => {
     ).toEqual(["blob:write", "blob:read"]);
   });
 
+  test("native memory capabilities pass through", () => {
+    expect(
+      resolveEffectiveCapabilities({ scopes: [], capabilities: ["memory:read", "memory:write"] }),
+    ).toEqual(["memory:read", "memory:write"]);
+  });
+
   test("space:admin expands to admin capability bundle", () => {
     expect(mapV1ScopesToCapabilities(["space:admin"])).toEqual([
       "hub:admin",

@@ -439,6 +439,15 @@ export function migrateStudio(db: Database.Database): void {
   if (!colNames.has("bindings_json")) {
     db.exec(`ALTER TABLE spaces ADD COLUMN bindings_json TEXT`);
   }
+  if (!colNames.has("memory_bank")) {
+    db.exec(`ALTER TABLE spaces ADD COLUMN memory_bank TEXT`);
+  }
+  if (!colNames.has("memory_tags_json")) {
+    db.exec(`ALTER TABLE spaces ADD COLUMN memory_tags_json TEXT`);
+  }
+  if (!colNames.has("memory_subjects")) {
+    db.exec(`ALTER TABLE spaces ADD COLUMN memory_subjects TEXT`);
+  }
 
   migrateFlowIndexCompositeKey(db);
 

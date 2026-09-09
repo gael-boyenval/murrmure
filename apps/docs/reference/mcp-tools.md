@@ -4,6 +4,22 @@ Murrmure exposes grant-filtered MCP tools via `murrmure-mcp` (`@murrmure/mcp-bri
 
 Platform tools are filtered by grant **capabilities** (scopes). Flow step completion uses **`murrmure_resolve_step`** — not legacy complete-action or gate-wait tools.
 
+## Memory tools (Hub-proxied)
+
+These are **not** `murrmure_*` tools. When Hub has started the memory child, they appear on the same Murrmure connection if the grant has `memory:read` / `memory:write`. Hub sets `bank` from the space’s `memory_bank`. Cross-bank calls are denied. `space.yaml` `memory_tags` is the inbound tag grant: retain rejects unknown tags; recall / reflect / recent apply that grant as the visibility filter (or intersect with the agent’s `TagFilter`). Omit the filter only when the space granted all scopes. Empty `tags: []` is the empty scope, not “no filter”. Hub starts `memory-mcp` with `--subjects` from `memory_subjects` (or `skills/memory-use/subjects.yaml` when that skill is installed).
+
+The catalog lists the closed lists: granted **tags** (this space) and handbook **subjects** (one shared file) as schema enums and in the tool descriptions. Agents should not need to open `space.yaml` or `subjects.yaml` to pick names. When the handbook is loaded, `retain.subjects` is required.
+
+| Tool | Capability | Notes |
+|------|------------|--------|
+| `recall` | `memory:read` | Search one bank. Args: `query`, optional `limit`, `when`, `tags` (`{ tags, match?, untagged? }`), `subjects`, `factTypes` |
+| `reflect` | `memory:read` | Prose answer from one bank. Same read filters as recall, plus `includeBasedOn` |
+| `recent` | `memory:read` | Recent facts in one bank. Optional `limit`, `tags`, `factTypes` |
+| `retain` | `memory:write` | Store text as extracted facts. Optional `context`, `documentId`, `mentionedAt`, `tags` (`string[]`), `subjects` |
+| `retire` | `memory:write` | Take a fact out of circulation. `id` required, optional `reason` |
+
+`local-tools/v1` does not include these capabilities. Grant them on the connection. Hub starts `memory-mcp` against `$MURRMURE_DATA_DIR/memory.db` when the memory package is on disk (`MURRMURE_MEMORY_PACKAGE_ROOT` or the sibling `memory/` repo). Set `MURRMURE_MEMORY_MCP=0` to disable. Hub reaps that bun child on stop and before re-spawn, so watch / HMR cannot leave extra processes.
+
 ## Cross-space query
 
 | Tool | Capability | Description |

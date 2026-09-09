@@ -30,9 +30,10 @@ Header **+** creates a **session**, not a space object and not a run. Find it in
 - **Handler** — how the seat **enters and continues**. Stock seats use
   `session.mode: persistent` plus `continuation`: convene mints a chat id and
   starts one interactive CLI process (`{{prompt}}` is the first-turn argument).
-  Later `said` writes the next turn into that same PTY. Close/crash starts a
-  replacement with `--resume` of the stored id. Do not use `mcp_session` as the
-  enter path.
+Later `said` writes the next turn into that same PTY. Close/crash/Hub restart starts a
+replacement with `--resume` of the stored id. Hub start silently respawns open rooms
+(no extra `resumed` event). Human **Resume** is only for a closed room. Do not use
+`mcp_session` as the enter path.
 
 `query_ask` is the other door (typed RPC). Meetings are free `said`.
 

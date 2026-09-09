@@ -13,6 +13,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Hub start fails orphaned `working` runs then respawns open meeting seats
+  after the listener is up, so `tsx watch` / HMR does not leave dead PTYs.
+
 ### Changed
 
 - Meeting later-turn protocol: speak or edit only if the chair or the

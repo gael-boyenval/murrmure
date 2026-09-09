@@ -230,10 +230,11 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
       },
     },
     journal: {
-      subscribe(onEvent) {
+      subscribe(onEvent, options) {
         let closed = false;
         let es: EventSource | null = null;
         let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+        let sawOpen = false;
 
         const connect = async () => {
           if (closed) return;
@@ -256,6 +257,11 @@ export function createShellClient(opts: ShellClientOptions): ShellClient {
                 if (parsed) onEvent(parsed);
               });
             }
+
+            es.onopen = () => {
+              if (sawOpen) options?.onReconnect?.();
+              sawOpen = true;
+            };
 
             es.onerror = () => {
               es?.close();

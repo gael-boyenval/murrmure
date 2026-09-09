@@ -21,6 +21,7 @@ Hub policy + grants + handler apply + reflect injection. **Authoritative MCP wir
 | Transport | stdio MCP only |
 | Child count | **One** `memory-mcp` per sqlite file per hub-daemon |
 | Sqlite default | `$MURRMURE_DATA_DIR/memory.db` |
+| Lifetime | Hub stop / SIGTERM reaps the child first (SIGTERM → 200ms → SIGKILL). Hub start reaps leftovers for the same `--db` so `tsx watch` / `desktop:dev:hmr` cannot accumulate bun orphans. `refreshMemorySubjects` stop/start uses the live client, not the boot-time handle. |
 | Spawn | `bunx memory-mcp --db <path> --profile serve` — see [engine-wire.md §1](engine-wire.md#1-process-and-wire-co-start) and [connection-co-start.example.json](connection-co-start.example.json) |
 | Catalog ready | `initialize` + `tools/list` on memory stdio client |
 | Pre-warm | fire-and-forget `recall({ bank, query: ".", limit: 1 })` after catalog ready |
@@ -42,7 +43,8 @@ Hub proxy forwards to sibling MCP with these mappings:
 | `recall.query` | `query` (**required** on wire) |
 | assignment `question` / `memory_reflect_query` | `reflect.query` |
 | `consumer_space`, `enough` | **not sent** to MCP |
-| reflect prose for prompt | `answer` only — Hub omits `includeBasedOn` in MVP |
+| agent `tags` / `subjects` / `factTypes` / `includeBasedOn` | forwarded as-is |
+| reflect prose for prompt | `answer` only — Hub omits `includeBasedOn` on that path |
 
 Errors: engine returns `{ "error": "…" }` + `isError: true`. Hub maps to `MEMORY_ENGINE_ERROR` or passthrough message.
 
@@ -74,15 +76,20 @@ Full schemas: [engine-wire.md §2](engine-wire.md#2-tool-contracts-authoritative
 
 ```yaml
 memory_bank: kb   # ^[a-z][a-z0-9-]{0,31}$ — maps 1:1 to MCP bank param
+memory_tags:
+  - project:atlas   # inbound grant; omit = all scopes; [] = empty grant
+memory_subjects: skills/memory-use/subjects.yaml  # space-relative; default if skill installed
 ```
 
 Required when handler memory fields exist or first retain script ships.
 
+Persist inbound as `{ bank: memory_bank, tags?: memory_tags }` on the space row. Omitted `tags` = all scopes.
+
 ### Phase 2 deferred
 
-`memory_exports`, `memory_readers`, `memory-tags.yaml`, cross-bank inbound grants, export cross-check.
+`memory_exports`, `memory_readers`, per-space extra subject names, cross-bank union, export cross-check.
 
-`subjects.yaml` validate at apply only when Hub spawns with `--subjects` path configured.
+Declared `memory_subjects` is validated at apply when the space has a local path binding. Hub starts one `memory-mcp` with `--subjects <absolute>` and restarts when that path changes.
 
 ---
 
@@ -90,18 +97,21 @@ Required when handler memory fields exist or first retain script ships.
 
 Capabilities: `memory:read`, `memory:write` (add to `CAPABILITY_STRINGS`).
 
-Inbound manifest on connection grant:
+Inbound manifest on the space (from `space.yaml`):
 
 ```yaml
-memory:
-  inbound:
-    - bank: kb
-      tags: []   # stored; unused on wire phase 1
+memory_bank: kb
+memory_tags:
+  - project:atlas
 ```
 
-Persist: `connection_grants.memory_inbound JSON` → `{ bank, tags[] }[]`.
+Persist on the space row: `memory_bank`, `memory_tags_json`, `memory_subjects`.
 
-Phase 1 cross-bank: bank match only → else `MEMORY_GRANT_DENIED`. Tag filter phase 2.
+Retain: reject tags outside the grant. Omit tags = unscoped / shared.
+
+Reads: apply the grant as `{ tags, match: any, untagged: include }`, or intersect with the agent `TagFilter`. Do not pass `tags: []` as “no filter”. Omit the filter only when the grant is all scopes.
+
+Cross-bank: bank match only → else `MEMORY_GRANT_DENIED`.
 
 Default `local-tools/v1`: add memory caps when connection template includes `memory` row.
 

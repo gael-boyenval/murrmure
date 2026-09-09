@@ -71,6 +71,8 @@ const ALL_PLATFORM_CAPABILITIES = [
   "space:enter",
   "blob:read",
   "blob:write",
+  "memory:read",
+  "memory:write",
   "executor:poll",
 ];
 

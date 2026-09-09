@@ -12,6 +12,8 @@ export const CAPABILITY_STRINGS = [
   "journal:read",
   "blob:read",
   "blob:write",
+  "memory:read",
+  "memory:write",
   "executor:poll",
   "hub:admin",
 ] as const;

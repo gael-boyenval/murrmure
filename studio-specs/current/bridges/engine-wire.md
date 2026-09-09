@@ -61,7 +61,7 @@ Five tools. **Bare names** (`retain`, not `memory_retain`). MCP clients namespac
 
 **Every tool requires `bank`** (string). Omitted `bank` is a schema error. Isolation is `WHERE bank_id = ?` in the store — not a grant list on this process.
 
-**Tags are not on the MCP wire** (010). Tag scope is engine-internal / future Hub grant layer. **Subjects** appear only when the MCP process was started with `--subjects`; otherwise schemas omit `subjects` fields entirely.
+**Tags are on the MCP wire** (same shape as the library). `retain.tags` is `string[]`. Read tools take a `TagFilter` (`tags`, optional `match`, optional `untagged`). **Subjects** are always on retain/recall/reflect. `--subjects` makes retain require handbook names; without it, subjects stay optional strings.
 
 Errors: validation and domain failures return **tool content** with `{ "error": "<message>" }` and `isError: true`, not JSON-RPC throws.
 
@@ -74,7 +74,8 @@ Errors: validation and domain failures return **tool content** with `{ "error": 
 | `context` | no | string | optional framing |
 | `documentId` | no | string | revision anchor |
 | `mentionedAt` | no | string | ISO-8601; defaults to now |
-| `subjects` | if handbook loaded | string[] min 1 | retain: required when `--subjects`; names from handbook |
+| `tags` | no | string[] | visibility scopes; omit = unscoped / shared |
+| `subjects` | if handbook loaded | string[] min 1 | optional without `--subjects`; required handbook names when loaded |
 
 Success: `{ "status": "ok", "documentId": "doc_…", "facts": [{ "id", "text", "subjects" }], "ignoredSubjects"? }`
 
@@ -86,7 +87,9 @@ Success: `{ "status": "ok", "documentId": "doc_…", "facts": [{ "id", "text", "
 | `query` | yes | string |
 | `limit` | no | positive int |
 | `when` | no | `{ from, to }` ISO |
+| `tags` | no | `{ tags, match?, untagged? }` |
 | `subjects` | no | string[] (tilt, not filter) |
+| `factTypes` | no | `world` / `experience` / `observation`[] |
 
 Success: `{ "results": [{ "id", "bank", "text", "factType", "occurredAt", "proofCount", "subjects" }] }`
 
@@ -98,7 +101,9 @@ Success: `{ "results": [{ "id", "bank", "text", "factType", "occurredAt", "proof
 | `query` | yes | string | **not** `question` on the wire |
 | `limit` | no | positive int | |
 | `includeBasedOn` | no | boolean | when true, include evidence rows |
+| `tags` | no | TagFilter | same as recall |
 | `subjects` | no | string[] | tilt semantics as recall |
+| `factTypes` | no | fact-type[] | same as recall |
 
 Success: `{ "answer": "prose or null", "basedOn"? }` — `basedOn` omitted unless `includeBasedOn: true`.
 
@@ -106,7 +111,7 @@ Hub field map: assignment `question` → MCP `query`; `consumer_space` / `enough
 
 ### `recent` / `retire`
 
-`recent`: `bank` required, `limit?` → `{ results: [...] }` (same shape as recall).
+`recent`: `bank` required, `limit?`, `tags?`, `factTypes?` → `{ results: [...] }` (same shape as recall).
 
 `retire`: `bank`, `id` required, `reason?` → `{ status: "retired"|"already-retired", id }`.
 

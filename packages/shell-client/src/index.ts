@@ -8,6 +8,7 @@ export type {
   MeetingListRow,
   SseTicketResponse,
   JournalSsePayload,
+  JournalSubscribeOptions,
   ShellClient,
   MeetingClosedData,
   MeetingCloseResult,

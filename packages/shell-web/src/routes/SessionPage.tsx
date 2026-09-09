@@ -279,6 +279,7 @@ export function SessionPage() {
               transcript={transcript}
               spaceLabels={spaceLabels}
               onReply={canClose ? setReplyTo : undefined}
+              onReload={() => transcriptQuery.refetch().then(() => undefined)}
               closeAction={
                 canClose && sessionId ? (
                   <MeetingCloseButton sessionId={sessionId} />

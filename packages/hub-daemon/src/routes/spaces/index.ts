@@ -39,6 +39,8 @@ import {
 import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
 import { markSpaceLinkForActor } from "@murrmure/hub-core";
 import { broadcastSse } from "../../context.js";
+import { existsSync } from "node:fs";
+import { localSpaceRoot, resolveDeclaredSubjectsPath } from "../../memory-subjects.js";
 
 function cloneBoundFlowEntry(input: {
   entry: FlowIndexEntry;
@@ -475,10 +477,30 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
       if (spaceYaml) {
         const name = spaceYaml.name?.trim();
         const description = spaceYaml.description?.trim() || undefined;
+        const memory_bank = spaceYaml.memory_bank?.trim() || undefined;
+        const memory_tags = spaceYaml.memory_tags;
+        const memory_subjects = spaceYaml.memory_subjects?.trim() || undefined;
+        if (memory_subjects) {
+          const bindings = await murrmurePersistence.getSpaceBindings(bare);
+          const root = localSpaceRoot(bindings);
+          if (root && !existsSync(resolveDeclaredSubjectsPath(root, memory_subjects))) {
+            return c.json(
+              {
+                code: "MEMORY_SUBJECTS_MISSING",
+                message: `memory_subjects file not found at ${memory_subjects}`,
+              },
+              400,
+            );
+          }
+        }
         await murrmurePersistence.updateSpace(bare, {
           ...(name ? { name } : {}),
           description,
+          memory_bank,
+          memory_tags,
+          memory_subjects,
         });
+        await ctx.refreshMemorySubjects?.();
         broadcastSse(ctx, {
           event: "space.list_changed",
           data: { space_id: originSpaceId },

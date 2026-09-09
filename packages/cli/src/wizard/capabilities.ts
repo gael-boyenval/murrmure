@@ -1,3 +1,5 @@
+import { CAPABILITY_STRINGS } from "@murrmure/contracts";
+
 /** Default least-privilege profile for local MCP / tools connections. */
 export const LOCAL_TOOLS_PROFILE = {
   name: "local-tools",
@@ -19,20 +21,7 @@ export const LOCAL_TOOLS_CAPABILITIES = [
 export const CUSTOM_CONNECTION_PROFILE = "custom" as const;
 
 /** All grantable capabilities (matches hub `CAPABILITY_STRINGS`). */
-export const GRANTABLE_CAPABILITIES = [
-  "space:read",
-  "space:write",
-  "space:enter",
-  "flow:read",
-  "flow:run",
-  "event:emit",
-  "step:resolve",
-  "journal:read",
-  "blob:read",
-  "blob:write",
-  "executor:poll",
-  "hub:admin",
-] as const;
+export const GRANTABLE_CAPABILITIES = CAPABILITY_STRINGS;
 
 /** Least-privilege set for a persistent meeting seat (talk + attach). */
 export const MEETING_SEAT_CAPABILITIES = [
@@ -104,6 +93,16 @@ export const GRANTABLE_CAPABILITY_OPTIONS: ReadonlyArray<{
     value: "blob:write",
     label: "blob:write",
     hint: "Upload artifacts (murrmure_put_artifact / PUT /v1/artifacts)",
+  },
+  {
+    value: "memory:read",
+    label: "memory:read",
+    hint: "Recall / reflect / recent via Hub-proxied memory tools",
+  },
+  {
+    value: "memory:write",
+    label: "memory:write",
+    hint: "Retain / retire via Hub-proxied memory tools",
   },
   {
     value: "executor:poll",

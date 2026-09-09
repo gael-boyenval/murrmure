@@ -12,9 +12,9 @@ Memory engine contract: see memory-space `specs/integration/murrmure.md` (engine
 
 | In MVP | Deferred (tighten when pain appears) |
 |--------|----------------------------------------|
-| Co-start memory MCP with desktop app | Tag params on MCP wire (Hub bank-only MVP until engine ships tags) |
-| Bank per space; Hub brokers recall/retain/reflect/recent/retire | Strict export cross-check at apply |
-| Own-bank read open; cross-bank grant enforced **Hub-side** | Hard-fail on unknown tags at apply |
+| Co-start memory MCP with desktop app | Strict export cross-check at apply |
+| Bank per space; Hub brokers recall/retain/reflect/recent/retire | Hard-fail on unknown tags at apply |
+| Own-bank read open; cross-bank grant enforced **Hub-side** | Per-connection tag grant filtering |
 | Explicit writes only; journal never auto-retained | Per-desk tag/subject presets in bridge |
 | Three access paths (§1); optional handler auto-reflect | Consumer-tier grants (v0.2) |
 
@@ -50,9 +50,9 @@ Handler `memory_tags` / `memory_reflect` configure path 3 only. They are **not**
 
 ### Wire reality (engine MVP)
 
-**Shipped MCP tools today:** `retain`, `recall`, `reflect`, `recent`, `retire` — **`bank` required**; **no `tags` param on wire yet**.
+**Shipped MCP tools today:** `retain`, `recall`, `reflect`, `recent`, `retire` — **`bank` required**. Engine fields on the wire: `tags` (retain `string[]`, reads `TagFilter`), `subjects`, `factTypes`, `includeBasedOn`.
 
-**Bridge MVP (a):** Hub enforces bank + prepares tag/grant rows; handler `memory_tags` stored for phase 2. Cross-bank denied at Hub by bank scope. Tag prefix filtering expands **Hub-side** once engine ships tags + `match` (`any`/`all`/`exact`) + `untagged: exclude` for cross-bank reads.
+**Bridge MVP (a):** Hub enforces bank. Cross-bank denied at Hub by bank scope. Agents pass `tags` / `subjects` / `factTypes` on the Murrmure tools. Handler `memory_tags` still configure auto-reflect only.
 
 Engine backlog owned in memory-space `specs/integration/murrmure.md`.
 

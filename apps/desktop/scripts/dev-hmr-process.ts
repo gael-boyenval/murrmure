@@ -1,8 +1,10 @@
 import { execSync, spawnSync } from "node:child_process";
 
-const DEV_DESKTOP_ORPHAN_PATTERNS = [
+export const DEV_DESKTOP_ORPHAN_PATTERNS = [
   "Murrmure-dev.app/Contents/MacOS/launcher",
   "Murrmure-dev.app/Contents/Resources/main.js",
+  // Hub stdio child. tsx watch SIGKILL leaves these at ~90% CPU.
+  "memory/src/mcp/index.ts",
 ] as const;
 
 function listChildPids(pid: number): number[] {

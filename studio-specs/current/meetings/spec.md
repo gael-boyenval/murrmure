@@ -22,7 +22,7 @@ Verified against code 2026-08-17. Full table: [pitfalls.md](../../plans/2026-08-
 7. **List-personas for invitees is hub-mediated.** Chair tokens cannot `GET` a foreign space.
 8. **Seat prompt is `murrmure.meeting/v1`.** Do not reuse the step envelope that orders `murrmure_resolve_step`.
 9. **`spaces_touched` += full roster at convene.** Artifact readers = roster **spaces**, not `ptc_*`.
-10. **One run/process per live seat.** Never run-per-`said`. A persistent seat is closed only by meeting close, run cancellation, crash, or Hub shutdown.
+10. **One run/process per live seat.** Never run-per-`said`. A persistent seat is closed only by meeting close, run cancellation, crash, or Hub shutdown. Hub start rehydrates open rooms (new process, same `ptc_*` + continuation token).
 
 ---
 
@@ -435,7 +435,7 @@ Per participant, while the meeting is open:
 5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
 6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Do not start work or attach artifacts on convene unless the goal names this seat. Later turns speak or edit only if the chair or the meeting goal asked this seat (question, named task, or explicit work request). Another seat's intro, role dump, or peer design talk is not a ticket. If the chair or goal did ask this seat for work, do that work on the turn. If it replies, target the asker and avoid acknowledgement/repetition. The hub does not invent turn-taking.
 7. **PTY not attached yet** — queue the notify until the persistent controller attaches. Do not fall back to a pre-existing operator MCP in the same space.
-8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller.
+8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller. Hub **start** then: (1) fail leftover `working` runs whose executor died (`HUB_RESTART_ORPHANED`) except `input-required` and a flow run bound to an open meeting; (2) silently respawn each open meeting’s seats with `continuation` / `--resume` (no `mrmr.meeting.resumed` journal — that event is the human Resume path).
 
 Same room, same logical harness conversation. Later turns go to the seat PTY,
 not `publishToSpace`.
@@ -446,7 +446,8 @@ the registration after process exit is also forbidden: it records false
 delivery to a dead MCP pipe. Unexpected exit is `PERSISTENT_SESSION_EXITED`; a
 later targeted message may create a replacement assignment because the original
 process is no longer live. That replacement uses the stored continuation token
-when present.
+when present. Hub process replace (`tsx watch` / `desktop:dev:hmr`) is the same
+path: PTYs die, the room stays `open`, boot respawns seats with that token.
 
 A **run** may be one per spawn (observability) or the optional `room` flow run.
 

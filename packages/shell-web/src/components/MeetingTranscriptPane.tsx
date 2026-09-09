@@ -1,7 +1,7 @@
 import type { MeetingTranscript, MeetingTranscriptMessage } from "@murrmure/shell-client";
 import { Badge, Button, cn } from "@murrmure/shell-ui";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, RotateCw } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { MeetingArtifactCard } from "./MeetingArtifactCard.js";
 import { MeetingArtifactsRail } from "./MeetingArtifactsRail.js";
 import { MeetingMarkdown } from "./MeetingMarkdown.js";
@@ -16,6 +16,12 @@ const SEAT_TONES = [
   "bg-amber-500/15 text-amber-200",
   "bg-rose-500/15 text-rose-200",
 ] as const;
+
+export const MEETING_GOAL_AUTO_COLLAPSE_AFTER = 5;
+
+export function shouldCollapseMeetingGoal(messageCount: number): boolean {
+  return messageCount > MEETING_GOAL_AUTO_COLLAPSE_AFTER;
+}
 
 export type SpaceLabelMap = Record<string, string>;
 
@@ -100,6 +106,7 @@ export interface MeetingTranscriptPaneProps {
   composer?: ReactNode;
   spaceLabels?: SpaceLabelMap;
   onReply?: (target: MeetingReplyTarget) => void;
+  onReload?: () => void | Promise<void>;
 }
 
 export function MeetingTranscriptPane({
@@ -110,18 +117,42 @@ export function MeetingTranscriptPane({
   composer,
   spaceLabels,
   onReply,
+  onReload,
 }: MeetingTranscriptPaneProps) {
   const seats = rosterMap(transcript);
   const byId = new Map(transcript.messages.map((message) => [message.message_id, message]));
-  const [headerOpen, setHeaderOpen] = useState(true);
+  const [headerOpen, setHeaderOpen] = useState(
+    () => !shouldCollapseMeetingGoal(transcript.messages.length),
+  );
+  const [reloadPending, setReloadPending] = useState(false);
   const [focusMessageId, setFocusMessageId] = useState<string>();
   const [selectedArtifact, setSelectedArtifact] = useState<string>();
+  const listRef = useRef<HTMLOListElement>(null);
+  const stickToBottom = useRef(true);
+  const openedSession = useRef<string>();
   const artifacts = listTranscriptArtifacts(transcript, (message) => {
     const seat = isMeetingSeatSender(message.from) ? message.from : undefined;
     return seat ? meetingSpeakerName(seat, spaceLabels) : "human chair";
   });
 
+  useEffect(() => {
+    if (openedSession.current !== transcript.session_id) {
+      openedSession.current = transcript.session_id;
+      setHeaderOpen(!shouldCollapseMeetingGoal(transcript.messages.length));
+      stickToBottom.current = true;
+    } else if (shouldCollapseMeetingGoal(transcript.messages.length)) {
+      setHeaderOpen(false);
+    }
+  }, [transcript.session_id, transcript.messages.length]);
+
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el || !stickToBottom.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [transcript.session_id, transcript.up_to_seq, transcript.messages.length]);
+
   const jumpTo = (messageId: string, transferId: string) => {
+    stickToBottom.current = false;
     setSelectedArtifact(transferId);
     setFocusMessageId(messageId);
     document.getElementById(`meeting-msg-${messageId}`)?.scrollIntoView({
@@ -169,12 +200,40 @@ export function MeetingTranscriptPane({
             </>
           ) : null}
         </div>
-        {closeAction}
+        {closeAction || onReload ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {onReload ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={reloadPending}
+                aria-label="Reload transcript"
+                onClick={() => {
+                  stickToBottom.current = true;
+                  setReloadPending(true);
+                  void Promise.resolve(onReload()).finally(() => setReloadPending(false));
+                }}
+              >
+                <RotateCw className={cn("size-3.5", reloadPending ? "animate-spin" : undefined)} />
+                {reloadPending ? "Reloading…" : "Reload"}
+              </Button>
+            ) : null}
+            {closeAction}
+          </div>
+        ) : null}
       </header>
 
       <div className="mt-3 flex min-h-0 flex-1 gap-3">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ol className="scrollbar-subtle min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <ol
+        ref={listRef}
+        className="scrollbar-subtle min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+      >
         {transcript.messages.length === 0 ? (
           <li className="text-sm text-muted-foreground">
             Room is open. Seats were spawned on convene.

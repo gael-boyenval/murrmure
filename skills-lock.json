@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "memory-use": {
+      "source": "../doctrine/skills",
+      "sourceType": "local",
+      "computedHash": "235a95f28e10af84daf49f58e440cb8235044c8529747f50bcf2e2c5787be4c1"
+    }
+  }
+}

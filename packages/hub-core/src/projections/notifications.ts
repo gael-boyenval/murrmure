@@ -263,6 +263,12 @@ export function runFailedNotificationCopy(reason?: string): { title: string; sum
       summary: reason.slice("ACTION_TIMED_OUT:".length),
     };
   }
+  if (reason === "HUB_RESTART_ORPHANED") {
+    return {
+      title: "Run failed: hub restarted",
+      summary: "The handler process died when the hub process was replaced. Retry the run.",
+    };
+  }
   return { title: "Run failed" };
 }
 
