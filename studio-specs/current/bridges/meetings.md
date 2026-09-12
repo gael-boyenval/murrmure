@@ -13,6 +13,7 @@ Adapters only. Domain lives in `hub-core/src/meetings/` + journal-first emit.
 | HTTP | MCP | Scope | Notes |
 |------|-----|-------|-------|
 | `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | `space:read` | **Same-space token.** Ads only. |
+| — | `murrmure_list_invitable_spaces` | `space:read` | Hub-mediated directory. Bootstrap / `hub:admin` see all active spaces; other callers see their bound space plus active same-actor/harness `space:read` grants. Ads only. No local paths, memory, or secrets. |
 | `POST /v1/meetings` | `murrmure_start_meeting` | `flow:run` + convenor `space:read` on every invitee (hub-enforced) | New session or attach if `session_id` given. Hub reads invitee catalogs. |
 | `GET /v1/sessions/{id}/transcript?since_seq=&participant_id=` | `murrmure_meeting_transcript` | roster space **or** `journal:read` on a roster space | Session-monotonic cursor. Pass this seat's `ptc_*` for `you` / `addressed_to_you`. Not `GET /v1/journal`. |
 | `GET /v1/meetings` | — | `space:read` | Open + closed rooms. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
@@ -110,6 +111,7 @@ Add to `PLATFORM_TOOLS` + `mcp-tool-schemas.ts` + `mcp-handlers.ts` + `apps/docs
 | Tool | required |
 |------|----------|
 | `murrmure_list_personas` | — (space from auth) |
+| `murrmure_list_invitable_spaces` | — |
 | `murrmure_start_meeting` | participants, chair |
 | `murrmure_meeting_transcript` | `session_id` |
 | `murrmure_put_artifact` | exactly one of `path` or `content`; `name` with `content` |

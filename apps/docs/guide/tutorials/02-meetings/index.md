@@ -18,7 +18,7 @@ Index label **1b**. Folder **`02-meetings/`** so it does not collide with the re
 | Beat | Concept | You see it when… |
 |------|---------|----------------|
 | **1** | One hub, two spaces | Sidebar lists `meeting-app` and `meeting-research` |
-| **2** | Personas are ads | `murrmure_list_personas` returns blurbs only |
+| **2** | Personas are ads | Same-space `murrmure_list_personas` returns blurbs only; a convenor uses `murrmure_list_invitable_spaces` |
 | **3** | `meeting:` facet | Space home shows `api-shape` — no View |
 | **4** | Session is the room | **Run** → Transcript, 3 seats, 0 messages; human **Close** |
 | **5** | Seats wake on `said` | Designer speaks; researcher replies; later turns reuse the live assignment |

@@ -43,6 +43,7 @@ directly so a meeting seat can `murrmure_put_artifact` without `space:write`.
 | `murrmure_put_artifact` | `blob:write` (or `space:write`) |
 | `murrmure_get_artifact` | `space:read` + artifact ACL |
 | `murrmure_create_run` | `flow:run` |
+| `murrmure_list_invitable_spaces` | `space:read` |
 | `murrmure_list_directive_eligible` | `hub:admin` |
 | `murrmure_start_directive` | `hub:admin` |
 

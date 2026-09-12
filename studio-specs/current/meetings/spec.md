@@ -19,7 +19,7 @@ Verified against code 2026-08-17. Full table: [pitfalls.md](../../plans/2026-08-
 4. **Join-once is a new notify primitive.** Assignment-mode MCP drops hook wakes. Do not document “reuse pending-wake” as if it exists.
 5. **Close XOR `resolve_step`.** Engine resolves the meeting step on `closed`. Human close is a **new** session mutation, not a gate/View.
 6. **`meeting:` is a step-level facet**, not “like `artifact_slots`” (those are branch-level). Nested meeting steps rejected in v1.
-7. **List-personas for invitees is hub-mediated.** Chair tokens cannot `GET` a foreign space.
+7. **List-personas for invitees is hub-mediated.** Chair tokens cannot `GET` a foreign space. Convenors discover invitees with `murrmure_list_invitable_spaces` (hub aggregate), not `GET /v1/spaces/{foreign}/personas`.
 8. **Seat prompt is `murrmure.meeting/v1`.** Do not reuse the step envelope that orders `murrmure_resolve_step`.
 9. **`spaces_touched` += full roster at convene.** Artifact readers = roster **spaces**, not `ptc_*`.
 10. **One run/process per live seat.** Never run-per-`said`. A persistent seat is closed only by meeting close, run cancellation, crash, or Hub shutdown. Hub start rehydrates open rooms (new process, same `ptc_*` + continuation token).
@@ -144,7 +144,7 @@ personas:
 | `summary` | Required short text |
 | `asks` / `requests` | Optional string lists. **Ads.** Not query types, not dispatch keys. |
 
-Chair (human or agent) lists personas on spaces they may invite **before** convene. Talk is still free `said`. If the catalog says “attach a brief” and they never do, the hub does not care.
+Chair (human or agent) lists personas on spaces they may invite **before** convene. Agents call `murrmure_list_invitable_spaces` (no space id). Same-space `murrmure_list_personas` stays ads-only for the bound token. Talk is still free `said`. If the catalog says “attach a brief” and they never do, the hub does not care.
 
 **Capabilities ≠ handlers.** Handler = how the seat wakes. Catalog = what others are told the seat is for.
 
@@ -167,7 +167,7 @@ The header dialog convenes the room. Once open, a human chair may compose `said`
 messages to selected seats or everyone from Transcript. The room is a **session**,
 not a space. Header **Meetings** lists open rooms. Space home **Run** on a flow
 that has a meeting step remains an optional flow-bound trigger. An agent chair
-uses MCP.
+uses MCP: `murrmure_list_invitable_spaces` then `murrmure_start_meeting`.
 
 `mrmr.meeting.convened` is the doorbell: hub journals it and wakes each roster seat. A `mrmr.meeting.said` handler is the seat (convene rings it; later `said` is talk). Each invited space still needs applied personas + that handler and a live MCP handshake in that workspace — one connection is one space.
 
@@ -533,7 +533,8 @@ Headless meeting (agents only, no flow) is valid. Shell still shows the historic
 
 | HTTP | MCP | Command |
 |------|-----|---------|
-| `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | Indexed catalog |
+| `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | Same-space indexed catalog |
+| — | `murrmure_list_invitable_spaces` | Hub-mediated invite directory (visible spaces + ads) |
 | `POST /v1/meetings` | `murrmure_start_meeting` | Convene |
 | `GET /v1/sessions/{id}/transcript` | `murrmure_meeting_transcript` | Projection |
 | `POST /v1/sessions/{id}/meeting/say` | — | Human-chair `said` to selected seats / everyone |
@@ -542,9 +543,9 @@ Headless meeting (agents only, no flow) is valid. Shell still shows the historic
 | `GET /v1/meetings` | — | Open + closed rooms |
 | existing emit | `murrmure_emit_event` | `said` / `closed` (chair) |
 
-Scopes: `space:read` (same-space personas), `event:emit` (talk / chair close), `journal:read` or roster membership (transcript), `flow:run` (convene / flow start). Human close: [bridges/meetings.md](../bridges/meetings.md) session mutation — **not** a view/gate.
+Scopes: `space:read` (same-space personas and the invite directory), `event:emit` (talk / chair close), `journal:read` or roster membership (transcript), `flow:run` (convene / flow start). Human close: [bridges/meetings.md](../bridges/meetings.md) session mutation — **not** a view/gate.
 
-`murrmure_emit_event` for meeting types **requires** top-level `session_id`. HTTP emit requires `event:emit`. Hub-authored types are denylisted. Convenor listing of **foreign** personas is hub-mediated inside convene — not `GET /v1/spaces/{other}/personas`.
+`murrmure_emit_event` for meeting types **requires** top-level `session_id`. HTTP emit requires `event:emit`. Hub-authored types are denylisted. Convenor listing of **foreign** personas is hub-mediated via `murrmure_list_invitable_spaces` and inside convene — not `GET /v1/spaces/{other}/personas`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus active matching `space:read` grants.
 
 Full tables: [bridges/meetings.md](../bridges/meetings.md).
 

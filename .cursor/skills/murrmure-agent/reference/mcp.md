@@ -33,6 +33,7 @@ installation or `mrmr space apply`.
 | `murrmure_space_health` | `space:read` | Health summary, handler coverage |
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
 | **`murrmure_list_personas`** | **`space:read`** | Same-space persona ads |
+| **`murrmure_list_invitable_spaces`** | **`space:read`** | Invite directory: `{ spaces: [{ space_id, slug, name, personas }] }`. No args. Bootstrap / `hub:admin` see all active spaces; others see own space plus matching `space:read` grants |
 | **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
 | **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
@@ -52,6 +53,12 @@ installation or `mrmr space apply`.
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?session=ses_*&type=mrmr.step.*` |
 
 ## Typical agent flow
+
+**Convenor** (human asked you to start a meeting; no assignment prompt):
+
+1. **`murrmure_list_invitable_spaces`** — no args. Pick `space_id` + persona ads.
+2. **`murrmure_start_meeting`** — `{ participants, chair }` using those `space_id` values unchanged.
+3. Do **not** call foreign `murrmure_list_personas({ space_id })`. That tool is same-space only.
 
 **Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
 

@@ -23,6 +23,13 @@ export {
   type MeetingListRow,
 } from "./list.js";
 export {
+  listInvitableSpaces,
+  toInvitablePersonaAd,
+  type InvitablePersonaAd,
+  type InvitableSpace,
+  type ListInvitableSpacesInput,
+} from "./invitable.js";
+export {
   renderMurrmureMeetingProtocolEnvelope,
   isMeetingSaidHandler,
   isMeetingWakeParams,

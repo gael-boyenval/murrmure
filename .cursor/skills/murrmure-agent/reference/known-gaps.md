@@ -41,7 +41,7 @@ Murrmure v3 core (`.mrmr/` space directory, session/run, **handlers + `on::key` 
 | Meeting seat continuity | Persistent `shell_spawn` PTY starts once on convene; later turns write into that PTY after idle; close ends the process |
 | Human-chair talk | Transcript composer to selected/all seats; Hub stamps `{ human: true }` |
 | Meeting timing | Message timestamps, Hub delivery latency, and reply latency |
-| Meeting MCP | `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript` |
+| Meeting MCP | `murrmure_list_invitable_spaces`, `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript` |
 | Headless convene | `mrmr meeting start` / `murrmure_start_meeting` |
 | Directive MCP | `murrmure_list_directive_eligible`, `murrmure_start_directive` (`hub:admin`) |
 

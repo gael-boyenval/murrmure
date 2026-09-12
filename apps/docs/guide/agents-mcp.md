@@ -152,6 +152,11 @@ this workspace does not install tools in other linked spaces.
   Resume after close uses `--resume` of the minted chat id. You do not need a
   Cursor chat open. Copy the handler from
   [Meetings](./meetings.md#put-this-in-every-invited-space).
+- To chair a room, call `murrmure_list_invitable_spaces` (no args) and pass
+  discovered `space_id` values into `murrmure_start_meeting.participants`.
+  Same-space `murrmure_list_personas` cannot list a foreign catalog. The
+  directory is not `GET /v1/spaces` (`space:enter` sidebar) and does not
+  include memory, artifacts, or local paths.
 - Default `local-tools/v1` omits `event:emit`. Grant it before a seat can
   `murrmure_emit_event` `mrmr.meeting.said`.
 - Attach a file with `murrmure_put_artifact({ content, name })`, emit

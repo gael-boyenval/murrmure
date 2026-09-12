@@ -61,6 +61,8 @@ You should see `designer` and `qa` with summaries. **No handler ids. No prompt t
 
 In **chat B**: `researcher` only.
 
+That tool is **same-space**. A chair in one chat cannot `GET` the other space’s personas. To assemble a roster across spaces, call `murrmure_list_invitable_spaces` (no space id) and reuse the returned `space_id` values in `murrmure_start_meeting` later. Do not invent `spc_*` ids.
+
 After apply: no new **Run** button (still no flow). Optional: space index / doctor mentions the catalog.
 
 ## Checkpoint

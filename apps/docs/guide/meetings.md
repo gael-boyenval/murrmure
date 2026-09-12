@@ -14,7 +14,7 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 |------|-----|----------------|
 | **Run** a flow whose step has `meeting:` | Human on the dashboard | Engine convenes on **this** session; step stays open until close |
 | Header **Meetings** + **+** | Operator | List open/closed rooms. **+** picks spaces + personas. You chair. Opens Transcript. Closed rooms **Resume** the same session |
-| `murrmure_start_meeting` | Agent | `POST /v1/meetings` — new session (or attach if `session_id` given) |
+| `murrmure_list_invitable_spaces` then `murrmure_start_meeting` | Agent | Directory (no space id) then `POST /v1/meetings`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus matching `space:read` grants |
 | `mrmr meeting start` | Operator | Same command as HTTP |
 
 No `/meetings` route. Humans read Transcript; a human chair can message selected

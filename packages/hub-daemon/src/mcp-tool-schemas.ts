@@ -130,6 +130,7 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
   murrmure_list_personas: objectSchema({
     space_id: stringSchema("Optional target space id override"),
   }),
+  murrmure_list_invitable_spaces: objectSchema({}),
   murrmure_list_directive_eligible: objectSchema({}),
   murrmure_start_directive: objectSchema(
     {

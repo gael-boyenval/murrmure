@@ -38,6 +38,7 @@ const PLATFORM_TOOLS: Array<{
   { name: "murrmure_list_emittable_events", required_scope: "space:read", description: "List event types this space can emit (derived from global hook index)" },
   { name: "murrmure_list_handlers", required_scope: "space:read", description: "List indexed step/event handlers for a space" },
   { name: "murrmure_list_personas", required_scope: "space:read", description: "List indexed persona ads for a space" },
+  { name: "murrmure_list_invitable_spaces", required_scope: "space:read", description: "List spaces this caller may invite, with indexed persona ads" },
   { name: "murrmure_list_directive_eligible", required_scope: "hub:admin", description: "List spaces that bind the hub-owned directive handler" },
   { name: "murrmure_start_directive", required_scope: "hub:admin", description: "Start the hub-owned directive flow on one or more eligible spaces" },
   { name: "murrmure_start_meeting", required_scope: "flow:run", description: "Convene a meeting on a new or existing session" },

@@ -1,5 +1,14 @@
 # Changelog
 
+## Invite directory MCP (2026-09-12)
+
+### Added
+
+- `murrmure_list_invitable_spaces` lists spaces a caller may invite, with
+  indexed persona ads. Bootstrap / `hub:admin` see every active space; other
+  callers see their bound space plus active matching `space:read` grants.
+  Same-space `murrmure_list_personas` is unchanged.
+
 ## Hub restart recovers meetings (2026-09-09)
 
 ### Fixed

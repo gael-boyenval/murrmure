@@ -167,6 +167,7 @@ Requirements:
 | Transcript pull | `since_seq` is `meeting_seq`; message/receipt timestamps and latency project from journal; not `journal_query` | `fixtures/meetings/transcript.json` |
 | Shell Transcript | `/sessions/:id` default; human-chair compose to selected/all; `HH:mm:ss` + ISO hover; header New meeting; no `/meetings` | [shell/spec.md](./shell/spec.md) |
 | Tutorial 1b fences | Progressive snapshots match pages | `packages/cli/test/tutorial-meetings-harness.test.ts` |
+| Invite directory | `murrmure_list_invitable_spaces` returns visible spaces + ads; foreign GET personas stays denied; discovered `space_id` convenes | `hub-core/test/unit/meetings/invitable.test.ts` · `hub-daemon/test/http/mcp/list-invitable-spaces.test.ts` |
 
 ## Gate
 

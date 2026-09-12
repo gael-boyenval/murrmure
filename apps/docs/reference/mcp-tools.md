@@ -60,6 +60,7 @@ Example arguments:
 | `murrmure_space_health` | `space:read` | Health summary (index counts, handler coverage, warnings) |
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
 | `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
+| `murrmure_list_invitable_spaces` | `space:read` | Hub-mediated invite directory. No args. Returns `{ spaces: [{ space_id, slug, name, personas }] }`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus active same-actor/harness `space:read` grants. Ads only; empty `personas` is `[]`. Use `space_id` unchanged in `murrmure_start_meeting.participants`. |
 | `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — spaces that bind `step.opened::directive.execute`. Default `local-tools/v1` does not see this tool. |
 | `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. Required `prompt`. Optional `space_ids` / `space_id`; omit to start on every currently eligible space. Returns `{ starts: [{ space_id, ok, run_id?, session_id?, error? }] }`. |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` — convene (`participants`, `chair` required; `title`, `goal`, `session_id` optional) |
@@ -82,6 +83,25 @@ Example arguments:
 See [Connect your agent](../guide/agents-mcp) for grant setup.
 
 ### Handler & event tool examples
+
+Convenor discovery before `murrmure_start_meeting`:
+
+```json
+{
+  "spaces": [
+    {
+      "space_id": "spc_app",
+      "slug": "meeting-app",
+      "name": "App",
+      "personas": [
+        { "id": "designer", "summary": "Product design", "asks": ["API shape"], "requests": [] }
+      ]
+    }
+  ]
+}
+```
+
+Do not loop foreign `murrmure_list_personas({ space_id })` — that tool stays same-space. Pass discovered `space_id` values unchanged into `participants`.
 
 `murrmure_list_handlers` response shape:
 

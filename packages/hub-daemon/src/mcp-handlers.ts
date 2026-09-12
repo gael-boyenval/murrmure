@@ -3,6 +3,7 @@ import {
   DIRECTIVE_FLOW_ID,
   buildIndexStatus,
   buildEmittableEventsCatalog,
+  listInvitableSpaces,
   validateEmitPayload,
 } from "@murrmure/hub-core";
 import { HandlerSpecSchema, isLocalSpaceBinding } from "@murrmure/contracts";
@@ -232,6 +233,17 @@ export function registerPlatformMcpHandlers(
         requests: row.requests ?? [],
       })),
     };
+  });
+
+  registry.registerHandler("murrmure_list_invitable_spaces", async (_args, authCtx) => {
+    const capabilities = await registry.resolveEffectiveCaps(authCtx);
+    const spaces = await listInvitableSpaces(studio, {
+      token_space_id: authCtx.space_id,
+      actor_id: authCtx.actor_id,
+      harness_id: authCtx.harness_id,
+      capabilities,
+    });
+    return { spaces };
   });
 
   registry.registerHandler("murrmure_list_directive_eligible", async (_args, authCtx) => {
