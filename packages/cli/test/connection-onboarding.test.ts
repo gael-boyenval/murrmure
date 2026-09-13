@@ -69,10 +69,20 @@ describe("local connection onboarding", () => {
         unrelated: true,
       }),
     );
+    const plane = {
+      url: "https://mcp.plane.so/http/api-key/mcp",
+      headers: {
+        Authorization: "Bearer ${env:PLANE_PAT}",
+        "x-workspace-slug": "gbworks",
+      },
+    };
     writeFileSync(
       join(projectPath, ".cursor", "mcp.json"),
       JSON.stringify({
-        mcpServers: { other: { command: "other-mcp" } },
+        mcpServers: {
+          other: { command: "other-mcp" },
+          plane,
+        },
       }),
     );
     const descriptor = buildConnectionDescriptor({
@@ -90,9 +100,10 @@ describe("local connection onboarding", () => {
     const projectParsed = JSON.parse(
       readFileSync(join(projectPath, ".cursor", "mcp.json"), "utf8"),
     ) as {
-      mcpServers: Record<string, { command: string; args?: string[]; env?: unknown }>;
+      mcpServers: Record<string, { command?: string; args?: string[]; env?: unknown }>;
     };
     expect(projectParsed.mcpServers.other.command).toBe("other-mcp");
+    expect(projectParsed.mcpServers.plane).toEqual(plane);
     expect(projectParsed.mcpServers.murrmure.command).toBe(
       join(homePath, ".murrmure", "bin", "murrmure-mcp"),
     );

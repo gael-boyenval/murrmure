@@ -1,5 +1,15 @@
 # Changelog
 
+## GBD-30 Plane PAT MCP for spawned seats (2026-09-13)
+
+### Added
+
+- Participating space `.cursor/mcp.json` points Plane at the hosted PAT
+  endpoint (`/http/api-key/mcp`) with `Authorization: Bearer ${env:PLANE_PAT}`
+  and `x-workspace-slug: gbworks`. The token stays in the GBD-29 hub-private
+  `.env.local`; spawned seats inherit hub env. Operator docs cover setup,
+  revocation, and a live-seat preflight (no PAT in CI).
+
 ## GBD-29 Private hub env file (2026-09-13)
 
 ### Added
