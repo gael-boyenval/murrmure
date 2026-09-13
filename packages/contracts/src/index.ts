@@ -4,6 +4,7 @@ export * from "./wait-condition.js";
 export * from "./entities/provenance.js";
 export * from "./entities/hub-event.js";
 export * from "./entities/space.js";
+export * from "./memory/bank-grant.js";
 export * from "./entities/run.js";
 export { V1InstanceSchema, InstanceSchema, type V1Instance, type Instance } from "./entities/instance.js";
 export * from "./entities/session.js";

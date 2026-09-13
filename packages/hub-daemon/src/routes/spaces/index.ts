@@ -41,6 +41,11 @@ import { markSpaceLinkForActor } from "@murrmure/hub-core";
 import { broadcastSse } from "../../context.js";
 import { existsSync } from "node:fs";
 import { localSpaceRoot, resolveDeclaredSubjectsPath } from "../../memory-subjects.js";
+import {
+  appendMemoryBankAudit,
+  MEMORY_BANK_GRANT_JOURNAL,
+  syncMemoryReadersFromApply,
+} from "../../memory-bank-grants.js";
 
 function cloneBoundFlowEntry(input: {
   entry: FlowIndexEntry;
@@ -480,6 +485,7 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
         const memory_bank = spaceYaml.memory_bank?.trim() || undefined;
         const memory_tags = spaceYaml.memory_tags;
         const memory_subjects = spaceYaml.memory_subjects?.trim() || undefined;
+        const memory_readers = spaceYaml.memory_readers;
         if (memory_subjects) {
           const bindings = await murrmurePersistence.getSpaceBindings(bare);
           const root = localSpaceRoot(bindings);
@@ -500,6 +506,44 @@ export function mountSpaceIndexRoutes(app: Hono, ctx: DaemonContext): void {
           memory_tags,
           memory_subjects,
         });
+        const readerSync = await syncMemoryReadersFromApply(
+          murrmurePersistence,
+          bare,
+          memory_bank,
+          memory_readers,
+        );
+        for (const row of readerSync.granted) {
+          await appendMemoryBankAudit(ctx, {
+            space_id: originSpaceId,
+            actor_id: auth.actor_id,
+            token_id: auth.token_id,
+            type: MEMORY_BANK_GRANT_JOURNAL.granted,
+            data: {
+              caller_space_id: originSpaceId,
+              reader_space_id: prefixedSpaceId(row.reader_space_id),
+              target_bank: row.target_bank,
+              grant_id: row.grant_id,
+              decision: "granted",
+              outcome: "apply",
+            },
+          });
+        }
+        for (const row of readerSync.revoked) {
+          await appendMemoryBankAudit(ctx, {
+            space_id: originSpaceId,
+            actor_id: auth.actor_id,
+            token_id: auth.token_id,
+            type: MEMORY_BANK_GRANT_JOURNAL.revoked,
+            data: {
+              caller_space_id: originSpaceId,
+              reader_space_id: prefixedSpaceId(row.reader_space_id),
+              target_bank: row.target_bank,
+              grant_id: row.grant_id,
+              decision: "revoked",
+              outcome: "apply",
+            },
+          });
+        }
         await ctx.refreshMemorySubjects?.();
         broadcastSse(ctx, {
           event: "space.list_changed",

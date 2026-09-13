@@ -85,6 +85,8 @@ export const SpaceYamlFileSchema = z
     memory_bank: MemoryBankIdSchema.optional(),
     memory_tags: MemoryTagsSchema.optional(),
     memory_subjects: MemorySubjectsPathSchema.optional(),
+    /** Spaces granted read-only access to this space's `memory_bank`. */
+    memory_readers: z.array(SpaceIdSchema).optional(),
     link: SpaceYamlLinkSchema.optional(),
   })
   .passthrough();

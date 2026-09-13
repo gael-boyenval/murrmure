@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, IndexedResourceRow, PersonaAd, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { normalizeFlowIndexEntry } from "@murrmure/contracts";
 import { migrateStudio, ensureBootstrapToken } from "./migrate.js";
-import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow, MeetingSessionRow, MeetingJournalQueryParams, MeetingSnapshotChair, MeetingRosterSeatRow, UpsertMeetingSnapshotResult } from "./port.js";
+import type { ContractRefRow, GrantRow, MemoryBankGrantRow, StudioPersistencePort, TokenRow, ArtifactRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, SessionRow, RunRow, MeetingSessionRow, MeetingJournalQueryParams, MeetingSnapshotChair, MeetingRosterSeatRow, UpsertMeetingSnapshotResult } from "./port.js";
 
 function parseJson<T>(raw: string): T {
   return JSON.parse(raw) as T;
@@ -334,6 +334,80 @@ export class SqliteStudioPersistence implements StudioPersistencePort {
 
   async revokeGrant(grant_id: string): Promise<void> {
     this.db.prepare("UPDATE grants SET status = 'revoked' WHERE grant_id = ?").run(grant_id);
+  }
+
+  private rowToMemoryBankGrant(row: Record<string, string | null>): MemoryBankGrantRow {
+    return {
+      grant_id: String(row.grant_id),
+      reader_space_id: String(row.reader_space_id),
+      target_bank: String(row.target_bank),
+      owner_space_id: String(row.owner_space_id),
+      status: row.status === "revoked" ? "revoked" : "active",
+      created_at: String(row.created_at),
+      revoked_at: row.revoked_at ? String(row.revoked_at) : undefined,
+    };
+  }
+
+  async insertMemoryBankGrant(row: MemoryBankGrantRow): Promise<void> {
+    this.db
+      .prepare(
+        `INSERT INTO memory_bank_grants
+          (grant_id, reader_space_id, target_bank, owner_space_id, status, created_at, revoked_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        row.grant_id,
+        barePrefixedId(row.reader_space_id),
+        row.target_bank,
+        barePrefixedId(row.owner_space_id),
+        row.status,
+        row.created_at,
+        row.revoked_at ?? null,
+      );
+  }
+
+  async getMemoryBankGrant(grant_id: string): Promise<MemoryBankGrantRow | null> {
+    const row = this.db.prepare("SELECT * FROM memory_bank_grants WHERE grant_id = ?").get(grant_id) as
+      | Record<string, string | null>
+      | undefined;
+    return row ? this.rowToMemoryBankGrant(row) : null;
+  }
+
+  async listMemoryBankGrantsByReader(reader_space_id: string): Promise<MemoryBankGrantRow[]> {
+    const bare = barePrefixedId(reader_space_id);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM memory_bank_grants WHERE reader_space_id = ? AND status = 'active' ORDER BY created_at",
+      )
+      .all(bare) as Array<Record<string, string | null>>;
+    return rows.map((row) => this.rowToMemoryBankGrant(row));
+  }
+
+  async listMemoryBankGrantsByBank(target_bank: string): Promise<MemoryBankGrantRow[]> {
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM memory_bank_grants WHERE target_bank = ? AND status = 'active' ORDER BY created_at",
+      )
+      .all(target_bank) as Array<Record<string, string | null>>;
+    return rows.map((row) => this.rowToMemoryBankGrant(row));
+  }
+
+  async listMemoryBankGrantsByOwner(owner_space_id: string): Promise<MemoryBankGrantRow[]> {
+    const bare = barePrefixedId(owner_space_id);
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM memory_bank_grants WHERE owner_space_id = ? AND status = 'active' ORDER BY created_at",
+      )
+      .all(bare) as Array<Record<string, string | null>>;
+    return rows.map((row) => this.rowToMemoryBankGrant(row));
+  }
+
+  async revokeMemoryBankGrant(grant_id: string, revoked_at: string): Promise<void> {
+    this.db
+      .prepare(
+        "UPDATE memory_bank_grants SET status = 'revoked', revoked_at = ? WHERE grant_id = ? AND status = 'active'",
+      )
+      .run(revoked_at, grant_id);
   }
 
   async allocateSpaceSeq(space_id: string): Promise<number> {

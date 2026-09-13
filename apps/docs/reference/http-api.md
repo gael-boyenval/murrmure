@@ -90,7 +90,7 @@ Admin and setup routes — require appropriate scopes (`space:admin`, `flow:inst
 | `PATCH` | `/v1/spaces/{id}` | `space:admin` | Update space settings |
 | `POST` | `/v1/spaces/{id}/archive` | `space:admin` | Archive space |
 | `GET` | `/v1/spaces/{id}/flows` | `space:read` | List indexed flows (v2) |
-| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle; optional `bundle.space` copies `name` / `description` / `memory_bank` / `memory_tags` / `memory_subjects` onto the space row (omitted fields clear those hub values) |
+| `POST` | `/v1/spaces/{id}/apply` | `space:write` | Index `.mrmr/` bundle; optional `bundle.space` copies `name` / `description` / `memory_bank` / `memory_tags` / `memory_subjects` onto the space row (omitted fields clear those hub values). `memory_readers` upserts / revokes memory bank grants for this space’s bank |
 | `GET` | `/v1/spaces/{id}/index/status` | `space:read` | Index digests and counts |
 
 ::: warning Retired routes
@@ -108,6 +108,9 @@ These routes return **404** in current hub builds: `POST …/flows/install`, `PA
 | `POST` | `/v1/spaces/{id}/grants` | `space:admin` | Mint grant (returns one-time token; optional `flow_acl`) |
 | `POST` | `/v1/spaces/{id}/grants/{id}/revoke` | `space:admin` | Revoke grant |
 | `POST` | `/v1/spaces/{id}/grants/{id}/rotate` | `space:admin` | Rotate grant |
+| `GET` | `/v1/spaces/{id}/memory-bank-grants` | `space:admin` | List memory bank grants issued by this space |
+| `POST` | `/v1/spaces/{id}/memory-bank-grants` | `space:admin` | Grant a reader space read-only access to this space’s `memory_bank` (`{ reader_space_id }`) |
+| `DELETE` | `/v1/spaces/{id}/memory-bank-grants/{grant_id}` | `space:admin` | Revoke a memory bank grant |
 | `GET` | `/v1/spaces/{id}/triggers` | `space:read` | List triggers |
 | `POST` | `/v1/spaces/{id}/triggers` | `trigger:register` | Register trigger (retired trigger-action types rejected — 422) |
 | `GET` | `/v1/spaces/{id}/triggers/event-catalog` | `space:read` | Event types from live flow contracts |

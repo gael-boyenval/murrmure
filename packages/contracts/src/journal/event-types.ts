@@ -30,6 +30,9 @@ export const JOURNAL_EVENT_TYPES = {
   MEETING_DELIVERY_FAILED: "mrmr.meeting.delivery_failed",
   MEETING_CLOSED: "mrmr.meeting.closed",
   MEETING_RESUMED: "mrmr.meeting.resumed",
+  MEMORY_BANK_GRANTED: "mrmr.memory.bank_granted",
+  MEMORY_BANK_REVOKED: "mrmr.memory.bank_revoked",
+  MEMORY_BANK_ACCESSED: "mrmr.memory.bank_accessed",
 } as const;
 
 export type JournalEventType = (typeof JOURNAL_EVENT_TYPES)[keyof typeof JOURNAL_EVENT_TYPES];

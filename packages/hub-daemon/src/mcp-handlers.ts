@@ -14,6 +14,7 @@ import type { McpToolRegistry } from "./mcp-tool-registry.js";
 import type { DaemonConfig } from "./context.js";
 import type { TokenContext } from "./auth.js";
 import type { ArtifactService } from "./artifact-service.js";
+import { resolveReadableBanks } from "./memory-bank-access.js";
 
 export function registerPlatformMcpHandlers(
   registry: McpToolRegistry,
@@ -244,6 +245,13 @@ export function registerPlatformMcpHandlers(
       capabilities,
     });
     return { spaces };
+  });
+
+  registry.registerHandler("murrmure_list_memory_banks", async (_args, authCtx) => {
+    const bare = authCtx.space_id === "bootstrap" ? "" : bareSpaceId(authCtx.space_id);
+    const space = bare ? await studio.getSpace(bare) : null;
+    const banks = await resolveReadableBanks(studio, space);
+    return { banks };
   });
 
   registry.registerHandler("murrmure_list_directive_eligible", async (_args, authCtx) => {

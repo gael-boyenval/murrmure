@@ -14,7 +14,7 @@ Memory engine contract: see memory-space `specs/integration/murrmure.md` (engine
 |--------|----------------------------------------|
 | Co-start memory MCP with desktop app | Strict export cross-check at apply |
 | Bank per space; Hub brokers recall/retain/reflect/recent/retire | Hard-fail on unknown tags at apply |
-| Own-bank read open; cross-bank grant enforced **Hub-side** | Per-connection tag grant filtering |
+| Own-bank read open; cross-bank **memory bank grant** + discovery | Per-connection tag grant filtering |
 | Explicit writes only; journal never auto-retained | Per-desk tag/subject presets in bridge |
 | Three access paths (§1); optional handler auto-reflect | Consumer-tier grants (v0.2) |
 
@@ -52,7 +52,7 @@ Handler `memory_tags` / `memory_reflect` configure path 3 only. They are **not**
 
 **Shipped MCP tools today:** `retain`, `recall`, `reflect`, `recent`, `retire` — **`bank` required**. Engine fields on the wire: `tags` (retain `string[]`, reads `TagFilter`), `subjects`, `factTypes`, `includeBasedOn`.
 
-**Bridge MVP (a):** Hub enforces bank. Cross-bank denied at Hub by bank scope. Agents pass `tags` / `subjects` / `factTypes` on the Murrmure tools. Handler `memory_tags` still configure auto-reflect only.
+**Bridge MVP (a):** Hub enforces bank. Own-bank reads succeed. Cross-bank **reads** require an explicit Space→bank memory bank grant (read-only). `murrmure_list_memory_banks` returns only the caller’s own bank plus granted foreign banks. Ungranted / unknown banks fail closed (`MEMORY_GRANT_DENIED` / `MEMORY_BANK_UNKNOWN`). Cross-bank `retain` / `retire` are denied even when a read grant exists. Agents pass `tags` / `subjects` / `factTypes` on the Murrmure tools. Handler `memory_tags` still configure auto-reflect only.
 
 Engine backlog owned in memory-space `specs/integration/murrmure.md`.
 
@@ -89,7 +89,7 @@ Rules:
 |------|-----------|
 | `space.yaml` `memory_bank` | bank id aligned with MCP `bank` param |
 | `space.yaml` `memory_exports` | outbound tag grants `{ space, tags[] }` |
-| `space.yaml` `memory_readers` | optional: spaces granted read access to this bank (see export cross-check) |
+| `space.yaml` `memory_readers` | spaces granted read-only access to this space’s `memory_bank` (apply upserts / revokes grant rows) |
 | `memory-tags.yaml` | optional read tag allowlist (globs expanded **Hub-side** to literals for grant checks); MVP: apply **warns** on unknown handler tags |
 | `subjects.yaml` | optional retain subjects — **one handbook per MCP process** (union across banks on shared sqlite); experimental per desk |
 
@@ -99,9 +99,9 @@ Rules:
 
 Apply tolerates missing `memory_bank` until a handler declares memory fields or first retain script ships.
 
-**Cross-bank reads** require inbound grant (bank + tag prefix).
+**Cross-bank reads** require a persistable **memory bank grant** `(reader_space_id, target_bank)` — distinct from connection `memory:read`. Apply `memory_readers` or `POST /v1/spaces/{id}/memory-bank-grants`. Grants resolve by bank string; operators should keep one live space per `memory_bank` (shared engine sqlite makes collisions dangerous). Hub does not encode bank names into capability strings.
 
-**Export cross-check (phase 2):** when space A exports tags to space B, B's inbound grant row should match A's export stub — MVP logs mismatch; strict apply fail later.
+**Export cross-check (deferred):** `memory_exports` tag handshake is not enforced in this slice.
 
 ---
 
@@ -118,18 +118,15 @@ Extend capability migrate with:
 
 Cross-bank reflect checks target bank + tag prefix like `query_ask` checks target space.
 
-**Inbound grants:** connection manifest row (or space-linked grant stub) listing `{ bank, tags[] }` per foreign bank. Outbound: `space.yaml` `memory_exports`.
+**Memory bank grants:** persist `(grant_id, reader_space_id, target_bank, owner_space_id, status)`. Unique active `(reader_space_id, target_bank)`. HTTP `POST/GET/DELETE /v1/spaces/{id}/memory-bank-grants`. Discovery: `murrmure_list_memory_banks` (`memory:read`) returns only banks the caller may read.
 
 ```yaml
-memory:
-  inbound:
-    - bank: kb
-      tags: [catalog:neon, catalog:better-auth, catalog:drizzle, catalog:pglite]
-    - bank: doctrine
-      tags: [doctrine:*]
+memory_bank: doctrine
+memory_readers:
+  - spc_01KYSGYPYDBWZ0D11SX8JJ854V
 ```
 
-Hub bridge forwards caller grants to memory MCP; denies when grant missing. Hub does not parse retain payloads.
+Hub journals `mrmr.memory.bank_granted` / `bank_revoked` / `bank_accessed` with caller space, target bank, decision, tool, capability, grant id — **never** Memory contents. Hub does not parse retain payloads.
 
 ---
 
@@ -213,8 +210,8 @@ Hub adds: grant enforcement, pre-warm hook, timeout policy, synthesis injection 
 
 | Code | When | MVP |
 |------|------|-----|
-| `MEMORY_GRANT_DENIED` | read/write outside granted bank+tags; payload `{ capability, bank, tag }` | fail at bridge |
-| `MEMORY_BANK_UNKNOWN` | MCP `bank` ≠ caller `space.yaml` `memory_bank` | fail at bridge |
+| `MEMORY_GRANT_DENIED` | ungranted foreign bank, or any foreign write; payload `{ capability, bank }` | fail at bridge |
+| `MEMORY_BANK_UNKNOWN` | no `memory_bank` on caller for own-bank default, or requested bank is not owned by any active space | fail at bridge |
 | `MEMORY_MCP_UNAVAILABLE` | tags declared + `memory_required: true` + MCP unreachable at spawn | fail at spawn |
 | `MEMORY_BANK_MISMATCH` | handler bank ≠ space.yaml | apply fail |
 | `MEMORY_TAG_UNKNOWN` | handler tag not in `memory-tags.yaml` | apply **warn** |

@@ -6,7 +6,7 @@ Platform tools are filtered by grant **capabilities** (scopes). Flow step comple
 
 ## Memory tools (Hub-proxied)
 
-These are **not** `murrmure_*` tools. When Hub has started the memory child, they appear on the same Murrmure connection if the grant has `memory:read` / `memory:write`. Hub sets `bank` from the space’s `memory_bank`. Cross-bank calls are denied. `space.yaml` `memory_tags` is the inbound tag grant: retain rejects unknown tags; recall / reflect / recent apply that grant as the visibility filter (or intersect with the agent’s `TagFilter`). Omit the filter only when the space granted all scopes. Empty `tags: []` is the empty scope, not “no filter”. Hub starts `memory-mcp` with `--subjects` from `memory_subjects` (or `skills/memory-use/subjects.yaml` when that skill is installed).
+These are **not** `murrmure_*` tools. When Hub has started the memory child, they appear on the same Murrmure connection if the grant has `memory:read` / `memory:write`. Own-bank calls use the space's `memory_bank`. Cross-bank **reads** need an explicit memory bank grant (`space.yaml` `memory_readers` or `POST /v1/spaces/{id}/memory-bank-grants`); Hub forwards the requested bank. Ungranted foreign banks return `MEMORY_GRANT_DENIED`; unknown banks return `MEMORY_BANK_UNKNOWN`. Cross-bank `retain` / `retire` are always denied. `murrmure_list_memory_banks` lists only the caller's own bank plus granted foreign banks. `space.yaml` `memory_tags` is the inbound tag grant: retain rejects unknown tags; recall / reflect / recent apply that grant as the visibility filter (or intersect with the agent’s `TagFilter`). Omit the filter only when the space granted all scopes. Empty `tags: []` is the empty scope, not “no filter”. Hub starts `memory-mcp` with `--subjects` from `memory_subjects` (or `skills/memory-use/subjects.yaml` when that skill is installed).
 
 The catalog lists the closed lists: granted **tags** (this space) and handbook **subjects** (one shared file) as schema enums and in the tool descriptions. Agents should not need to open `space.yaml` or `subjects.yaml` to pick names. When the handbook is loaded, `retain.subjects` is required.
 
@@ -17,6 +17,7 @@ The catalog lists the closed lists: granted **tags** (this space) and handbook *
 | `recent` | `memory:read` | Recent facts in one bank. Optional `limit`, `tags`, `factTypes` |
 | `retain` | `memory:write` | Store text as extracted facts. Optional `context`, `documentId`, `mentionedAt`, `tags` (`string[]`), `subjects` |
 | `retire` | `memory:write` | Take a fact out of circulation. `id` required, optional `reason` |
+| `murrmure_list_memory_banks` | `memory:read` | `{ banks: [{ bank, origin: "own"\|"granted", owner_space_id?, grant_id? }] }`. Subset only — never the whole hub. |
 
 `local-tools/v1` does not include these capabilities. Grant them on the connection. Hub starts `memory-mcp` against `$MURRMURE_DATA_DIR/memory.db` when the memory package is on disk (`MURRMURE_MEMORY_PACKAGE_ROOT` or the sibling `memory/` repo). Set `MURRMURE_MEMORY_MCP=0` to disable. Hub reaps that bun child on stop and before re-spawn, so watch / HMR cannot leave extra processes.
 
@@ -61,6 +62,7 @@ Example arguments:
 | `murrmure_list_handlers` | `space:read` | List indexed handler ids + `contract_keys` |
 | `murrmure_list_personas` | `space:read` | Same-space persona ads (`id`, `summary`, `asks`, `requests`) |
 | `murrmure_list_invitable_spaces` | `space:read` | Hub-mediated invite directory. No args. Returns `{ spaces: [{ space_id, slug, name, personas }] }`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus active same-actor/harness `space:read` grants. Ads only; empty `personas` is `[]`. Use `space_id` unchanged in `murrmure_start_meeting.participants`. |
+| `murrmure_list_memory_banks` | `memory:read` | Own bank plus granted foreign banks only. Never the whole hub. |
 | `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — spaces that bind `step.opened::directive.execute`. Default `local-tools/v1` does not see this tool. |
 | `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. Required `prompt`. Optional `space_ids` / `space_id`; omit to start on every currently eligible space. Returns `{ starts: [{ space_id, ok, run_id?, session_id?, error? }] }`. |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` — convene (`participants`, `chair` required; `title`, `goal`, `session_id` optional) |

@@ -34,6 +34,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_handlers`** | **`space:read`** | Handler ids + `contract_keys` + `type` |
 | **`murrmure_list_personas`** | **`space:read`** | Same-space persona ads |
 | **`murrmure_list_invitable_spaces`** | **`space:read`** | Invite directory: `{ spaces: [{ space_id, slug, name, personas }] }`. No args. Bootstrap / `hub:admin` see all active spaces; others see own space plus matching `space:read` grants |
+| **`murrmure_list_memory_banks`** | **`memory:read`** | Own `memory_bank` plus granted foreign banks. Cross-bank reads need a memory bank grant; ungranted/unknown fail closed. Retain/retire stay own-bank only |
 | **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
 | **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |

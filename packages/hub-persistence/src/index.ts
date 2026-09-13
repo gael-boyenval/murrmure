@@ -9,6 +9,7 @@ export type {
   ArtifactRow,
   NotificationRow,
   JournalIndexRow,
+  MemoryBankGrantRow,
   MeetingSessionRow,
   MeetingRosterSeatRow,
   MeetingSnapshotChair,

@@ -153,6 +153,21 @@ describe("space apply integration", () => {
     expect(bundle.space?.file.memory_subjects).toBe("skills/memory-use/subjects.yaml");
   });
 
+  test("readSpaceApplyBundle includes memory_readers", () => {
+    writeFileSync(
+      join(projectDir, ".mrmr", "space", "space.yaml"),
+      [
+        "apiVersion: murrmure.space/v1",
+        "slug: demo",
+        "memory_bank: doctrine",
+        "memory_readers:",
+        "  - spc_01KYSGYPYDBWZ0D11SX8JJ854V",
+      ].join("\n"),
+    );
+    const bundle = readSpaceApplyBundle(projectDir);
+    expect(bundle.space?.file.memory_readers).toEqual(["spc_01KYSGYPYDBWZ0D11SX8JJ854V"]);
+  });
+
   test("readSpaceApplyBundle rejects invalid memory_bank", () => {
     writeFileSync(
       join(projectDir, ".mrmr", "space", "space.yaml"),

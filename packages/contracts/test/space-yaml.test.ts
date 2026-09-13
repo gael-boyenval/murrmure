@@ -71,6 +71,26 @@ describe("space.yaml schema", () => {
     ).toBe(false);
   });
 
+  test("accepts optional memory_readers", () => {
+    const parsed = SpaceYamlFileSchema.parse({
+      apiVersion: "murrmure.space/v1",
+      slug: "demo",
+      memory_bank: "doctrine",
+      memory_readers: ["spc_01KYSGYPYDBWZ0D11SX8JJ854V"],
+    });
+    expect(parsed.memory_readers).toEqual(["spc_01KYSGYPYDBWZ0D11SX8JJ854V"]);
+  });
+
+  test("rejects invalid memory_readers", () => {
+    expect(
+      SpaceYamlFileSchema.safeParse({
+        apiVersion: "murrmure.space/v1",
+        slug: "demo",
+        memory_readers: ["not-a-space"],
+      }).success,
+    ).toBe(false);
+  });
+
   test("rejects invalid memory_bank", () => {
     for (const memory_bank of ["KB", "kb_foo", "", "a".repeat(33)]) {
       const parsed = SpaceYamlFileSchema.safeParse({
