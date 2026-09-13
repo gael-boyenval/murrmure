@@ -120,6 +120,58 @@ That rewrites to the launcher + `--connection <con_…>` for the linked space
 flow IDs that are already applied to the space. Unknown, future, or stale
 aliases fail.
 
+## Plane MCP for spawned seats
+
+Interactive Cursor can use Plane’s OAuth MCP URL. Headless spawned seats
+cannot complete that browser flow. Participating spaces (`spc_murrmure` in
+this repo) pin Plane’s **PAT** endpoint in **project-level**
+`.cursor/mcp.json` only — do not add `plane` to `~/.cursor/mcp.json`.
+
+```json
+{
+  "mcpServers": {
+    "plane": {
+      "url": "https://mcp.plane.so/http/api-key/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:PLANE_PAT}",
+        "x-workspace-slug": "gbworks"
+      }
+    }
+  }
+}
+```
+
+Cursor interpolates `${env:PLANE_PAT}` at process start. The value is never
+written into `mcp.json`, prompts, logs, or artifacts.
+
+`PLANE_PAT` is hub-private. **GBD-29** loads it from the hub’s `.env.local`
+(`chmod 600`, never committed). Spawn inherits hub `process.env`; do not add
+`PLANE_PAT` to handler `invokeEnv`. After changing the env file, restart the
+hub so new seats see it.
+
+Seat handlers must pass `--approve-mcps` (already on meeting + directive
+recipes here). After a `mcp.json` or token change, reload the MCP server or
+start a **new** `cursor agent` — an already-open chat may keep the old tool
+snapshot.
+
+### Token lifecycle
+
+1. In Plane, create a personal access token scoped to workspace **gbworks**.
+2. Put it in the GBD-29 hub-private `.env.local` as `PLANE_PAT`. `chmod 600`.
+   Do not export it in a tracked file or paste it into a prompt.
+3. Restart the hub. Reload MCP, or spawn a new seat.
+4. To revoke: revoke the PAT in Plane, replace `PLANE_PAT` in `.env.local`,
+   restart the hub, and start a new agent.
+5. Confirm no literal leaked: `rg -n 'PLANE_PAT='` and
+   `rg -n 'Bearer [A-Za-z0-9]' .cursor/mcp.json` should show only the
+   `${env:PLANE_PAT}` interpolation (and docs naming the variable).
+
+### Operator preflight (not CI)
+
+With a live hub that has `PLANE_PAT` loaded, spawn a seat and confirm it can
+**read, comment on, and update** an authorized GB Delivery work item. Do not
+call live Plane with a PAT from CI or commit the token.
+
 ## Headless CI
 
 Headless CI is explicit and separate from local Desktop mode. Install

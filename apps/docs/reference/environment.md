@@ -57,7 +57,9 @@ use this CLI order.
 
 ## `shell_spawn` child env (handlers + legacy actions)
 
-When a handler or legacy action uses `shell_spawn`, hub injects:
+When a handler or legacy action uses `shell_spawn`, the child inherits hub
+`process.env` (including hub-private vars such as `PLANE_PAT` once GBD-29
+loads `.env.local`) and hub injects:
 
 | Variable | Description |
 |----------|-------------|
@@ -78,9 +80,21 @@ Handler `command` / `prompt` templates may also resolve `&#123;&#123;space_root&
 
 `mrmr step resolve` reads `MURRMURE_RUN_ID`, `MURRMURE_STEP_ID`, `MURRMURE_HUB_URL`, and `MURRMURE_HUB_TOKEN` from the shell environment.
 
+## `PLANE_PAT` (hub-private, GBD-29)
+
+Plane’s hosted MCP uses a personal access token. `PLANE_PAT` lives in the
+hub-private `.env.local` (`chmod 600`; GBD-29 loads it into hub
+`process.env`). Spawned seats inherit that environment. Cursor interpolates
+`${env:PLANE_PAT}` in project `.cursor/mcp.json` headers — never put the
+literal token in `mcp.json`, prompts, logs, or artifacts.
+
+This is not a Murrmure catalog variable. See
+[Plane MCP for spawned seats](../guide/agents-mcp.md#plane-mcp-for-spawned-seats).
+
 ## Security
 
-- Never commit `MURRMURE_HUB_TOKEN` to git.
+- Never commit `MURRMURE_HUB_TOKEN` or `PLANE_PAT` to git.
 - Revoke or rotate a compromised connection immediately with `mrmr connection revoke|rotate`.
 - Browser session cookies are not API tokens.
 - Dispatch-injected `MURRMURE_HUB_TOKEN` is run/step/handler-scoped and expires — do not reuse as a persistent connection. It is revoked when its step resolves, the run ends, or the hub shuts down, and the assignment boundary is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), so it cannot act for another run, step, or space.
+- Rotate a leaked Plane PAT in the Plane workspace, replace it in `.env.local`, and restart the hub.

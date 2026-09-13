@@ -6,6 +6,13 @@
         "--connection",
         "con_01KXNH3M53RHJPXAXRHHKVK3P0"
       ]
+    },
+    "plane": {
+      "url": "https://mcp.plane.so/http/api-key/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:PLANE_PAT}",
+        "x-workspace-slug": "gbworks"
+      }
     }
   }
 }

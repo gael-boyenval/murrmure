@@ -313,6 +313,58 @@ describe("rewriteFatMcpConfigFiles", () => {
     });
   });
 
+  test("rewrites fat murrmure but keeps a sibling Plane PAT entry", () => {
+    const cursorDir = join(projectDir, ".cursor");
+    mkdirSync(cursorDir, { recursive: true });
+    const configPath = join(cursorDir, "mcp.json");
+    const plane = {
+      url: "https://mcp.plane.so/http/api-key/mcp",
+      headers: {
+        Authorization: "Bearer ${env:PLANE_PAT}",
+        "x-workspace-slug": "gbworks",
+      },
+    };
+    writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            murrmure: {
+              command: "murrmure",
+              args: ["mcp"],
+              env: {
+                MURRMURE_HUB_URL: "http://127.0.0.1:8787",
+                MURRMURE_SPACE_ID: "spc_demo",
+                MURRMURE_HUB_TOKEN: "tok_space",
+              },
+            },
+            plane,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const rewrite = rewriteFatMcpConfigFiles({
+      configPaths: [configPath],
+      connectionId: "con_from_fix",
+    });
+    expect(rewrite.errors).toEqual([]);
+    expect(rewrite.rewritten).toEqual([configPath]);
+
+    const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as {
+      mcpServers: {
+        murrmure: { command: string; args?: string[]; env?: Record<string, string> };
+        plane: typeof plane;
+      };
+    };
+    expect(parsed.mcpServers.murrmure.command).toBe("murrmure-mcp");
+    expect(parsed.mcpServers.murrmure.args).toEqual(["--connection", "con_from_fix"]);
+    expect(parsed.mcpServers.murrmure.env).toBeUndefined();
+    expect(parsed.mcpServers.plane).toEqual(plane);
+  });
+
   test("keeps connection-pinned config unchanged", () => {
     const cursorDir = join(projectDir, ".cursor");
     mkdirSync(cursorDir, { recursive: true });

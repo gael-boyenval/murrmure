@@ -59,6 +59,18 @@ Do not add `MURRMURE_HUB_TOKEN` to local MCP configuration. Local mode fails
 closed and reads the credential by Hub + connection ID from Keychain. Runtime
 environment injection is only for explicit headless CI mode.
 
+## Plane MCP (spawned seats)
+
+| Symptom | Fix |
+|---------|-----|
+| Plane tools 401 / unauthorized | Hub process has no `PLANE_PAT`. Put the token in the GBD-29 hub-private `.env.local` (`chmod 600`), restart the hub, spawn a **new** seat. Confirm `.cursor/mcp.json` uses `Bearer ${env:PLANE_PAT}` — not a pasted secret. |
+| Tools missing workspace / wrong workspace | Header `x-workspace-slug` must be `gbworks` on the PAT endpoint. |
+| Headless seat cannot finish Plane login | Interactive OAuth URL (`https://mcp.plane.so/http/mcp`) does not work for spawned agents. Use `https://mcp.plane.so/http/api-key/mcp` in **project** `.cursor/mcp.json`. |
+| Plane server present but tools never approved | Seat command must include `--approve-mcps`. Reload MCP or start a new `cursor agent` after changing `mcp.json`. |
+| Token looks leaked | `rg -n 'PLANE_PAT='` must not show a real value in the repo. Revoke the PAT in Plane, rotate `.env.local`, restart the hub. |
+
+See [Plane MCP for spawned seats](./agents-mcp.md#plane-mcp-for-spawned-seats).
+
 ## Desktop: can't see a space
 
 - Token scoped to space (bootstrap works for first-run admin)
