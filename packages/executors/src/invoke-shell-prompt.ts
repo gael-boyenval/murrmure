@@ -1,5 +1,10 @@
 /** Render an invoke param as inline prompt text (not shell-quoted). */
-import { isMeetingWakeParams, renderMurrmureMeetingProtocolEnvelope } from "@murrmure/hub-core";
+import {
+  isMeetingWakeParams,
+  meetingWakeGoalFields,
+  normalizeMeetingWakeTrigger,
+  renderMurrmureMeetingProtocolEnvelope,
+} from "@murrmure/hub-core";
 import {
   HandlerBindingError,
   placeholderQuickFixHint,
@@ -215,10 +220,6 @@ export function resolveInvokePrompt(
   }
 
   if (isMeetingWakeParams(context.params)) {
-    const trigger =
-      context.params.trigger === "convened" || !context.params.message_id
-        ? ("convened" as const)
-        : ("said" as const);
     const message_id =
       typeof context.params.message_id === "string" && context.params.message_id
         ? context.params.message_id
@@ -235,8 +236,9 @@ export function resolveInvokePrompt(
         session_id: String(context.params.session_id),
         participant_id: String(context.params.participant_id),
         message_id,
-        trigger,
+        trigger: normalizeMeetingWakeTrigger(context.params.trigger, message_id),
         since_seq: Number(context.params.since_seq),
+        ...meetingWakeGoalFields(context.params),
       }),
       MURRMURE_PROTOCOL_END,
     ].join("\n");

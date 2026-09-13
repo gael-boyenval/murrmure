@@ -178,7 +178,11 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
         "This seat's ptc_* so the projection includes you + addressed_to_you",
       ),
     },
-    { required: ["session_id"] },
+    {
+      required: ["session_id"],
+      description:
+        "Pull the meeting transcript. `goal` is the authoritative convene text (not session.subject). Includes you + addressed_to_you when participant_id is set.",
+    },
   ),
   murrmure_get_artifact: objectSchema(
     {

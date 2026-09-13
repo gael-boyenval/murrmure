@@ -23,7 +23,7 @@ For authoring `.mrmr/` spaces, flows, views, and handlers, use
 
 | Signal | Mode | What to do |
 |--------|------|------------|
-| Prompt has `Protocol: murrmure.meeting/v1` | **Meeting seat** | You are **this seat**. Pull `murrmure_meeting_transcript` with `session_id`, `since_seq`, and **your** `participant_id`. Read `you` and `addressed_to_you`. Convene: one short contribution to the goal if another seat exists (one-seat room stays silent). Do not start work or attach files unless the goal names this seat. Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked. On `trigger: resumed`, continue the same `ses_*` / `ptc_*` — do not re-introduce or invent work. If the chair/goal did ask for work, do it this turn. Attach with `murrmure_put_artifact` then `said` `artifacts: [xfr_*]` only when asked. Materialize `xfr_*` with `murrmure_get_artifact` and read `local_path`. Target the asker; use `in_reply_to`. Never repeat the transcript. Do **not** `murrmure_resolve_step` the room. Do not call `murrmure_get_pending_wake`. |
+| Prompt has `Protocol: murrmure.meeting/v1` | **Meeting seat** | You are **this seat**. Envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative; chair `said` may clarify or override. If the goal names this seat, do that work this turn without a chair repeat. Pull `murrmure_meeting_transcript` with `session_id`, `since_seq`, and **your** `participant_id`. Read `you`, `addressed_to_you`, and `goal`. Convene: one short contribution to the goal if another seat exists (one-seat room stays silent unless named). Do not start work or attach files unless the goal names this seat. Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked. On `trigger: resumed`, continue the same `ses_*` / `ptc_*` — do not re-introduce or invent work. If the chair/goal did ask for work, do it this turn. Attach with `murrmure_put_artifact` then `said` `artifacts: [xfr_*]` only when asked. Materialize `xfr_*` with `murrmure_get_artifact` and read `local_path`. Target the asker; use `in_reply_to`. Never repeat the transcript. Do **not** `murrmure_resolve_step` the room. Do not call `murrmure_get_pending_wake`. |
 | Prompt has `Protocol: murrmure.agent/v1`, or env has `MURRMURE_ASSIGNMENT_SCOPE` / `MURRMURE_RUN_ID` + `MURRMURE_STEP_ID` | **Assignment** | Jump to [Assignment](#assignment-do-this-now). Skip everything else. |
 | Human asks this space to join a meeting / add a seat | **Wire the seat** | [Join meetings](#this-space-should-join-meetings). Add `type: shell_spawn` — not `mcp_session`. |
 | Interactive Cursor chat / local MCP with no assignment prompt | **Interactive** | [Interactive loop](#interactive-loop) only if the human asked you to operate a run. |
@@ -54,7 +54,9 @@ Skills do not make a seat. This repo needs a handler. **`type: shell_spawn`**
     complete: explicit
     prompt: |
       You are the default seat in this Murrmure meeting.
-      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Pull the transcript with your participant_id. Read `you`, addressed_to_you, and `goal`.
+      Envelope `goal` and murrmure_meeting_transcript.goal are authoritative. Chair said may clarify or override.
+      If the goal names this seat, do that work this turn without a chair repeat.
       Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
       Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}

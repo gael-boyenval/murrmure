@@ -231,4 +231,62 @@ describe("meetings/said", () => {
       expect.arrayContaining([`spc_${APP}`, `spc_${RESEARCH}`, "actor:actor_alice"]),
     );
   });
+
+  test("one-seat to.all journals when a human chair exists", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const { deps } = makeDeps(studio);
+    const room = await conveneMeeting(deps, {
+      title: "Solo desk",
+      goal: "Designer: write the brief",
+      participants: [{ space_id: `spc_${APP}`, persona: "designer" }],
+      chair: { human: true },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+      convenor_space_id: `spc_${APP}`,
+    });
+    if (!room.ok) throw new Error(room.message);
+    const designer = room.roster[0]!;
+
+    const prepared = await prepareMeetingSaid(deps, {
+      space_id: `spc_${APP}`,
+      session_id: room.session_id,
+      payload: {
+        as_participant_id: designer.participant_id,
+        to: { all: true },
+        text: "Brief is attached.",
+      },
+    });
+    expect(prepared.ok && "prepared" in prepared).toBe(true);
+    if (prepared.ok && "prepared" in prepared) {
+      expect(prepared.prepared.targets).toEqual([]);
+      expect(prepared.prepared.payload.text).toBe("Brief is attached.");
+    }
+  });
+
+  test("one-seat to.all stays TO_EMPTY without a human chair", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const { deps } = makeDeps(studio);
+    const room = await conveneMeeting(deps, {
+      title: "Solo desk",
+      participants: [{ space_id: `spc_${APP}`, persona: "designer" }],
+      chair: { space_id: `spc_${APP}`, persona: "designer" },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+      convenor_space_id: `spc_${APP}`,
+    });
+    if (!room.ok) throw new Error(room.message);
+
+    const onlySelf = await prepareMeetingSaid(deps, {
+      space_id: `spc_${APP}`,
+      session_id: room.session_id,
+      payload: {
+        as_participant_id: room.roster[0]?.participant_id,
+        to: { all: true },
+        text: "no one else",
+      },
+    });
+    expect(onlySelf).toMatchObject({ ok: false, code: MURRMURE_DENIAL_CODES.TO_EMPTY });
+  });
 });

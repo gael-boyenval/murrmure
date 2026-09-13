@@ -172,6 +172,7 @@ export const MeetingTranscriptSchema = z.object({
   roster: z.array(MeetingRosterParticipantSchema),
   chair: MeetingSnapshotChairSchema,
   you: MeetingTranscriptYouSchema.optional(),
+  goal: z.string().optional(),
   since_seq: z.number().int().nonnegative(),
   up_to_seq: z.number().int().nonnegative(),
   messages: z.array(MeetingTranscriptMessageSchema),

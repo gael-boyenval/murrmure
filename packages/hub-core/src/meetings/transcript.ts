@@ -216,6 +216,7 @@ export async function buildMeetingTranscript(
   let roster: MeetingRosterSeatRow[] = snapshot?.roster ?? [];
   let chair: MeetingSnapshotChair | undefined = snapshot?.chair;
   let status: "open" | "closed" = snapshot?.status ?? "open";
+  let goal = snapshot?.goal?.trim() || undefined;
 
   if (!snapshot) {
     for (const row of rows) {
@@ -223,6 +224,8 @@ export async function buildMeetingTranscript(
       if (row.type === JOURNAL_EVENT_TYPES.MEETING_CONVENED) {
         roster = rosterFromUnknown(data.roster);
         chair = chairFromUnknown(data.chair) ?? chair;
+        const convenedGoal = typeof data.goal === "string" ? data.goal.trim() : "";
+        if (convenedGoal) goal = convenedGoal;
         status = "open";
       } else if (row.type === JOURNAL_EVENT_TYPES.MEETING_CLOSED) {
         status = "closed";
@@ -304,6 +307,7 @@ export async function buildMeetingTranscript(
     roster: rosterDto,
     chair,
     ...(you ? { you } : {}),
+    ...(goal ? { goal } : {}),
     since_seq,
     up_to_seq,
     messages: [...messages.values()]

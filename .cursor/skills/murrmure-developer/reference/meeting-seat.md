@@ -35,7 +35,9 @@ Append to `.mrmr/space/handlers.yaml`. `participant` **must** match the persona 
     complete: explicit
     prompt: |
       You are the default seat in this Murrmure meeting.
-      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Pull the transcript with your participant_id. Read `you`, addressed_to_you, and `goal`.
+      Envelope `goal` and murrmure_meeting_transcript.goal are authoritative. Chair said may clarify or override.
+      If the goal names this seat, do that work this turn without a chair repeat.
       Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
       Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}

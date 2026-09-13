@@ -254,6 +254,23 @@ describe("SessionPage meeting lens", () => {
     expect(screen.queryByText("No journal replay yet.")).toBeNull();
   });
 
+  it("shows transcript.goal, not session.subject", async () => {
+    renderSession(
+      mockClient({
+        transcript: {
+          ...openTranscript,
+          goal: "Designer: write the public list brief",
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Designer: write the public list brief")).toBeTruthy();
+    });
+    expect(screen.queryByText("Pick an approach")).toBeNull();
+    expect(screen.queryByText("flw_demo")).toBeNull();
+  });
+
   it("sends a targeted message as the human chair", async () => {
     const client = mockClient({ transcript: openTranscript });
     renderSession(client);
