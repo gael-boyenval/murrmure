@@ -174,6 +174,16 @@ export interface MeetingJournalQueryParams {
 
 export type UpsertMeetingSnapshotResult = { ok: true } | { ok: false; code: "MEETING_ALREADY_OPEN" };
 
+export interface MemoryBankGrantRow {
+  grant_id: string;
+  reader_space_id: string;
+  target_bank: string;
+  owner_space_id: string;
+  status: "active" | "revoked";
+  created_at: string;
+  revoked_at?: string;
+}
+
 export interface JournalQueryParams {
   subject?: string;
   type?: string;
@@ -233,6 +243,13 @@ export interface StudioPersistencePort {
   getGrant(grant_id: string): Promise<GrantRow | null>;
   listGrants(space_id: string): Promise<GrantRow[]>;
   revokeGrant(grant_id: string): Promise<void>;
+
+  insertMemoryBankGrant(row: MemoryBankGrantRow): Promise<void>;
+  getMemoryBankGrant(grant_id: string): Promise<MemoryBankGrantRow | null>;
+  listMemoryBankGrantsByReader(reader_space_id: string): Promise<MemoryBankGrantRow[]>;
+  listMemoryBankGrantsByBank(target_bank: string): Promise<MemoryBankGrantRow[]>;
+  listMemoryBankGrantsByOwner(owner_space_id: string): Promise<MemoryBankGrantRow[]>;
+  revokeMemoryBankGrant(grant_id: string, revoked_at: string): Promise<void>;
 
   allocateSpaceSeq(space_id: string): Promise<number>;
   allocateInstanceSeq(instance_id: string): Promise<number>;

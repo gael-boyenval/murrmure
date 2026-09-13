@@ -60,5 +60,6 @@ Intentionally deferred product scope (not bugs) lives in the plan [deferred spec
 | Meeting MCP | `murrmure_list_invitable_spaces`, `murrmure_list_personas`, `murrmure_start_meeting`, `murrmure_meeting_transcript` |
 | Headless convene | `mrmr meeting start` / `murrmure_start_meeting` |
 | Directive MCP | `murrmure_list_directive_eligible`, `murrmure_start_directive` (`hub:admin`) |
+| Memory bank grants | `murrmure_list_memory_banks`; apply `memory_readers` / HTTP grant-revoke; cross-bank read only |
 
 See [Creating flows](./creating-flows) and [Quick start](./quick-start).

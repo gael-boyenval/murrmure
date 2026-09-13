@@ -472,6 +472,30 @@ export function migrateStudio(db: Database.Database): void {
   // After ALTER — CREATE TABLE IF NOT EXISTS cannot add columns, and this index
   // must not run in the bootstrap exec (existing DBs have no meeting_seq yet).
   db.exec(`CREATE INDEX IF NOT EXISTS idx_journal_index_meeting_seq ON journal_index(session_id, meeting_seq)`);
+
+  // Grants resolve by bank string. Operators should keep one live space per
+  // memory_bank (shared engine sqlite makes collisions dangerous); Hub does
+  // not enforce uniqueness on spaces.memory_bank.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_bank_grants (
+      grant_id TEXT PRIMARY KEY,
+      reader_space_id TEXT NOT NULL,
+      target_bank TEXT NOT NULL,
+      owner_space_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      revoked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_memory_bank_grants_reader
+      ON memory_bank_grants(reader_space_id, status);
+    CREATE INDEX IF NOT EXISTS idx_memory_bank_grants_bank
+      ON memory_bank_grants(target_bank, status);
+    CREATE INDEX IF NOT EXISTS idx_memory_bank_grants_owner
+      ON memory_bank_grants(owner_space_id, status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_bank_grants_active
+      ON memory_bank_grants(reader_space_id, target_bank)
+      WHERE status = 'active';
+  `);
 }
 
 function migrateFlowIndexCompositeKey(db: Database.Database): void {

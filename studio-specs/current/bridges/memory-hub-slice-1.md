@@ -59,6 +59,7 @@ Full schemas: [engine-wire.md §2](engine-wire.md#2-tool-contracts-authoritative
 | `recall` | `memory:read` | bare name, server namespace `memory` |
 | `reflect` | `memory:read` | |
 | `recent` | `memory:read` | proxied; slice 1 optional |
+| `murrmure_list_memory_banks` | `memory:read` | Hub discovery: own bank + granted foreign banks only |
 | `retain` | `memory:write` | |
 | `retire` | `memory:write` | proxied; slice 1 optional |
 
@@ -85,9 +86,13 @@ Required when handler memory fields exist or first retain script ships.
 
 Persist inbound as `{ bank: memory_bank, tags?: memory_tags }` on the space row. Omitted `tags` = all scopes.
 
-### Phase 2 deferred
+### Phase 2 shipped (GBD-28)
 
-`memory_exports`, `memory_readers`, per-space extra subject names, cross-bank union, export cross-check.
+`memory_readers` apply → persistable memory bank grants; `murrmure_list_memory_banks`; HTTP grant/revoke; Hub forwards granted foreign **reads** (does not overwrite `bank` to own). Cross-bank retain/retire stay denied.
+
+### Still deferred
+
+`memory_exports` / export cross-check, per-space extra subject names, assignment `memory_reflect`.
 
 Declared `memory_subjects` is validated at apply when the space has a local path binding. Hub starts one `memory-mcp` with `--subjects <absolute>` and restarts when that path changes.
 
@@ -111,7 +116,7 @@ Retain: reject tags outside the grant. Omit tags = unscoped / shared.
 
 Reads: apply the grant as `{ tags, match: any, untagged: include }`, or intersect with the agent `TagFilter`. Do not pass `tags: []` as “no filter”. Omit the filter only when the grant is all scopes.
 
-Cross-bank: bank match only → else `MEMORY_GRANT_DENIED`.
+Cross-bank read: active memory bank grant for `(reader_space_id, target_bank)` → forward requested bank; else `MEMORY_GRANT_DENIED`. Unknown bank (no active space owns it) → `MEMORY_BANK_UNKNOWN`. Cross-bank write → `MEMORY_GRANT_DENIED` even with a read grant.
 
 Default `local-tools/v1`: add memory caps when connection template includes `memory` row.
 

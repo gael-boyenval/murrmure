@@ -41,6 +41,21 @@
 - Operator secrets for seats no longer have to live in the parent shell
   environment or handler YAML. Restart the hub after editing the file.
 
+## GBD-28 Cross-bank Memory read grants (2026-09-13)
+
+### Added
+
+- Persistable **memory bank grants** (`reader_space_id` → `target_bank`, read-only).
+  Apply `space.yaml` `memory_readers` or `POST/GET/DELETE
+  /v1/spaces/{id}/memory-bank-grants`. Distinct from connection `memory:read`.
+- `murrmure_list_memory_banks` lists only the caller’s own bank plus granted
+  foreign banks.
+- Granted foreign `recall` / `reflect` / `recent` forward the requested bank.
+  Ungranted foreign banks return `MEMORY_GRANT_DENIED`; unknown banks return
+  `MEMORY_BANK_UNKNOWN`. Cross-bank `retain` / `retire` stay denied.
+- Journal `mrmr.memory.bank_granted` / `bank_revoked` / `bank_accessed` records
+  caller space, target bank, decision, and outcome — never Memory contents.
+
 ## Invite directory MCP (2026-09-12)
 
 ### Added

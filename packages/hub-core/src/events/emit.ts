@@ -19,6 +19,9 @@ export const HUB_ONLY_EMIT_DENYLIST = [
   "mrmr.meeting.delivered",
   "mrmr.meeting.delivery_failed",
   "mrmr.meeting.resumed",
+  JOURNAL_EVENT_TYPES.MEMORY_BANK_GRANTED,
+  JOURNAL_EVENT_TYPES.MEMORY_BANK_REVOKED,
+  JOURNAL_EVENT_TYPES.MEMORY_BANK_ACCESSED,
 ] as const;
 
 export type EmitAndDeliverInput = {

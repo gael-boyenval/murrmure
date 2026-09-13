@@ -820,4 +820,64 @@ describe("http/spaces/apply", () => {
     const body = await res.json();
     expect(body.code).toBe("INVALID_APPLY_BUNDLE");
   });
+
+  test("apply memory_readers persists then clears memory bank grants", async () => {
+    const readerCreated = await fetch(`${baseUrl}/v1/spaces`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({ slug: "memory-reader-apply", name: "Reader" }),
+    });
+    const readerId = ((await readerCreated.json()) as { space_id: string }).space_id;
+
+    const persist = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-memory-readers",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+              memory_readers: [readerId],
+            },
+          },
+        },
+      }),
+    });
+    expect(persist.status).toBe(200);
+
+    const listed = await fetch(`${baseUrl}/v1/spaces/${spaceId}/memory-bank-grants`, { headers: auth() });
+    expect(listed.status).toBe(200);
+    const grants = ((await listed.json()) as { grants: Array<{ reader_space_id: string; target_bank: string }> })
+      .grants;
+    expect(grants).toEqual(
+      expect.arrayContaining([expect.objectContaining({ reader_space_id: readerId, target_bank: "doctrine" })]),
+    );
+
+    const clear = await fetch(`${baseUrl}/v1/spaces/${spaceId}/apply`, {
+      method: "POST",
+      headers: auth(),
+      body: JSON.stringify({
+        bundle: {
+          ...applyBundle,
+          space: {
+            digest: "sha256:space-memory-readers-clear",
+            file: {
+              apiVersion: "murrmure.space/v1",
+              slug: "minimal",
+              name: "Minimal",
+              memory_bank: "doctrine",
+            },
+          },
+        },
+      }),
+    });
+    expect(clear.status).toBe(200);
+    const cleared = await fetch(`${baseUrl}/v1/spaces/${spaceId}/memory-bank-grants`, { headers: auth() });
+    expect(((await cleared.json()) as { grants: unknown[] }).grants).toEqual([]);
+  });
 });

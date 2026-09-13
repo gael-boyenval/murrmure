@@ -4,6 +4,10 @@
 
 ### Added
 
+- `memory_readers` on `space.yaml` and persistable `MemoryBankGrant` rows
+  (`mbg_*`) for explicit Space→bank read grants. Journal types
+  `mrmr.memory.bank_granted`, `mrmr.memory.bank_revoked`,
+  `mrmr.memory.bank_accessed` (ids + decision only; no Memory contents).
 - Native capabilities `memory:read` and `memory:write` for Hub-proxied
   memory tools. `space.yaml` / space row may declare optional `memory_bank`
   (`^[a-z][a-z0-9-]{0,31}$`), `memory_tags` (inbound tag grant), and

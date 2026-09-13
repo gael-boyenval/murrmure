@@ -1,6 +1,6 @@
 import type { Instance, Space, FlowInstall, Member, FlowIndexEntry, IndexedAction, SpaceBinding, SpaceIndexSnapshot, PersonaAd, RunLifecycle, RunStepMemo, ResolvedRunPolicy } from "@murrmure/contracts";
 import { normalizeFlowIndexEntry } from "@murrmure/contracts";
-import type { ContractRefRow, GrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, MeetingSessionRow, MeetingJournalQueryParams, UpsertMeetingSnapshotResult } from "./port.js";
+import type { ContractRefRow, GrantRow, MemoryBankGrantRow, StudioPersistencePort, TokenRow, ArtifactRow, SessionRow, RunRow, GateRow, NotificationRow, UserPrefsRow, JournalIndexRow, JournalQueryParams, MeetingSessionRow, MeetingJournalQueryParams, UpsertMeetingSnapshotResult } from "./port.js";
 
 export class MemoryStudioPersistence implements StudioPersistencePort {
   private spaces = new Map<string, Space>();
@@ -8,6 +8,7 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   private contractRefs = new Map<string, ContractRefRow>();
   private tokens = new Map<string, TokenRow>();
   private grants = new Map<string, GrantRow>();
+  private memoryBankGrants = new Map<string, MemoryBankGrantRow>();
   private spaceSeq = new Map<string, number>();
   private instanceSeq = new Map<string, number>();
   private triggers: Record<string, unknown>[] = [];
@@ -133,6 +134,45 @@ export class MemoryStudioPersistence implements StudioPersistencePort {
   async revokeGrant(grant_id: string): Promise<void> {
     const g = this.grants.get(grant_id);
     if (g) this.grants.set(grant_id, { ...g, status: "revoked" });
+  }
+
+  async insertMemoryBankGrant(row: MemoryBankGrantRow): Promise<void> {
+    this.memoryBankGrants.set(row.grant_id, {
+      ...row,
+      reader_space_id: this.bareSpaceId(row.reader_space_id),
+      owner_space_id: this.bareSpaceId(row.owner_space_id),
+    });
+  }
+
+  async getMemoryBankGrant(grant_id: string): Promise<MemoryBankGrantRow | null> {
+    return this.memoryBankGrants.get(grant_id) ?? null;
+  }
+
+  async listMemoryBankGrantsByReader(reader_space_id: string): Promise<MemoryBankGrantRow[]> {
+    const bare = this.bareSpaceId(reader_space_id);
+    return [...this.memoryBankGrants.values()].filter(
+      (g) => g.reader_space_id === bare && g.status === "active",
+    );
+  }
+
+  async listMemoryBankGrantsByBank(target_bank: string): Promise<MemoryBankGrantRow[]> {
+    return [...this.memoryBankGrants.values()].filter(
+      (g) => g.target_bank === target_bank && g.status === "active",
+    );
+  }
+
+  async listMemoryBankGrantsByOwner(owner_space_id: string): Promise<MemoryBankGrantRow[]> {
+    const bare = this.bareSpaceId(owner_space_id);
+    return [...this.memoryBankGrants.values()].filter(
+      (g) => g.owner_space_id === bare && g.status === "active",
+    );
+  }
+
+  async revokeMemoryBankGrant(grant_id: string, revoked_at: string): Promise<void> {
+    const g = this.memoryBankGrants.get(grant_id);
+    if (g && g.status === "active") {
+      this.memoryBankGrants.set(grant_id, { ...g, status: "revoked", revoked_at });
+    }
   }
 
   async allocateSpaceSeq(space_id: string): Promise<number> {

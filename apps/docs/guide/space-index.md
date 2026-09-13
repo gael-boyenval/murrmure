@@ -24,7 +24,7 @@ my-project/
       contract-keys.json      # codegen from apply (optional)
 ```
 
-`space.yaml` may include `name`, `description` (purpose, max 500 characters), optional `memory_bank` (`^[a-z][a-z0-9-]{0,31}$`), optional `memory_tags` (inbound tag grant), and optional `memory_subjects` (space-relative path to `subjects.yaml`, default `skills/memory-use/subjects.yaml` when the skill is installed). `mrmr space apply` copies those fields onto the hub space; omitted `description` / `memory_bank` / `memory_tags` / `memory_subjects` clears the hub value. After apply, grant `memory:read` / `memory:write` so retain / recall appear on the Murrmure MCP connection.
+`space.yaml` may include `name`, `description` (purpose, max 500 characters), optional `memory_bank` (`^[a-z][a-z0-9-]{0,31}$`), optional `memory_tags` (inbound tag grant), optional `memory_subjects` (space-relative path to `subjects.yaml`, default `skills/memory-use/subjects.yaml` when the skill is installed), and optional `memory_readers` (space ids granted read-only access to this bank). `mrmr space apply` copies those fields onto the hub space; omitted `description` / `memory_bank` / `memory_tags` / `memory_subjects` clears the hub value and omitted `memory_readers` revokes memory bank grants this space issued. After apply, grant connection `memory:read` / `memory:write` so retain / recall appear on the Murrmure MCP connection. Cross-bank reads need a memory bank grant (`memory_readers` or `POST /v1/spaces/{id}/memory-bank-grants`); `murrmure_list_memory_banks` lists only banks the caller may read.
 
 The handlers-only cutover is complete (Task 15): `mrmr space init` scaffolds only `space.yaml` + `handlers.yaml` under `.mrmr/space/` — no `actions.yaml`, `executors.yaml`, or `hooks.yaml`. Authoring uses `handlers.yaml` only. See [Space handlers](./space-handlers).
 
@@ -35,7 +35,7 @@ The handlers-only cutover is complete (Task 15): `mrmr space init` scaffolds onl
 | `mrmr space init` | Scaffold `.mrmr/` templates locally (`--description` writes purpose) |
 | `mrmr space link --path . --space spc_…` | Register `{ host, path, primary }` binding on hub |
 | `mrmr space link --path . --create` | Create hub space from `space.yaml` slug, name, and description, then link |
-| `mrmr space apply` | Validate local YAML and POST index to hub; copies `name` / `description` / optional `memory_bank` / `memory_tags` / `memory_subjects` onto the hub space |
+| `mrmr space apply` | Validate local YAML and POST index to hub; copies `name` / `description` / optional `memory_bank` / `memory_tags` / `memory_subjects` / `memory_readers` onto the hub space |
 | `mrmr space status` | Show indexed counts and digests |
 | `mrmr flow run <flow_id>` | Start an indexed flow manually |
 | `mrmr step resolve` | Resolve current step from shell env (handler `complete: cli`) |

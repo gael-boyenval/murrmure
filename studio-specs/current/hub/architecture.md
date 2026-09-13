@@ -242,6 +242,7 @@ Normative catalog: [product/spec.md §10.9](../product/spec.md#109-mcp-platform-
 | `murrmure_wait_for_run` | `space:read` | long-poll run status |
 | `murrmure_journal_query` | `journal:read` | `GET /v1/journal?…` |
 | `murrmure_list_invitable_spaces` | `space:read` | Hub-mediated invite directory (visible spaces + persona ads) |
+| `murrmure_list_memory_banks` | `memory:read` | Own bank plus granted foreign banks only |
 | `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` |
 | `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run` |
 

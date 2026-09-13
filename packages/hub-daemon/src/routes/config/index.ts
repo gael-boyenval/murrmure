@@ -2,7 +2,14 @@ import type { Hono } from "hono";
 import type { DaemonContext } from "../../context.js";
 import { requireToken } from "../../auth.js";
 import { actorKind, denialResponse, hasScope, provenanceFrom, requireScope } from "./scopes.js";
-import { MURRMURE_DENIAL_CODES, partitionCapabilities } from "@murrmure/contracts";
+import { MemoryBankIdSchema, MURRMURE_DENIAL_CODES, SpaceIdSchema, partitionCapabilities } from "@murrmure/contracts";
+import {
+  appendMemoryBankAudit,
+  MEMORY_BANK_GRANT_JOURNAL,
+  toMemoryBankGrantDto,
+  upsertMemoryBankGrant,
+} from "../../memory-bank-grants.js";
+import { bareSpaceId, prefixedSpaceId } from "../../space-id.js";
 import { partitionScopes } from "@murrmure/hub-core";
 import { normalizeTriggerBody, TriggerActionRejectedError } from "../triggers/index.js";
 import { grantResultBody } from "../grants/index.js";
@@ -234,6 +241,121 @@ export function mountConfigRoutes(app: Hono, ctx: DaemonContext) {
     const result = await config.rotateGrant(space_id, grant_id, provenanceFrom(auth, space_id));
     if (!result) return c.json({ code: "not_found", message: "Grant not found" }, 404);
     return c.json(result.body, 200);
+  });
+
+  app.get("/v1/spaces/:space_id/memory-bank-grants", async (c) => {
+    const space_id = c.req.param("space_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const scopeCheck = requireScope(auth, "space:admin");
+    if (scopeCheck) return scopeCheck;
+
+    const grants = await murrmurePersistence.listMemoryBankGrantsByOwner(bareSpaceId(space_id));
+    return c.json({ grants: grants.map(toMemoryBankGrantDto) });
+  });
+
+  app.post("/v1/spaces/:space_id/memory-bank-grants", async (c) => {
+    const space_id = c.req.param("space_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const scopeCheck = requireScope(auth, "space:admin");
+    if (scopeCheck) return scopeCheck;
+
+    const body = await c.req.json().catch(() => ({}));
+    const readerParsed = SpaceIdSchema.safeParse(body?.reader_space_id);
+    if (!readerParsed.success) {
+      return c.json({ code: "INVALID_REQUEST", message: "reader_space_id must be a space id" }, 400);
+    }
+    const ownerBare = bareSpaceId(space_id);
+    const owner = await murrmurePersistence.getSpace(ownerBare);
+    const ownerBank = owner?.memory_bank?.trim();
+    if (!ownerBank) {
+      return c.json(
+        {
+          code: MURRMURE_DENIAL_CODES.MEMORY_BANK_UNKNOWN,
+          message: "This space has no memory_bank — set it in space.yaml and apply",
+        },
+        400,
+      );
+    }
+    const requestedBank = typeof body?.target_bank === "string" ? body.target_bank.trim() : "";
+    if (requestedBank) {
+      const bankParsed = MemoryBankIdSchema.safeParse(requestedBank);
+      if (!bankParsed.success) {
+        return c.json({ code: "INVALID_REQUEST", message: "target_bank is not a valid bank id" }, 400);
+      }
+      if (requestedBank !== ownerBank) {
+        return c.json(
+          {
+            code: MURRMURE_DENIAL_CODES.MEMORY_GRANT_DENIED,
+            message: `This space can only grant reads to its own bank "${ownerBank}"`,
+            capability: "memory:read",
+            bank: requestedBank,
+          },
+          403,
+        );
+      }
+    }
+    const readerBare = bareSpaceId(readerParsed.data);
+    const reader = await murrmurePersistence.getSpace(readerBare);
+    if (!reader) {
+      return c.json({ code: "space_not_found", message: "Reader space not found" }, 404);
+    }
+
+    const { row, created } = await upsertMemoryBankGrant(murrmurePersistence, {
+      reader_space_id: readerBare,
+      target_bank: ownerBank,
+      owner_space_id: ownerBare,
+    });
+    await appendMemoryBankAudit(ctx, {
+      space_id: prefixedSpaceId(ownerBare),
+      actor_id: auth.actor_id,
+      token_id: auth.token_id,
+      type: MEMORY_BANK_GRANT_JOURNAL.granted,
+      data: {
+        caller_space_id: prefixedSpaceId(ownerBare),
+        reader_space_id: prefixedSpaceId(readerBare),
+        target_bank: ownerBank,
+        grant_id: row.grant_id,
+        decision: "granted",
+        outcome: created ? "created" : "idempotent",
+      },
+    });
+    return c.json({ grant: toMemoryBankGrantDto(row), created }, created ? 201 : 200);
+  });
+
+  app.delete("/v1/spaces/:space_id/memory-bank-grants/:grant_id", async (c) => {
+    const space_id = c.req.param("space_id");
+    const grant_id = c.req.param("grant_id");
+    const auth = await requireToken(murrmurePersistence, c.req.raw, space_id);
+    if (auth instanceof Response) return auth;
+    const scopeCheck = requireScope(auth, "space:admin");
+    if (scopeCheck) return scopeCheck;
+
+    const grant = await murrmurePersistence.getMemoryBankGrant(grant_id);
+    if (!grant || grant.owner_space_id !== bareSpaceId(space_id)) {
+      return c.json({ code: "not_found", message: "Memory bank grant not found" }, 404);
+    }
+    if (grant.status === "active") {
+      const revoked_at = new Date().toISOString();
+      await murrmurePersistence.revokeMemoryBankGrant(grant_id, revoked_at);
+      await appendMemoryBankAudit(ctx, {
+        space_id: prefixedSpaceId(grant.owner_space_id),
+        actor_id: auth.actor_id,
+        token_id: auth.token_id,
+        type: MEMORY_BANK_GRANT_JOURNAL.revoked,
+        data: {
+          caller_space_id: prefixedSpaceId(grant.owner_space_id),
+          reader_space_id: prefixedSpaceId(grant.reader_space_id),
+          target_bank: grant.target_bank,
+          grant_id: grant.grant_id,
+          decision: "revoked",
+          outcome: "ok",
+        },
+      });
+    }
+    const latest = (await murrmurePersistence.getMemoryBankGrant(grant_id)) ?? grant;
+    return c.json({ grant: toMemoryBankGrantDto(latest) });
   });
 
   app.get("/v1/spaces/:space_id/triggers", async (c) => {
