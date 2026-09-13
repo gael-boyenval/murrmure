@@ -132,6 +132,7 @@ describe("http/meetings/transcript", () => {
       headers: bootstrapAuth(bootstrapToken),
       body: JSON.stringify({
         title: "Transcript room",
+        goal: "Pick an approach for the public list endpoint",
         participants: [
           { space_id: appSpace, persona: "designer" },
           { space_id: appSpace, persona: "qa" },
@@ -178,6 +179,7 @@ describe("http/meetings/transcript", () => {
     const body = (await res.json()) as {
       session_id: string;
       status: string;
+      goal?: string;
       messages: Array<{
         text?: string;
         to: { all: boolean; participant_ids: string[] };
@@ -186,6 +188,7 @@ describe("http/meetings/transcript", () => {
     };
     expect(body.session_id).toBe(sessionId);
     expect(body.status).toBe("open");
+    expect(body.goal).toBe("Pick an approach for the public list endpoint");
     expect(body.messages.some((m) => m.text === "Need the last latency study.")).toBe(true);
     const said = body.messages.find((m) => m.text === "Need the last latency study.");
     expect(said?.to.participant_ids).toContain(researcher);

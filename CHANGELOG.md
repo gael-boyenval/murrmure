@@ -1,5 +1,20 @@
 # Changelog
 
+## GBD-31 Meeting goals are authoritative (2026-09-13)
+
+### Added
+
+- Seat envelopes emit verbatim convene `goal` (and `subject` as an alias) on
+  convene, resume, and later `said`. `murrmure_meeting_transcript.goal` is the
+  same text. Flow rooms no longer leak `session.subject` / flow id as the goal.
+- One-seat rooms with a human chair may journal a result (`to.all` is
+  journal-only) so named-goal work can leave receipt + evidence.
+
+### Changed
+
+- Protocol, skills, and operator meeting docs: if the goal names this seat,
+  do that work this turn. Chair `said` may clarify or override the goal.
+
 ## Invite directory MCP (2026-09-12)
 
 ### Added

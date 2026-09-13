@@ -148,6 +148,7 @@ describe("meetings/convene and to xor", () => {
       status: "open",
       roster: [{ participant_id: PTC, space_id: SPC, persona: "designer" }],
       chair: { participant_id: PTC },
+      goal: "Pick an approach for the public list endpoint",
       since_seq: 0,
       up_to_seq: 2,
       messages: [
@@ -170,5 +171,17 @@ describe("meetings/convene and to xor", () => {
     });
     expect(parsed.messages[0]?.to.all).toBe(true);
     expect(parsed.messages[0]?.receipts[0]?.status).toBe("delivered");
+    expect(parsed.goal).toBe("Pick an approach for the public list endpoint");
+    expect(
+      MeetingTranscriptSchema.safeParse({
+        session_id: SES,
+        status: "open",
+        roster: [{ participant_id: PTC, space_id: SPC }],
+        chair: { human: true },
+        since_seq: 0,
+        up_to_seq: 0,
+        messages: [],
+      }).success,
+    ).toBe(true);
   });
 });

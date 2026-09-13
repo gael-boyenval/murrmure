@@ -119,6 +119,7 @@ export function MeetingTranscriptPane({
   onReply,
   onReload,
 }: MeetingTranscriptPaneProps) {
+  const displayedGoal = goal ?? transcript.goal;
   const seats = rosterMap(transcript);
   const byId = new Map(transcript.messages.map((message) => [message.message_id, message]));
   const [headerOpen, setHeaderOpen] = useState(
@@ -185,7 +186,7 @@ export function MeetingTranscriptPane({
           </div>
           {headerOpen ? (
             <>
-              {goal ? <p className="text-sm text-muted-foreground">{goal}</p> : null}
+              {displayedGoal ? <p className="text-sm text-muted-foreground">{displayedGoal}</p> : null}
               <p className="text-sm text-muted-foreground">
                 {transcript.roster.map((seat) => (
                   <span

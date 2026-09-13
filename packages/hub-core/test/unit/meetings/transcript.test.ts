@@ -25,6 +25,7 @@ function snapshot(status: "open" | "closed" = "open"): MeetingSessionRow {
     session_id: SES,
     status,
     title: "API shape",
+    goal: "Pick an approach for the public list endpoint",
     chair: { participant_id: DESIGNER },
     roster,
     convene_entry_id: "evt_convene",
@@ -108,6 +109,7 @@ describe("meetings/transcript", () => {
     expect(JSON.stringify(transcript)).not.toContain("should not appear");
     expect(transcript?.up_to_seq).toBe(4);
     expect(transcript?.since_seq).toBe(0);
+    expect(transcript?.goal).toBe("Pick an approach for the public list endpoint");
   });
 
   test("since_seq excludes earlier saids", async () => {
@@ -231,7 +233,12 @@ describe("meetings/transcript", () => {
         entry_id: "evt_convene",
         type: JOURNAL_EVENT_TYPES.MEETING_CONVENED,
         meeting_seq: 1,
-        payload: { title: "API shape", roster, chair: { human: true } },
+        payload: {
+          title: "API shape",
+          goal: "Rebuild the brief from journal",
+          roster,
+          chair: { human: true },
+        },
       }),
       row({
         entry_id: "evt_said",
@@ -259,6 +266,7 @@ describe("meetings/transcript", () => {
     expect(transcript?.roster).toHaveLength(3);
     expect(transcript?.messages[0]?.text).toBe("rebuilt");
     expect(transcript?.up_to_seq).toBe(3);
+    expect(transcript?.goal).toBe("Rebuild the brief from journal");
   });
 
   test("no meeting journal or snapshot → null", async () => {

@@ -82,7 +82,7 @@ function resolveTargets(
   const speakerId = "participant_id" in speaker ? speaker.participant_id : undefined;
   if (to.kind === "all") {
     const targets = meeting.roster.filter((seat) => seat.participant_id !== speakerId);
-    if (targets.length === 0) return toEmpty();
+    if (targets.length === 0) return emptyTargetsOrDenial(meeting);
     return targets;
   }
   const targets: MeetingRosterSeatRow[] = [];
@@ -92,8 +92,15 @@ function resolveTargets(
     if (!seat) return notMeetingMember(`Target ${id} is not on the roster`);
     targets.push(seat);
   }
-  if (targets.length === 0) return toEmpty();
+  if (targets.length === 0) return emptyTargetsOrDenial(meeting);
   return targets;
+}
+
+function emptyTargetsOrDenial(
+  meeting: MeetingSessionRow,
+): MeetingRosterSeatRow[] | MeetingDenial {
+  if (isHumanChair(meeting.chair)) return [];
+  return toEmpty();
 }
 
 async function replyExists(

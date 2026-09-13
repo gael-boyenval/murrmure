@@ -281,7 +281,7 @@ and applies the same target, reply, artifact, and open-room checks.
 | Field | Rule |
 |-------|------|
 | `as_participant_id` | Required unless the token is bound to exactly one live seat. Must be a roster seat whose `space_id` matches the emitter space. |
-| `to` | `{ participant_ids: ptc_*[] }` **xor** `{ all: true }`. Both or neither → `TO_AMBIGUOUS`. Every id must be on the roster (`NOT_MEETING_MEMBER`). Duplicates collapsed, order kept. Speaker is dropped if present. After that the list MUST be non-empty (`TO_EMPTY`). `all` = every roster seat except the speaker. |
+| `to` | `{ participant_ids: ptc_*[] }` **xor** `{ all: true }`. Both or neither → `TO_AMBIGUOUS`. Every id must be on the roster (`NOT_MEETING_MEMBER`). Duplicates collapsed, order kept. Speaker is dropped if present. After that the list MUST be non-empty (`TO_EMPTY`), except when a `{ human: true }` chair exists — then empty targets journal the said without waking a seat (one-seat result evidence). `all` = every roster seat except the speaker. |
 | `in_reply_to` | Optional. Must be a `msg_*` already in this session. Missing is valid. |
 | `text` | Optional if `artifacts` is non-empty. Inline cap 64 KiB. |
 | `artifacts` | Optional `xfr_*`. Seat uploads with `murrmure_put_artifact` (`blob:write`; inline `content`+`name` or space-relative `path`), then references the `xfr_*` here. Hub expands ACL to roster spaces and the session chair actor on accept. A recipient uses `murrmure_get_artifact` to materialize a verified copy under its own `.mrmr/dev/inbox/`. Transcript shows name / size / a capped text preview (`GET /v1/sessions/:id/artifacts/:xfr?preview=1`) — not full bytes, not a PR/diff product. |
@@ -365,6 +365,7 @@ transcript and not a second chat.
   "roster": [ { "participant_id", "space_id", "persona" } ],
   "chair": { "participant_id" } | { "human": true },
   "you": { "participant_id", "space_id", "persona", "label": "designer@spc_…" },
+  "goal": "Pick an approach for the public list endpoint",
   "since_seq": 848,
   "up_to_seq": 912,
   "messages": [
@@ -398,7 +399,7 @@ Authored `{ all: true }` projects as `{ all: true, participant_ids: [/* roster m
 
 Optional seat status (from live assignment / latest run on this session): `idle` | `working` | `failed`. Enough for “research is still going.” No `meeting.working` event required.
 
-**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, session `subject` (convene goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`. Convene is one short contribution to the goal. Later turns speak or edit only if the chair or the goal asked this seat. A peer intro is not a ticket. The shell lens shows the full room.
+**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, verbatim convene `goal` (`subject` is an alias; never the flow-session `subject` / flow id), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). The envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative. Chair `said` may clarify or override. If the goal names this seat and requests work, the seat does it this turn without a chair repeat. **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`. Convene is one short contribution to the goal. Later turns speak or edit only if the chair or the goal asked this seat. A peer intro is not a ticket. The shell lens shows the full room.
 
 ---
 
@@ -433,7 +434,7 @@ Per participant, while the meeting is open:
 3. **Later `said`** — write the new turn into that same PTY (`notify_live` → seat controller). Queue writes while the process is producing output; flush after idle; submit with Enter. Do not stamp delivery on a space MCP connection that never bound the seat.
 4. **Seat identity** — all live/resume state is keyed by unique roster `participant_id` (`ptc_*`), never persona. The shell exports meeting `ses_*` + `ptc_*`; the child MCP handshake carries both so the Hub can bind that exact seat after checking the principal's space. Connection-order guessing and operator-chat fallback are forbidden. Two `default` personas in different spaces are independent seats.
 5. **Busy seat** — later turns wait until the PTY is idle. Pending writes for the same `(session, participant_id)` stay queued on that controller.
-6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Do not start work or attach artifacts on convene unless the goal names this seat. Later turns speak or edit only if the chair or the meeting goal asked this seat (question, named task, or explicit work request). Another seat's intro, role dump, or peer design talk is not a ticket. If the chair or goal did ask this seat for work, do that work on the turn. If it replies, target the asker and avoid acknowledgement/repetition. The hub does not invent turn-taking.
+6. **Seat discretion** — each seat makes one concise contribution on convene when another roster seat exists. A one-seat room stays silent unless the goal names this seat; then it does that work this turn and may journal a result (`to.all` is journal-only when a human chair is present). Do not start work or attach artifacts on convene unless the goal names this seat. Later turns speak or edit only if the chair or the meeting goal asked this seat (question, named task, or explicit work request). Another seat's intro, role dump, or peer design talk is not a ticket. If the chair or goal did ask this seat for work, do that work on the turn. If it replies, target the asker and avoid acknowledgement/repetition. The hub does not invent turn-taking.
 7. **PTY not attached yet** — queue the notify until the persistent controller attaches. Do not fall back to a pre-existing operator MCP in the same space.
 8. **`closed`** — write Ctrl-D to each seat PTY, wait `shutdown_grace_ms`, then escalate process-group `SIGTERM` / `SIGKILL`; revoke assignments and deny further talk. Hub shutdown uses the same registered controller. Hub **start** then: (1) fail leftover `working` runs whose executor died (`HUB_RESTART_ORPHANED`) except `input-required` and a flow run bound to an open meeting; (2) silently respawn each open meeting’s seats with `continuation` / `--resume` (no `mrmr.meeting.resumed` journal — that event is the human Resume path).
 
@@ -468,7 +469,9 @@ A **run** may be one per spawn (observability) or the optional `room` flow run.
   complete: explicit
   prompt: |
     You are the designer seat in this meeting.
-    Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+    Pull the transcript with your participant_id. Read `you`, addressed_to_you, and `goal`.
+    Envelope `goal` and murrmure_meeting_transcript.goal are authoritative. Chair said may clarify or override.
+    If the goal names this seat, do that work this turn without a chair repeat.
     Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
     Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
   command: cursor agent --force --approve-mcps --trust {{prompt}}
@@ -565,7 +568,7 @@ Full tables: [bridges/meetings.md](../bridges/meetings.md).
 | `PARTICIPANT_AMBIGUOUS` | Space has several seats and `as_participant_id` omitted |
 | `MEETING_ALREADY_OPEN` | Convene while this session already has an open meeting |
 | `TO_AMBIGUOUS` | `to` has both `all` and `participant_ids`, or neither |
-| `TO_EMPTY` | Resolved target list empty (only the speaker, or empty array) |
+| `TO_EMPTY` | Resolved target list empty (only the speaker, or empty array) and no `{ human: true }` chair to receive journal-only result evidence |
 | `MEETING_HANDLER_COMPLETE_AUTO` | Apply: `said` handler `complete: auto` |
 | `MEETING_STEP_VIEW_RESOLVER` | Apply: `view_resolver` on a `meeting:` step |
 

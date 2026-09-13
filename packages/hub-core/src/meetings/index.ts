@@ -33,6 +33,8 @@ export {
   renderMurrmureMeetingProtocolEnvelope,
   isMeetingSaidHandler,
   isMeetingWakeParams,
+  normalizeMeetingWakeTrigger,
+  meetingWakeGoalFields,
   buildMeetingWakeData,
   lastDeliveryMeetingSeq,
   type MeetingWakeData,

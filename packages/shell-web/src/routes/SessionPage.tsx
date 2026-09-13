@@ -275,7 +275,7 @@ export function SessionPage() {
           >
             <MeetingTranscriptPane
               title={session?.title ?? "Meeting"}
-              goal={session?.subject}
+              goal={transcript.goal}
               transcript={transcript}
               spaceLabels={spaceLabels}
               onReply={canClose ? setReplyTo : undefined}

@@ -97,6 +97,7 @@ describe("invoke-shell-prompt", () => {
   });
 
   test("injects meeting protocol for convene wake params", () => {
+    const goal = "Developer: draft the public list approach";
     const prompt = resolveInvokePrompt(
       {
         action_name: "meeting-developer",
@@ -108,6 +109,7 @@ describe("invoke-shell-prompt", () => {
           participant_id: "ptc_dev",
           trigger: "convened",
           since_seq: 0,
+          goal,
         },
       },
       "You are the developer seat. Address the goal.",
@@ -117,7 +119,54 @@ describe("invoke-shell-prompt", () => {
     expect(prompt).toContain("session_id: ses_room");
     expect(prompt).toContain("participant_id: ptc_dev");
     expect(prompt).toContain("trigger: convened");
+    expect(prompt).toContain(`goal: ${goal}`);
+    expect(prompt).toContain("without waiting for a chair repeat");
     expect(prompt).toContain("Do not call murrmure_resolve_step for this room.");
+  });
+
+  test("resume wake keeps trigger resumed and the verbatim goal", () => {
+    const goal = "QA: re-run the flake list";
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "meeting-qa",
+        space_id: "spc_demo",
+        session_id: "ses_room",
+        params: {
+          session_id: "ses_room",
+          participant_id: "ptc_qa",
+          trigger: "resumed",
+          since_seq: 0,
+          goal,
+        },
+      },
+      "Continue as the QA seat.",
+    );
+    expect(prompt).toContain("trigger: resumed");
+    expect(prompt).toContain(`goal: ${goal}`);
+    expect(prompt).not.toContain("trigger: convened");
+  });
+
+  test("later said wake includes the verbatim goal", () => {
+    const goal = "Researcher: attach the latency notes";
+    const prompt = resolveInvokePrompt(
+      {
+        action_name: "meeting-researcher",
+        space_id: "spc_demo",
+        session_id: "ses_room",
+        params: {
+          session_id: "ses_room",
+          participant_id: "ptc_res",
+          trigger: "said",
+          message_id: "msg_01ARZ3NDEKTSV4RRFFQ69G5FA1",
+          since_seq: 4,
+          goal,
+        },
+      },
+      "A new message arrived.",
+    );
+    expect(prompt).toContain("trigger: said");
+    expect(prompt).toContain(`goal: ${goal}`);
+    expect(prompt).toContain("already joined");
   });
 
   test("hard-fails unknown prompt placeholders with quick-fix", () => {

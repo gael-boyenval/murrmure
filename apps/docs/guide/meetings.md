@@ -60,7 +60,9 @@ handlers:
     complete: explicit
     prompt: |
       You are the <persona> seat in this Murrmure meeting.
-      Pull the transcript with your participant_id. Read `you` and addressed_to_you.
+      Pull the transcript with your participant_id. Read `you`, addressed_to_you, and `goal`.
+      Envelope `goal` and murrmure_meeting_transcript.goal are authoritative. Chair said may clarify or override.
+      If the goal names this seat, do that work this turn without a chair repeat.
       Convene: one short contribution to the goal if another seat exists. Do not start work or attach files unless the goal names this seat to do that.
       Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked.
     command: cursor agent --force --approve-mcps --trust {{prompt}}
@@ -92,12 +94,26 @@ Live seats check for control messages every 750 ms. Multiple `said` events for
 the same seat between polls—and messages queued while the seat is answering—are
 coalesced before the next transcript pull/model turn.
 Seats contribute once on convene when another roster seat exists (a one-seat
-room stays silent because self-delivery is dropped). They do not start work
+room stays silent unless the goal names that seat). They do not start work
 or attach files unless the goal names that seat. Later they speak or edit
 only if the chair or the goal asked them — another seat's intro is not a
 ticket. When they reply they should target the asker,
 use `in_reply_to` when useful, and avoid `to: { all: true }` unless every seat
-genuinely needs the message.
+genuinely needs the message (or the room is one-seat with a human chair and
+the seat is journaling a result).
+
+## Goal, chair message, result
+
+The convene **goal** is the authoritative instruction for every spawned seat.
+It appears verbatim on the seat envelope as `goal:` (`subject:` is an alias)
+and on `murrmure_meeting_transcript.goal`. Do not treat `session.subject` as
+the goal — a flow room keeps the flow id there.
+
+If the goal names a seat and asks for work, that seat does it on this turn.
+No chair repeat is required. A human-chair `said` may clarify or override
+the goal. The seat should deliver receipt plus result evidence in the
+transcript (`said` text and/or artifacts). In a one-seat room with a human
+chair, `to: { all: true }` journals that result without waking another seat.
 
 ## Read
 

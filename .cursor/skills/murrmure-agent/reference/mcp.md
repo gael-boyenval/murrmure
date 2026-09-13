@@ -37,7 +37,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
 | **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
-| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull with `since_seq` and this seat's `participant_id` so the projection includes `you`, `from.label`, and `addressed_to_you`. Not `journal_query`. |
+| **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull with `since_seq` and this seat's `participant_id` so the projection includes authoritative `goal`, `you`, `from.label`, and `addressed_to_you`. Not `journal_query`. |
 | **`murrmure_get_artifact`** | **`space:read`** + artifact ACL | Materialize an `xfr_*` into this space's `.mrmr/dev/inbox/`; returns verified metadata + relative `local_path` |
 | **`murrmure_put_artifact`** | **`blob:write`** (or `space:write`) | Upload inline `content`+`name` (64 KiB) or a space-relative `path`; returns `xfr_*` |
 | **`murrmure_list_emittable_events`** | **`event:emit`** | Allowed event types + payload schema |
@@ -62,9 +62,9 @@ installation or `mrmr space apply`.
 
 **Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
 
-1. `murrmure_meeting_transcript` once with the prompt `session_id`, `since_seq`, and **your** `participant_id` — read `you` and `addressed_to_you`. Do not paste the journal.
+1. `murrmure_meeting_transcript` once with the prompt `session_id`, `since_seq`, and **your** `participant_id` — read `you`, `addressed_to_you`, and `goal`. Envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative; chair `said` may clarify or override. If the goal names this seat, do that work this turn without a chair repeat. Do not paste the journal.
 2. To attach a file: `murrmure_put_artifact({ content, name })` → `xfr_*`, then `murrmure_emit_event` `mrmr.meeting.said` with `artifacts: [xfr_*]`. For a received `xfr_*`, call `murrmure_get_artifact({ transfer_id })` and read `artifact.local_path` relative to the space root. Never guess a sender-local path.
-3. On `trigger: convened`, one short contribution to the goal when another roster seat exists. A one-seat room stays silent because self-delivery is dropped. Do not start work or attach files unless the goal names this seat. On `trigger: resumed`, continue — do not re-introduce or invent work.
+3. On `trigger: convened`, one short contribution to the goal when another roster seat exists. A one-seat room stays silent unless the goal names this seat. Do not start work or attach files unless the goal names this seat. On `trigger: resumed`, continue — do not re-introduce or invent work.
 4. Later: speak or edit only if the chair or the goal asked this seat. Another seat's intro is not a ticket. No artifacts unless asked. If the chair/goal did ask for work, do it this turn — do not answer with only “working”. Target the asker with `to.participant_ids`; use `in_reply_to` when appropriate. Never repeat or merely acknowledge existing material.
 5. **`murrmure_emit_event`** `mrmr.meeting.said` with top-level `session_id`.
 5. Do **not** `murrmure_resolve_step` the room.
