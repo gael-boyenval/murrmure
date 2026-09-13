@@ -38,6 +38,10 @@ For deferred product surface, see **[Known gaps](./known-gaps)** first.
 | `HUB_RESTART_ORPHANED` / run stuck `working` after hub restart | One-shot handlers (directives, flow steps) are marked failed so **Retry** works. Gates (`input-required`) and a flow run bound to an open meeting stay. Do not expect the killed `cursor agent -p` process to continue. |
 | Meeting will not close / persistent Cursor remains | Update the Hub. Close sends Ctrl-D, waits `shutdown_grace_ms`, then escalates through process-group SIGTERM/SIGKILL. |
 | `desktop:dev:hmr` prints repeated Hub proxy `ECONNREFUSED` | Read the first daemon error above. The supervisor allows a 5s watch restart, then stops shell/Desktop so proxy noise cannot continue indefinitely. Fix the daemon error and restart the dev stack. |
+| Hub exits before listen: `env file missing` | `MURRMURE_ENV_FILE` is set but the path does not exist. Unset it to use the default `<workspace-root>/.env.local` (missing default is skipped), or create the file and `chmod 600`. |
+| Hub exits before listen: `env file must be owner-only` | `chmod 600` the private env file. Group or world bits are rejected. |
+| Hub exits before listen: `env file must not be a symlink` | Point at a regular file. Symlinks are rejected. |
+| Hub exits before listen: `env file malformed at path:line` | Fix the KEY=VALUE line (optional `export`, `#` comments, quotes). The diagnostic has path, line, and reason — never the line text or values. |
 | Fans/CPU pegged after closing `desktop:dev:hmr` / hub watch | Leftover `bun …/memory/src/mcp/index.ts` children. Hub now reaps them on stop and before re-spawn; the HMR orchestrator also `pkill`s that pattern on start and shutdown. If an old build leaked, `pkill -f 'memory/src/mcp/index.ts'`. |
 
 ## MCP tools not showing in Cursor
@@ -72,6 +76,7 @@ environment injection is only for explicit headless CI mode.
 
 - Port in use — change `PORT` or close other Desktop instance
 - Lock held — one hub per `~/.murrmure` data dir
+- Private env file — missing override, group/world permissions, symlink, or a bad `KEY=VALUE` line fail before listen (see table). A missing default `.env.local` is skipped. Restart the hub after editing the file.
 
 ## Earlier development state appears after the clean-state cutover
 

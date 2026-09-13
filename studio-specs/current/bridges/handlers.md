@@ -278,7 +278,9 @@ runtime owns process lifecycle. See
   `scope_enforcement_failure`), while a grant token carries only the space
   boundary. The credential is revoked on every terminal path — step
   resolve/auto-complete, run terminal, and Desktop shutdown — so no persistent
-  child credential survives a finished assignment. The dispatch audit records
+  child credential survives a finished assignment. Spawned seats inherit the
+  hub process environment (including a private env file loaded at hub CLI
+  startup). Handler YAML must not declare secrets. The dispatch audit records
   only command/prompt/cwd — never the environment — so credentials never reach
   the journal or public surfaces.
 - Nested child activation revokes the current parent credential and terminates

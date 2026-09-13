@@ -197,6 +197,8 @@ mrmr step resolve --branch completed --payload-json '{"preview_url":"http://loca
 
 Hub injects a short-lived run/step/handler-scoped hub bearer token on `shell_spawn` dispatch (resolve capability only). It expires and is scoped to the one run/step/space, is enforced on every `step:resolve` endpoint (resolve, upload-intent creation, file transfer, abandon), and is revoked when the step/run ends or the hub shuts down. `mrmr step resolve` uses `MURRMURE_HUB_URL` explicitly and is denied on a run/step/space scope mismatch or expired/revoked token.
 
+Spawned seats inherit the hub process environment. Put operator secrets in the hub [private env file](../reference/environment#private-hub-env-file) — not in `handlers.yaml`. Dispatch audit still records only command/prompt/cwd, never the environment.
+
 Agents in IDE sessions should prefer **`murrmure_resolve_step`** MCP tool (`step:resolve` capability).
 
 ## View resolvers

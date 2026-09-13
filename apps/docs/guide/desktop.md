@@ -100,6 +100,7 @@ CLI flow development is unchanged: keep Desktop open, then run `mrmr flow dev`, 
 - Hub data dir: `~/.murrmure` (`MURRMURE_DATA_DIR` override)
 - Hub lock owner: `~/.murrmure/hub.lock/owner.json`
 - Hub DB: `~/.murrmure/murrmure.db` (`DATABASE_PATH` — set by the desktop sidecar at spawn)
+- Private env file: workspace-root `.env.local` (or `MURRMURE_ENV_FILE`). Hub CLI startup loads it once; **restart Desktop** (or let watch replace the hub) after edits. `chmod 600`. See [Environment variables](../reference/environment).
 
 ## Troubleshooting
 

@@ -31,6 +31,7 @@ import type { Capability, EventAppendCommand } from "@murrmure/contracts";
 import { UploadIntentService } from "./upload-intent-service.js";
 import { resolveMemoryMcp, shouldStartMemoryMcp, startStdioMemoryMcp } from "./memory-mcp-client.js";
 import { resolveMemorySubjectsPath } from "./memory-subjects.js";
+import { loadPrivateEnvFile, PrivateEnvFileError, resolveHubEnvFilePath } from "./load-private-env.js";
 
 export type { DaemonConfig, DaemonContext } from "./context.js";
 
@@ -382,6 +383,17 @@ export async function startHubDaemon(config: DaemonConfig) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  try {
+    const resolved = resolveHubEnvFilePath();
+    loadPrivateEnvFile(resolved.path, process.env, { required: resolved.required });
+  } catch (error) {
+    const message =
+      error instanceof PrivateEnvFileError || error instanceof Error
+        ? error.message
+        : "failed to load private env file";
+    console.error(message);
+    process.exit(1);
+  }
   const databasePath = process.env.DATABASE_PATH ?? "./data/murrmure.db";
   const port = Number(process.env.PORT ?? "8787");
   const dataDir = process.env.MURRMURE_DATA_DIR ?? join(homedir(), ".murrmure");

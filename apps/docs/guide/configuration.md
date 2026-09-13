@@ -108,6 +108,10 @@ mrmr hub grants-export --out grants-audit.json
 
 End users never run these — only contributors and operators hosting a standalone hub.
 
+## Private hub env file
+
+Hub CLI startup loads `<workspace-root>/.env.local` (or `MURRMURE_ENV_FILE`) into the hub process before it binds the port. Spawned seats inherit that environment. Copy `.env.example` to `.env.local`, add operator values, `chmod 600`, and **restart the hub** (or Desktop / `tsx watch` replace) — the file is not re-read in place. See [Environment variables](../reference/environment).
+
 ## Next
 
 - [CLI reference](./cli) — full command tree

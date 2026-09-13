@@ -2,6 +2,29 @@
 
 Desktop users usually do not set env vars manually (bootstrap is automatic). This page is for CLI operators, MCP agent operators, handler shell spawns, and CI.
 
+## Private hub env file
+
+Hub CLI startup (`murrmure-hub`, `pnpm --filter @murrmure/hub-daemon start`, Desktop sidecar / watch) loads **one** private file into the hub process **before** it reads `PORT`, `DATABASE_PATH`, and the other hub vars. Spawned seats inherit that process environment (`{ ...process.env, ...dispatchEnv }`). `startHubDaemon` itself does not load the file — tests and embedded callers are unchanged.
+
+| Source | Path |
+|--------|------|
+| Default | `<workspace-root>/.env.local` (walk up from cwd for `pnpm-workspace.yaml`) |
+| Override | `MURRMURE_ENV_FILE` (required if set) |
+
+Setup:
+
+1. Copy `.env.example` to `.env.local` at the workspace root (names only; you supply values).
+2. `chmod 600 .env.local` — group or world bits are rejected; symlinks are rejected.
+3. Restart the hub (or Desktop). The file is read once at process start. Watch / HMR re-reads on replace.
+
+Rules:
+
+- Git already ignores `.env` / `.env.*` (`!.env.example`). Do not commit values.
+- Keys already present in the process environment win (Desktop / CI).
+- Success logs `loaded N variables from <path>` — count and path only. A missing default file logs `env file not found: <path>` and continues.
+- A missing override, a malformed line, a world-readable file, or a symlink fails before listen. Diagnostics include path, line number, and reason — never keys, values, or the line text.
+- Do not put secrets in `handlers.yaml`.
+
 ## Local MCP connections
 
 Local MCP config uses the stable launcher with no Hub or connection arguments:
@@ -25,6 +48,7 @@ These vars are used by CLI workflows and runtime subprocesses.
 
 | Variable | Used by | Description |
 |----------|---------|-------------|
+| `MURRMURE_ENV_FILE` | Hub CLI startup | Optional path to a private env file. When set, the file is required. |
 | `MURRMURE_HUB_URL` | CLI, `mrmr step resolve` | Hub base URL (`http://127.0.0.1:8787` with Desktop) |
 | `MURRMURE_HUB_TOKEN` | CLI | Bearer token override |
 | `MURRMURE_SPACE_ID` | CLI | Default space for commands that support implicit `--space` |
@@ -57,7 +81,7 @@ use this CLI order.
 
 ## `shell_spawn` child env (handlers + legacy actions)
 
-When a handler or legacy action uses `shell_spawn`, hub injects:
+The child starts from the hub process environment (including a private env file loaded at hub CLI startup), then hub injects:
 
 | Variable | Description |
 |----------|-------------|
@@ -80,6 +104,7 @@ Handler `command` / `prompt` templates may also resolve `&#123;&#123;space_root&
 
 ## Security
 
+- Keep `.env.local` owner-only (`chmod 600`). Hub refuses group/world-readable files and never logs names or values.
 - Never commit `MURRMURE_HUB_TOKEN` to git.
 - Revoke or rotate a compromised connection immediately with `mrmr connection revoke|rotate`.
 - Browser session cookies are not API tokens.

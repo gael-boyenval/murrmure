@@ -1,5 +1,21 @@
 # Changelog
 
+## GBD-29 Private hub env file (2026-09-13)
+
+### Added
+
+- Hub CLI startup loads one private `<workspace-root>/.env.local` (or
+  `MURRMURE_ENV_FILE`) into the hub process before it reads `PORT` /
+  `DATABASE_PATH`. Spawned seats inherit that environment.
+- Owner-only (`chmod 600`) regular files only. Missing default is skipped;
+  a set override, symlink, insecure mode, or malformed line fails before
+  listen. Logs and errors carry path and count/reason — never keys or values.
+
+### Fixed
+
+- Operator secrets for seats no longer have to live in the parent shell
+  environment or handler YAML. Restart the hub after editing the file.
+
 ## Invite directory MCP (2026-09-12)
 
 ### Added

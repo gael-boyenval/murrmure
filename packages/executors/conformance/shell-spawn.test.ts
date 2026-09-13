@@ -22,6 +22,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 describe("shell-spawn helpers", () => {
+  test("parent process.env key survives the spawn env merge", () => {
+    const extraEnv = { MURRMURE_ACTION: "merge-regression" };
+    const merged = { ...process.env, ...extraEnv };
+    expect(merged.PATH).toBe(process.env.PATH);
+    expect(merged.MURRMURE_ACTION).toBe("merge-regression");
+
+    const ptyEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value != null) ptyEnv[key] = value;
+    }
+    const ptyMerged = { ...ptyEnv, ...extraEnv };
+    expect(ptyMerged.PATH).toBe(process.env.PATH);
+    expect(ptyMerged.MURRMURE_ACTION).toBe("merge-regression");
+  });
+
   test("shellQuote escapes single quotes", () => {
     expect(shellQuote("it's")).toBe(`'it'"'"'s'`);
   });

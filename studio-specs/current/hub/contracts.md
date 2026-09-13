@@ -122,8 +122,11 @@ Ports wired in `@murrmure/hub-core`: PolicyPort, RulesPort (v2 bridge), Conditio
 
 ## Environment variables
 
+Hub CLI startup loads one private file (`<workspace-root>/.env.local`, or `MURRMURE_ENV_FILE` when set) into the hub process before it reads the table below. Spawned seats inherit that process environment. The file must be a regular, owner-only file. Missing default is skipped; a set override, insecure mode, symlink, or malformed line fails before listen. Diagnostics carry path and reason — never keys or values. `startHubDaemon` does not auto-load the file.
+
 | Variable | Purpose |
 |----------|---------|
+| `MURRMURE_ENV_FILE` | Optional path to the private hub env file (required if set) |
 | `MURRMURE_HUB_URL` | Hub base URL (CLI and shell) |
 | hub bearer token | Explicit headless CI or short-lived handler token; local connections use the OS credential store |
 | `MURRMURE_SPACE_ID` | Optional CLI default `--space` fallback |
