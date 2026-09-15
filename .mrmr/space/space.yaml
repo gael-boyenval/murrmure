@@ -4,6 +4,9 @@ slug: murrmure
 name: Murrmure
 description: Worker space for the Murrmure platform monorepo (hub, CLI, contracts, shell, view SDK). Maintainers ship protocol and kernel code here; handlers run operator directives, meeting dev seats, and triage cross-repo failure and DX feedback into feedbacks/. Not for user workflows—those live in dedicated spaces; examples and CI fixtures in test-utils/.
 memory_bank: murrmure
+memory_readers:
+  - spc_01M1XGZ08D25FRWATHE3FR6HPB
+  - spc_01M0S6ZG5RXJ2T43SNC8S92JS2
 link:
   space_id: spc_murrmure
   host: gaelboyenval.home
