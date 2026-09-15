@@ -8,11 +8,7 @@
       ]
     },
     "plane": {
-      "url": "https://mcp.plane.so/http/api-key/mcp",
-      "headers": {
-        "Authorization": "Bearer ${env:PLANE_PAT}",
-        "x-workspace-slug": "gbworks"
-      }
+      "command": "/Users/gaelboyenval/.config/secrets/plane-mcp.sh"
     }
   }
 }
