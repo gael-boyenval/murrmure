@@ -143,6 +143,114 @@ describe("http/meetings/convene", () => {
     );
   });
 
+  test("title stays off the goal, resume MCP and start_meeting alias restore seats", async () => {
+    const convene = await fetch(`${baseUrl}/v1/meetings`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+      body: JSON.stringify({
+        title: "LAB_SUBJECT",
+        goal: "LAB_GOAL",
+        participants: [
+          { space_id: appSpace, persona: "designer" },
+          { space_id: appSpace, persona: "qa" },
+        ],
+        chair: { human: true },
+      }),
+    });
+    expect(convene.status).toBe(201);
+    const room = (await convene.json()) as {
+      session_id: string;
+      roster: Array<{ participant_id: string; persona?: string }>;
+      goal?: string;
+    };
+    const firstIds = room.roster.map((seat) => seat.participant_id).sort();
+
+    const session = await fetch(`${baseUrl}/v1/sessions/${room.session_id}`, {
+      headers: bootstrapAuth(bootstrapToken),
+    }).then((r) => r.json() as Promise<{ title: string; subject?: string }>);
+    expect(session.title).toBe("LAB_SUBJECT");
+    expect(session.subject).toBe("LAB_SUBJECT");
+    expect(session.subject).not.toBe("LAB_GOAL");
+
+    const transcript = await fetch(`${baseUrl}/v1/sessions/${room.session_id}/transcript`, {
+      headers: bootstrapAuth(bootstrapToken),
+    }).then((r) => r.json() as Promise<{ goal?: string }>);
+    expect(transcript.goal).toBe("LAB_GOAL");
+
+    const closed = await fetch(`${baseUrl}/v1/sessions/${room.session_id}/meeting/close`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+      body: JSON.stringify({ reason: "pause" }),
+    });
+    expect(closed.status).toBe(200);
+
+    const resumed = await fetch(`${baseUrl}/v1/mcp/tools/call?space_id=${appSpace}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${startToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "murrmure_resume_meeting",
+        arguments: { session_id: room.session_id },
+      }),
+    });
+    expect(resumed.status).toBe(200);
+    const resumeBody = (await resumed.json()) as {
+      result?: { session_id?: string; status?: string; roster?: Array<{ participant_id: string }> };
+      session_id?: string;
+      status?: string;
+      roster?: Array<{ participant_id: string }>;
+    };
+    const resumeRoster = resumeBody.result?.roster ?? resumeBody.roster ?? [];
+    expect(resumeBody.result?.status ?? resumeBody.status).toBe("open");
+    expect(resumeRoster.map((seat) => seat.participant_id).sort()).toEqual(firstIds);
+
+    const closedAgain = await fetch(`${baseUrl}/v1/sessions/${room.session_id}/meeting/close`, {
+      method: "POST",
+      headers: bootstrapAuth(bootstrapToken),
+      body: JSON.stringify({ reason: "pause again" }),
+    });
+    expect(closedAgain.status).toBe(200);
+
+    const aliased = await fetch(`${baseUrl}/v1/mcp/tools/call?space_id=${appSpace}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${startToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "murrmure_start_meeting",
+        arguments: {
+          title: "OTHER_TITLE",
+          goal: "OTHER_GOAL",
+          session_id: room.session_id,
+          participants: [{ space_id: appSpace, persona: "qa" }],
+          chair: { human: true },
+        },
+      }),
+    });
+    expect(aliased.status).toBe(200);
+    const aliasBody = (await aliased.json()) as {
+      result?: {
+        resumed?: boolean;
+        title?: string;
+        goal?: string;
+        roster?: Array<{ participant_id: string }>;
+      };
+      resumed?: boolean;
+      title?: string;
+      goal?: string;
+      roster?: Array<{ participant_id: string }>;
+    };
+    expect(aliasBody.result?.resumed ?? aliasBody.resumed).toBe(true);
+    expect(aliasBody.result?.title ?? aliasBody.title).toBe("LAB_SUBJECT");
+    expect(aliasBody.result?.goal ?? aliasBody.goal).toBe("LAB_GOAL");
+    expect(
+      (aliasBody.result?.roster ?? aliasBody.roster ?? []).map((seat) => seat.participant_id).sort(),
+    ).toEqual(firstIds);
+  });
+
   test("MCP start and attach to existing session_id", async () => {
     const sessionRes = await fetch(`${baseUrl}/v1/sessions`, {
       method: "POST",

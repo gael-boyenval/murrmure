@@ -37,9 +37,9 @@ Use **`mrmr whoami`** to inspect actor, spaces, and scopes.
 | `GET` | `/v1/spaces/{id}/personas` | Same-space persona ads (`space:read`) |
 | `GET` | `/v1/sessions` | List sessions |
 | `POST` | `/v1/sessions` | Create session |
-| `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. Wakes seats on `mrmr.meeting.convened`. |
+| `POST` | `/v1/meetings` | Convene a meeting (`flow:run` + `space:read`). Body: `title`, `goal?`, `session_id?`, `participants`, `chair`. Unions `spaces_touched` with every roster space. Wakes seats on `mrmr.meeting.convened`. Closed `session_id` aliases resume (`200`, `resumed: true`) and keeps the stored roster. |
 | `GET` | `/v1/meetings` | Open + closed rooms (`space:read`). Not space-owned. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
-| `POST` | `/v1/sessions/{id}/meeting/resume` | Human operator / chair reopen of the same room (`ses_*` + `ptc_*`). Journals `mrmr.meeting.resumed` and re-wakes seats. |
+| `POST` | `/v1/sessions/{id}/meeting/resume` | Human operator / chair / convenor reopen of the same room (`ses_*` + `ptc_*`). Journals `mrmr.meeting.resumed` and re-wakes seats. MCP: `murrmure_resume_meeting`. |
 | `GET` | `/v1/directives/eligible` | Spaces that bind `step.opened::directive.execute` (`space:read`). Bootstrap / `hub:admin` sees all; other tokens see their space. `{ spaces: [{ space_id, name, slug, handler_id }] }`. MCP: `murrmure_list_directive_eligible` / `murrmure_start_directive` require `hub:admin`. |
 | `POST` | `/v1/sessions/{id}/meeting/say` | Send as a human operator who can read the room (`space:read`). Body: `{ to: { all: true } \| { participant_ids }, text, in_reply_to?, artifacts? }`. Hub stamps `from: { human: true }`. Agent tokens are denied. |
 | `POST` | `/v1/sessions/{id}/meeting/close` | Close the room (human operator who can read it, convenor space, or bootstrap). Journals `closed` + snapshot and kills every seat PTY. MCP: `murrmure_close_meeting`. Not a gate; does not call `resolveFlowStep`. |

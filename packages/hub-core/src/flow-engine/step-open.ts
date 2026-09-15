@@ -202,6 +202,7 @@ async function conveneMeetingForOpenStep(
     convenor_space_id: input.convenor_space_id,
     bound_run_id: input.run_id,
     bound_step_id: input.step_id,
+    convenor: true,
   });
   if (!convened.ok) {
     throw new Error(`${convened.code}: ${convened.message}`);

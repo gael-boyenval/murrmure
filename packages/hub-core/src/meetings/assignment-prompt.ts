@@ -29,11 +29,13 @@ export function meetingWakeGoalFields(params: {
   goal?: unknown;
   subject?: unknown;
 }): Pick<MeetingWakeData, "goal" | "subject"> {
-  const raw =
-    (typeof params.goal === "string" && params.goal.trim()) ||
-    (typeof params.subject === "string" && params.subject.trim()) ||
-    undefined;
-  return raw ? { goal: raw, subject: raw } : {};
+  const goal = typeof params.goal === "string" && params.goal.trim() ? params.goal.trim() : undefined;
+  const subject =
+    typeof params.subject === "string" && params.subject.trim() ? params.subject.trim() : undefined;
+  return {
+    ...(goal ? { goal } : {}),
+    ...(subject ? { subject } : {}),
+  };
 }
 
 function compactGoalLine(value: string): string {
@@ -50,12 +52,8 @@ export function renderMurrmureMeetingProtocolEnvelope(input: MeetingWakeData): s
     `trigger: ${input.trigger}`,
     `since_seq: ${input.since_seq}`,
   ];
-  const goal = input.goal?.trim() || input.subject?.trim();
-  if (goal) {
-    const compact = compactGoalLine(goal);
-    lines.push(`goal: ${compact}`);
-    lines.push(`subject: ${compact}`);
-  }
+  if (input.goal?.trim()) lines.push(`goal: ${compactGoalLine(input.goal)}`);
+  if (input.subject?.trim()) lines.push(`subject: ${compactGoalLine(input.subject)}`);
   if (input.message_id) lines.push(`message_id: ${input.message_id}`);
   const operatingRule =
     input.trigger === "convened"
@@ -112,12 +110,13 @@ export async function lastDeliveryMeetingSeq(
   return max;
 }
 
-async function resolveMeetingGoal(
+async function resolveMeetingField(
   studio: StudioPersistencePort,
   session_id: string,
+  field: "goal" | "title",
 ): Promise<string | undefined> {
   const snapshot = await loadMeeting(studio, session_id);
-  const fromSnapshot = snapshot?.goal?.trim();
+  const fromSnapshot = snapshot?.[field === "title" ? "title" : "goal"]?.trim();
   if (fromSnapshot) return fromSnapshot;
 
   const rows = await studio.queryMeetingJournal({
@@ -126,7 +125,7 @@ async function resolveMeetingGoal(
   });
   for (const row of rows) {
     const data = meetingJournalData(row);
-    const fromJournal = typeof data.goal === "string" ? data.goal.trim() : "";
+    const fromJournal = typeof data[field] === "string" ? data[field].trim() : "";
     if (fromJournal) return fromJournal;
   }
   return undefined;
@@ -140,7 +139,10 @@ export async function buildMeetingWakeData(
   const participant_id = event.participant_id?.trim();
   if (!session_id || !participant_id) return null;
   const prefixed = session_id.startsWith("ses_") ? session_id : `ses_${session_id}`;
-  const goalFields = meetingWakeGoalFields({ goal: await resolveMeetingGoal(studio, prefixed) });
+  const goalFields = meetingWakeGoalFields({
+    goal: await resolveMeetingField(studio, prefixed, "goal"),
+    subject: await resolveMeetingField(studio, prefixed, "title"),
+  });
 
   if (event.event_type === JOURNAL_EVENT_TYPES.MEETING_CONVENED) {
     return {
@@ -157,7 +159,7 @@ export async function buildMeetingWakeData(
       session_id: prefixed,
       participant_id,
       trigger: "resumed",
-      since_seq: 0,
+      since_seq: await lastDeliveryMeetingSeq(studio, prefixed, participant_id),
       ...goalFields,
     };
   }

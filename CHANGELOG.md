@@ -1,5 +1,20 @@
 # Changelog
 
+## GBD-32 Reuse seats and Cursor chats when a meeting is reopened (2026-09-15)
+
+### Added
+
+- `murrmure_resume_meeting` wraps kernel `resumeMeeting` /
+  `POST /v1/sessions/{id}/meeting/resume`. Same `ptc_*`, `trigger: resumed`,
+  journal `mrmr.meeting.resumed`.
+
+### Changed
+
+- `murrmure_start_meeting({ session_id })` on a closed room aliases resume and
+  keeps the stored roster / goal / title. A new roster needs a new `ses_*`.
+- Seat envelope `subject:` is the meeting title, not a copy of the goal.
+  Headless convene sets `session.subject` to that title.
+
 ## GBD-31 Meeting goals are authoritative (2026-09-13)
 
 ### Added

@@ -13,6 +13,11 @@
 
 ## Unreleased
 
+### Added
+
+- MCP `murrmure_resume_meeting`. `POST /v1/meetings` / `start_meeting` on a
+  closed session aliases resume (`200`, `resumed: true`).
+
 ### Fixed
 
 - Hub start fails orphaned `working` runs then respawns open meeting seats

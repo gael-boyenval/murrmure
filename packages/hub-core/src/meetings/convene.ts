@@ -15,6 +15,7 @@ import { createSession, type SessionRunDeps } from "../run/service.js";
 import { dispatchMeetingConveneTargets } from "./dispatch.js";
 import { meetingAlreadyOpen, meetingDenial, personaNotFound, sessionNotFound, type MeetingDenial } from "./errors.js";
 import { appendMeetingEvent } from "./journal.js";
+import { resumeMeeting } from "./resume.js";
 import { mintRoster, prefixedSpace, rejectDuplicateSeats, resolveChair, rosterSpaceIds } from "./roster.js";
 import { loadMeeting, writeMeetingSnapshot } from "./snapshot.js";
 
@@ -43,6 +44,10 @@ export type ConveneMeetingInput = MeetingConveneBody & {
   bound_run_id?: string;
   bound_step_id?: string;
   capabilities?: Capability[];
+  human?: boolean;
+  bootstrap?: boolean;
+  operator?: boolean;
+  convenor?: boolean;
 };
 
 export type ConveneMeetingResult =
@@ -55,6 +60,8 @@ export type ConveneMeetingResult =
       chair: MeetingSnapshotChair;
       roster: MeetingRosterSeatRow[];
       convene_meeting_seq: number;
+      resumed?: true;
+      resume_meeting_seq?: number;
     }
   | MeetingDenial;
 
@@ -99,7 +106,7 @@ export async function conveneMeeting(
   input: ConveneMeetingInput,
 ): Promise<ConveneMeetingResult> {
   const parsed = ConveneRuntimeSchema.safeParse({
-    title: input.title,
+    title: input.title?.trim() || "Meeting",
     goal: input.goal,
     session_id: input.session_id,
     participants: input.participants,
@@ -110,6 +117,40 @@ export async function conveneMeeting(
       MURRMURE_DENIAL_CODES.CONTRACT_VALIDATION_DENIED,
       parsed.error.issues[0]?.message ?? "Invalid convene body",
     );
+  }
+
+  let sessionId = parsed.data.session_id;
+  if (sessionId) {
+    const existing = await deps.studio.getSession(sessionId);
+    if (!existing) return sessionNotFound();
+    const prior = await loadMeeting(deps.studio, sessionId);
+    if (prior?.status === "open") return meetingAlreadyOpen();
+    if (prior?.status === "closed") {
+      const resumed = await resumeMeeting(deps, {
+        session_id: sessionId,
+        actor_id: input.actor_id,
+        token_id: input.token_id,
+        convenor_space_id: input.convenor_space_id,
+        capabilities: input.capabilities,
+        human: input.human,
+        bootstrap: input.bootstrap,
+        operator: input.operator,
+        convenor: input.convenor,
+      });
+      if (!resumed.ok) return resumed;
+      return {
+        ok: true,
+        session_id: resumed.session_id,
+        status: "open",
+        title: prior.title ?? parsed.data.title,
+        goal: prior.goal,
+        chair: prior.chair,
+        roster: resumed.roster,
+        convene_meeting_seq: prior.convene_meeting_seq,
+        resumed: true,
+        resume_meeting_seq: resumed.resume_meeting_seq,
+      };
+    }
   }
 
   const duplicates = rejectDuplicateSeats(parsed.data.participants);
@@ -124,25 +165,18 @@ export async function conveneMeeting(
   const chair = resolveChair(roster, parsed.data.chair as MeetingChair);
   if ("ok" in chair && chair.ok === false) return chair;
 
-  let sessionId = parsed.data.session_id;
-  if (sessionId) {
-    const existing = await deps.studio.getSession(sessionId);
-    if (!existing) return sessionNotFound();
-  } else {
+  if (!sessionId) {
     const convenor =
       input.convenor_space_id ?? parsed.data.participants[0]?.space_id;
     const created = await createSession(deps, {
       title: parsed.data.title,
-      subject: parsed.data.goal,
+      subject: parsed.data.title,
       actor_id: input.actor_id,
       token_id: input.token_id,
       space_id: convenor,
     });
     sessionId = created.session_id;
   }
-
-  const open = await loadMeeting(deps.studio, sessionId);
-  if (open?.status === "open") return meetingAlreadyOpen();
 
   const convenorSpace = prefixedSpace(
     input.convenor_space_id ?? parsed.data.participants[0]!.space_id,

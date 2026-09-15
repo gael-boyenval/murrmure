@@ -160,7 +160,7 @@ Creates meeting state on a **session** (not a new entity type). Four start paths
 |------|-----|----------------|
 | **Flow step** | Engine, when a step with a `meeting:` contract opens | Convene on **this** session; step stays open until `closed` |
 | **Shell header** | Operator | **New meeting** dialog: pick linked spaces + indexed personas, optional title/goal, `chair: { human: true }`. Same `POST /v1/meetings`. Lands on `/sessions/:id` Transcript |
-| **MCP / HTTP** | Agent or operator | `POST /v1/meetings` / `murrmure_start_meeting` — new session or attach if `session_id` given |
+| **MCP / HTTP** | Agent or operator | `POST /v1/meetings` / `murrmure_start_meeting` — new session, attach if `session_id` has never been a meeting, or resume if that session is a closed room |
 | **CLI** | Operator | `mrmr meeting start` (same command as HTTP) |
 
 The header dialog convenes the room. Once open, a human operator may compose `said`
@@ -194,7 +194,7 @@ Hub:
 2. Mints `ptc_*` per seat. Duplicate `(space_id, persona)` in one roster → reject.
 3. Uses the current `session_id` when convene is a flow step or `session_id` was passed; otherwise creates `ses_*`.
 4. Journals `mrmr.meeting.convened` with roster + chair + goal (goal is opaque text). Updates `spaces_touched` with **every** roster space. Then wakes each seat (a `said` handler is the doorbell).
-5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, a human operator **Resume** reopens the same roster (`ptc_*` kept) and re-wakes seats (`mrmr.meeting.resumed`). A later flow step may still convene again on the same session (new roster ids).
+5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, `POST /v1/sessions/{id}/meeting/resume` or `murrmure_resume_meeting` reopens the same roster (`ptc_*` kept) and re-wakes seats (`mrmr.meeting.resumed`, `trigger: resumed`). `murrmure_start_meeting({ session_id })` / `POST /v1/meetings` on that closed room **aliases resume** and ignores a new title / goal / participants. A new roster requires a new `ses_*`.
 
 Convenor needs `space:read` on every invited space. Flow path also needs `flow:run`. Headless path needs session create.
 
@@ -404,7 +404,7 @@ Authored `{ all: true }` projects as `{ all: true, participant_ids: [/* roster m
 
 Optional seat status (from live assignment / latest run on this session): `idle` | `working` | `failed`. Enough for “research is still going.” No `meeting.working` event required.
 
-**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, verbatim convene `goal` (`subject` is an alias; never the flow-session `subject` / flow id), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join). The envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative. Chair `said` may clarify or override. If the goal names this seat and requests work, the seat does it this turn without a chair repeat. **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`. Convene is one short contribution to the goal. Later turns speak or edit only if the chair or the goal asked this seat. A peer intro is not a ticket. The shell lens shows the full room.
+**Assignment prompt:** Task = handler `prompt`. Seat envelope is **`Protocol: murrmure.meeting/v1`** (not the step ADR-013 block that orders `murrmure_resolve_step`). Protocol includes `session_id`, `participant_id`, verbatim convene `goal`, meeting `subject` (the title — not a copy of the goal), triggering `message_id`, `since_seq` (that seat’s last delivery seq, or `0` on first join / convene). The envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative. Chair `said` may clarify or override. If the goal names this seat and requests work, the seat does it this turn without a chair repeat. **MUST NOT** inline the transcript. Agent pulls with that `participant_id` and acts on `you` / `addressed_to_you`. Convene is one short contribution to the goal. Later turns speak or edit only if the chair or the goal asked this seat. A peer intro is not a ticket. The shell lens shows the full room.
 
 ---
 
@@ -543,11 +543,11 @@ Headless meeting (agents only, no flow) is valid. Shell still shows the historic
 |------|-----|---------|
 | `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | Same-space indexed catalog |
 | — | `murrmure_list_invitable_spaces` | Hub-mediated invite directory (visible spaces + ads) |
-| `POST /v1/meetings` | `murrmure_start_meeting` | Convene |
+| `POST /v1/meetings` | `murrmure_start_meeting` | Convene, or resume if `session_id` is a closed room |
 | `GET /v1/sessions/{id}/transcript` | `murrmure_meeting_transcript` | Projection |
 | `POST /v1/sessions/{id}/meeting/say` | — | Human operator `said` to selected seats / everyone |
 | `POST /v1/sessions/{id}/meeting/close` | `murrmure_close_meeting` | Convenor, operator, or chair emit `closed` |
-| `POST /v1/sessions/{id}/meeting/resume` | — | Operator reopen same room |
+| `POST /v1/sessions/{id}/meeting/resume` | `murrmure_resume_meeting` | Reopen same room (`ses_*` + `ptc_*`) |
 | `GET /v1/meetings` | — | Open + closed rooms |
 | existing emit | `murrmure_emit_event` | `said` / `closed` (chair) |
 
@@ -613,7 +613,7 @@ Reuse `INLINE_PAYLOAD_EXCEEDED`, `EXECUTOR_UNAVAILABLE`. `QUERY_POLICY_DENIED` i
 10. Flow with `research → decide (meeting:) → implement`: opening `decide` convenes on the same `ses_*`; close advances to `implement`.
 11. Persistent seat starts one OS process on convene; two later `said` messages create no additional spawn; close terminates it.
 12. A human operator sends to one or many seats; Transcript stamps `{ human: true }`, `HH:mm:ss` source time, delivery latency, and reply latency.
-13. After close, operator Resume keeps `ses_*` + `ptc_*`, journals `resumed`, and `said` works again.
+13. After close, `murrmure_resume_meeting` or `start_meeting({ session_id })` keeps `ses_*` + `ptc_*`, journals `resumed`, wakes with `trigger: resumed`, and `said` works again. Envelope `subject` is the meeting title, not the goal.
 
 ---
 

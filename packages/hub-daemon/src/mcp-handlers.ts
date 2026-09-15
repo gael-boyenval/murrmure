@@ -169,6 +169,16 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Close meeting");
   });
 
+  registry.registerHandler("murrmure_resume_meeting", async (args, authCtx) => {
+    const sessionId = String(args.session_id ?? "").trim();
+    if (!sessionId) throw new Error("session_id is required");
+    const res = await fetch(`${hubUrl()}/v1/sessions/${encodeURIComponent(sessionId)}/meeting/resume`, {
+      method: "POST",
+      headers: mcpHeaders(authCtx),
+    });
+    return assertHttpOk(res, "Resume meeting");
+  });
+
   registry.registerHandler("murrmure_meeting_transcript", async (args, authCtx) => {
     const sessionId = String(args.session_id ?? "");
     if (!sessionId) throw new Error("session_id is required");

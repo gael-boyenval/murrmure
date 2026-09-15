@@ -61,7 +61,7 @@ describe("meetings/assignment-prompt", () => {
     expect(protocol).toContain("This process is your seat");
     expect(protocol).toContain("make one concise initial contribution");
     expect(protocol).toContain("Do not start work");
-    expect(protocol).toContain("goal: KB goal check read the desk");
+    expect(protocol).not.toContain("goal:");
     expect(protocol).toContain("subject: KB goal check read the desk");
     expect(protocol).toContain("authoritative");
     expect(protocol).toContain("without waiting for a chair repeat");
@@ -155,8 +155,9 @@ describe("meetings/assignment-prompt", () => {
       participant_id: PTC,
     });
     expect(wake?.goal).toBe(goal);
-    expect(wake?.subject).toBe(goal);
+    expect(wake?.subject).toBe("API shape");
     expect(wake?.goal).not.toBe("flw_meet");
+    expect(wake?.subject).not.toBe(goal);
   });
 
   test("wake goal falls back to convened journal when snapshot is missing", async () => {
@@ -190,6 +191,48 @@ describe("meetings/assignment-prompt", () => {
     });
     expect(wake?.trigger).toBe("resumed");
     expect(wake?.goal).toBe(goal);
-    expect(wake?.subject).toBe(goal);
+    expect(wake?.subject).toBe("API shape");
+    expect(wake?.since_seq).toBe(0);
+  });
+
+  test("resumed wake uses last delivery seq and keeps title distinct from goal", async () => {
+    const studio = new MemoryStudioPersistence();
+    const now = "2026-08-17T00:00:00.000Z";
+    const goal = "Designer: write the public list brief";
+    const bare = SES.startsWith("ses_") ? SES.slice(4) : SES;
+    await studio.upsertMeetingSnapshot({
+      session_id: SES,
+      status: "open",
+      title: "LAB_SUBJECT",
+      goal,
+      chair: { human: true },
+      roster: [{ participant_id: PTC, space_id: "spc_app", persona: "designer" }],
+      convene_entry_id: "evt_convene",
+      convene_meeting_seq: 1,
+      updated_at: now,
+    });
+    await studio.insertJournalIndex({
+      entry_id: "evt_delivered",
+      seq: 4,
+      space_id: "app",
+      type: JOURNAL_EVENT_TYPES.MEETING_DELIVERED,
+      session_id: bare,
+      time: now,
+      meeting_seq: 7,
+      payload_json: JSON.stringify({ participant_id: PTC }),
+    });
+
+    const wake = await buildMeetingWakeData(studio, {
+      event_id: "evt_resume",
+      event_type: JOURNAL_EVENT_TYPES.MEETING_RESUMED,
+      space_id: "app",
+      payload: {},
+      session_id: SES,
+      participant_id: PTC,
+    });
+    expect(wake?.trigger).toBe("resumed");
+    expect(wake?.since_seq).toBe(7);
+    expect(wake?.goal).toBe(goal);
+    expect(wake?.subject).toBe("LAB_SUBJECT");
   });
 });

@@ -4,6 +4,7 @@ import { MemoryStudioPersistence } from "@murrmure/hub-persistence";
 import type { HubHandler } from "../../../src/handlers/hub.js";
 import type { HookDispatchDeps } from "../../../src/hooks/dispatch.js";
 import { conveneMeeting } from "../../../src/meetings/convene.js";
+import { closeMeeting } from "../../../src/meetings/close.js";
 import type { SessionRunDeps } from "../../../src/run/service.js";
 import { SpaceConcurrencyGuard } from "../../../src/run/space-guard.js";
 import { matchEventHandlers } from "../../../src/index/parse-handlers.js";
@@ -186,6 +187,73 @@ describe("meetings/convene", () => {
       code: MURRMURE_DENIAL_CODES.MEETING_ALREADY_OPEN,
       http: 409,
     });
+  });
+
+  test("new meeting stores session.subject from title, not goal", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedSpaces(studio);
+    const deps = makeDeps(studio);
+    const room = await conveneMeeting(deps, {
+      title: "LAB_SUBJECT",
+      goal: "LAB_GOAL",
+      participants: [{ space_id: `spc_${APP}`, persona: "designer" }],
+      chair: { human: true },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+    });
+    expect(room.ok).toBe(true);
+    if (!room.ok) return;
+    const session = await studio.getSession(room.session_id);
+    expect(session?.title).toBe("LAB_SUBJECT");
+    expect(session?.subject).toBe("LAB_SUBJECT");
+    expect(session?.subject).not.toBe("LAB_GOAL");
+    expect((await studio.getMeetingBySession(room.session_id))?.goal).toBe("LAB_GOAL");
+  });
+
+  test("start_meeting on a closed session aliases resume and keeps the roster", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seedSpaces(studio);
+    const deps = makeDeps(studio);
+    const first = await conveneMeeting(deps, {
+      title: "LAB_SUBJECT",
+      goal: "LAB_GOAL",
+      participants: [
+        { space_id: `spc_${APP}`, persona: "designer" },
+        { space_id: `spc_${APP}`, persona: "qa" },
+      ],
+      chair: { human: true },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const closed = await closeMeeting(deps, {
+      session_id: first.session_id,
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+      human: true,
+    });
+    expect(closed.ok).toBe(true);
+
+    const aliased = await conveneMeeting(deps, {
+      title: "OTHER_TITLE",
+      goal: "OTHER_GOAL",
+      session_id: first.session_id,
+      participants: [{ space_id: `spc_${APP}`, persona: "qa" }],
+      chair: { human: true },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+      human: true,
+    });
+    expect(aliased.ok).toBe(true);
+    if (!aliased.ok) return;
+    expect(aliased.resumed).toBe(true);
+    expect(aliased.title).toBe("LAB_SUBJECT");
+    expect(aliased.goal).toBe("LAB_GOAL");
+    expect(aliased.roster.map((seat) => seat.participant_id)).toEqual(
+      first.roster.map((seat) => seat.participant_id),
+    );
+    expect((await studio.getMeetingBySession(first.session_id))?.status).toBe("open");
   });
 
   test("said handler matches convene doorbell", () => {

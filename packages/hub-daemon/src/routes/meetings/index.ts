@@ -95,21 +95,31 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
 
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const participants = Array.isArray(body.participants) ? body.participants : [];
+    const session_id = typeof body.session_id === "string" ? body.session_id : undefined;
+    const bootstrap = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    const operator = session_id ? await meetingOperatorFor(ctx, auth, effective, session_id) : false;
+    const convenor = session_id
+      ? await isMeetingConvenorSpace(murrmurePersistence, session_id, auth.space_id)
+      : false;
     const result = await conveneMeeting(hookDispatchDeps(ctx), {
       title: String(body.title ?? "Meeting"),
       goal: typeof body.goal === "string" ? body.goal : undefined,
-      session_id: typeof body.session_id === "string" ? body.session_id : undefined,
+      session_id,
       participants: participants as Array<{ space_id: string; persona?: string }>,
       chair: (body.chair ?? { human: true }) as { human: true } | { space_id: string; persona?: string },
       actor_id: auth.actor_id,
       token_id: auth.token_id,
       convenor_space_id: auth.space_id === "bootstrap" ? undefined : auth.space_id,
       capabilities: effective,
+      human: true,
+      bootstrap,
+      operator,
+      convenor,
     });
     if (!result.ok) {
       return c.json({ code: result.code, message: result.message }, denialHttp(result.http));
     }
-    return c.json(result, 201);
+    return c.json(result, result.resumed ? 200 : 201);
   });
 
   app.get("/v1/meetings", async (c) => {
@@ -240,6 +250,7 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
     const session_id = c.req.param("session_id");
     const bootstrap = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
     const operator = await meetingOperatorFor(ctx, auth, effective, session_id);
+    const convenor = await isMeetingConvenorSpace(murrmurePersistence, session_id, auth.space_id);
     const result = await resumeMeeting(hookDispatchDeps(ctx), {
       session_id,
       actor_id: auth.actor_id,
@@ -247,6 +258,7 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
       human: true,
       bootstrap,
       operator,
+      convenor,
       convenor_space_id: auth.space_id === "bootstrap" ? undefined : auth.space_id,
       capabilities: effective,
     });

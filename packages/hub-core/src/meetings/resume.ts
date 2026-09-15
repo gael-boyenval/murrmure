@@ -16,6 +16,7 @@ export type ResumeMeetingInput = {
   human?: boolean;
   bootstrap?: boolean;
   operator?: boolean;
+  convenor?: boolean;
   as_participant_id?: string;
   emitter_space_id?: string;
   capabilities?: Capability[];
@@ -49,6 +50,7 @@ export async function resumeMeeting(
     human: input.human,
     bootstrap: input.bootstrap,
     operator: input.operator,
+    convenor: input.convenor,
     actor_id: input.actor_id,
     session_actor_id: session?.actor_id,
     as_participant_id: input.as_participant_id,

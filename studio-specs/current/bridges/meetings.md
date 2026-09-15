@@ -14,11 +14,11 @@ Adapters only. Domain lives in `hub-core/src/meetings/` + journal-first emit.
 |------|-----|-------|-------|
 | `GET /v1/spaces/{id}/personas` | `murrmure_list_personas` | `space:read` | **Same-space token.** Ads only. |
 | — | `murrmure_list_invitable_spaces` | `space:read` | Hub-mediated directory. Bootstrap / `hub:admin` see all active spaces; other callers see their bound space plus active same-actor/harness `space:read` grants. Ads only. No local paths, memory, or secrets. |
-| `POST /v1/meetings` | `murrmure_start_meeting` | `flow:run` + convenor `space:read` on every invitee (hub-enforced) | New session or attach if `session_id` given. Hub reads invitee catalogs. |
+| `POST /v1/meetings` | `murrmure_start_meeting` | `flow:run` + convenor `space:read` on every invitee (hub-enforced) | New session or attach if `session_id` given and the session has never been a meeting. Closed meeting on that `session_id` aliases resume (stored roster / goal / title). |
 | `GET /v1/sessions/{id}/transcript?since_seq=&participant_id=` | `murrmure_meeting_transcript` | roster space **or** `journal:read` on a roster space | Session-monotonic cursor. Includes authoritative `goal`. Pass this seat's `ptc_*` for `you` / `addressed_to_you`. Not `GET /v1/journal`. |
 | `GET /v1/meetings` | — | `space:read` | Open + closed rooms. Bootstrap / `hub:admin` sees all; other tokens see rooms whose roster includes their space. |
 | `POST /v1/sessions/{id}/meeting/close` | `murrmure_close_meeting` or chair `murrmure_emit_event` `closed` | convenor space, human operator who can read the room, or chair emit | Same payload as `closed`. Shell and the convening agent use this. Kills every seat PTY immediately. |
-| `POST /v1/sessions/{id}/meeting/resume` | — | same as close | Same `ses_*` + `ptc_*`. Journals `mrmr.meeting.resumed`, re-wakes seats. Hub boot rehydrate of an already-open room does **not** use this route or journal `resumed`. |
+| `POST /v1/sessions/{id}/meeting/resume` | `murrmure_resume_meeting` | same as close | Same `ses_*` + `ptc_*`. Journals `mrmr.meeting.resumed`, re-wakes seats. Hub boot rehydrate of an already-open room does **not** use this route or journal `resumed`. |
 | existing emit | `murrmure_emit_event` | `event:emit` | `said` / `closed`. **Requires `session_id`.** |
 | `PUT /v1/artifacts` | `murrmure_put_artifact` | `blob:write` | Inline `content`+`name` or space-relative `path`. Meeting attach then `said` with `artifacts`. |
 
@@ -83,7 +83,7 @@ Shipped:
 See [meetings/spec.md](../meetings/spec.md) §9 for the DTO. Wire rules:
 
 - `since_seq` / `up_to_seq` = **meeting_seq** ([persistence.md](../../plans/2026-08-17-meetings/persistence.md) §4.2)
-- `goal` is the snapshot / convened text. Authoritative with the seat envelope `goal:`. Never `session.subject` (flow rooms keep the flow id there).
+- `goal` is the snapshot / convened text. Authoritative with the seat envelope `goal:`. Envelope `subject:` is the meeting title. Headless convene sets `session.subject` to that title, not the goal. Flow rooms may still keep the flow id on `session.subject` — never treat it as the goal.
 - Auth bypasses the journal **space filter**; roster check replaces it
 - Closed meeting: still 200
 - Do not teach `murrmure_journal_query` as the chat
@@ -115,6 +115,7 @@ Add to `PLATFORM_TOOLS` + `mcp-tool-schemas.ts` + `mcp-handlers.ts` + `apps/docs
 | `murrmure_list_invitable_spaces` | — |
 | `murrmure_start_meeting` | participants, chair |
 | `murrmure_close_meeting` | `session_id` |
+| `murrmure_resume_meeting` | `session_id` |
 | `murrmure_meeting_transcript` | `session_id` |
 | `murrmure_put_artifact` | exactly one of `path` or `content`; `name` with `content` |
 | `murrmure_emit_event` | existing + `session_id` when type is `mrmr.meeting.*` |

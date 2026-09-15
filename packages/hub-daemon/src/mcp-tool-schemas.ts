@@ -176,6 +176,12 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     { required: ["session_id"] },
   ),
+  murrmure_resume_meeting: objectSchema(
+    {
+      session_id: stringSchema("Closed meeting session id to reopen"),
+    },
+    { required: ["session_id"] },
+  ),
   murrmure_meeting_transcript: objectSchema(
     {
       session_id: stringSchema("Meeting session id"),

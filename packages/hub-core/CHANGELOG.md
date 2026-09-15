@@ -13,6 +13,10 @@
 
 ### Added
 
+- Closed-session `conveneMeeting({ session_id })` aliases `resumeMeeting`
+  (same `ptc_*`, stored goal/title). New meetings set `session.subject` to
+  the title. Resume wakes use last delivery `since_seq` and keep envelope
+  `subject` distinct from `goal`.
 - Hub boot: `failOrphanedWorkingRuns` + `rehydrateOpenMeetings`. Open rooms
   get silent seat respawn (`trigger: resumed`, no `mrmr.meeting.resumed`
   journal). Leftover `working` runs fail as `HUB_RESTART_ORPHANED` except

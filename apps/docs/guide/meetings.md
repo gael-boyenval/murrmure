@@ -14,7 +14,7 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 |------|-----|----------------|
 | **Run** a flow whose step has `meeting:` | Human on the dashboard | Engine convenes on **this** session; step stays open until close |
 | Header **Meetings** + **+** | Operator | List open/closed rooms. **+** picks spaces + personas. You chair. Opens Transcript. Closed rooms **Resume** the same session |
-| `murrmure_list_invitable_spaces` then `murrmure_start_meeting` | Agent | Directory (no space id) then `POST /v1/meetings`. Close with `murrmure_close_meeting`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus matching `space:read` grants |
+| `murrmure_list_invitable_spaces` then `murrmure_start_meeting` | Agent | Directory (no space id) then `POST /v1/meetings`. Close with `murrmure_close_meeting`. Reopen with `murrmure_resume_meeting` or `start_meeting({ session_id })` on that closed room. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus matching `space:read` grants |
 | `mrmr meeting start` | Operator | Same command as HTTP |
 
 No `/meetings` route. Humans read Transcript; any operator who can see the room
@@ -23,7 +23,7 @@ can message selected seats or everyone, **Close** / **Stop meeting**, and
 started the room closes it with `murrmure_close_meeting`. Seats `said` and pull
 `murrmure_meeting_transcript`.
 
-Header **+** creates a **session**, not a space object and not a run. Find it in the header **Meetings** list (always visible). Convene journals `mrmr.meeting.convened` and wakes each seat. **Resume** journals `mrmr.meeting.resumed` and re-wakes the same `ptc_*` in the same harness chat (`--resume` of the minted id). Transcript stays empty until a seat `said`. There is no talk flow to start a room.
+Header **+** creates a **session**, not a space object and not a run. Find it in the header **Meetings** list (always visible). Convene journals `mrmr.meeting.convened` and wakes each seat. **Resume** journals `mrmr.meeting.resumed` and re-wakes the same `ptc_*` in the same harness chat (`--resume` of the minted id, or a minted replacement if that token is gone). `murrmure_start_meeting({ session_id })` on a closed room is the same restore — it does not mint a new roster. A new roster needs a new session. Transcript stays empty until a seat `said`. There is no talk flow to start a room.
 
 ## Seats vs agents
 
@@ -107,9 +107,11 @@ the seat is journaling a result).
 ## Goal, chair message, result
 
 The convene **goal** is the authoritative instruction for every spawned seat.
-It appears verbatim on the seat envelope as `goal:` (`subject:` is an alias)
-and on `murrmure_meeting_transcript.goal`. Do not treat `session.subject` as
-the goal — a flow room keeps the flow id there.
+It appears verbatim on the seat envelope as `goal:` and on
+`murrmure_meeting_transcript.goal`. Envelope `subject:` is the meeting
+**title** (the room name), not a copy of the goal. Headless convene also
+sets `session.subject` to that title. Do not treat `session.subject` as the
+goal — a flow room may still keep the flow id there.
 
 If the goal names a seat and asks for work, that seat does it on this turn.
 No chair repeat is required. A human-chair `said` may clarify or override
