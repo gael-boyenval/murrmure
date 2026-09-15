@@ -167,6 +167,15 @@ const PLATFORM_TOOL_INPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     { required: ["participants", "chair"] },
   ),
+  murrmure_close_meeting: objectSchema(
+    {
+      session_id: stringSchema("Meeting session id to close"),
+      reason: stringSchema("Optional close reason"),
+      outcome: stringSchema("Optional outcome text for a bound meeting step"),
+      failed: { type: "boolean", description: "Mark the meeting failed" },
+    },
+    { required: ["session_id"] },
+  ),
   murrmure_meeting_transcript: objectSchema(
     {
       session_id: stringSchema("Meeting session id"),

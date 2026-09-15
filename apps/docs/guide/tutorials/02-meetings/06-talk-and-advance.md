@@ -84,7 +84,8 @@ cd ~/work/meeting-app && mrmr space apply --strict
 
 ## Step 3 — Run and talk like a room
 
-**Run.** You should see chair = **designer**, not human. Shell **Close** is absent or denied.
+**Run.** You should see chair = **designer**, not human. Shell **Close** /
+**Stop meeting** still work — you are an operator, not a seat.
 
 Script **three** emits (fill live `ptc_*` / `msg_*` from Transcript):
 
@@ -115,9 +116,11 @@ mrmr.meeting.closed
                  └─ run.terminal(success)
 ```
 
-## Step 5 — Non-chair close (on-purpose fail)
+## Step 5 — Non-chair agent close (on-purpose fail)
 
-Before closing, or on a fresh run: try Close in the shell or emit `closed` as **qa**. You should see **`MEETING_CHAIR_REQUIRED`**. Then close as designer.
+Before closing, or on a fresh run: emit `closed` as **qa**. You should see
+**`MEETING_CHAIR_REQUIRED`**. Shell **Close** as the operator is allowed and
+kills every seat. Then close as designer if the room is still open.
 
 ## Troubleshooting
 
@@ -128,14 +131,14 @@ Before closing, or on a fresh run: try Close in the shell or emit `closed` as **
 | `SPACE_HAS_ACTIVE_RUNS` | Part 5 run still open | Wait or Close that run first |
 | `MEETING_ALREADY_OPEN` | Second convene on the same session | One meeting per session while open |
 | Artifact ACL | Reader not on roster | Roster spaces only |
-| Shell Close works | Chair still human | Part 6 chair is designer |
+| Shell Close works | Expected — operator can stop any open room | Use designer emit only if you are practising chair `closed` |
 
 ## Checkpoint
 
-- [ ] Chair is designer; shell Close denied for you
+- [ ] Chair is designer; shell Close / Stop still available
 - [ ] Researcher `said` to designer + qa (two receipts); later designer-only `said` does not wake QA
 - [ ] Designer `closed`; `implement` wrote `docs/api-shape.md`
-- [ ] Non-chair close → `MEETING_CHAIR_REQUIRED`
+- [ ] Non-chair agent emit `closed` → `MEETING_CHAIR_REQUIRED`
 
 ## Next
 

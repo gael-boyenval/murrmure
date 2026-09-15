@@ -1044,6 +1044,7 @@ Catalog = connection-filtered platform tools. Runtime onboarding flow:
 | `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — all opted-in spaces |
 | `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. `prompt` required; omit `space_ids` to start on every currently eligible space |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` |
+| `murrmure_close_meeting` | `flow:run` | `POST /v1/sessions/{id}/meeting/close` — convenor or operator; kills every seat |
 | `murrmure_meeting_transcript` | roster space or `journal:read` | `GET /v1/sessions/{id}/transcript` |
 | `murrmure_emit_event` | `event:emit` | Journal-first emit; `session_id` required for `mrmr.meeting.*` |
 

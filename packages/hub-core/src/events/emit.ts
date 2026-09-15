@@ -36,6 +36,7 @@ export type EmitAndDeliverInput = {
   /** Trusted HTTP chair path; ordinary space event emitters never set this. */
   human_chair?: boolean;
   bootstrap?: boolean;
+  operator?: boolean;
 };
 
 export type EmitAndDeliverResult =
@@ -114,6 +115,7 @@ export async function emitAndDeliver(
       actor_id: input.actor_id,
       human_chair: input.human_chair,
       bootstrap: input.bootstrap,
+      operator: input.operator,
     });
     if (!saidPrepared.ok) return saidPrepared;
     payload = "prepared" in saidPrepared ? saidPrepared.prepared.payload : saidPrepared.payload;

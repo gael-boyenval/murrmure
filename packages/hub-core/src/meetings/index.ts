@@ -1,5 +1,12 @@
 export { conveneMeeting, type ConveneMeetingInput, type ConveneMeetingResult } from "./convene.js";
-export { closeMeeting, prepareMeetingClosed, persistClosedSnapshot, type CloseMeetingInput, type CloseMeetingResult } from "./close.js";
+export {
+  closeMeeting,
+  isMeetingConvenorSpace,
+  prepareMeetingClosed,
+  persistClosedSnapshot,
+  type CloseMeetingInput,
+  type CloseMeetingResult,
+} from "./close.js";
 export { resumeMeeting, type ResumeMeetingInput, type ResumeMeetingResult } from "./resume.js";
 export { maybeResolveBoundMeetingStep } from "./resolve-bound-step.js";
 export { prepareMeetingSaid, type PreparedSaid } from "./said.js";

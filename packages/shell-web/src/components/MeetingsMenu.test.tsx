@@ -24,6 +24,7 @@ function mockClient(overrides: {
     roster: Array<{ space_id: string; persona?: string }>;
   }>;
   resume?: ReturnType<typeof vi.fn>;
+  close?: ReturnType<typeof vi.fn>;
 } = {}): ShellClient {
   return {
     spaces: { list: vi.fn().mockResolvedValue([]), personas: vi.fn().mockResolvedValue({ personas: [] }) },
@@ -58,6 +59,15 @@ function mockClient(overrides: {
           status: "open",
           resume_meeting_seq: 9,
           roster: [],
+        }),
+      closeMeeting:
+        overrides.close ??
+        vi.fn().mockResolvedValue({
+          ok: true,
+          session_id: "ses_open",
+          status: "closed",
+          outcome: "completed",
+          close_meeting_seq: 4,
         }),
     },
   } as unknown as ShellClient;
@@ -107,5 +117,22 @@ describe("MeetingsMenu", () => {
       expect(resume).toHaveBeenCalledWith("ses_closed");
     });
     expect(await screen.findByText("Opened ses_closed")).toBeTruthy();
+  });
+
+  it("stops an open room from the header list", async () => {
+    const close = vi.fn().mockResolvedValue({
+      ok: true,
+      session_id: "ses_open",
+      status: "closed",
+      outcome: "completed",
+      close_meeting_seq: 4,
+    });
+    renderMenu(mockClient({ close }));
+
+    fireEvent.click(await screen.findByText("Meetings (1)"));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => {
+      expect(close).toHaveBeenCalledWith("ses_open");
+    });
   });
 });

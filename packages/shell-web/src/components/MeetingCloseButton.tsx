@@ -7,7 +7,7 @@ export interface MeetingCloseButtonProps {
   onClosed?: () => void | Promise<void>;
 }
 
-/** Human-chair close. Not `gates.resolve` or `runs.cancel`. */
+/** Operator close. Kills every seat PTY. Not `gates.resolve` or `runs.cancel`. */
 export function MeetingCloseButton({ sessionId, onClosed }: MeetingCloseButtonProps) {
   const client = useShellClient();
   const queryClient = useQueryClient();

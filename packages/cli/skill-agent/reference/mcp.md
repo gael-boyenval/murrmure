@@ -38,6 +38,7 @@ installation or `mrmr space apply`.
 | **`murrmure_list_directive_eligible`** | **`hub:admin`** | Spaces that bind `directive.execute`. Hidden without admin. |
 | **`murrmure_start_directive`** | **`hub:admin`** | `{ prompt, space_ids? }` — omit `space_ids` to fan out to all eligible |
 | **`murrmure_start_meeting`** | **`flow:run`** | Convene a room (`participants`, `chair`) |
+| **`murrmure_close_meeting`** | **`flow:run`** | Close a room you convened (`session_id`, optional `reason` / `outcome`). Kills every seat. |
 | **`murrmure_meeting_transcript`** | roster space or **`journal:read`** on a roster space | `GET /v1/sessions/{id}/transcript` — pull with `since_seq` and this seat's `participant_id` so the projection includes authoritative `goal`, `you`, `from.label`, and `addressed_to_you`. Not `journal_query`. |
 | **`murrmure_get_artifact`** | **`space:read`** + artifact ACL | Materialize an `xfr_*` into this space's `.mrmr/dev/inbox/`; returns verified metadata + relative `local_path` |
 | **`murrmure_put_artifact`** | **`blob:write`** (or `space:write`) | Upload inline `content`+`name` (64 KiB) or a space-relative `path`; returns `xfr_*` |
@@ -59,7 +60,8 @@ installation or `mrmr space apply`.
 
 1. **`murrmure_list_invitable_spaces`** — no args. Pick `space_id` + persona ads.
 2. **`murrmure_start_meeting`** — `{ participants, chair }` using those `space_id` values unchanged.
-3. Do **not** call foreign `murrmure_list_personas({ space_id })`. That tool is same-space only.
+3. When the goal is met, **`murrmure_close_meeting`** `{ session_id, reason?, outcome? }`. Do not leave seats running.
+4. Do **not** call foreign `murrmure_list_personas({ space_id })`. That tool is same-space only.
 
 **Meeting seat** (`Protocol: murrmure.meeting/v1` already in the prompt):
 

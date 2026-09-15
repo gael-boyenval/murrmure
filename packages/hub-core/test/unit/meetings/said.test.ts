@@ -289,4 +289,32 @@ describe("meetings/said", () => {
     });
     expect(onlySelf).toMatchObject({ ok: false, code: MURRMURE_DENIAL_CODES.TO_EMPTY });
   });
+
+  test("operator human_chair may say in an agent-chaired room", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const { deps } = makeDeps(studio);
+    const room = await openRoom(deps);
+    const denied = await prepareMeetingSaid(deps, {
+      space_id: `spc_${APP}`,
+      session_id: room.session_id,
+      actor_id: "actor_alice",
+      human_chair: true,
+      payload: { to: { all: true }, text: "nope" },
+    });
+    expect(denied).toMatchObject({ ok: false, code: MURRMURE_DENIAL_CODES.MEETING_CHAIR_REQUIRED });
+
+    const prepared = await prepareMeetingSaid(deps, {
+      space_id: `spc_${APP}`,
+      session_id: room.session_id,
+      actor_id: "actor_alice",
+      human_chair: true,
+      operator: true,
+      payload: { to: { all: true }, text: "stop, I will take this" },
+    });
+    expect(prepared.ok && "prepared" in prepared).toBe(true);
+    if (prepared.ok && "prepared" in prepared) {
+      expect(prepared.prepared.payload.from).toEqual({ human: true });
+    }
+  });
 });

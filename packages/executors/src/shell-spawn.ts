@@ -816,6 +816,15 @@ export const PERSISTENT_PTY_COLS = 120;
 export const PERSISTENT_PTY_ROWS = 40;
 const PERSISTENT_OUTPUT_TAIL_CHARS = 256_000;
 const PERSISTENT_INLINE_TURN_CHARS = 240;
+const IMMEDIATE_PTY_KILL_REASONS = new Set([
+  "meeting_closed",
+  "run_cancelled",
+  "assignment_not_live",
+]);
+
+function isImmediatePtyKillReason(reason: string): boolean {
+  return IMMEDIATE_PTY_KILL_REASONS.has(reason);
+}
 
 function persistLiveTurnFile(session_id: string, text: string): string | null {
   if (!text.includes("\n") && text.length <= PERSISTENT_INLINE_TURN_CHARS) return null;
@@ -973,20 +982,27 @@ function runPersistentCommand(
       if (!closeRequested) {
         closeRequested = true;
         closeReason = reason?.trim() || closeReason;
-        try {
-          // Ctrl-D asks an idle interactive CLI to exit without starting a new
-          // turn. Escalate only if the harness does not honor it.
-          pty.write("\x04");
-        } catch {
-          /* process may already be exiting */
+        const immediate = isImmediatePtyKillReason(closeReason);
+        if (!immediate) {
+          try {
+            // Ctrl-D asks an idle interactive CLI to exit without starting a new
+            // turn. Escalate only if the harness does not honor it.
+            pty.write("\x04");
+          } catch {
+            /* process may already be exiting */
+          }
         }
-        gracefulTimer = setTimeout(() => {
+        const escalate = () => {
           terminatePtyProcessGroup(pty, "SIGTERM");
           killTimer = setTimeout(
             () => terminatePtyProcessGroup(pty, "SIGKILL"),
             TERMINATION_GRACE_MS,
           );
-        }, processMeta.shutdown_grace_ms);
+        };
+        if (immediate) escalate();
+        else {
+          gracefulTimer = setTimeout(escalate, processMeta.shutdown_grace_ms);
+        }
       }
       await exited;
     },

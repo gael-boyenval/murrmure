@@ -146,6 +146,7 @@ export async function prepareMeetingSaid(
     actor_id?: string;
     human_chair?: boolean;
     bootstrap?: boolean;
+    operator?: boolean;
   },
 ): Promise<{ ok: true; prepared: PreparedSaid } | MeetingDenial | { ok: true; legacy: true; payload: Record<string, unknown> }> {
   const meeting = await loadMeeting(deps.studio, input.session_id);
@@ -159,14 +160,19 @@ export async function prepareMeetingSaid(
 
   let speaker: MeetingMessageSpeaker | MeetingDenial;
   if (input.human_chair) {
-    const session = await deps.studio.getSession(input.session_id);
-    if (
-      !isHumanChair(meeting.chair) ||
-      (!input.bootstrap && (!input.actor_id || session?.actor_id !== input.actor_id))
-    ) {
-      return meetingChairRequired();
+    if (input.operator || input.bootstrap) {
+      speaker = { human: true };
+    } else {
+      const session = await deps.studio.getSession(input.session_id);
+      if (
+        !isHumanChair(meeting.chair) ||
+        !input.actor_id ||
+        session?.actor_id !== input.actor_id
+      ) {
+        return meetingChairRequired();
+      }
+      speaker = { human: true };
     }
-    speaker = { human: true };
   } else {
     speaker = resolveSpeaker(meeting, input.space_id, input.payload.as_participant_id);
   }

@@ -487,8 +487,11 @@ describe("shell-spawn helpers", () => {
       expect(writes).toContain("\r");
     });
 
+    const processKill = vi.spyOn(process, "kill").mockImplementation(() => true);
     const closing = controller!.close("meeting_closed");
-    expect(writes).toContain("\x04");
+    expect(writes).not.toContain("\x04");
+    expect(processKill).toHaveBeenCalledWith(-4242, "SIGTERM");
+    processKill.mockRestore();
     exitListener?.({ exitCode: 0 });
     await closing;
     await vi.waitFor(() =>

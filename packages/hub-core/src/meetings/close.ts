@@ -1,5 +1,5 @@
 import { JOURNAL_EVENT_TYPES, type MeetingClosedData } from "@murrmure/contracts";
-import type { MeetingSessionRow } from "@murrmure/hub-persistence";
+import type { MeetingSessionRow, StudioPersistencePort } from "@murrmure/hub-persistence";
 import { stripSpaceId } from "../bridge/ids.js";
 import type { LiveAssignmentPort } from "../hooks/dispatch.js";
 import { meetingChairRequired, meetingClosed, sessionNotFound, type MeetingDenial } from "./errors.js";
@@ -16,6 +16,10 @@ export type CloseMeetingInput = MeetingClosedData & {
   /** HTTP / human path — session actor or bootstrap. */
   human?: boolean;
   bootstrap?: boolean;
+  /** Operator who can already read the room (shell / roster human). */
+  operator?: boolean;
+  /** Token space journaled `mrmr.meeting.convened` — the agent that started it. */
+  convenor?: boolean;
   /** Emit path — speaker seat in the token space. */
   as_participant_id?: string;
   emitter_space_id?: string;
@@ -35,19 +39,38 @@ function closeOutcome(data: MeetingClosedData): "completed" | "failed" {
   return data.failed === true ? "failed" : "completed";
 }
 
+/** True when this token's space authored `mrmr.meeting.convened`. */
+export async function isMeetingConvenorSpace(
+  studio: StudioPersistencePort,
+  session_id: string,
+  token_space_id: string,
+): Promise<boolean> {
+  if (!token_space_id || token_space_id === "bootstrap") return false;
+  const rows = await studio.queryMeetingJournal({
+    session_id,
+    types: [JOURNAL_EVENT_TYPES.MEETING_CONVENED],
+  });
+  const convened = rows[0];
+  if (!convened) return false;
+  return stripSpaceId(convened.space_id) === stripSpaceId(token_space_id);
+}
+
 export function assertChairMayClose(
   meeting: MeetingSessionRow,
   input: {
     human?: boolean;
     bootstrap?: boolean;
+    operator?: boolean;
+    convenor?: boolean;
     actor_id: string;
     session_actor_id?: string;
     as_participant_id?: string;
     emitter_space_id?: string;
   },
 ): MeetingDenial | null {
+  if (input.bootstrap || input.operator || input.convenor) return null;
+
   if (isHumanChair(meeting.chair)) {
-    if (input.bootstrap) return null;
     if (input.human && input.session_actor_id && input.actor_id === input.session_actor_id) {
       return null;
     }
@@ -57,7 +80,7 @@ export function assertChairMayClose(
   const chairId = chairParticipantId(meeting.chair);
   if (!chairId) return meetingChairRequired();
 
-  if (input.human && !input.bootstrap) return meetingChairRequired();
+  if (input.human) return meetingChairRequired();
 
   const chairSeat = findSeat(meeting.roster, chairId);
   if (!chairSeat) return meetingChairRequired();
@@ -134,6 +157,8 @@ export async function closeMeeting(
   const denied = assertChairMayClose(meeting, {
     human: input.human,
     bootstrap: input.bootstrap,
+    operator: input.operator,
+    convenor: input.convenor,
     actor_id: input.actor_id,
     session_actor_id: session?.actor_id,
     as_participant_id: input.as_participant_id,

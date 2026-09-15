@@ -14,11 +14,13 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 |------|-----|----------------|
 | **Run** a flow whose step has `meeting:` | Human on the dashboard | Engine convenes on **this** session; step stays open until close |
 | Header **Meetings** + **+** | Operator | List open/closed rooms. **+** picks spaces + personas. You chair. Opens Transcript. Closed rooms **Resume** the same session |
-| `murrmure_list_invitable_spaces` then `murrmure_start_meeting` | Agent | Directory (no space id) then `POST /v1/meetings`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus matching `space:read` grants |
+| `murrmure_list_invitable_spaces` then `murrmure_start_meeting` | Agent | Directory (no space id) then `POST /v1/meetings`. Close with `murrmure_close_meeting`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus matching `space:read` grants |
 | `mrmr meeting start` | Operator | Same command as HTTP |
 
-No `/meetings` route. Humans read Transcript; a human chair can message selected
-seats or everyone, **Close**, and **Resume** a closed room. Agents `said` and pull
+No `/meetings` route. Humans read Transcript; any operator who can see the room
+can message selected seats or everyone, **Close** / **Stop meeting**, and
+**Resume** a closed room — even when an agent seat chairs. The agent that
+started the room closes it with `murrmure_close_meeting`. Seats `said` and pull
 `murrmure_meeting_transcript`.
 
 Header **+** creates a **session**, not a space object and not a run. Find it in the header **Meetings** list (always visible). Convene journals `mrmr.meeting.convened` and wakes each seat. **Resume** journals `mrmr.meeting.resumed` and re-wakes the same `ptc_*` in the same harness chat (`--resume` of the minted id). Transcript stays empty until a seat `said`. There is no talk flow to start a room.
@@ -123,7 +125,7 @@ space-local. New `said` events refresh Transcript immediately over SSE; an open
 room also polls once per second if the stream is reconnecting. Every message
 shows local `HH:mm:ss` (full ISO on hover); receipts show Hub delivery latency
 and replies show elapsed response time. Message text is Markdown. The header
-chevron collapses goal + roster. While the room is open, the human chair can
+chevron collapses goal + roster. While the room is open, you can
 **Reply** to a turn — that sets `in_reply_to` and targets the sender. Artifact
 **Expand** opens a modal; **Reply** threads + cites the `xfr_*`, **Cite**
 attaches it without threading. Journal
@@ -148,10 +150,12 @@ exchange bytes show as removed. The in-shell card is not a PR/diff reviewer.
 
 ## Close
 
-Participant chair emits `mrmr.meeting.closed`. A human chair uses the Transcript
-composer (`POST /v1/sessions/{id}/meeting/say`) and **Close**. Close asks each
-persistent CLI to exit, then terminates any process that exceeds its grace. If a
-flow step is bound, the engine resolves that step. Do not also call
-`murrmure_resolve_step` on the room.
+Participant chair emits `mrmr.meeting.closed`. The convening agent calls
+`murrmure_close_meeting`. A human operator uses the Transcript composer
+(`POST /v1/sessions/{id}/meeting/say`) and **Close**, header **Stop**, or
+**Stop meeting**. Close SIGTERMs every seat PTY immediately (no Ctrl-D wait),
+then SIGKILL if needed. If a flow step is bound, the engine resolves that
+step. Do not also call `murrmure_resolve_step` on the room.
+`runs.cancel` on one seat does **not** close the room.
 
 See [Meetings spec](https://github.com/gael-boyenval/murrmure/blob/main/studio-specs/current/meetings/spec.md) and [MCP tools](../reference/mcp-tools).

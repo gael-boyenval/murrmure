@@ -154,6 +154,21 @@ export function registerPlatformMcpHandlers(
     return assertHttpOk(res, "Start meeting");
   });
 
+  registry.registerHandler("murrmure_close_meeting", async (args, authCtx) => {
+    const sessionId = String(args.session_id ?? "").trim();
+    if (!sessionId) throw new Error("session_id is required");
+    const res = await fetch(`${hubUrl()}/v1/sessions/${encodeURIComponent(sessionId)}/meeting/close`, {
+      method: "POST",
+      headers: mcpHeaders(authCtx),
+      body: JSON.stringify({
+        reason: typeof args.reason === "string" ? args.reason : undefined,
+        outcome: typeof args.outcome === "string" ? args.outcome : undefined,
+        failed: args.failed === true,
+      }),
+    });
+    return assertHttpOk(res, "Close meeting");
+  });
+
   registry.registerHandler("murrmure_meeting_transcript", async (args, authCtx) => {
     const sessionId = String(args.session_id ?? "");
     if (!sessionId) throw new Error("session_id is required");

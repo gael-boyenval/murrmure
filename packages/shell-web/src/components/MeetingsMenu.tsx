@@ -31,6 +31,12 @@ export function MeetingsMenu() {
       navigate(`/sessions/${result.session_id}`);
     },
   });
+  const close = useMutation({
+    mutationFn: (sessionId: string) => client!.sessions.closeMeeting(sessionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["meetings"] });
+    },
+  });
 
   return (
     <div className="inline-flex isolate">
@@ -62,7 +68,9 @@ export function MeetingsMenu() {
                   key={meeting.session_id}
                   meeting={meeting}
                   resuming={resume.isPending && resume.variables === meeting.session_id}
+                  closing={close.isPending && close.variables === meeting.session_id}
                   onResume={() => resume.mutate(meeting.session_id)}
+                  onClose={() => close.mutate(meeting.session_id)}
                   onOpen={() => setMenuOpen(false)}
                 />
               ))}
@@ -88,12 +96,16 @@ export function MeetingsMenu() {
 function MeetingMenuRow({
   meeting,
   resuming,
+  closing,
   onResume,
+  onClose,
   onOpen,
 }: {
   meeting: MeetingListRow;
   resuming: boolean;
+  closing: boolean;
   onResume: () => void;
+  onClose: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -122,7 +134,20 @@ function MeetingMenuRow({
         >
           {resuming ? "Resuming…" : "Resume"}
         </Button>
-      ) : null}
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={closing}
+          onClick={(event) => {
+            event.preventDefault();
+            onClose();
+          }}
+        >
+          {closing ? "Stopping…" : "Stop"}
+        </Button>
+      )}
     </li>
   );
 }

@@ -40,9 +40,10 @@ When a run pauses at a **checkpoint** step with a space-bound view (a `view_reso
 2. Use when debugging — not the primary path when a custom view is bound
 3. Meeting sessions open on **Transcript** — the conversation (who said what,
    when, and delivery/reply latency). Journal dumps stay on the Journal tab. A
-   human chair can compose to selected seats/everyone and Close. There is no
+   operator can compose to selected seats/everyone and Close / Stop the room,
+   including agent-chaired meetings. There is no
    `/meetings` route. Header **Meetings** + **+** lists rooms and convenes.
-   Closed rooms **Resume** the same session. Header
+   Open rooms **Stop**. Closed rooms **Resume** the same session. Header
    **New directive** sends one prompt to eligible spaces (handler opt-in) and
    stays in the dialog with success/fail + message. No `/directives` route.
 

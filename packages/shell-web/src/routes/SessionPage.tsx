@@ -6,7 +6,7 @@ import { StepExecutorOutputPanel } from "../components/StepExecutorOutputPanel.j
 import { DismissRunButton } from "../components/DismissRunButton.js";
 import { GatePanel } from "../components/GatePanel.js";
 import { SharedFlowPage } from "../components/SharedFlowPage.js";
-import { MeetingTranscriptPane, isHumanMeetingChair } from "../components/MeetingTranscriptPane.js";
+import { MeetingTranscriptPane } from "../components/MeetingTranscriptPane.js";
 import { MeetingCloseButton } from "../components/MeetingCloseButton.js";
 import { MeetingResumeButton } from "../components/MeetingResumeButton.js";
 import { MeetingComposer } from "../components/MeetingComposer.js";
@@ -165,9 +165,8 @@ export function SessionPage() {
     hasView: Boolean(showCanvas && canvas),
   });
   const pane = userPane && panes.includes(userPane) ? userPane : resolvedPane;
-  const isHumanChair = Boolean(transcript && isHumanMeetingChair(transcript.chair));
-  const canClose = Boolean(sessionId) && isMeeting && transcript.status === "open" && isHumanChair;
-  const canResume = Boolean(sessionId) && isMeeting && transcript.status === "closed" && isHumanChair;
+  const canOperateMeeting = Boolean(sessionId) && isMeeting && transcript?.status === "open";
+  const canResume = Boolean(sessionId) && isMeeting && transcript?.status === "closed";
 
   const flowchartSecondary = (
     <>
@@ -223,7 +222,19 @@ export function SessionPage() {
                 <p className="mt-1 font-mono text-sm text-muted-foreground">{sessionId}</p>
               ) : null}
             </div>
-            {focusRunId ? (
+            {canOperateMeeting && sessionId ? (
+              <DismissRunButton
+                meetingSessionId={sessionId}
+                onDismissed={async () => {
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["session-transcript", sessionId] }),
+                    queryClient.invalidateQueries({ queryKey: ["session-runs", sessionId] }),
+                    queryClient.invalidateQueries({ queryKey: ["session", sessionId] }),
+                    queryClient.invalidateQueries({ queryKey: ["meetings"] }),
+                  ]);
+                }}
+              />
+            ) : focusRunId ? (
               <DismissRunButton
                 runId={focusRunId}
                 spaceId={run?.space_id}
@@ -278,17 +289,17 @@ export function SessionPage() {
               goal={transcript.goal}
               transcript={transcript}
               spaceLabels={spaceLabels}
-              onReply={canClose ? setReplyTo : undefined}
+              onReply={canOperateMeeting ? setReplyTo : undefined}
               onReload={() => transcriptQuery.refetch().then(() => undefined)}
               closeAction={
-                canClose && sessionId ? (
+                canOperateMeeting && sessionId ? (
                   <MeetingCloseButton sessionId={sessionId} />
                 ) : canResume && sessionId ? (
                   <MeetingResumeButton sessionId={sessionId} />
                 ) : null
               }
               composer={
-                canClose && sessionId ? (
+                canOperateMeeting && sessionId ? (
                   <MeetingComposer
                     sessionId={sessionId}
                     transcript={transcript}

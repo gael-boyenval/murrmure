@@ -235,8 +235,8 @@ is keyed by `(session_id, ptc_*)`. Prefer **`shell_spawn`** with
 starts one PTY process with `{{prompt}}` as the first-turn argument. Later
 `said` writes the next turn into that PTY. The next process after close/crash
 uses `--resume` of the stored id.
-Meeting close gracefully
-ends it; unexpected exit revokes the live assignment. Do not treat an operator
+Meeting close SIGTERMs
+it immediately; unexpected exit revokes the live assignment. Do not treat an operator
 chat as the enter path. Copy the handler from
 [Meetings](./meetings.md#put-this-in-every-invited-space). Convene
 (`POST /v1/meetings` / `murrmure_start_meeting`) unions `spaces_touched` with

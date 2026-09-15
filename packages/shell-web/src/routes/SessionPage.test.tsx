@@ -151,6 +151,7 @@ function mockClient(overrides: {
       get: vi.fn().mockResolvedValue(run),
       graph: vi.fn().mockResolvedValue({ flow_id: "flw_demo", lanes: [], nodes: [], edges: [], step_memos: [] }),
       resolveStep: vi.fn(),
+      cancel: vi.fn().mockResolvedValue({ run_id: "run_abc", lifecycle: "cancelled" }),
     },
     gates: {
       listForRun: vi.fn().mockResolvedValue([]),
@@ -337,6 +338,32 @@ describe("SessionPage meeting lens", () => {
     expect(screen.getByTestId("meeting-transcript")).toBeTruthy();
     expect(screen.getByText("Observer")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
+  });
+
+  it("lets an operator compose and close an agent-chaired room", async () => {
+    const client = mockClient({
+      transcript: { ...openTranscript, chair: { participant_id: "ptc_des" } },
+    });
+    renderSession(client);
+
+    expect(await screen.findByRole("textbox", { name: "Message" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Stop meeting" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(client.sessions.closeMeeting).toHaveBeenCalledWith("ses_1");
+    });
+  });
+
+  it("Stop meeting closes the room instead of cancelling one run", async () => {
+    const client = mockClient({ transcript: openTranscript });
+    renderSession(client);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop meeting" }));
+    await waitFor(() => {
+      expect(client.sessions.closeMeeting).toHaveBeenCalledWith("ses_1");
+    });
+    expect(client.runs.cancel).not.toHaveBeenCalled();
   });
 
   it("keeps a closed meeting readable and offers Resume", async () => {

@@ -9,7 +9,8 @@ export function canDismissRun(lifecycle: string | undefined): boolean {
 }
 
 export interface DismissRunButtonProps {
-  runId: string;
+  runId?: string;
+  meetingSessionId?: string;
   spaceId?: string;
   lifecycle?: string;
   onDismissed?: () => void | Promise<void>;
@@ -19,6 +20,7 @@ export interface DismissRunButtonProps {
 
 export function DismissRunButton({
   runId,
+  meetingSessionId,
   spaceId,
   lifecycle,
   onDismissed,
@@ -26,14 +28,23 @@ export function DismissRunButton({
   className,
 }: DismissRunButtonProps) {
   const client = useShellClient();
+  const stopMeeting = Boolean(meetingSessionId);
 
   const dismiss = useMutation({
-    mutationFn: () =>
-      client!.runs.cancel(runId, spaceId ? { space_id: spaceId } : undefined),
+    mutationFn: async () => {
+      if (meetingSessionId) {
+        await client!.sessions.closeMeeting(meetingSessionId);
+        return;
+      }
+      if (!runId) {
+        throw new Error("Dismiss requires a run or an open meeting");
+      }
+      await client!.runs.cancel(runId, spaceId ? { space_id: spaceId } : undefined);
+    },
     onSuccess: () => void onDismissed?.(),
   });
 
-  if (!canDismissRun(lifecycle)) return null;
+  if (!stopMeeting && !canDismissRun(lifecycle)) return null;
 
   return (
     <Button
@@ -48,7 +59,13 @@ export function DismissRunButton({
         dismiss.mutate();
       }}
     >
-      {dismiss.isPending ? "Dismissing…" : "Dismiss"}
+      {dismiss.isPending
+        ? stopMeeting
+          ? "Stopping…"
+          : "Dismissing…"
+        : stopMeeting
+          ? "Stop meeting"
+          : "Dismiss"}
     </Button>
   );
 }

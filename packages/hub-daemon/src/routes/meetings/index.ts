@@ -8,12 +8,15 @@ import {
   conveneMeeting,
   emitAndDeliver,
   hasCapability,
+  isMeetingConvenorSpace,
+  loadMeeting,
   meetingRosterTouchesSpace,
   resumeMeeting,
   sortMeetingList,
   stripTokenId,
   toMeetingListRow,
 } from "@murrmure/hub-core";
+import type { Capability } from "@murrmure/contracts";
 import type { DaemonContext } from "../../context.js";
 import { requireToken, type TokenContext } from "../../auth.js";
 import { requireCapability, resolveTokenCapabilities } from "../config/scopes.js";
@@ -53,6 +56,29 @@ function denialHttp(http: number): 400 | 403 | 404 | 409 {
   if (http === 409) return 409;
   if (http === 404) return 404;
   return 400;
+}
+
+function isHarnessAgentToken(auth: TokenContext): boolean {
+  if (auth.harness_id === "human_only") return false;
+  if (auth.harness_id) return true;
+  return auth.actor_id.includes("agent");
+}
+
+async function meetingOperatorFor(
+  ctx: DaemonContext,
+  auth: TokenContext,
+  effective: Capability[],
+  session_id: string,
+): Promise<boolean> {
+  if (auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin")) return true;
+  if (isHarnessAgentToken(auth)) return false;
+  const meeting = await loadMeeting(ctx.murrmurePersistence, session_id);
+  if (!meeting) return false;
+  return canReadMeetingTranscript({
+    token_space_id: auth.space_id,
+    capabilities: effective,
+    roster: meeting.roster,
+  });
 }
 
 export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
@@ -185,12 +211,16 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
     const session_id = c.req.param("session_id");
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const bootstrap = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    const operator = await meetingOperatorFor(ctx, auth, effective, session_id);
+    const convenor = await isMeetingConvenorSpace(murrmurePersistence, session_id, auth.space_id);
     const result = await closeMeeting(hookDispatchDeps(ctx), {
       session_id,
       actor_id: auth.actor_id,
       token_id: auth.token_id,
       human: true,
       bootstrap,
+      operator,
+      convenor,
       convenor_space_id: auth.space_id === "bootstrap" ? undefined : auth.space_id,
       reason: typeof body.reason === "string" ? body.reason : undefined,
       outcome: typeof body.outcome === "string" ? body.outcome : undefined,
@@ -209,12 +239,14 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
     const effective = await resolveTokenCapabilities(murrmurePersistence, auth);
     const session_id = c.req.param("session_id");
     const bootstrap = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    const operator = await meetingOperatorFor(ctx, auth, effective, session_id);
     const result = await resumeMeeting(hookDispatchDeps(ctx), {
       session_id,
       actor_id: auth.actor_id,
       token_id: auth.token_id,
       human: true,
       bootstrap,
+      operator,
       convenor_space_id: auth.space_id === "bootstrap" ? undefined : auth.space_id,
       capabilities: effective,
     });
@@ -233,6 +265,7 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
     const session_id = c.req.param("session_id");
     const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     const bootstrap = auth.space_id === "bootstrap" || hasCapability(effective, "hub:admin");
+    const operator = await meetingOperatorFor(ctx, auth, effective, session_id);
     const space_id =
       auth.space_id === "bootstrap" ? ctx.config.defaultSpaceId : auth.space_id;
     const emitted = await emitAndDeliver(hookDispatchDeps(ctx), {
@@ -244,6 +277,7 @@ export function mountMeetingRoutes(app: Hono, ctx: DaemonContext): void {
       token_id: auth.token_id,
       human_chair: true,
       bootstrap,
+      operator,
     });
     if (!emitted.ok) {
       return c.json({ code: emitted.code, message: emitted.message }, denialHttp(emitted.http));

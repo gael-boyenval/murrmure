@@ -56,6 +56,24 @@
 - Journal `mrmr.memory.bank_granted` / `bank_revoked` / `bank_accessed` records
   caller space, target bank, decision, and outcome — never Memory contents.
 
+## Operator can talk and kill any meeting (2026-09-12)
+
+### Fixed
+
+- Shell compose / **Close** / **Stop meeting** work on every open room you can
+  see, including agent-chaired rooms. You no longer have to be the human chair.
+- Header **Dismiss** on a meeting closes the whole room (every seat), instead of
+  cancelling one run and leaving the others burning money.
+- Meeting close / run cancel SIGTERMs the PTY immediately. No 5s Ctrl-D wait.
+
+### Changed
+
+- Header **Meetings** list has **Stop** on open rooms.
+- Agent tokens still cannot impersonate human `/meeting/say`. Invitee seats
+  still cannot HTTP-close unless they chaired or convened the room.
+- `murrmure_close_meeting` (`flow:run`) closes a room the caller convened.
+  Same kill as shell **Stop**. Chair seats may still emit `closed`.
+
 ## Invite directory MCP (2026-09-12)
 
 ### Added

@@ -15,6 +15,7 @@ export type ResumeMeetingInput = {
   convenor_space_id?: string;
   human?: boolean;
   bootstrap?: boolean;
+  operator?: boolean;
   as_participant_id?: string;
   emitter_space_id?: string;
   capabilities?: Capability[];
@@ -47,6 +48,7 @@ export async function resumeMeeting(
   const denied = assertChairMayClose(meeting, {
     human: input.human,
     bootstrap: input.bootstrap,
+    operator: input.operator,
     actor_id: input.actor_id,
     session_actor_id: session?.actor_id,
     as_participant_id: input.as_participant_id,

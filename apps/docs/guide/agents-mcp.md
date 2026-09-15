@@ -206,6 +206,7 @@ this workspace does not install tools in other linked spaces.
   [Meetings](./meetings.md#put-this-in-every-invited-space).
 - To chair a room, call `murrmure_list_invitable_spaces` (no args) and pass
   discovered `space_id` values into `murrmure_start_meeting.participants`.
+  When the work is done, `murrmure_close_meeting` (`flow:run`, same as start).
   Same-space `murrmure_list_personas` cannot list a foreign catalog. The
   directory is not `GET /v1/spaces` (`space:enter` sidebar) and does not
   include memory, artifacts, or local paths.

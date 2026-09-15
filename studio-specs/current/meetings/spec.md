@@ -76,7 +76,7 @@ Murrmure does **not** become a chat product, an agent directory, or an LLM runti
 - Handler delivery **attaches** to the meeting session
 - Join-once: reuse a live assignment for later `said` (no new `ses_*`)
 - Persistent `shell_spawn` seat: one PTY + MCP connection until room close
-- Chair participant closes; a human chair may `said` and close
+- Chair participant closes; a human operator who can read the room may `said` and close (shell / HTTP), including agent-chaired rooms
 - Message timestamps, delivery latency, and reply latency in Transcript
 - Thin meeting flow; **shell transcript lens** (not a space View)
 - Optional validation View when the goal needs human review of artifacts / PRs
@@ -163,7 +163,7 @@ Creates meeting state on a **session** (not a new entity type). Four start paths
 | **MCP / HTTP** | Agent or operator | `POST /v1/meetings` / `murrmure_start_meeting` — new session or attach if `session_id` given |
 | **CLI** | Operator | `mrmr meeting start` (same command as HTTP) |
 
-The header dialog convenes the room. Once open, a human chair may compose `said`
+The header dialog convenes the room. Once open, a human operator may compose `said`
 messages to selected seats or everyone from Transcript. The room is a **session**,
 not a space. Header **Meetings** lists open rooms. Space home **Run** on a flow
 that has a meeting step remains an optional flow-bound trigger. An agent chair
@@ -194,7 +194,7 @@ Hub:
 2. Mints `ptc_*` per seat. Duplicate `(space_id, persona)` in one roster → reject.
 3. Uses the current `session_id` when convene is a flow step or `session_id` was passed; otherwise creates `ses_*`.
 4. Journals `mrmr.meeting.convened` with roster + chair + goal (goal is opaque text). Updates `spaces_touched` with **every** roster space. Then wakes each seat (a `said` handler is the doorbell).
-5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, human chair **Resume** reopens the same roster (`ptc_*` kept) and re-wakes seats (`mrmr.meeting.resumed`). A later flow step may still convene again on the same session (new roster ids).
+5. **One open meeting per session.** A second convene while open → `MEETING_ALREADY_OPEN`. After close, a human operator **Resume** reopens the same roster (`ptc_*` kept) and re-wakes seats (`mrmr.meeting.resumed`). A later flow step may still convene again on the same session (new roster ids).
 
 Convenor needs `space:read` on every invited space. Flow path also needs `flow:run`. Headless path needs session create.
 
@@ -252,9 +252,10 @@ All meeting events **MUST** carry `session_id` = the meeting. CloudEvents `subje
 ### 8.1 `mrmr.meeting.said`
 
 Agent emit (`event:emit`) while the meeting is open and the emitter is a roster
-seat in the token’s space. A human chair uses
+seat in the token’s space. A human operator who can read the transcript uses
 `POST /v1/sessions/{id}/meeting/say`; the Hub stamps `from: { human: true }`
-and applies the same target, reply, artifact, and open-room checks.
+and applies the same target, reply, artifact, and open-room checks. Agent
+tokens cannot impersonate this path.
 
 ```json
 {
@@ -313,7 +314,11 @@ Receipt ≠ reply. A seat can be `delivered` and never `said` back. The meeting 
 
 ### 8.3 `mrmr.meeting.closed`
 
-Only the chair participant (matching space + persona) or the human chair (**session close mutation** — not a gate, not a View) may close.
+The chair participant (matching space + persona) may emit `closed`. A human
+operator who can already read the transcript (bootstrap / `hub:admin`, or a
+human token on a roster space) may close via the **session close mutation** —
+not a gate, not a View. Close revokes every live seat immediately
+(SIGTERM, then SIGKILL). Agent HTTP `/meeting/close` stays chair-only.
 
 ```json
 {
@@ -331,7 +336,7 @@ After close: further `said` → `MEETING_CLOSED`. If a flow step is bound, the *
 
 ### 8.4 `mrmr.meeting.resumed`
 
-Human chair (same authority as close) may reopen the **same** room:
+A human operator (same authority as close) may reopen the **same** room:
 
 ```json
 {
@@ -514,7 +519,7 @@ On `said`:
 6. Artifacts authorized to the roster
 7. Inline size ≤ 64 KiB
 
-On `closed`: emitter is the chair (or human chair path).
+On `closed`: emitter is the chair, or a human operator on the HTTP close path.
 
 After close: `said` denied.
 
@@ -540,13 +545,13 @@ Headless meeting (agents only, no flow) is valid. Shell still shows the historic
 | — | `murrmure_list_invitable_spaces` | Hub-mediated invite directory (visible spaces + ads) |
 | `POST /v1/meetings` | `murrmure_start_meeting` | Convene |
 | `GET /v1/sessions/{id}/transcript` | `murrmure_meeting_transcript` | Projection |
-| `POST /v1/sessions/{id}/meeting/say` | — | Human-chair `said` to selected seats / everyone |
-| `POST /v1/sessions/{id}/meeting/close` | emit `closed` or dedicated close | Human / chair |
-| `POST /v1/sessions/{id}/meeting/resume` | — | Human / chair reopen same room |
+| `POST /v1/sessions/{id}/meeting/say` | — | Human operator `said` to selected seats / everyone |
+| `POST /v1/sessions/{id}/meeting/close` | `murrmure_close_meeting` | Convenor, operator, or chair emit `closed` |
+| `POST /v1/sessions/{id}/meeting/resume` | — | Operator reopen same room |
 | `GET /v1/meetings` | — | Open + closed rooms |
 | existing emit | `murrmure_emit_event` | `said` / `closed` (chair) |
 
-Scopes: `space:read` (same-space personas and the invite directory), `event:emit` (talk / chair close), `journal:read` or roster membership (transcript), `flow:run` (convene / flow start). Human close: [bridges/meetings.md](../bridges/meetings.md) session mutation — **not** a view/gate.
+Scopes: `space:read` (same-space personas and the invite directory), `event:emit` (talk / chair close), `journal:read` or roster membership (transcript), `flow:run` (convene, convenor close, flow start). Operator / convenor close: [bridges/meetings.md](../bridges/meetings.md) session mutation — **not** a view/gate.
 
 `murrmure_emit_event` for meeting types **requires** top-level `session_id`. HTTP emit requires `event:emit`. Hub-authored types are denylisted. Convenor listing of **foreign** personas is hub-mediated via `murrmure_list_invitable_spaces` and inside convene — not `GET /v1/spaces/{other}/personas`. Bootstrap / `hub:admin` see every active space; other callers see their bound space plus active matching `space:read` grants.
 
@@ -600,14 +605,15 @@ Reuse `INLINE_PAYLOAD_EXCEEDED`, `EXECUTOR_UNAVAILABLE`. `QUERY_POLICY_DENIED` i
 3. Second `said` to the same live seat → **same** `session_id`, no second session; assignment reused when live.
 4. `said` with no `in_reply_to` accepted; unknown `in_reply_to` → `REPLY_UNKNOWN`.
 5. Assignment protocol block has trigger + `since_seq` and does not contain prior message bodies.
-6. Non-chair `closed` → `MEETING_CHAIR_REQUIRED`; after chair close, `said` → `MEETING_CLOSED`.
+6. Non-chair agent `closed` → `MEETING_CHAIR_REQUIRED`; a human operator may
+   close any room they can read. After close, `said` → `MEETING_CLOSED`.
 7. `GET …/personas` returns ads only (no prompts).
 8. `query_ask` unchanged; meetings do not use it.
 9. Shell Transcript on `/sessions/:id` needs no `view_resolver` — [shell/spec.md](../shell/spec.md).
 10. Flow with `research → decide (meeting:) → implement`: opening `decide` convenes on the same `ses_*`; close advances to `implement`.
 11. Persistent seat starts one OS process on convene; two later `said` messages create no additional spawn; close terminates it.
-12. Human chair sends to one or many seats; Transcript stamps `{ human: true }`, `HH:mm:ss` source time, delivery latency, and reply latency.
-13. After close, human chair Resume keeps `ses_*` + `ptc_*`, journals `resumed`, and `said` works again.
+12. A human operator sends to one or many seats; Transcript stamps `{ human: true }`, `HH:mm:ss` source time, delivery latency, and reply latency.
+13. After close, operator Resume keeps `ses_*` + `ptc_*`, journals `resumed`, and `said` works again.
 
 ---
 

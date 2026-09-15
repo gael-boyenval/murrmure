@@ -12,7 +12,7 @@
 - `MeetingListRow` includes `status: closed` and `roster`.
 - `directives.eligible()` → `GET /v1/directives/eligible`.
 - `RunDetailPayload.result` carries the resolved step `message`.
-- `sessions.sayMeeting` sends a message as the authenticated human chair.
+- `sessions.sayMeeting` sends a message as the authenticated human operator.
 - Meeting transcript types expose source timestamps and delivery latency.
 
 ## 0.2.0

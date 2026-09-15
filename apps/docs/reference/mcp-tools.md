@@ -66,6 +66,7 @@ Example arguments:
 | `murrmure_list_directive_eligible` | `hub:admin` | `GET /v1/directives/eligible` — spaces that bind `step.opened::directive.execute`. Default `local-tools/v1` does not see this tool. |
 | `murrmure_start_directive` | `hub:admin` | Fan-out `POST /v1/flows/flw_mrmr_directive/run`. Required `prompt`. Optional `space_ids` / `space_id`; omit to start on every currently eligible space. Returns `{ starts: [{ space_id, ok, run_id?, session_id?, error? }] }`. |
 | `murrmure_start_meeting` | `flow:run` | `POST /v1/meetings` — convene (`participants`, `chair` required; `title`, `goal`, `session_id` optional) |
+| `murrmure_close_meeting` | `flow:run` | `POST /v1/sessions/{id}/meeting/close` — convenor space or human operator. `{ session_id, reason?, outcome?, failed? }`. Kills every seat PTY. Chair seats may still emit `mrmr.meeting.closed`. |
 | `murrmure_meeting_transcript` | roster space or `journal:read` on a roster space | `GET /v1/sessions/{id}/transcript?since_seq=` — fold `mrmr.meeting.*` only, including authoritative `goal`, message/receipt timestamps and delivery latency. Pull; do not use `murrmure_journal_query` as the chat. |
 | `murrmure_get_artifact` | `space:read` + artifact ACL | Materialize `transfer_id` (`artifact_id` accepted as an input alias) into the authenticated space's `.mrmr/dev/inbox/` and return safe verified metadata + relative `local_path` (ACL readers omitted). |
 | `murrmure_put_artifact` | `blob:write` (or `space:write`) | Upload bytes (`content` + `name`, max 64 KiB) or a space-relative `path`. Returns `{ transfer_id, digest, name, size_bytes }`. Meeting attach: put → `said` with `artifacts: [xfr_*]` → peer `get_artifact`. |
@@ -133,7 +134,7 @@ Do not loop foreign `murrmure_list_personas({ space_id })` — that tool stays s
 
 `session_id` is optional for ordinary events (handler delivery still `createSession`). It is **required** for `mrmr.meeting.*`. HTTP `POST /v1/spaces/{id}/events` also requires `event:emit` and returns the real journal `seq`.
 
-`mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. Chair may emit `mrmr.meeting.closed`; a human chair uses `POST /v1/sessions/{id}/meeting/say` (Hub stamps `{ human: true }`) and `/meeting/close`.
+`mrmr.meeting.said` data: `{ as_participant_id, to: { participant_ids }|{ all: true }, text, in_reply_to?, artifacts? }`. Hub stamps `from` and mints `msg_*`. After close, further `said` is `MEETING_CLOSED`. The convenor calls `murrmure_close_meeting`. Chair may emit `mrmr.meeting.closed`; a human operator uses `POST /v1/sessions/{id}/meeting/say` (Hub stamps `{ human: true }`) and `/meeting/close`.
 
 Seat assignments use `Protocol: murrmure.meeting/v1` (trigger ids + `since_seq` + verbatim `goal`). The envelope `goal` and `murrmure_meeting_transcript.goal` are authoritative; chair `said` may clarify or override. If the goal names this seat, do that work this turn. Pull with `murrmure_meeting_transcript`; reply with `murrmure_emit_event` `said`. Do not `murrmure_resolve_step` the room and do not paste the journal. Later turns arrive as control `murrmure/control.meeting_said` on the live assignment — not a new `invoke_action` and not `pending-wake.json`.
 

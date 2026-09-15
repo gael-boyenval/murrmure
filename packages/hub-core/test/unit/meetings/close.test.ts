@@ -133,4 +133,68 @@ describe("meetings/close", () => {
     if (closed.ok) expect(closed.outcome).toBe("failed");
     expect((await studio.getMeetingBySession(room.session_id))?.close_outcome).toBe("failed");
   });
+
+  test("convenor may close an agent-chaired room", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const deps = makeDeps(studio);
+    const room = await conveneMeeting(deps, {
+      title: "API shape",
+      participants: [
+        { space_id: `spc_${APP}`, persona: "designer" },
+        { space_id: `spc_${APP}`, persona: "qa" },
+      ],
+      chair: { space_id: `spc_${APP}`, persona: "designer" },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+    });
+    expect(room.ok).toBe(true);
+    if (!room.ok) return;
+
+    const denied = await closeMeeting(deps, {
+      session_id: room.session_id,
+      actor_id: "actor_bob",
+      token_id: "tok_2",
+      human: true,
+    });
+    expect(denied).toMatchObject({
+      ok: false,
+      code: MURRMURE_DENIAL_CODES.MEETING_CHAIR_REQUIRED,
+    });
+
+    const asConvenor = await closeMeeting(deps, {
+      session_id: room.session_id,
+      actor_id: "actor_carol",
+      token_id: "tok_3",
+      human: true,
+      convenor: true,
+    });
+    expect(asConvenor.ok).toBe(true);
+    expect((await studio.getMeetingBySession(room.session_id))?.status).toBe("closed");
+  });
+
+  test("operator may close after convenor path is unused", async () => {
+    const studio = new MemoryStudioPersistence();
+    await seed(studio);
+    const deps = makeDeps(studio);
+    const room = await conveneMeeting(deps, {
+      title: "API shape",
+      participants: [{ space_id: `spc_${APP}`, persona: "designer" }],
+      chair: { space_id: `spc_${APP}`, persona: "designer" },
+      actor_id: "actor_alice",
+      token_id: "tok_1",
+    });
+    expect(room.ok).toBe(true);
+    if (!room.ok) return;
+
+    const closed = await closeMeeting(deps, {
+      session_id: room.session_id,
+      actor_id: "actor_bob",
+      token_id: "tok_2",
+      human: true,
+      operator: true,
+    });
+    expect(closed.ok).toBe(true);
+    expect((await studio.getMeetingBySession(room.session_id))?.status).toBe("closed");
+  });
 });
